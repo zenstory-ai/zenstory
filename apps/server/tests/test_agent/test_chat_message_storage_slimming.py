@@ -1002,3 +1002,97 @@ def test_backfill_skips_compaction_archival_when_anchor_row_is_missing(db_sessio
     assert report.tool_calls_archived == 0
     db_session.expire_all()
     assert json.loads(db_session.get(ChatMessage, "orphan-pre").tool_calls)[0]["result"][0]["content"] == "保留正文"
+
+
+@pytest.mark.unit
+def test_compact_historical_chat_messages_archives_read_files_and_search_files(db_session: Session) -> None:
+    """P1-1: Historical compaction backfill detects and archives read_files and search_files payloads."""
+    _user, _project, chat = _seed_project(db_session)
+    now = datetime(2026, 11, 26, 12, 0, 0)
+    idle_ts = now - timedelta(days=10)
+
+    db_session.add_all(
+        [
+            ChatMessage(
+                id="v2-read-msg",
+                session_id=chat.id,
+                role="assistant",
+                content="已读完。",
+                created_at=idle_ts,
+                tool_calls=json.dumps(
+                    [
+                        {
+                            "id": "tc-rf",
+                            "name": "read_files",
+                            "arguments": {"ids": ["f1"]},
+                            "status": "success",
+                            "result": [{"id": "f1", "title": "第一章", "file_type": "draft", "content": "正" * 6000}],
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+            ),
+            ChatMessage(
+                id="v2-search-msg",
+                session_id=chat.id,
+                role="assistant",
+                content="已搜索完。",
+                created_at=idle_ts + timedelta(seconds=10),
+                tool_calls=json.dumps(
+                    [
+                        {
+                            "id": "tc-sf",
+                            "name": "search_files",
+                            "arguments": {"query": "怀表"},
+                            "status": "success",
+                            "result": {
+                                "query": "怀表",
+                                "total_matches": 1,
+                                "matched_files": 1,
+                                "files": [
+                                    {
+                                        "id": "f1",
+                                        "title": "第一章",
+                                        "file_type": "draft",
+                                        "match_count": 1,
+                                        "matches": [{"snippet": "怀表" * 1500}],
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    bind = db_session.get_bind()
+    dry = compact_historical_chat_messages(
+        lambda: Session(bind),
+        dry_run=True,
+        batch_size=10,
+        sleep_ms=0,
+        idle_days=7,
+        now=now,
+    )
+    assert dry.tool_calls_archived == 2
+    assert dry.tool_calls_bytes_saved > 5000
+
+    applied = compact_historical_chat_messages(
+        lambda: Session(bind),
+        dry_run=False,
+        batch_size=10,
+        sleep_ms=0,
+        idle_days=7,
+        now=now,
+    )
+    assert applied.tool_calls_archived == 2
+    db_session.expire_all()
+    read_calls = json.loads(db_session.get(ChatMessage, "v2-read-msg").tool_calls)
+    search_calls = json.loads(db_session.get(ChatMessage, "v2-search-msg").tool_calls)
+    assert "content" not in read_calls[0]["result"][0]
+    assert read_calls[0]["result"][0]["archived_note"] == ARCHIVED_QUERY_CONTENT_NOTE
+    assert "matches" not in search_calls[0]["result"]["files"][0]
+    assert search_calls[0]["result"]["files"][0]["archived_note"] == ARCHIVED_QUERY_CONTENT_NOTE

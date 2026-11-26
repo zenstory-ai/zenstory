@@ -20,10 +20,12 @@ LOOP_TOOL_NAMES: list[str] = [
     "edit_file",
     "delete_file",
     "rename_file",
-    "query_files",
+    "read_files",
+    "search_files",
     "update_project",
     "load_skill",
     "read_skill_resource",
+    "batch_replace_files",
 ]
 
 # Name -> MCP handler

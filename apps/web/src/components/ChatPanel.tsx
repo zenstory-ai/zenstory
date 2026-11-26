@@ -891,6 +891,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       startFileStreaming,
       getCurrentStreamingFileId: () => streamingFileIdRef.current,
       activeProjectId: currentProjectId,
+      currentUserId: userId,
       // update_project 报告服务端给默认名项目改了名：只重读这一个项目，顶栏换上新名字。
       // 不走 refreshProjects——它会打开全局 loading，整个工作台（含本面板）被换成加载页。
       onProjectRenamed: (projectId) => {
@@ -908,6 +909,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     finishFileStreaming,
     startFileStreaming,
     currentProjectId,
+    userId,
     refreshProject,
     t,
   ]);

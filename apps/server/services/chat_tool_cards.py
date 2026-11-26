@@ -23,8 +23,8 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 
-# 带撤销锚点的 AI 修改卡：edit_file，以及单循环 agent 的整章替换（write_chapter）。
-_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
+# 带撤销锚点的 AI 修改卡：edit_file、batch_replace_files（逐文件 undo），以及单循环 agent 的整章替换（write_chapter）。
+_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter", "batch_replace_files"})
 _DELETE_CARD_TOOLS = frozenset({"delete_file"})
 _FAILED_CARD_STATUSES = frozenset({"error", "failed", "pending"})
 
@@ -126,9 +126,28 @@ def _match_edit_anchor(
     expected_after_updated_at: datetime,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
     data, undo = _card_undo(call)
+    if data is None:
+        return None
+    if call.get("name") == "batch_replace_files":
+        if data.get("dry_run") is True:
+            return None
+        entries = data.get("files") if isinstance(data.get("files"), list) else (
+            data.get("modified_files") if isinstance(data.get("modified_files"), list) else []
+        )
+        for entry in entries:
+            if not isinstance(entry, dict) or entry.get("id") != file_id:
+                continue
+            entry_undo = entry.get("undo")
+            if (
+                isinstance(entry_undo, dict)
+                and type(entry_undo.get("before_version_number")) is int
+                and entry_undo["before_version_number"] == before_version_number
+                and _same_token(entry_undo.get("expected_after_updated_at"), expected_after_updated_at)
+            ):
+                return entry, entry_undo
+        return None
     if (
-        data is None
-        or undo is None
+        undo is None
         or data.get("id") != file_id
         or type(undo.get("before_version_number")) is not int
         or undo["before_version_number"] != before_version_number

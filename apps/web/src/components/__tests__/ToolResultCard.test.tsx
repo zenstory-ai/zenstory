@@ -21,6 +21,48 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.files_found' && options?.count !== undefined) {
     return `Files found`
   }
+  if (key === 'chat:tool.files_read' && options?.count !== undefined) {
+    return `Read ${options.count} files`
+  }
+  if (key === 'chat:tool.read_files_count' && options?.count !== undefined) {
+    return `${options.count} files`
+  }
+  if (key === 'chat:tool.search_matches_many_in_one' && options?.matches !== undefined) {
+    return `Found ${options.matches} matches in 1 file`
+  }
+  if (key === 'chat:tool.search_matches_many_in_many' && options?.files !== undefined && options?.matches !== undefined) {
+    return `Found ${options.matches} matches across ${options.files} files`
+  }
+  if (key === 'chat:tool.search_file_match_count' && options?.count !== undefined) {
+    return `${options.count} matches`
+  }
+  if (key === 'chat:tool.batch_replace_scope_files' && options?.count !== undefined) {
+    return `${options.count} files`
+  }
+  if (key === 'chat:tool.batch_replace_preview_many_in_one' && options?.matches !== undefined) {
+    return `Preview: ${options.matches} matches in 1 file`
+  }
+  if (key === 'chat:tool.batch_replace_preview_many_in_many' && options?.files !== undefined && options?.matches !== undefined) {
+    return `Preview: ${options.matches} matches across ${options.files} files`
+  }
+  if (key === 'chat:tool.batch_replace_done_many_in_one' && options?.matches !== undefined) {
+    return `Replaced ${options.matches} matches in 1 file`
+  }
+  if (key === 'chat:tool.batch_replace_done_many_in_many' && options?.files !== undefined && options?.matches !== undefined) {
+    return `Replaced ${options.matches} matches across ${options.files} files`
+  }
+  if (key === 'chat:tool.batch_replace_failed_count' && options?.count !== undefined) {
+    return `${options.count} files skipped`
+  }
+  if (key === 'chat:tool.batch_replace_remaining_files' && options?.count !== undefined) {
+    return `${options.count} more files remaining`
+  }
+  if (key === 'chat:tool.batch_replace_file_count' && options?.count !== undefined) {
+    return `${options.count} replacements`
+  }
+  if (key === 'chat:tool.batch_replace_view_files' && options?.count !== undefined) {
+    return `View affected files (${options.count})`
+  }
   if (key === 'chat:tool.parallelTaskLabel' && options?.label !== undefined) {
     return `${options.label}:`
   }
@@ -73,6 +115,18 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:tool.chapterReplacedUnnumbered': 'Replaced chapter',
     'chat:tool.delete_file': 'Delete file',
     'chat:tool.query_files': 'Query files',
+    'chat:tool.read_files': 'Read files',
+    'chat:tool.search_files': 'Search files',
+    'chat:tool.batch_replace_files': 'Batch replace',
+    'chat:tool.no_files_read': 'No files read',
+    'chat:tool.no_search_matches': 'No matches found',
+    'chat:tool.search_matches_one_in_one': 'Found 1 match in 1 file',
+    'chat:tool.batch_replace_preview_badge': 'Preview',
+    'chat:tool.batch_replace_preview_pending': 'Previewing matches',
+    'chat:tool.batch_replace_preview_none': 'Preview: no matches to replace',
+    'chat:tool.batch_replace_preview_one_in_one': 'Preview: 1 match in 1 file',
+    'chat:tool.batch_replace_no_changes': 'No matching text found; no files changed',
+    'chat:tool.batch_replace_done_one_in_one': 'Replaced 1 match in 1 file',
     'chat:tool.update_project': 'Update project',
     'chat:tool.load_skill': 'Load skill',
     'chat:tool.read_skill_resource': 'Read skill resource',
@@ -192,7 +246,46 @@ describe('ToolResultCard', () => {
           result={{ file_type: 'character' }}
         />
       )
-      // Query description is shown
+      expect(screen.getByText('Query files')).toBeInTheDocument()
+      expect(screen.getByText('Query Character')).toBeInTheDocument()
+    })
+
+    it('displays pending descriptions for read_files, search_files, and batch_replace_files', () => {
+      const { rerender } = render(
+        <ToolResultCard
+          type="tool_call"
+          toolName="read_files"
+          isPending={true}
+          result={{ ids: ['f1', 'f2'], section: '第三幕' }}
+        />
+      )
+      expect(screen.getByText('Read files')).toBeInTheDocument()
+      expect(screen.getByText(/2 files · 「第三幕」/)).toBeInTheDocument()
+      expect(screen.queryByText(/read_files/)).not.toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ query: '沈长明', file_type: 'draft' }}
+        />
+      )
+      expect(screen.getByText('Search files')).toBeInTheDocument()
+      expect(screen.getByText(/Draft · 「沈长明」/)).toBeInTheDocument()
+      expect(screen.queryByText(/search_files/)).not.toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="batch_replace_files"
+          isPending={true}
+          result={{ dry_run: true, file_ids: ['f1', 'f2', 'f3'] }}
+        />
+      )
+      expect(screen.getByText('Batch replace')).toBeInTheDocument()
+      expect(screen.getByText(/Previewing matches · 3 files/)).toBeInTheDocument()
+      expect(screen.queryByText(/batch_replace_files/)).not.toBeInTheDocument()
     })
   })
 
@@ -571,6 +664,246 @@ describe('ToolResultCard', () => {
         />
       )
       expect(screen.getByText('No files found')).toBeInTheDocument()
+    })
+
+    it('renders read_files success with clickable file rows and empty fallback', async () => {
+      const user = userEvent.setup()
+      const onOpenFile = vi.fn()
+      const { rerender } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="read_files"
+          onOpenFile={onOpenFile}
+          result={{
+            data: {
+              files: [
+                { id: 'f1', title: '第一章 雨夜', file_type: 'draft' },
+                { id: 'f2', title: '林舟', file_type: 'character' },
+              ],
+            },
+          }}
+        />
+      )
+      expect(screen.getByText('Read 2 files')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /第一章 雨夜/ }))
+      expect(onOpenFile).toHaveBeenCalledWith('f1', 'draft', '第一章 雨夜')
+
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName="read_files"
+          result={{ data: { files: [] } }}
+        />
+      )
+      expect(screen.getByText('No files read')).toBeInTheDocument()
+    })
+
+    it('renders search_files success in both match mode and filtered list mode', () => {
+      const { rerender } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="search_files"
+          result={{
+            data: {
+              query: '青铜镜',
+              total_matches: 5,
+              matched_files: 2,
+              files: [
+                { id: 'f1', title: '第一章', file_type: 'draft', match_count: 3 },
+                { id: 'f2', title: '第五章', file_type: 'draft', match_count: 2 },
+              ],
+            },
+          }}
+        />
+      )
+      expect(screen.getByText('Found 5 matches across 2 files')).toBeInTheDocument()
+      expect(screen.getByText('「青铜镜」')).toBeInTheDocument()
+      expect(screen.getByText('3 matches')).toBeInTheDocument()
+      expect(screen.getByText('2 matches')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName="search_files"
+          result={{ data: { query: '不存在', total_matches: 0, matched_files: 0, files: [] } }}
+        />
+      )
+      expect(screen.getByText('No matches found')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName="search_files"
+          result={{ data: { files: [{ id: 'f3', title: '世界观', file_type: 'lore' }] } }}
+        />
+      )
+      expect(screen.getByText('Files found')).toBeInTheDocument()
+      expect(screen.getByText('世界观')).toBeInTheDocument()
+    })
+
+    it('renders batch_replace_files dry_run preview without undo controls or false modification state', () => {
+      const onUndo = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="batch_replace_files"
+          chatMessageId="msg-1"
+          toolUseId="tu-1"
+          onUndo={onUndo}
+          result={{
+            data: {
+              dry_run: true,
+              total_matches: 7,
+              files_matched: 2,
+              files_modified: 0,
+              modified_files: [
+                {
+                  id: 'f1',
+                  title: '第一章',
+                  file_type: 'draft',
+                  replacements: 4,
+                  undo: { before_version_number: 1, expected_after_updated_at: '2026-11-26T00:00:00Z' },
+                },
+                { id: 'f2', title: '第二章', file_type: 'draft', replacements: 3 },
+              ],
+            },
+          }}
+        />
+      )
+      expect(screen.getByText('Preview: 7 matches across 2 files')).toBeInTheDocument()
+      expect(screen.getByText('Preview')).toBeInTheDocument()
+      expect(screen.getByText('4 matches')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+    })
+
+    it('renders batch_replace_files real execution with counts, per-file undo, failed files, and remaining files', async () => {
+      const user = userEvent.setup()
+      const onUndo = vi.fn()
+      const onOpenFile = vi.fn()
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="batch_replace_files"
+          chatMessageId="msg-2"
+          toolUseId="tu-2"
+          onUndo={onUndo}
+          onOpenFile={onOpenFile}
+          result={{
+            data: {
+              dry_run: false,
+              total_matches: 4,
+              files_matched: 3,
+              files_modified: 2,
+              remaining_files: 5,
+              modified_files: [
+                {
+                  id: 'f1',
+                  title: '第一章',
+                  file_type: 'draft',
+                  replacements: 3,
+                  undo: { before_version_number: 2, expected_after_updated_at: '2026-11-26T01:00:00Z' },
+                },
+                { id: 'f2', title: '第二章', file_type: 'draft', replacements: 1 },
+              ],
+              failed_files: [
+                { id: 'f3', title: '第三章', error_type: 'stale_content' },
+              ],
+            },
+          }}
+        />
+      )
+      expect(screen.getByText('Replaced 4 matches across 2 files')).toBeInTheDocument()
+      expect(screen.getByText('1 files skipped')).toBeInTheDocument()
+      expect(screen.getByText('5 more files remaining')).toBeInTheDocument()
+      expect(screen.getByText('3 replacements')).toBeInTheDocument()
+      expect(screen.getByText('第三章')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /第一章/ }))
+      expect(onOpenFile).toHaveBeenCalledWith('f1', 'draft', '第一章')
+
+      await user.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(onUndo).toHaveBeenCalledWith({
+        fileId: 'f1',
+        beforeVersionNumber: 2,
+        expectedAfterUpdatedAt: '2026-11-26T01:00:00Z',
+        chatMessageId: 'msg-2',
+        toolUseId: 'tu-2',
+      })
+    })
+
+    it('renders batch_replace_files using Track A backend field names (files, modified_files count, total_replacements, skipped_files, remaining_count)', () => {
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="batch_replace_files"
+          result={{
+            data: {
+              dry_run: false,
+              mutation_applied: true,
+              matched_files: 4,
+              modified_files: 2,
+              total_replacements: 6,
+              files: [
+                { id: 'f1', title: '第一章', file_type: 'draft', replacements: 4 },
+                { id: 'f2', title: '第二章', file_type: 'draft', replacements: 2 },
+              ],
+              skipped_files: [
+                { id: 'f3', title: '第三章', reason: 'stale_content' },
+              ],
+              remaining_files: [{ id: 'f4', title: '第四章', file_type: 'draft' }],
+              remaining_count: 1,
+            },
+          }}
+        />
+      )
+      expect(screen.getByText('Replaced 6 matches across 2 files')).toBeInTheDocument()
+      expect(screen.getByText('1 files skipped')).toBeInTheDocument()
+      expect(screen.getByText('1 more files remaining')).toBeInTheDocument()
+      expect(screen.getByText('4 replacements')).toBeInTheDocument()
+      expect(screen.getByText('第三章')).toBeInTheDocument()
+      expect(screen.getByText(/chat:tool\.failureHint\.authorChanged/)).toBeInTheDocument()
+    })
+
+    it('renders pending search_files and batch_replace_files cards with plural args.file_types and legacy file_type', () => {
+      const { rerender } = render(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ query: '青铜镜', file_types: ['draft', 'outline'] }}
+        />
+      )
+      expect(screen.getByText('Draft / Outline · 「青铜镜」')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ file_types: ['character'] }}
+        />
+      )
+      expect(screen.getByText('Query Character')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="search_files"
+          isPending={true}
+          result={{ file_type: 'outline' }}
+        />
+      )
+      expect(screen.getByText('Query Outline')).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_call"
+          toolName="batch_replace_files"
+          isPending={true}
+          result={{ old_text: '林默', new_text: '沈砚', file_types: ['draft'], dry_run: true }}
+        />
+      )
+      expect(screen.getByText(/Draft/)).toBeInTheDocument()
     })
 
     it('renders edit_file success with details', () => {

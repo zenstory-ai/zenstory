@@ -148,7 +148,7 @@ def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -
 
 
 _FINGERPRINT_MUTATION_TOOLS = frozenset(
-    {"edit_file", "write_chapter", "create_file", "delete_file", "rename_file"}
+    {"edit_file", "batch_replace_files", "write_chapter", "create_file", "delete_file", "rename_file"}
 )
 
 
@@ -180,6 +180,25 @@ def _applied_file_mutations_for_fingerprints(
         res_data = res.get("data") if isinstance(res, dict) and isinstance(res.get("data"), dict) else res
         if res is False or res_data is False:
             continue
+        if name == "batch_replace_files":
+            if not isinstance(res_data, dict):
+                continue
+            if res_data.get("dry_run") is True or res_data.get("mutation_applied") is False:
+                continue
+            batch_entries = res_data.get("files") if isinstance(res_data.get("files"), list) else []
+            modified_count = res_data.get("modified_files")
+            has_batch_writes = bool(batch_entries) or (
+                isinstance(modified_count, int) and not isinstance(modified_count, bool) and modified_count > 0
+            )
+            if not has_batch_writes:
+                continue
+            for entry in batch_entries:
+                if isinstance(entry, dict):
+                    fid = entry.get("id")
+                    if isinstance(fid, str) and fid.strip():
+                        mutated_ids.add(fid.strip())
+            any_mutation = True
+            continue
         if isinstance(res_data, dict):
             if res_data.get("mutation_applied") is False or res_data.get("all_failed") is True:
                 continue
@@ -207,10 +226,10 @@ def _applied_file_mutations_for_fingerprints(
 def _read_file_hashes_for_fingerprints(
     tool_calls: list[dict[str, Any]],
 ) -> tuple[dict[str, str], set[str]]:
-    """Return ``(full_read_hashes, all_read_file_ids)`` for successful ``query_files`` calls this turn.
+    """Return ``(full_read_hashes, all_read_file_ids)`` for successful ``read_files`` / ``query_files`` calls this turn.
 
     Used before storing ``wire_prefix_cache`` so:
-    - Path A: any file read via ``query_files`` updates (or evicts, for partial/truncated/short reads)
+    - Path A: any file read via ``read_files`` / ``query_files`` updates (or evicts, for partial/truncated/short reads)
       ``cached_file_hashes[fid]`` even when no write tool ran, preventing a later author revert
       (V1 -> V2 -> V1) from emitting a stale ``unchanged`` pointer while the model last saw V2.
     - Path B: if any file alerted in ``<author_edits>`` was read this turn, ``author_edits_sha256``
@@ -235,13 +254,20 @@ def _read_file_hashes_for_fingerprints(
                 all_read_ids.add(fid)
                 is_partial = bool(node.get("content_truncated") or node.get("content_partial"))
                 content = node.get("content")
-                raw_sha = node.get("content_sha256")
+                raw_sha = node.get("raw_content_sha256")
+                if not (isinstance(raw_sha, str) and raw_sha.strip()):
+                    raw_sha = node.get("content_sha256")
+                has_raw_sha = isinstance(raw_sha, str) and bool(raw_sha.strip())
                 if not is_partial and isinstance(content, str):
                     if len(content) >= _WARM_DEDUP_FILE_MIN_CHARS:
-                        full_read_hashes[fid] = content_sha256(content)
+                        full_read_hashes[fid] = (
+                            raw_sha.strip()
+                            if node.get("paragraph_stats_annotated") is True and has_raw_sha
+                            else content_sha256(content)
+                        )
                     else:
                         full_read_hashes.pop(fid, None)
-                elif not is_partial and isinstance(raw_sha, str) and raw_sha.strip():
+                elif not is_partial and has_raw_sha:
                     full_read_hashes[fid] = raw_sha.strip()
                 else:
                     full_read_hashes.pop(fid, None)
@@ -253,7 +279,7 @@ def _read_file_hashes_for_fingerprints(
     for tc in tool_calls:
         if not isinstance(tc, dict):
             continue
-        if str(tc.get("name") or "").strip() != "query_files":
+        if str(tc.get("name") or "").strip() not in ("query_files", "read_files"):
             continue
         if str(tc.get("status") or "").strip().lower() != "success":
             continue
@@ -268,7 +294,7 @@ def _read_file_hashes_for_fingerprints(
 
 
 def _wire_prefix_slimmed_only_file_ids(items: list[dict[str, Any]]) -> set[str]:
-    """Identify files whose latest ``query_files`` entry in cached wire items is persist-slimmed
+    """Identify files whose latest ``read_files`` / ``query_files`` entry in cached wire items is persist-slimmed
     (``archived_note`` without ``content``), e.g. from a prior cold replay -> warm cache hop."""
     slimmed_only: set[str] = set()
 
@@ -2231,7 +2257,10 @@ class AgentService:
                                 from agent.loop.history import query_result_full_file_ids
 
                                 for tc in all_tool_calls:
-                                    if tc.get("name") == "query_files" and str(tc.get("status") or "").lower() == "success":
+                                    if (
+                                        tc.get("name") in ("query_files", "read_files")
+                                        and str(tc.get("status") or "").lower() == "success"
+                                    ):
                                         for fid in query_result_full_file_ids(
                                             tc.get("result"), include_slimmed_sha256=True
                                         ):

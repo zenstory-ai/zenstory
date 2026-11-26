@@ -5,6 +5,7 @@ import { projectApi } from '../lib/api';
 import { useAuth } from './AuthContext';
 import { logger } from '../lib/logger';
 import { trackEvent } from '../lib/analytics';
+import { rearmAiFileOpened } from '../lib/activationEvents';
 
 type DiffReviewModule = typeof import('../lib/diffReview');
 
@@ -253,9 +254,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Trigger editor refresh (called when file is edited by AI)
   const triggerEditorRefresh = useCallback((fileId: string) => {
+    rearmAiFileOpened(user?.id ?? null, fileId);
     setLastEditedFileId(fileId);
     setEditorRefreshVersion(v => v + 1);
-  }, []);
+  }, [user?.id]);
 
   // Start file streaming (called when file_created event received)
   const startFileStreaming = useCallback((fileId: string) => {

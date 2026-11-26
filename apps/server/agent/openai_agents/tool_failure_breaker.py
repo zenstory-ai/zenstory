@@ -100,8 +100,12 @@ _SPACE_RE = re.compile(r"\s+")
 _SQL_DETAIL_RE = re.compile(r"\s*\[SQL:.*$", re.DOTALL)
 
 
-def _normalize_arguments(raw_arguments: str) -> str:
+def _normalize_arguments(
+    raw_arguments: str, *, parsed_args: dict[str, Any] | None = None
+) -> str:
     """把工具参数归一成可比较的键：键排序的紧凑 JSON；解析失败则用原文。"""
+    if parsed_args is not None:
+        return json.dumps(parsed_args, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     raw = raw_arguments or ""
     parsed, parse_error, _metadata = parse_json_object(raw)
     if parse_error is not None:
@@ -109,13 +113,19 @@ def _normalize_arguments(raw_arguments: str) -> str:
     return json.dumps(parsed, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def _parsed_arguments(raw_arguments: str) -> dict[str, Any] | None:
+def _parsed_arguments(
+    raw_arguments: str, *, parsed_args: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
+    if parsed_args is not None:
+        return parsed_args
     parsed, parse_error, _metadata = parse_json_object(raw_arguments or "")
     return parsed if parse_error is None and isinstance(parsed, dict) else None
 
 
-def _file_id_from_arguments(raw_arguments: str) -> str:
-    parsed = _parsed_arguments(raw_arguments)
+def _file_id_from_arguments(
+    raw_arguments: str, *, parsed_args: dict[str, Any] | None = None
+) -> str:
+    parsed = _parsed_arguments(raw_arguments, parsed_args=parsed_args)
     if parsed is None:
         return ""
     raw_id = parsed.get("id") or parsed.get("file_id") or parsed.get("fileId")
@@ -123,7 +133,11 @@ def _file_id_from_arguments(raw_arguments: str) -> str:
 
 
 def _recovery_family_key(
-    tool_name: str, raw_arguments: str, payload: dict[str, Any]
+    tool_name: str,
+    raw_arguments: str,
+    payload: dict[str, Any],
+    *,
+    parsed_args: dict[str, Any] | None = None,
 ) -> tuple[str, str, str] | None:
     """Return a structured recovery family; never infer meaning from prose."""
     if tool_name != "edit_file":
@@ -134,14 +148,18 @@ def _recovery_family_key(
         # not part of this key. We do not choose or correct an ID; we only stop blind guessing.
         return _FILE_NOT_FOUND_FAMILY
     if error_type == _ANCHOR_NOT_FOUND_ERROR_TYPE:
-        file_id = _file_id_from_arguments(raw_arguments)
+        file_id = _file_id_from_arguments(raw_arguments, parsed_args=parsed_args)
         if file_id:
             return (tool_name, _ANCHOR_NOT_FOUND_ERROR_TYPE, file_id)
     return None
 
 
 def _clear_recovery_families(
-    families: dict[tuple[str, str, str], int], tool_name: str, raw_arguments: str
+    families: dict[tuple[str, str, str], int],
+    tool_name: str,
+    raw_arguments: str,
+    *,
+    parsed_args: dict[str, Any] | None = None,
 ) -> None:
     if tool_name != "edit_file":
         return
@@ -149,7 +167,7 @@ def _clear_recovery_families(
     # requested mutation was a no-op. It is the only safe evidence for clearing the
     # request-wide invalid-ID family; a list read alone does not prove the copied ID.
     families.pop(_FILE_NOT_FOUND_FAMILY, None)
-    file_id = _file_id_from_arguments(raw_arguments)
+    file_id = _file_id_from_arguments(raw_arguments, parsed_args=parsed_args)
     if file_id:
         families.pop((tool_name, _ANCHOR_NOT_FOUND_ERROR_TYPE, file_id), None)
 
@@ -207,6 +225,8 @@ def _verified_mutated_file_id(
     tool_name: str,
     raw_arguments: str,
     payload: dict[str, Any] | None,
+    *,
+    parsed_args: dict[str, Any] | None = None,
 ) -> str:
     """工具结果代表一次真实落盘的文件改动时返回目标 file_id，否则返回空串。
 
@@ -225,7 +245,7 @@ def _verified_mutated_file_id(
         return ""
     if data.get("mutation_applied") is False:
         return ""
-    raw_id = data.get("id") or payload.get("id") or _file_id_from_arguments(raw_arguments)
+    raw_id = data.get("id") or payload.get("id") or _file_id_from_arguments(raw_arguments, parsed_args=parsed_args)
     return raw_id.strip() if isinstance(raw_id, str) and raw_id.strip() else ""
 
 
@@ -317,10 +337,18 @@ class ToolFailureBreaker:
             return self.max_lifetime_failures
         return self.max_failures_per_request * MAX_LIFETIME_TOOL_FAILURES_MULTIPLIER
 
-    def observe(self, tool_name: str, raw_arguments: str, output_text: str) -> str:
+    def observe(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        output_text: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> str:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
-        key = (tool_name, _normalize_arguments(raw_arguments))
-        raw_payload = _parse_json_dict(output_text)
+        key = (tool_name, _normalize_arguments(raw_arguments, parsed_args=parsed_args))
+        raw_payload = parsed_output if parsed_output is not None else _parse_json_dict(output_text)
         if _is_guard_skipped_payload(raw_payload):
             return output_text
         payload = raw_payload if raw_payload is not None and raw_payload.get("status") == "error" else None
@@ -331,10 +359,12 @@ class ToolFailureBreaker:
         if payload is None:
             # 同一调用成功：它的连续失败计数清零。
             self._streaks.pop(key, None)
-            _clear_recovery_families(self._recovery_families, tool_name, raw_arguments)
+            _clear_recovery_families(self._recovery_families, tool_name, raw_arguments, parsed_args=parsed_args)
             # 跨文件的真实有效写入（非空占位、非无改动）推进了批量任务，重置连续失败计数；
             # 同文件重复写入不重置，防止单文件交替空转；total_failures 仍单调递增并受 lifetime_failure_cap 兜底。
-            mutated_file_id = _verified_mutated_file_id(tool_name, raw_arguments, raw_payload)
+            mutated_file_id = _verified_mutated_file_id(
+                tool_name, raw_arguments, raw_payload, parsed_args=parsed_args
+            )
             if mutated_file_id and mutated_file_id != self._last_mutated_file_id:
                 self.consecutive_failures = 0
                 self._last_mutated_file_id = mutated_file_id
@@ -353,7 +383,9 @@ class ToolFailureBreaker:
                 streak = _CallStreak(fingerprint=fingerprint, count=1)
                 self._streaks[key] = streak
 
-        recovery_key = _recovery_family_key(tool_name, raw_arguments, payload)
+        recovery_key = _recovery_family_key(
+            tool_name, raw_arguments, payload, parsed_args=parsed_args
+        )
         recovery_count = 0
         if recovery_key is not None:
             recovery_count = self._recovery_families.get(recovery_key, 0) + 1
@@ -441,15 +473,15 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
     if error_type == _FILE_NOT_FOUND_ERROR_TYPE:
         recovery = (
             "目标文件 id 已连续无效。不要猜测、枚举或改写相似 id；"
-            "先用 query_files 不带 id 查询当前文件列表，再从结果逐字复制目标 id。"
+            "先用 search_files 不带关键词查询当前文件列表，再从结果逐字复制目标 id。"
             "只有确认准确 id 后才能继续写；不能确认就停止并如实说明未修改，"
             "不能把失败解释成权限问题。"
         )
     else:
         recovery = (
-            "同一文件已连续定位失败。先用 query_files 按准确 id 重读当前文件"
-            "（仅超过 25000 字的超长文件才传 query=关键词 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
-            "从结果复制较短、逐字、唯一的 old/anchor；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) "
+            "同一文件已连续定位失败。先用 read_files(ids=[...]) 重读当前文件"
+            "（仅超过 25000 字的超长文件才用 search_files(query=关键词, ids=[...]) 精确取命中片段，或传 start_char 与 max_chars 按范围读取），"
+            "从结果复制较短、逐字、唯一的 old/anchor；同一文件的多处独立修改合并进一次 edit_file "
             "批量提交（超过 30 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
         )
         hinted["retry_hint"] = recovery

@@ -1528,6 +1528,27 @@ describe('MessageList', () => {
       expect(toggle).toHaveAttribute('aria-expanded', 'true')
     })
 
+    it('folds consecutive successful read_files and search_files calls into one read-only group while keeping batch_replace_files exposed', () => {
+      const ts = new Date('2026-11-26T03:00:00Z')
+      const displayItems = [
+        {
+          id: 'tc-ro-new',
+          type: 'tool_calls' as const,
+          timestamp: ts,
+          toolCalls: [
+            { id: 'rf-1', tool_name: 'read_files', arguments: { ids: ['f1'] }, status: 'success' as const, result: { files: [{ id: 'f1', title: '第一章' }] } },
+            { id: 'sf-1', tool_name: 'search_files', arguments: { query: '青铜镜' }, status: 'success' as const, result: { total_matches: 2, matched_files: 1, files: [{ id: 'f1', title: '第一章', match_count: 2 }] } },
+            { id: 'br-1', tool_name: 'batch_replace_files', arguments: { old_text: '旧名', new_text: '新名' }, status: 'success' as const, result: { dry_run: false, total_matches: 2, files_matched: 1, files_modified: 1, modified_files: [{ id: 'f1', title: '第一章', replacements: 2 }] } },
+          ],
+        },
+      ]
+
+      render(<MessageList messages={[createMessage({ role: 'assistant', content: '', displayItems })]} />)
+
+      expect(screen.getAllByTestId('readonly-tool-group')).toHaveLength(1)
+      expect(screen.getByText('chat:tool.batch_replace_done_many_in_one')).toBeInTheDocument()
+    })
+
     it('never folds pending read-only tools while streaming', () => {
       const ts = new Date('2026-11-24T03:00:00Z')
       const streamItems = [

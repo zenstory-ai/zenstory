@@ -21,7 +21,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Annotated, Any, ClassVar, Literal
 
-from annotated_types import Ge
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -41,16 +40,14 @@ TOOL_INPUT_VALIDATION_ERROR_TYPE = "invalid_tool_input"
 
 _FILE_TYPE_SCHEMA_VALUES = ("outline", "character", "lore", "snippet", "document", "folder")
 _ALL_FILE_TYPE_VALUES = ("outline", "character", "lore", "draft", "script", "snippet", "document", "folder")
+_EDIT_OP_SCHEMA_VALUES = ("replace", "append", "insert_after", "insert_before")
 
 AllFileType = Literal["outline", "character", "lore", "draft", "script", "snippet", "document", "folder"]
 CreateSchemaFileType = Literal["outline", "character", "lore", "snippet", "document", "folder"]
 ChapterFileType = Literal["draft", "script"]
 EditOpType = Literal["replace", "insert_after", "insert_before", "append", "prepend", "delete"]
 EditMatchMode = Literal["auto", "exact"]
-TaskStatusType = Literal["pending", "in_progress", "done"]
-TaskKindType = Literal["file", "conversation"]
 ArtifactFileType = Literal["outline", "draft", "script", "character", "lore", "snippet", "document"]
-UnitType = Literal["章", "集", "回", "幕", "卷", "节", "话"]
 
 
 # ---------------------------------------------------------------------------
@@ -404,52 +401,56 @@ class WriteChapterInput(_ToolInputModel):
 
 
 class EditOperationInput(_ToolInputModel):
-    """Schema model for a single edit item inside ``edit_file.edits``."""
+    """Schema model for a single edit item inside ``edit_file.edits``.
 
-    op: EditOpType = Field(
-        description="必填的操作类型；缺失时该项会在 failed_edits 中按 0-based index 明确列出，不会自动补全",
+    Public LLM schema exposes the 4 core ops (``replace``, ``append``, ``insert_after``,
+    ``insert_before``) with ``replace(new="")`` for deletion, while runtime validation
+    keeps backward compatibility with ``delete``, ``prepend``, ``replace_all``,
+    ``match_mode``, and ``ignore_punct_whitespace``.
+    """
+
+    _schema_excluded_fields: ClassVar[frozenset[str]] = frozenset(
+        {"match_mode", "ignore_punct_whitespace", "replace_all"}
+    )
+
+    op: Annotated[
+        EditOpType,
+        WithJsonSchema({"type": "string", "enum": list(_EDIT_OP_SCHEMA_VALUES)}),
+    ] = Field(
+        description='操作类型：replace(改/删；new=""即删除) / append(文末续写) / insert_after / insert_before',
     )
     old: StrictOptionalStr = Field(
         default=None,
-        description="要替换/删除的原文（用于replace/delete操作）。跨段时要照抄原文的换行和段首缩进，否则会被拒绝（不会把两段并成一段）",
+        description="replace 原文（跨段保留原文换行与缩进）",
     )
     new: StrictOptionalStr = Field(
         default=None,
-        description="替换后的新文本（replace 必填；想删除原文请用 delete，不要省略 new）",
+        description='replace 新文本（空串 "" 即删除原文）',
     )
     anchor: StrictOptionalStr = Field(
         default=None,
-        description="锚点文本（用于insert_after/insert_before操作）",
+        description="insert_after / insert_before 锚点",
     )
     text: StrictOptionalStr = Field(
         default=None,
-        description=(
-            "要写入的文本（insert_*/append/prepend 必填，不能为空）。"
-            "锚点是一段的结尾（insert_after）或开头（insert_before）时：要另起一段，"
-            "insert_after 的 text 以换行开头、insert_before 的以换行结尾，工具会换成本文已有的段落分隔与缩进；"
-            "不带换行的 text 接在这一段的末尾/开头（适合补一句）。一整句话不会插在句子中间"
-        ),
+        description="append / insert_* 写入文本（另起一段时 insert_after 以换行开头、insert_before 以换行结尾；不带换行接在段尾/段首）",
     )
     occurrence: OptionalNonBoolInt = Field(
         default=None,
         ge=1,
-        description=(
-            "当 old/anchor 匹配到多处时，指定要操作第几处（1-based，从 1 开始）。"
-            "适用于 replace/delete/insert_after/insert_before。"
-            "工具报「匹配到多个位置」时，首选加上这个参数（候选片段里已标出每处的序号），而不是 replace_all。"
-        ),
+        description="命中多处时指定第几处（1-based）",
     )
     replace_all: CoercedBool = Field(
         default=False,
-        description="是否替换所有匹配项（仅用于replace操作）。破坏性选项：会不加次数上限地替换全部匹配处。只想改其中一处请改用 occurrence。",
+        description="是否替换所有匹配项（仅用于 replace 操作）",
     )
     match_mode: EditMatchMode = Field(
         default="auto",
-        description="匹配模式：auto(默认，exact 失败后依次尝试模糊/近似匹配)；exact(只做逐字精确匹配，双引号写法差异除外，找不到就报错，适合不允许任何偏差的场景)",
+        description="匹配模式：auto（默认）或 exact",
     )
     ignore_punct_whitespace: CoercedBoolDefaultTrue = Field(
         default=True,
-        description="模糊匹配时是否忽略标点与空白差异（默认 true）。设为 false 可要求标点也逐字一致。",
+        description="模糊匹配时是否忽略标点与空白差异（默认 true）",
     )
 
 
@@ -467,27 +468,19 @@ class EditFileInput(_ToolInputModel):
 
     id: StrictStr = Field(
         validation_alias=AliasChoices("id", "file_id", "fileId"),
-        description="要编辑的文件ID",
+        description="文件 ID",
     )
     edits: Annotated[
         list[Any],
         WithJsonSchema({"type": "array", "items": _EDIT_OPERATION_ITEM_SCHEMA}),
     ] = Field(
         validation_alias=AliasChoices("edits", "operations"),
-        description=(
-            "编辑操作列表，每项必填 op。同文件多处独立修改合并进一次调用并传 continue_on_error=true"
-            "（超过 30 处或后项依赖前项时再拆分；不要对同一 id 并列多次调用）。"
-            '示例：[{"op": "replace", "old": "当前原文", "new": "替换文本"}]。'
-        ),
+        description="编辑列表（单次≤30处）；同文件多处独立修改合并进一次调用，勿对同一 id 并列多次调用",
     )
     continue_on_error: CoercedBool = Field(
         default=False,
         json_schema_extra=lambda schema: schema.pop("default", None),
-        description=(
-            "多处独立修改（edits>1，且不含 delete+insert/append/prepend 耦合搬移）默认按 continue_on_error=true 执行"
-            "（跳过失败项，其余照常生效，failed_edits 列出待补项；超过 30 处或后项依赖前项时拆分）；"
-            "单条或含 delete 与 insert/append/prepend 耦合搬移时默认 false，显式传 false 时任一处失败整体回滚，整批都仍待修改。"
-        ),
+        description="多条独立修改默认 true（部分失败返回 failed_edits），删+插搬移默认 false；显式 false 时任一失败整批回滚",
     )
 
     @model_validator(mode="before")
@@ -512,7 +505,18 @@ class EditFileInput(_ToolInputModel):
                 for item in normalized["edits"]
                 if isinstance(item, Mapping)
             }
-            has_coupled_move = "delete" in ops and bool(
+            has_delete_like = any(
+                isinstance(item, Mapping)
+                and (
+                    str(item.get("op") or "").strip().lower() == "delete"
+                    or (
+                        str(item.get("op") or "").strip().lower() in ("", "replace")
+                        and item.get("new") == ""
+                    )
+                )
+                for item in normalized["edits"]
+            )
+            has_coupled_move = has_delete_like and bool(
                 ops & {"insert_after", "insert_before", "append", "prepend"}
             )
             normalized["continue_on_error"] = not has_coupled_move
@@ -522,12 +526,12 @@ class EditFileInput(_ToolInputModel):
     @classmethod
     def _validate_id(cls, value: Any) -> str:
         if value is None:
-            raise ValueError("edit_file 缺少必填参数 id（别名 file_id），请先用 query_files 获取准确的文件 ID。")
+            raise ValueError("edit_file 缺少必填参数 id（别名 file_id），请先用 search_files 获取准确的文件 ID。")
         if not isinstance(value, str):
             raise ValueError("edit_file 参数 id 必须是字符串。")
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("edit_file 缺少必填参数 id（别名 file_id），请先用 query_files 获取准确的文件 ID。")
+            raise ValueError("edit_file 缺少必填参数 id（别名 file_id），请先用 search_files 获取准确的文件 ID。")
         return cleaned
 
     @field_validator("edits", mode="before")
@@ -619,24 +623,23 @@ class RenameFileInput(_ToolInputModel):
 
 
 class QueryFilesInput(_ToolInputModel):
-    """Input model for ``query_files``."""
+    """Input model for legacy ``query_files`` (kept for compatibility and rollback)."""
+
+    _schema_excluded_fields: ClassVar[frozenset[str]] = frozenset({"include_content", "content_preview_chars"})
 
     id: StrictOptionalStr = Field(
         default=None,
         validation_alias=AliasChoices("id", "file_id", "fileId"),
-        description="按文件ID精确查询。按 id 读取默认返回全文；只想看预览时显式传 response_mode=summary",
+        description="按文件 ID 读取单个文件全文",
     )
     ids: list[StrictStr] | None = Field(
         default=None,
         json_schema_extra={"maxItems": 5},
-        description="按多个文件ID一次批量精确读取（最多 5 个，按传入顺序返回，默认返回全文；读取 2–5 个已知文件时优先使用 ids 代替多次调用）",
+        description="按 2–5 个文件 ID 批量读取全文",
     )
     query: StrictOptionalStr = Field(
         default=None,
-        description=(
-            "搜索关键词（在标题和内容中按原文查找）。结果里每个文件附 match_count（正文命中处数）和 matches"
-            "（每处命中前后的原文，逐字，可直接作 edit_file 的 old/anchor）；只改这些位置时不必再读全文"
-        ),
+        description="搜索关键词（标题和正文），返回命中片段",
     )
     file_type: AllFileType | None = Field(
         default=None,
@@ -648,12 +651,12 @@ class QueryFilesInput(_ToolInputModel):
     )
     parent_id: StrictOptionalStr = Field(
         default=None,
-        description="父文件ID过滤",
+        description="父目录 ID 过滤",
     )
     limit: OptionalNonBoolInt = Field(
         default=None,
         json_schema_extra={"default": 50},
-        description="最大返回数量（默认 50；不按 id 且 response_mode=full 时默认 10）",
+        description="最大返回数量",
     )
     offset: OptionalNonBoolInt = Field(
         default=None,
@@ -663,15 +666,10 @@ class QueryFilesInput(_ToolInputModel):
     # Deferred to serialization.py so empty results & full-mode ignore keep exact legacy timing.
     response_mode: Annotated[
         Any,
-        WithJsonSchema({"type": "string", "enum": ["summary", "full"]}),
+        WithJsonSchema({"type": "string", "enum": ["summary", "full", "matches"]}),
     ] = Field(
         default=None,
-        description=(
-            "返回模式：full（返回完整 content）或 summary（只返回 content_preview，"
-            "并给出 content_length 与 content_truncated，content_truncated=true 表示只是预览，"
-            "这时不带 word_count——要长文件的字数按 id 读 full）。"
-            "不传时：按 id 读取默认 full，其余默认 summary"
-        ),
+        description="返回模式：full / summary / matches（按 id/ids 默认 full，其余默认 summary）",
     )
     content_preview_chars: Annotated[
         Any,
@@ -679,31 +677,35 @@ class QueryFilesInput(_ToolInputModel):
     ] = Field(
         default=None,
         json_schema_extra={"default": 200},
-        description="summary 模式下 content_preview 的最大字符数（显式传此参数表示要预览，不返回全文）",
+        description="summary 模式下预览最大字符数",
     )
     section: StrictOptionalStr = Field(
         default=None,
-        description="按 id 读多章合集/大纲时只读该标题段（如「第3章」「卷四」「Chapter 3」）；单章 draft 正文无内部标题，勿传 section，直接按 id 读全文",
+        description="仅多章合集/大纲文件按标题段读（单章 draft 正文勿用，如「第3章」）",
     )
     tail_chars: OptionalNonBoolInt = Field(
         default=None,
         ge=1,
-        description="按 id 读取时只读正文最后这么多个字符（上限 20000）",
+        description="单文件仅读结尾 N 字符（上限 20000）",
     )
     start_char: OptionalNonBoolInt = Field(
         default=None,
         ge=0,
-        description="仅用于超过 25000 字的超长文件按 id 分段读取：从第几个字符开始读（从 0 起），配合 max_chars；常规长度文件直接按 id 读全文，不要分段",
+        description="仅 >25000 字超长单文件分段起点（从 0 起）",
     )
     max_chars: OptionalNonBoolInt = Field(
         default=None,
         ge=1,
-        description="配合 start_char 读取超过 25000 字超长文件的字符数（默认 6000，上限 20000）",
+        description="配合 start_char（默认 6000，上限 20000）",
     )
     include_content: CoercedOptionalBool = Field(
         default=None,
         json_schema_extra={"default": False},
         description="兼容参数：true 等同于 response_mode=full",
+    )
+    show_paragraph_stats: CoercedBool = Field(
+        default=False,
+        description="true 时每段标 [P01 · N字]（edit_file 仍传原文，勿抄前缀）",
     )
 
     @model_validator(mode="before")
@@ -734,60 +736,162 @@ class QueryFilesInput(_ToolInputModel):
         return list(value)
 
 
-class UnitSpecInput(BaseModel):
-    """Schema model for ``update_project.tasks[].unit_spec``."""
+class ReadFilesInput(_ToolInputModel):
+    """Input model for ``read_files`` (exact-ID full or range reads)."""
 
-    model_config = ConfigDict(extra="forbid")
-
-    unit: UnitType
-    numbers: list[Annotated[Annotated[int, Ge(1)], BeforeValidator(_parse_non_bool_int)]] = Field(
-        min_length=1,
-        max_length=2001,
-        json_schema_extra={"uniqueItems": True},
+    ids: list[StrictStr] = Field(
+        json_schema_extra={"minItems": 1, "maxItems": 5},
+        description="1-5 个文件 ID",
     )
-
-
-class UpdateProjectTaskInput(BaseModel):
-    """Schema model for ``update_project.tasks[]``."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    task: str = Field(description="任务描述")
-    status: TaskStatusType = Field(
-        description="任务状态；同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending",
-    )
-    task_kind: TaskKindType | None = Field(
+    section: StrictOptionalStr = Field(
         default=None,
-        description="file 为文件交付任务，conversation 为明确的对话里程碑。不能把文件任务改成对话任务绕过产物验证。",
+        description="仅多章合集/大纲文件按标题段读（单章 draft 正文勿用，如「第3章」）",
     )
-    phase_id: str | None = Field(
+    tail_chars: OptionalNonBoolInt = Field(
         default=None,
-        description="阶段ID（可选，用于轻量 phase 状态机关联）",
+        ge=1,
+        description="单文件仅读结尾 N 字符（上限20000）",
     )
-    artifact: str | None = Field(
+    start_char: OptionalNonBoolInt = Field(
         default=None,
-        description="任务产出物（可选，例如文件名或里程碑）",
+        ge=0,
+        description="仅>25000字超长单文件分段起点",
     )
-    artifact_file_type: ArtifactFileType | None = Field(
+    max_chars: OptionalNonBoolInt = Field(
         default=None,
-        description="文件交付任务的产物类型。缺少类型的旧任务不会自动标完成；大纲不能证明正文交付。",
+        ge=1,
+        description="配合 start_char（默认6000，上限20000）",
     )
-    artifact_refs: list[Annotated[str, Field(min_length=1)]] | None = Field(
-        default=None,
-        json_schema_extra={"uniqueItems": True},
-        description="任务对应的实际 file_id 列表，不是文件名或展示路径。",
-    )
-    unit_spec: UnitSpecInput | None = Field(
-        default=None,
-        description="明确的交付编号。每章/集正文须有对应类型的实际文件，标题里的编号范围不算多章正文。",
-    )
-    done_when: str | None = Field(
-        default=None,
-        description="任务完成判定标准（可选）",
+    show_paragraph_stats: CoercedBool = Field(
+        default=False,
+        description="true 时每段标 [P01 · N字]（edit_file 仍传原文，勿抄前缀）",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_single_id_alias(cls, data: Any) -> Any:
+        if not isinstance(data, Mapping):
+            return data
+        normalized = dict(_resolve_id_aliases(data))
+        single_id = normalized.pop("id", None)
+        if single_id is not None:
+            if not isinstance(single_id, str):
+                raise ValueError("read_files 的 id 必须是字符串文件 ID")
+            cleaned_single = single_id.strip()
+            existing = normalized.get("ids")
+            if existing is None:
+                normalized["ids"] = [cleaned_single] if cleaned_single else []
+            elif isinstance(existing, list | tuple) and cleaned_single:
+                normalized["ids"] = [cleaned_single, *existing]
+        return normalized
 
-_UPDATE_PROJECT_TASK_ITEM_SCHEMA = export_tool_schema(UpdateProjectTaskInput)
+    @field_validator("ids", mode="before")
+    @classmethod
+    def _validate_ids(cls, value: Any) -> list[str]:
+        if value is None:
+            raise ValueError("read_files 缺少必填参数 ids（1-5 个文件 ID）")
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                raise ValueError("read_files 的 ids 不能为空，请传入 1-5 个文件 ID")
+            return [cleaned]
+        if isinstance(value, bytes) or not isinstance(value, list | tuple):
+            raise ValueError("read_files 的 ids 必须是文件 ID 列表（1-5 个）")
+        cleaned_list: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError("read_files 的 ids 每一项都必须是字符串文件 ID")
+            stripped = item.strip()
+            if stripped:
+                cleaned_list.append(stripped)
+        if not cleaned_list:
+            raise ValueError("read_files 的 ids 不能为空，请传入 1-5 个文件 ID")
+        return cleaned_list
+
+
+class SearchFilesInput(_ToolInputModel):
+    """Input model for ``search_files`` (cross-file keyword grep or filtered summary listing)."""
+
+    _schema_excluded_fields: ClassVar[frozenset[str]] = frozenset({"file_type", "id", "offset"})
+
+    query: StrictOptionalStr = Field(
+        default=None,
+        description="字面关键词（标题与正文）；不传则按条件列出文件摘要",
+    )
+    file_types: list[AllFileType] | None = Field(
+        default=None,
+        description="文件类型过滤",
+    )
+    parent_id: StrictOptionalStr = Field(
+        default=None,
+        description="父目录 ID 过滤",
+    )
+    ids: list[StrictStr] | None = Field(
+        default=None,
+        json_schema_extra={"maxItems": 30},
+        description="限定在这些文件 ID 内搜索",
+    )
+    limit: OptionalNonBoolInt = Field(
+        default=None,
+        ge=1,
+        json_schema_extra={"default": 30},
+        description="最大返回文件数",
+    )
+    # Runtime-compatible aliases / pagination hidden from public LLM schema.
+    file_type: AllFileType | None = None
+    id: StrictOptionalStr = None
+    offset: OptionalNonBoolInt = Field(default=None, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_aliases(cls, data: Any) -> Any:
+        if not isinstance(data, Mapping):
+            return data
+        normalized = dict(_resolve_id_aliases(data))
+        raw_ft = normalized.get("file_type")
+        if isinstance(raw_ft, str):
+            cleaned_ft = raw_ft.strip().lower()
+            normalized["file_type"] = cleaned_ft or None
+            if cleaned_ft and not normalized.get("file_types"):
+                normalized["file_types"] = [cleaned_ft]
+        raw_fts = normalized.get("file_types")
+        if isinstance(raw_fts, str):
+            cleaned_ft = raw_fts.strip().lower()
+            normalized["file_types"] = [cleaned_ft] if cleaned_ft else None
+        elif isinstance(raw_fts, list | tuple):
+            cleaned_fts = [
+                item.strip().lower() if isinstance(item, str) else item
+                for item in raw_fts
+                if not (isinstance(item, str) and not item.strip())
+            ]
+            normalized["file_types"] = cleaned_fts or None
+        single_id = normalized.get("id")
+        if isinstance(single_id, str) and single_id.strip():
+            existing_ids = normalized.get("ids")
+            if existing_ids is None:
+                normalized["ids"] = [single_id.strip()]
+            elif isinstance(existing_ids, list | tuple):
+                normalized["ids"] = [single_id.strip(), *existing_ids]
+        return normalized
+
+    @field_validator("ids", mode="before")
+    @classmethod
+    def _validate_ids(cls, value: Any) -> list[str] | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return [cleaned] if cleaned else None
+        if isinstance(value, bytes) or not isinstance(value, list | tuple):
+            raise ValueError("search_files 的 ids 必须是文件 ID 列表（最多 30 个）")
+        cleaned_list: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError("search_files 的 ids 每一项都必须是字符串文件 ID")
+            stripped = item.strip()
+            if stripped:
+                cleaned_list.append(stripped)
+        return cleaned_list or None
 
 
 class UpdateProjectInput(_ToolInputModel):
@@ -802,46 +906,30 @@ class UpdateProjectInput(_ToolInputModel):
     title: StrictOptionalStr = Field(
         default=None,
         json_schema_extra={"maxLength": 30},
-        description=(
-            "作品名，30 字以内，不带书名号。项目还叫默认名或之前由 AI 起的名字时生效；"
-            "结果里 project_name_updated=true 表示已改名，title_skipped=author_named 表示作者已自己起名、未改，"
-            "这时把 title_note 里的手动改名入口原样告诉作者，不要自己编入口"
-        ),
+        description="作品名（≤30字，无书名号）；仅默认名或AI起名时生效，冲突按返回 title_note 处理",
     )
     summary: StrictOptionalStr = Field(
         default=None,
         validation_alias=AliasChoices("summary", "projectSummary"),
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["summary"]},
-        description="项目摘要/背景介绍（整体替换；先合并现有内容；不写你自己选定或建议的内容）",
+        description="作品简介（整体覆写，先合并现有内容；不含AI建议）",
     )
     current_phase: StrictOptionalStr = Field(
         default=None,
         validation_alias=AliasChoices("current_phase", "currentPhase"),
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["current_phase"]},
-        description="当前写作阶段描述（作者会在 AI 记忆里看到，用作者使用的语言写）",
+        description="当前进度（用作者使用的语言写）",
     )
     writing_style: StrictOptionalStr = Field(
         default=None,
         validation_alias=AliasChoices("writing_style", "writingStyle"),
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["writing_style"]},
-        description="作者提过的写作风格要求（整体替换；先合并现有内容；不写你自己定的规则）",
+        description="作者确认的长期风格要求（整体覆写，先合并现有内容）",
     )
     notes: StrictOptionalStr = Field(
         default=None,
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"]},
-        description=(
-            "作者明确让你记住的内容，用作者原话，一条一件事（「；」或换行分隔），"
-            "不加推断、补充、前缀或括号；只传新条目，系统追加到写作约定末尾，已有条目原样保留"
-        ),
-    )
-    # Forwarded to ProjectOperations.execute_update_plan so partial saves (status updated +
-    # rejected plan) and legacy title/name task aliases keep exact behavior.
-    tasks: Annotated[
-        Any,
-        WithJsonSchema({"type": "array", "items": _UPDATE_PROJECT_TASK_ITEM_SCHEMA}),
-    ] = Field(
-        default=None,
-        description="完整任务列表；同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending",
+        description="作者明确要求记住的原话（仅传新条目，自动追加；一条一件事）",
     )
 
 
@@ -890,6 +978,124 @@ class ReadSkillResourceInput(_ToolInputModel):
         return value
 
 
+class BatchReplaceFilesInput(_ToolInputModel):
+    """Input model for ``batch_replace_files``."""
+
+    _schema_excluded_fields: ClassVar[frozenset[str]] = frozenset({"file_type"})
+
+    old_text: StrictStr = Field(
+        description="要精确替换的原文（逐字匹配，非正则，不能为空）",
+    )
+    new_text: StrictStr = Field(
+        description="替换后的新文本（可为空串表示删除，不能与 old_text 相同）",
+    )
+    file_ids: list[StrictStr] | None = Field(
+        default=None,
+        description="可选：限定只处理这些文件 ID；不传则扫描本项目所有非文件夹文件",
+    )
+    file_types: list[ArtifactFileType] | None = Field(
+        default=None,
+        description='可选：限定文件类型列表（如 ["draft"]、["draft", "script"]、["outline", "character"]）',
+    )
+    dry_run: CoercedBool = Field(
+        default=False,
+        description="设为 true 时只预览各文件命中次数与示例片段，不写入数据库",
+    )
+    # Runtime-compatible singular alias hidden from public LLM schema.
+    file_type: ArtifactFileType | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_file_types(cls, data: Any) -> Any:
+        if not isinstance(data, Mapping):
+            return data
+        normalized = dict(data)
+        merged: list[Any] = []
+
+        if "file_type" in normalized:
+            raw_ft = normalized.get("file_type")
+            if raw_ft is None:
+                normalized["file_type"] = None
+            elif isinstance(raw_ft, str):
+                cleaned_ft = raw_ft.strip().lower()
+                if cleaned_ft == "folder":
+                    raise ValueError("batch_replace_files 不支持 folder 类型")
+                normalized["file_type"] = cleaned_ft or None
+                if cleaned_ft:
+                    merged.append(cleaned_ft)
+            else:
+                merged.append(raw_ft)
+
+        if "file_types" in normalized:
+            raw_fts = normalized.get("file_types")
+            if raw_fts is None:
+                pass
+            elif isinstance(raw_fts, str):
+                cleaned_ft = raw_fts.strip().lower()
+                if cleaned_ft == "folder":
+                    raise ValueError("batch_replace_files 不支持 folder 类型")
+                if not cleaned_ft:
+                    raise ValueError("batch_replace_files 的 file_types 不能为空；省略此参数可扫描所有文件类型")
+                merged.append(cleaned_ft)
+            elif isinstance(raw_fts, list | tuple):
+                cleaned_items: list[Any] = []
+                for item in raw_fts:
+                    if isinstance(item, str):
+                        cleaned = item.strip().lower()
+                        if cleaned == "folder":
+                            raise ValueError("batch_replace_files 不支持 folder 类型")
+                        if not cleaned:
+                            raise ValueError("batch_replace_files 的 file_types 每一项都必须是非空文件类型")
+                        cleaned_items.append(cleaned)
+                    else:
+                        cleaned_items.append(item)
+                if not cleaned_items:
+                    raise ValueError("batch_replace_files 的 file_types 不能为空列表；省略此参数可扫描所有文件类型")
+                merged.extend(cleaned_items)
+            else:
+                raise ValueError("batch_replace_files 的 file_types 必须是文件类型列表")
+
+        if merged:
+            deduped: list[Any] = []
+            for item in merged:
+                if item not in deduped:
+                    deduped.append(item)
+            normalized["file_types"] = deduped
+        elif "file_types" in normalized and normalized.get("file_types") is None:
+            normalized["file_types"] = None
+
+        return normalized
+
+    @field_validator("old_text", mode="before")
+    @classmethod
+    def _validate_old_text(cls, value: Any) -> str:
+        if not isinstance(value, str) or not value:
+            raise ValueError("batch_replace_files 的 old_text 必须是非空字符串")
+        return value
+
+    @field_validator("file_ids", mode="before")
+    @classmethod
+    def _validate_file_ids(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str | bytes) or not isinstance(value, list | tuple):
+            raise ValueError("batch_replace_files 的 file_ids 必须是文件 ID 字符串列表")
+        cleaned: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("batch_replace_files 的 file_ids 每一项都必须是非空字符串文件 ID")
+            cleaned.append(item.strip())
+        if not cleaned:
+            raise ValueError("batch_replace_files 的 file_ids 不能为空列表；省略此参数可扫描整个项目")
+        return cleaned
+
+    @model_validator(mode="after")
+    def _check_old_differs_from_new(self) -> BatchReplaceFilesInput:
+        if self.old_text == self.new_text:
+            raise ValueError("batch_replace_files 的 old_text 与 new_text 相同，无需替换")
+        return self
+
+
 TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "create_file": CreateFileInput,
     "write_chapter": WriteChapterInput,
@@ -897,9 +1103,12 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "delete_file": DeleteFileInput,
     "rename_file": RenameFileInput,
     "query_files": QueryFilesInput,
+    "read_files": ReadFilesInput,
+    "search_files": SearchFilesInput,
     "update_project": UpdateProjectInput,
     "load_skill": LoadSkillInput,
     "read_skill_resource": ReadSkillResourceInput,
+    "batch_replace_files": BatchReplaceFilesInput,
 }
 
 
@@ -928,7 +1137,18 @@ def _format_single_error(err: Mapping[str, Any]) -> tuple[str, bool]:
 
     if err_type == "value_error":
         cleaned = _clean_pydantic_value_error(raw_msg)
-        if loc and not cleaned.startswith((loc, "write_chapter", "edit_file", "delete_file", "rename_file", "load_skill", "read_skill_resource")):
+        if loc and not cleaned.startswith((
+            loc,
+            "write_chapter",
+            "edit_file",
+            "delete_file",
+            "rename_file",
+            "read_files",
+            "search_files",
+            "load_skill",
+            "read_skill_resource",
+            "batch_replace_files",
+        )):
             return f"参数 {loc} {cleaned}", False
         return cleaned, True
 
@@ -1058,6 +1278,7 @@ def validate_tool_input[ModelT: BaseModel](
 __all__ = [
     "TOOL_INPUT_MODELS",
     "TOOL_INPUT_VALIDATION_ERROR_TYPE",
+    "BatchReplaceFilesInput",
     "CoercedBool",
     "CoercedBoolDefaultTrue",
     "CoercedOptionalBool",
@@ -1069,13 +1290,13 @@ __all__ = [
     "NonBoolInt",
     "OptionalNonBoolInt",
     "QueryFilesInput",
+    "ReadFilesInput",
     "ReadSkillResourceInput",
     "RenameFileInput",
+    "SearchFilesInput",
     "StrictOptionalStr",
     "StrictStr",
-    "UnitSpecInput",
     "UpdateProjectInput",
-    "UpdateProjectTaskInput",
     "WriteChapterInput",
     "build_tool_schema",
     "export_tool_schema",

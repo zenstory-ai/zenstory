@@ -55,10 +55,10 @@ async def test_tool_timing_records_the_executed_tool_once():
 
     with patch.dict(
         "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
-        {"edit_file": fake_tool, "query_files": fake_tool},
+        {"edit_file": fake_tool, "read_files": fake_tool},
     ):
         tools = {tool.name: tool for tool in build_agent_function_tools(run_meter=meter)}
-        allowed = await tools["query_files"].on_invoke_tool(
+        allowed = await tools["read_files"].on_invoke_tool(
             None,
             '{"ids":["draft-1"]}',
         )
@@ -176,7 +176,7 @@ async def test_tool_timing_ignores_circuit_and_read_guard_short_circuits():
         is_open = False
 
         @staticmethod
-        def plan(_tool_name, _arguments):
+        def plan(_tool_name, _arguments, **_kwargs):
             return SimpleNamespace(
                 arguments="{}",
                 blocked_output=json.dumps({"status": "error", "error_type": "repeated_read"}),
@@ -198,8 +198,8 @@ async def test_tool_timing_ignores_circuit_and_read_guard_short_circuits():
         )
     }
 
-    assert json.loads(await breaker_tools["query_files"].on_invoke_tool(None, "{}"))["status"] == "error"
-    assert json.loads(await guard_tools["query_files"].on_invoke_tool(None, "{}"))["status"] == "error"
+    assert json.loads(await breaker_tools["read_files"].on_invoke_tool(None, "{}"))["status"] == "error"
+    assert json.loads(await guard_tools["read_files"].on_invoke_tool(None, "{}"))["status"] == "error"
     assert meter.first_tool_marks == 0
     assert meter.stages == []
 

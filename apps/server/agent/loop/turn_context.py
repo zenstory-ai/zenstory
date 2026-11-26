@@ -407,9 +407,9 @@ def _project_files_block(
     lines = [PROJECT_FILES_OPEN, *(line for _, line in shown)]
     if remaining > 0:
         footer = (
-            f"... (+{remaining} more; use query_files to list or search remaining files)"
+            f"... (+{remaining} more; use search_files to list or search remaining files)"
             if force_en
-            else f"... (+{remaining} more；其余文件可用 query_files 查阅)"
+            else f"... (+{remaining} more；其余文件可用 search_files 查阅)"
         )
         lines.append(footer)
     lines.append(PROJECT_FILES_CLOSE)

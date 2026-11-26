@@ -6,8 +6,9 @@ Performs two safe, idempotent cleanups on historical ``chat_message`` rows:
 1. Clears duplicate ``reasoning_content`` ONLY on assistant rows whose
    ``message_metadata.display_events`` already contain non-empty ``thinking_content``.
 2. Archives heavy query payloads (``content``, ``content_preview``, ``matches``,
-   ``author_edits``, ``file_metadata``, ``content_range``) inside ``query_files``
-   and legacy ``parallel_execute`` query subtasks ONLY on assistant rows that are:
+   ``author_edits``, ``file_metadata``, ``content_range``) inside ``read_files``,
+   ``search_files``, ``query_files`` and legacy ``parallel_execute`` query subtasks
+   ONLY on assistant rows that are:
    - at or before their session's latest valid ``compaction.covers_through_message_id``
      boundary (matching ``loop/history.py`` ``(created_at, id)`` ordering), OR
    - in a session whose latest message is older than ``--idle-days`` (default 7).
@@ -244,7 +245,10 @@ def compact_historical_chat_messages(
                 archived_tools_preview: str | None = None
 
                 if isinstance(tool_calls, str) and (
-                    '"query_files"' in tool_calls or '"parallel_execute"' in tool_calls
+                    '"read_files"' in tool_calls
+                    or '"search_files"' in tool_calls
+                    or '"query_files"' in tool_calls
+                    or '"parallel_execute"' in tool_calls
                 ):
                     policy = policy_cache.get(sess_id)
                     if policy is None:

@@ -648,17 +648,21 @@ class StreamAdapter:
             # 状态口径与停止后的结果回放共用（round_outcome.tool_result_status）。
             status, result_data = tool_result_status(tool_name, parsed_result)
 
-            # 合并工具 UI 侧通道（如 edit_file 的 undo 锚点与精确匹配回显预览）：
+            # 合并工具 UI 侧通道（如 edit_file / batch_replace_files 的 undo 锚点与精确匹配回显预览）：
             # LLM function_call_output 省略了这些仅供前端卡片与撤销使用的字段，
             # 这里按 tool_use_id 原样还原到 SSE tool_result、file_edit_applied 与落库卡片。
             req_ctx = self.config.request_context
-            if req_ctx is not None and isinstance(result_data, dict) and (tool_use_id or tool_name == "edit_file"):
+            if (
+                req_ctx is not None
+                and isinstance(result_data, dict)
+                and (tool_use_id or tool_name in {"edit_file", "batch_replace_files"})
+            ):
                 file_id = result_data.get("id")
-                fallback_key = (
-                    (tool_name, str(file_id))
-                    if tool_name == "edit_file" and isinstance(file_id, str) and file_id
-                    else None
-                )
+                fallback_key: tuple[str, str] | None = None
+                if tool_name == "edit_file" and isinstance(file_id, str) and file_id:
+                    fallback_key = (tool_name, str(file_id))
+                elif tool_name == "batch_replace_files":
+                    fallback_key = (tool_name, self.config.project_id or "")
                 ui_overlay = req_ctx.pop_tool_ui_payload(
                     tool_use_id or None,
                     fallback_key=fallback_key,
@@ -706,13 +710,13 @@ class StreamAdapter:
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
-            # query_files 对发往浏览器的 SSE 帧做全量线缆瘦身；落库侧在超阈值时剥离整章正文
-            # （保留 content_sha256 + updated_at 供跨轮快照核验），防止 chat_message TOAST 膨胀。
+            # read_files / search_files / query_files 对发往浏览器的 SSE 帧做全量线缆瘦身；
+            # 落库侧在超阈值时剥离整章正文（保留 content_sha256 + updated_at 供跨轮快照核验），防止 chat_message TOAST 膨胀。
             wire_data = slim_client_tool_result(tool_name, emit_data)
             if wire_data is not emit_data:
                 persisted_data = (
                     slim_query_files_result_for_persistence(emit_data)
-                    if tool_name == "query_files"
+                    if tool_name in ("query_files", "read_files", "search_files")
                     else emit_data
                 )
                 if tool_use_id:
@@ -796,6 +800,15 @@ class StreamAdapter:
                 or (isinstance(parsed_result, dict) and parsed_result.get("guard_skipped") is True)
             ):
                 async for event in self._handle_edit_file_result(result_data):
+                    yield event
+
+            if (
+                tool_name == "batch_replace_files"
+                and status == "success"
+                and isinstance(result_data, dict)
+                and not coerce_bool(result_data.get("dry_run"))
+            ):
+                async for event in self._handle_batch_replace_result(result_data):
                     yield event
 
             # 技能用量来自 load_skill 工具调用（用量记录在工具内完成），这里只发前端事件；
@@ -2026,6 +2039,48 @@ class StreamAdapter:
             warnings=warnings,
         )
         yield end_event
+
+    async def _handle_batch_replace_result(
+        self,
+        result: dict[str, Any],
+    ) -> AsyncIterator[SSEEvent]:
+        """Emit per-file edit SSE events for every file modified by ``batch_replace_files``."""
+        files = result.get("files")
+        if not isinstance(files, list) or not files:
+            return
+        old_preview = str(result.get("old_text") or "")[:50] or None
+        new_preview = str(result.get("new_text") or "")[:50] or None
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            file_id = str(item.get("id") or "").strip()
+            if not file_id:
+                continue
+            title = str(item.get("title") or "")
+            file_type = item.get("file_type")
+            replacements = int(item.get("replacements") or 0)
+            new_length = int(item.get("new_length") or 0)
+            if replacements <= 0:
+                continue
+            yield file_edit_start_event(file_id, title, replacements, file_type=file_type)
+            yield file_edit_applied_event(
+                file_id=file_id,
+                edit_index=0,
+                op="replace",
+                old_preview=old_preview,
+                new_preview=new_preview,
+                success=True,
+                error=None,
+            )
+            yield file_edit_end_event(
+                file_id=file_id,
+                edits_applied=replacements,
+                new_length=new_length,
+                new_content=None,
+                original_content=None,
+                file_type=file_type,
+                title=title,
+            )
 
     @staticmethod
     def _normalize_edit_failures(raw: Any) -> list[dict[str, Any]]:

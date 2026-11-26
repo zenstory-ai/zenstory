@@ -308,35 +308,23 @@ async def test_last_allowed_run_does_not_schedule_a_continuation():
 
 
 async def test_self_check_hitting_wrap_up_after_saved_body_with_summary_finishes_cleanly():
-    """正文已落库且模型已写过总结，紧接着的自查尾巴撞上收尾时间时正常完成：不发 wall_clock 暂停卡，照常收尾任务板。"""
-    from unittest.mock import AsyncMock
-
+    """正文已落库且模型已写过总结，紧接着的自查尾巴撞上收尾时间时正常完成：不发 wall_clock 暂停卡。"""
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter(wrap_up_after_s=0)
     calls: list[str] = []
-    task_event = StreamEvent(
-        type=StreamEventType.TOOL_RESULT,
-        data={"tool_use_id": "auto-task", "name": "update_project", "result": {"status": "success"}},
-    )
-    finalize = AsyncMock(return_value=([task_event], False))
     runner = _saving_runner(
         [[*_create_events(), _BODY, _DONE], [_DONE]],
         [[("ep2", "第2集", "script")]],
         calls,
     )
-    with (
-        patch("agent.loop.engine.run_openai_agents_streaming_agent", runner),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-    ):
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", runner):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第2集", run_meter=meter))]
 
     assert len(calls) == 1
     assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     texts = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
     assert "回复「继续」" not in texts
-    finalize.assert_awaited_once()
-    assert task_event in events
 
 
 @pytest.mark.parametrize(
@@ -353,23 +341,17 @@ async def test_self_check_hitting_wrap_up_right_after_file_block_emits_saved_not
     forbidden_snippet: str,
 ):
     """正文已落库、回复停在 </file> 上还没给作者写总结，自查尾巴撞上收尾时间：补一句确定性的已保存说明并正常收尾，不发暂停卡。"""
-    from unittest.mock import AsyncMock
-
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter(wrap_up_after_s=0)
     calls: list[str] = []
-    finalize = AsyncMock(return_value=([], False))
     runner = _saving_runner(
         [[*_create_events(), _BODY], [_DONE]],
         [[("ep2", title, "script")]],
         calls,
     )
     state = _state(user_message="写第2集", run_meter=meter, language="en" if english else "zh")
-    with (
-        patch("agent.loop.engine.run_openai_agents_streaming_agent", runner),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-    ):
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", runner):
         events = [event async for event in run_loop_agent_streaming(state)]
 
     assert len(calls) == 1
@@ -377,7 +359,6 @@ async def test_self_check_hitting_wrap_up_right_after_file_block_emits_saved_not
     texts = "".join(str(e.data.get("text") or "") for e in events if e.type == StreamEventType.TEXT)
     assert expected_snippet in texts
     assert forbidden_snippet not in texts
-    finalize.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
@@ -396,13 +377,10 @@ async def test_self_check_wrap_up_without_a_title_uses_the_saved_body_fallback(e
 
 async def test_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
     """正文写到输出上限被中途截断（cut_body）时撞上收尾时间：章节确实没写完，照旧发 wall_clock 暂停卡。"""
-    from unittest.mock import AsyncMock
-
     from agent.loop.engine import run_loop_agent_streaming
     from agent.openai_agents.runner import OUTPUT_CAPPED_KEY
 
     meter = AgentRunMeter(wrap_up_after_s=0)
-    finalize = AsyncMock(return_value=([], False))
 
     async def capped_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
         state["request_context"].mark_cut_body_saved("ch3", "第3章 灯塔")
@@ -420,25 +398,20 @@ async def test_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
         patch("agent.loop.engine.run_openai_agents_streaming_agent", capped_runner),
         patch("agent.loop.run_support.read_body_tail", return_value=("第3章 灯塔", "半截正文没闭合")),
         patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
     ):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第3章", run_meter=meter))]
 
     [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert card["layer"] == "collaboration"
     assert card["limit"] == "wall_clock"
-    finalize.assert_not_awaited()
 
 
 async def test_outline_ending_on_file_block_hitting_wrap_up_still_emits_wall_clock_pause_card():
     """资料文件（outline）落库并停在 </file> 上时撞上收尾时间：不是章节写后自查（可能刚开始搭设定还没写正文），照旧发 wall_clock 暂停卡。"""
-    from unittest.mock import AsyncMock
-
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter(wrap_up_after_s=0)
     calls: list[str] = []
-    finalize = AsyncMock(return_value=([], False))
     runner = _saving_runner(
         [[*_create_events(), _BODY], [_DONE]],
         [[("o1", "分章大纲", "outline")]],
@@ -447,7 +420,6 @@ async def test_outline_ending_on_file_block_hitting_wrap_up_still_emits_wall_clo
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", runner),
         patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
     ):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="先建大纲再写第1章", run_meter=meter))]
 
@@ -455,17 +427,13 @@ async def test_outline_ending_on_file_block_hitting_wrap_up_still_emits_wall_clo
     [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert card["layer"] == "collaboration"
     assert card["limit"] == "wall_clock"
-    finalize.assert_not_awaited()
 
 
 async def test_non_output_capped_cut_body_hitting_wrap_up_still_emits_wall_clock_pause_card():
     """cut_bodies 非空但 output_capped=False（如中途被其他机制截断补全）时撞上收尾时间：章节未完整闭合，不得误判为 self_check 正常结束。"""
-    from unittest.mock import AsyncMock
-
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter(wrap_up_after_s=0)
-    finalize = AsyncMock(return_value=([], False))
 
     async def cut_without_cap_runner(*, state, agent_type, system_prompt, get_steering_messages=None, **_kwargs):
         state["request_context"].mark_chapter_body_saved("ch1", "第1章 起航", "draft")
@@ -480,29 +448,20 @@ async def test_non_output_capped_cut_body_hitting_wrap_up_still_emits_wall_clock
     with (
         patch("agent.loop.engine.run_openai_agents_streaming_agent", cut_without_cap_runner),
         patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
     ):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
 
     [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert card["layer"] == "collaboration"
     assert card["limit"] == "wall_clock"
-    finalize.assert_not_awaited()
 
 
 async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_without_pause_card():
     """第 1 次 run 已把章节落库，第 2 次自查 run 经 RunExecutionPolicy 延迟 wall_clock 软着陆：
-    无待写空文件/残稿/未完任务板时直接按 end_turn 正常收尾并收尾任务板，不发暂停卡。"""
-    from unittest.mock import AsyncMock
-
+    无待写空文件/残稿时直接按 end_turn 正常收尾，不发暂停卡。"""
     from agent.loop.engine import run_loop_agent_streaming
 
     meter = AgentRunMeter(wrap_up_after_s=600)
-    task_event = StreamEvent(
-        type=StreamEventType.TOOL_RESULT,
-        data={"tool_use_id": "workflow_auto_completion", "name": "update_project", "result": {"status": "success"}},
-    )
-    finalize = AsyncMock(return_value=([task_event], False))
     run_count = 0
     seen_defer_flags: list[bool] = []
 
@@ -532,10 +491,7 @@ async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_withou
             data={"stop_reason": "end_turn", "usage": {"total_tokens": 120}},
         )
 
-    with (
-        patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-    ):
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第4章", run_meter=meter))]
 
     assert run_count == 2
@@ -543,51 +499,6 @@ async def test_self_check_run_soft_landing_on_wall_clock_finishes_cleanly_withou
     assert not [e for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     msg_ends = [e.data for e in events if e.type == StreamEventType.MESSAGE_END]
     assert [m["stop_reason"] for m in msg_ends] == ["end_turn", "end_turn"]
-    finalize.assert_awaited_once()
-    assert task_event in events
-
-
-async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_task_board_incomplete():
-    """多章任务板仍有未完成章节（auto_finalize 返回 has_incomplete=True）时，自查软着陆补发 wall_clock 暂停卡供继续。"""
-    from unittest.mock import AsyncMock
-
-    from agent.loop.engine import run_loop_agent_streaming
-
-    meter = AgentRunMeter(wrap_up_after_s=600)
-    finalize = AsyncMock(return_value=([], True))
-    run_count = 0
-
-    async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, run_policy=None, **_kwargs):
-        nonlocal run_count
-        run_count += 1
-        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
-        if run_count == 1:
-            state["request_context"].mark_chapter_body_saved("ch1", "第1章 起航", "draft")
-            for ev in _create_events():
-                yield ev
-            yield _BODY
-            state["run_items"] = [{"role": "user", "content": "x"}]
-            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-            return
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第1章已保存，第2章尚未开始。"})
-        assert run_policy is not None and run_policy.defer_wall_clock_soft_landing is True
-        run_policy.deferred_wall_clock_exhausted = {
-            "layer": "tool_call",
-            "limit": "wall_clock",
-            "reason": "时间快用完了",
-            "last_agent": None,
-        }
-        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-
-    with (
-        patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-    ):
-        events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
-
-    [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
-    assert card["limit"] == "wall_clock"
-    finalize.assert_awaited_once()
 
 
 async def test_empty_file_correction_after_output_cap_gives_concise_thinking_guidance():
@@ -622,13 +533,10 @@ async def test_empty_file_correction_after_output_cap_gives_concise_thinking_gui
 async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_new_file_started_or_output_capped(reason: str):
     """第 2 次 run 虽以 self_check 进入，但若期间又新建了文件（如第2章细纲）或总结撞上 output_capped，
     不得静默吞掉 wall_clock 暂停卡。"""
-    from unittest.mock import AsyncMock
-
     from agent.loop.engine import run_loop_agent_streaming
     from agent.openai_agents.runner import OUTPUT_CAPPED_KEY
 
     meter = AgentRunMeter(wrap_up_after_s=600)
-    finalize = AsyncMock(return_value=([], False))
     run_count = 0
 
     async def two_runs(*, state, agent_type, system_prompt, get_steering_messages=None, run_policy=None, **_kwargs):
@@ -661,33 +569,25 @@ async def test_self_check_soft_landing_keeps_wall_clock_pause_card_when_new_file
             msg_end_data[OUTPUT_CAPPED_KEY] = True
         yield StreamEvent(type=StreamEventType.MESSAGE_END, data=msg_end_data)
 
-    with (
-        patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-    ):
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", two_runs):
         events = [event async for event in run_loop_agent_streaming(_state(user_message="写第1章和第2章", run_meter=meter))]
 
     [card] = [e.data for e in events if e.type == StreamEventType.ITERATION_EXHAUSTED]
     assert card["limit"] == "wall_clock"
-    finalize.assert_not_awaited()
 
 
-@pytest.mark.parametrize("has_incomplete", [False, True])
-async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy(has_incomplete: bool):
+async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy():
     """真实 runner + engine + StreamAdapter 联调 RunExecutionPolicy(defer_wall_clock_soft_landing=True)：
-    runner 不再发伪造的 run_deadline_exceeded 等 engine 改写；无未完待办时直接按 end_turn 收尾，
-    有未完任务板时由 engine 补发 wall_clock 卡、StreamAdapter 随之落 run_deadline_exceeded。"""
+    runner 不再发伪造的 run_deadline_exceeded 等 engine 改写；无未完待写文件时直接按 end_turn 收尾。"""
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
     from agents.run_config import ModelInputData
 
     from agent.loop.engine import run_loop_agent_streaming
-    from agent.openai_agents.runner import RUN_DEADLINE_STOP_REASON
     from agent.stream_adapter import StreamAdapter
 
     meter = AgentRunMeter(wrap_up_after_s=600)
-    finalize = AsyncMock(return_value=([], has_incomplete))
     sdk_call_inputs: list[list] = []
 
     class FakeSDKResult:
@@ -750,7 +650,6 @@ async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy(has_incom
         patch("agent.openai_agents.runner._build_agent", return_value=object()),
         patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="mock-model")),
         patch("agents.Runner.run_streamed", side_effect=fake_run_streamed),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
     ):
         sse_events = [
             sse async for sse in adapter.process_workflow_events(run_loop_agent_streaming(state))
@@ -760,13 +659,8 @@ async def test_runner_and_engine_end_to_end_deferred_wall_clock_policy(has_incom
     # 单一历史续跑：第 2 次 run 在第 1 次 run_items 后严格只追加
     assert sdk_call_inputs[1][: len(sdk_call_inputs[0])] == sdk_call_inputs[0]
     exhausted = [e for e in sse_events if getattr(e.type, "value", "") == "iteration_exhausted"]
-    if has_incomplete:
-        assert len(exhausted) == 1
-        assert exhausted[0].data["limit"] == "wall_clock"
-        assert adapter.get_last_message_metadata()["stop_reason"] == RUN_DEADLINE_STOP_REASON
-    else:
-        assert exhausted == []
-        assert adapter.get_last_message_metadata()["stop_reason"] == "end_turn"
+    assert exhausted == []
+    assert adapter.get_last_message_metadata()["stop_reason"] == "end_turn"
 
 
 

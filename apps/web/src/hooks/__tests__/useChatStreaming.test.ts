@@ -886,6 +886,38 @@ describe('useChatStreaming', () => {
         expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
       })
 
+      it('refreshes tree and affected open editor for non-dry-run batch_replace_files, but not for dry_run or zero-change results', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps: UseChatStreamingDependencies = {
+          ...createMockDeps(),
+          getCurrentSelectedItem: vi.fn(() => ({ id: 'f-open', type: 'draft', title: '第一章' })),
+        }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onToolResult('batch_replace_files', 'success', {
+            data: { dry_run: true, files_matched: 2, files_modified: 0, modified_files: [{ id: 'f-open', title: '第一章', replacements: 1 }] },
+          })
+          callbacks.onToolResult('batch_replace_files', 'success', {
+            data: { dry_run: false, files_matched: 0, files_modified: 0, modified_files: [] },
+          })
+          vi.advanceTimersByTime(200)
+        })
+
+        expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
+        expect(deps.triggerEditorRefresh).not.toHaveBeenCalled()
+
+        act(() => {
+          callbacks.onToolResult('batch_replace_files', 'success', {
+            data: { dry_run: false, matched_files: 2, modified_files: 2, mutation_applied: true, files: [{ id: 'f-open', title: '第一章', replacements: 2 }, { id: 'f-2', title: '第二章', replacements: 1 }] },
+          })
+          vi.advanceTimersByTime(200)
+        })
+
+        expect(deps.triggerFileTreeRefresh).toHaveBeenCalled()
+        expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('f-open')
+      })
+
       it('dispatches project status update event on update_project success', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()
@@ -1240,6 +1272,42 @@ describe('useChatStreaming', () => {
         })
 
         expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('file-123')
+      })
+
+      it('preserves open-file refresh and avoids flashing aiEditingFileId across back-to-back batch_replace_files events', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps = createMockDeps()
+        const setAiEditingFileId = vi.fn()
+        deps.setAiEditingFileId = setAiEditingFileId
+        deps.currentUserId = 'user-batch-1'
+        deps.getCurrentSelectedItem = vi.fn(() => ({
+          id: 'f1',
+          type: 'draft',
+          title: '第一章',
+        }))
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        // Back-to-back file_edit_start/applied/end for [f1, f2, f3] while f1 is open
+        act(() => {
+          callbacks.onFileEditStart('f1', '第一章', 2, 'draft')
+          callbacks.onFileEditApplied(0, 'replace')
+          callbacks.onFileEditEnd('f1', 2, undefined, undefined, 'draft', '第一章')
+
+          callbacks.onFileEditStart('f2', '第二章', 1, 'draft')
+          callbacks.onFileEditApplied(0, 'replace')
+          callbacks.onFileEditEnd('f2', 1, undefined, undefined, 'draft', '第二章')
+
+          callbacks.onFileEditStart('f3', '第三章', 3, 'draft')
+          callbacks.onFileEditApplied(0, 'replace')
+          callbacks.onFileEditEnd('f3', 3, undefined, undefined, 'draft', '第三章')
+        })
+
+        // Only the open file f1 triggers editor refresh so f2/f3 never overwrite lastEditedFileId
+        // or cancel f1's 100ms server-sync timer.
+        expect(deps.triggerEditorRefresh).toHaveBeenCalledTimes(1)
+        expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('f1')
+        // aiEditingFileId locks/unlocks strictly for open f1, never flashing f2/f3.
+        expect(setAiEditingFileId.mock.calls).toEqual([['f1'], [null]])
       })
     })
 

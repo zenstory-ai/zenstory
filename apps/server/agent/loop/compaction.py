@@ -252,7 +252,7 @@ def archive_old_tool_results(
         archived_call_ids.append(call_id)
         if call_id_counts.get(call_id, 0) > 1:
             archived_call_occurrences.setdefault(call_id, []).append(occ_idx)
-        if tool_name == "query_files":
+        if tool_name in ("query_files", "read_files"):
             if file_ids:
                 archived_file_ids.update(file_ids)
             else:
@@ -274,7 +274,7 @@ def archive_old_tool_results(
             if not isinstance(item, dict) or item.get("type") != "function_call_output":
                 continue
             info = matched_call_by_output_idx.get(idx)
-            if info is None or info[1] != "query_files":
+            if info is None or info[1] not in ("query_files", "read_files"):
                 continue
             output = item.get("output")
             if not isinstance(output, str) or not output:

@@ -41,6 +41,17 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(isWriteToolResult('edit_file', 'error', { mutation_applied: true })).toBe(false)
   })
 
+  it('counts batch_replace_files only on non-dry-run results that modified files, and never read_files/search_files', () => {
+    expect(isWriteToolResult('batch_replace_files', 'success', { dry_run: true, files_matched: 3, total_matches: 9, files_modified: 0 })).toBe(false)
+    expect(isWriteToolResult('batch_replace_files', 'success', { dry_run: true, matched_files: 3, modified_files: 0, total_replacements: 9, files: [{ id: 'f1' }] })).toBe(false)
+    expect(isWriteToolResult('batch_replace_files', 'success', { dry_run: false, files_matched: 0, files_modified: 0, modified_files: [] })).toBe(false)
+    expect(isWriteToolResult('batch_replace_files', 'success', { dry_run: false, matched_files: 2, modified_files: 2, mutation_applied: true, files: [{ id: 'f1' }, { id: 'f2' }] })).toBe(true)
+    expect(isWriteToolResult('batch_replace_files', 'success', { dry_run: false, files_matched: 2, files_modified: 2, modified_files: [{ id: 'f1' }, { id: 'f2' }] })).toBe(true)
+    expect(isWriteToolResult('batch_replace_files', 'error', { dry_run: false, files_modified: 2 })).toBe(false)
+    expect(isWriteToolResult('read_files', 'success', { files: [{ id: 'f1' }] })).toBe(false)
+    expect(isWriteToolResult('search_files', 'success', { total_matches: 4, files: [{ id: 'f1' }] })).toBe(false)
+  })
+
   it('counts a rename only when the title actually changed', () => {
     expect(isWriteToolResult('rename_file', 'success', { id: 'ch1', title: '新名', mutation_applied: true })).toBe(true)
     expect(isWriteToolResult('rename_file', 'success', { id: 'ch1', title: '旧名', mutation_applied: false })).toBe(false)

@@ -28,10 +28,11 @@ from utils.logger import get_logger, log_with_context
 
 logger = get_logger(__name__)
 
-ARCHIVED_QUERY_CONTENT_NOTE = "历史查询正文已归档，需要时请重新用 query_files 读取"
-# 落库前对超大 query_files 载荷直接瘦身的阈值（字符）：短设定/角色卡原样落库供冷回放使用，
+ARCHIVED_QUERY_CONTENT_NOTE = "历史查询正文已归档，需要时请重新用 read_files 读取"
+# 落库前对超大 read_files / search_files / query_files 载荷直接瘦身的阈值（字符）：短设定/角色卡原样落库供冷回放使用，
 # 整章或多章大体积正文剥离正文并保留 content_sha256 + updated_at（供 session_read_snapshots 核验）。
 PERSISTED_QUERY_FILES_MAX_CHARS = 4_000
+_ARCHIVABLE_QUERY_TOOLS: frozenset[str] = frozenset({"query_files", "read_files", "search_files"})
 
 # 仅剥离查询结果里的大体积正文/片段载荷，保留 id/title/file_type/status/error/error_type/
 # user_message/count/match_count/word_count/content_length 等轻量字段。
@@ -94,7 +95,11 @@ def _slim_query_file_dict(item: dict[str, Any], *, keep_content_sha256: bool = F
         ):
             from services.features.file_version_service import content_sha256
 
-            slimmed["content_sha256"] = content_sha256(content)
+            raw_sha = item.get("raw_content_sha256")
+            if isinstance(raw_sha, str) and raw_sha.strip():
+                slimmed["content_sha256"] = raw_sha.strip()
+            else:
+                slimmed["content_sha256"] = content_sha256(content)
             slimmed.setdefault("content_length", len(content))
     slimmed["archived_note"] = ARCHIVED_QUERY_CONTENT_NOTE
     return slimmed, True
@@ -249,7 +254,12 @@ def archive_historical_tool_calls_json(raw_tool_calls: str | None) -> str | None
     if (
         not isinstance(raw_tool_calls, str)
         or not raw_tool_calls
-        or ('"query_files"' not in raw_tool_calls and '"parallel_execute"' not in raw_tool_calls)
+        or (
+            '"read_files"' not in raw_tool_calls
+            and '"search_files"' not in raw_tool_calls
+            and '"query_files"' not in raw_tool_calls
+            and '"parallel_execute"' not in raw_tool_calls
+        )
     ):
         return raw_tool_calls
 
@@ -268,7 +278,7 @@ def archive_historical_tool_calls_json(raw_tool_calls: str | None) -> str | None
             archived_calls.append(call)
             continue
         name = str(call.get("name") or "").strip()
-        if name == "query_files":
+        if name in _ARCHIVABLE_QUERY_TOOLS:
             slimmed_result, call_changed = _slim_query_result_payload(call.get("result"))
             if call_changed:
                 changed = True
@@ -334,6 +344,8 @@ def archive_pre_compaction_tool_calls(
                     ChatMessage.role == "assistant",
                     ChatMessage.tool_calls.is_not(None),  # type: ignore[union-attr]
                     or_(
+                        ChatMessage.tool_calls.contains('"read_files"'),  # type: ignore[union-attr]
+                        ChatMessage.tool_calls.contains('"search_files"'),  # type: ignore[union-attr]
                         ChatMessage.tool_calls.contains('"query_files"'),  # type: ignore[union-attr]
                         ChatMessage.tool_calls.contains('"parallel_execute"'),  # type: ignore[union-attr]
                     ),

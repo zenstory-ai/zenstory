@@ -50,7 +50,9 @@ from utils.text_metrics import count_words
 logger = get_logger(__name__)
 
 EDIT_TOOL_NAME = "edit_file"
+BATCH_REPLACE_TOOL_NAME = "batch_replace_files"
 READ_TOOL_NAME = "query_files"
+READ_TOOL_NAMES: frozenset[str] = frozenset({"query_files", "read_files"})
 
 EDIT_REPEAT_LIMIT_ERROR_TYPE = "edit_repeat_limit"
 # Escalated error type emitted once consecutive or per-file guard intercepts exceed
@@ -255,6 +257,7 @@ class EditPlan:
 
     file_id: str = ""
     arguments: str | None = None
+    parsed_arguments: dict[str, Any] | None = None
     edit_count: int = 0
     is_append: bool = False
     is_bulk: bool = False
@@ -292,18 +295,33 @@ class RepeatEditGuard:
     _per_file_intercepts: dict[str, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ plan
-    def plan(self, tool_name: str, raw_arguments: str) -> EditPlan:
+    def plan(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> EditPlan:
         if tool_name == EDIT_TOOL_NAME:
-            return self._plan_edit(raw_arguments)
-        if tool_name == READ_TOOL_NAME:
-            return self._plan_self_read(raw_arguments)
+            return self._plan_edit(raw_arguments, parsed_args=parsed_args)
+        if tool_name in READ_TOOL_NAMES:
+            return self._plan_self_read(tool_name, raw_arguments, parsed_args=parsed_args)
         self._consecutive_intercepts = 0
         return EditPlan()
 
-    def _plan_edit(self, raw_arguments: str) -> EditPlan:
-        args, parse_error, _ = parse_json_object(raw_arguments or "", tool_name=EDIT_TOOL_NAME)
-        if parse_error is not None or not isinstance(args, dict):
-            return EditPlan()
+    def _plan_edit(
+        self,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> EditPlan:
+        if parsed_args is not None:
+            args = parsed_args
+        else:
+            parsed, parse_error, _ = parse_json_object(raw_arguments or "", tool_name=EDIT_TOOL_NAME)
+            if parse_error is not None or not isinstance(parsed, dict):
+                return EditPlan()
+            args = parsed
 
         file_id = _extract_file_id(args)
         if not file_id:
@@ -415,23 +433,35 @@ class RepeatEditGuard:
             row["word_count"] = word_count
         return row, title, word_count
 
-    def _plan_self_read(self, raw_arguments: str) -> EditPlan:
+    def _plan_self_read(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> EditPlan:
         """Guard against re-reading chapters just written via write_chapter in the same run.
 
-        Supports both single-ID ``query_files(id=...)`` and multi-ID ``query_files(ids=[...])``:
+        Supports both single-ID ``read_files(ids=[...])`` / ``query_files(id=...)`` and multi-ID
+        batches:
         - When ALL requested IDs were just written this turn (and not unlocked for recovery),
           blocks synchronously without querying DB.
         - When a batch mixes just-written IDs with normal existing IDs, rewrites ``plan.arguments``
-          to exclude ``guarded_ids`` before DB execution and merges slim ``content_omitted=True``
-          rows back in ``observe()`` (with defense-in-depth stripping if caller passed raw args),
-          or escalates synchronously once a guarded file hits ``MAX_PER_FILE_GUARD_INTERCEPTS``.
+          (and ``plan.parsed_arguments``) to exclude ``guarded_ids`` before DB execution and merges
+          slim ``content_omitted=True`` rows back in ``observe()`` (with defense-in-depth stripping
+          if caller passed raw args), or escalates synchronously once a guarded file hits
+          ``MAX_PER_FILE_GUARD_INTERCEPTS``.
         """
         if self.request_context is None:
             self._consecutive_intercepts = 0
             return EditPlan()
-        args, parse_error, _ = parse_json_object(raw_arguments or "", tool_name=READ_TOOL_NAME)
-        if parse_error is not None or not isinstance(args, dict):
-            return EditPlan()
+        if parsed_args is not None:
+            args = parsed_args
+        else:
+            parsed, parse_error, _ = parse_json_object(raw_arguments or "", tool_name=tool_name)
+            if parse_error is not None or not isinstance(parsed, dict):
+                return EditPlan()
+            args = parsed
 
         # Keyword search, section read, or tail read are not whole-chapter self-reads.
         raw_query = args.get("query")
@@ -449,7 +479,7 @@ class RepeatEditGuard:
 
         try:
             target_ids, _truncated = normalize_query_file_ids(
-                file_id=args.get("id"),
+                file_id=args.get("id") or args.get("file_id") or args.get("fileId"),
                 file_ids=args.get("ids"),
                 max_ids=QUERY_FILES_MAX_BATCH_IDS,
             )
@@ -494,11 +524,14 @@ class RepeatEditGuard:
                 remaining_ids = [fid for fid in target_ids if fid not in guarded_set]
                 rewritten = dict(args)
                 rewritten.pop("id", None)
+                rewritten.pop("file_id", None)
+                rewritten.pop("fileId", None)
                 rewritten["ids"] = remaining_ids
                 first_recovery = recovery_ids[0] if recovery_ids else ""
                 return EditPlan(
                     file_id=first_recovery or guarded_ids[0],
                     arguments=json.dumps(rewritten, ensure_ascii=False, separators=(",", ":")),
+                    parsed_arguments=rewritten,
                     self_read_recovery_id=first_recovery,
                     self_read_recovery_ids=tuple(recovery_ids),
                     self_read_guarded_ids=tuple(guarded_ids),
@@ -508,6 +541,7 @@ class RepeatEditGuard:
             self._record_intercept(cap_exceeding, increment_consecutive=True)
             rows = [self._self_read_row(fid)[0] for fid in cap_exceeding]
             return self._escalated_self_read_plan(
+                tool_name=tool_name,
                 guarded_ids=cap_exceeding,
                 rows=rows,
                 start_char=start_char,
@@ -529,6 +563,7 @@ class RepeatEditGuard:
 
         if escalate:
             return self._escalated_self_read_plan(
+                tool_name=tool_name,
                 guarded_ids=guarded_ids,
                 rows=rows,
                 start_char=start_char,
@@ -576,6 +611,7 @@ class RepeatEditGuard:
     def _escalated_self_read_plan(
         self,
         *,
+        tool_name: str = READ_TOOL_NAME,
         guarded_ids: list[str],
         rows: list[dict[str, Any]],
         start_char: Any,
@@ -595,7 +631,7 @@ class RepeatEditGuard:
             per_file_intercepts={fid: self._per_file_intercepts.get(fid, 0) for fid in guarded_ids},
         )
         error_msg = (
-            f"已多次拦截对本轮刚写完章节（{'、'.join(labels)}）的重复读取，本次 query_files 已拒绝执行。"
+            f"已多次拦截对本轮刚写完章节（{'、'.join(labels)}）的重复读取，本次 {tool_name} 已拒绝执行。"
             "请立即停止调用工具，直接按上方已有内容和真实字数向作者简短回复收尾。"
         )
         payload: dict[str, Any] = {
@@ -605,7 +641,7 @@ class RepeatEditGuard:
             "reason": "self_read_loop_cap",
             "guard_escalated": True,
             "stop_calling_tools": True,
-            "tool_name": READ_TOOL_NAME,
+            "tool_name": tool_name,
             "id": guarded_ids[0],
             "data": rows,
             "user_message": "已完成保存，跳过重复读取。",
@@ -743,21 +779,36 @@ class RepeatEditGuard:
                     return True
         return False
 
-    def observe(self, tool_name: str, plan: EditPlan, output_text: str) -> str:
-        if tool_name == READ_TOOL_NAME:
+    def observe(
+        self,
+        tool_name: str,
+        plan: EditPlan,
+        output_text: str,
+        *,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> str:
+        if tool_name in READ_TOOL_NAMES:
             recovery_ids = plan.self_read_recovery_ids or (
                 (plan.self_read_recovery_id,) if plan.self_read_recovery_id else ()
             )
             for rid in recovery_ids:
                 self._allow_self_read.discard(rid)
             if plan.self_read_guarded_ids:
-                return self._merge_or_strip_guarded_self_reads(plan, output_text)
+                return self._merge_or_strip_guarded_self_reads(
+                    plan, output_text, parsed_output=parsed_output
+                )
+            return output_text
+
+        if tool_name == BATCH_REPLACE_TOOL_NAME:
+            payload = parsed_output if parsed_output is not None else _load_json(output_text)
+            if payload is not None:
+                self._observe_batch_replace(payload)
             return output_text
 
         if tool_name != EDIT_TOOL_NAME or not plan.file_id:
             return output_text
 
-        payload = _load_json(output_text)
+        payload = parsed_output if parsed_output is not None else _load_json(output_text)
         if payload is None:
             return output_text
 
@@ -874,12 +925,56 @@ class RepeatEditGuard:
             )
         return output_text
 
+    def _observe_batch_replace(self, payload: dict[str, Any]) -> None:
+        """Track cross-file ``batch_replace_files`` commits and stale-read recovery unlocks."""
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return
+        for skipped in data.get("skipped_files") or []:
+            if not isinstance(skipped, dict):
+                continue
+            fid = str(skipped.get("id") or "").strip()
+            reason = str(skipped.get("reason") or "").strip()
+            if fid and reason in _SELF_READ_RECOVERY_ERROR_TYPES:
+                self._allow_self_read.add(fid)
+        if coerce_bool(data.get("dry_run"), default=False):
+            return
+        status = str(payload.get("status") or "").strip().lower()
+        if status not in {"success", "partial"} or payload.get("mutation_applied") is not True:
+            return
+        for item in data.get("files") or []:
+            if not isinstance(item, dict):
+                continue
+            fid = str(item.get("id") or "").strip()
+            if not fid:
+                continue
+            self._allow_self_read.discard(fid)
+            state = self._files.setdefault(fid, _FileEditState())
+            if isinstance(item.get("title"), str) and item["title"]:
+                state.title = item["title"]
+            if isinstance(item.get("file_type"), str) and item["file_type"]:
+                state.file_type = item["file_type"].strip().lower()
+            new_len = item.get("new_length")
+            if isinstance(new_len, int) and not isinstance(new_len, bool):
+                if state.initial_length is None:
+                    state.initial_length = new_len
+                state.last_length = new_len
+            new_wc = item.get("new_word_count")
+            if isinstance(new_wc, int) and not isinstance(new_wc, bool):
+                state.last_word_count = new_wc
+            # Deterministic cross-file replace is not a serial micro-polish loop.
+            state.consecutive_micro_calls = 0
+
     def _merge_or_strip_guarded_self_reads(
-        self, plan: EditPlan, output_text: str
+        self,
+        plan: EditPlan,
+        output_text: str,
+        *,
+        parsed_output: dict[str, Any] | None = None,
     ) -> str:
         """Merge slim ``content_omitted=True`` rows for excluded just-written chapters when
         ``plan.arguments`` was rewritten, or strip them defense-in-depth if caller passed raw args."""
-        payload = _load_json(output_text)
+        payload = parsed_output if parsed_output is not None else _load_json(output_text)
         if payload is None:
             return output_text
 

@@ -51,11 +51,21 @@ from agent.tools.file_ops.serialization import (
 )
 
 READ_TOOL_NAME = "query_files"
+READ_TOOL_NAMES: frozenset[str] = frozenset({"query_files", "read_files"})
 SKILL_LOAD_TOOL_NAME = "load_skill"
 SKILL_RESOURCE_TOOL_NAME = "read_skill_resource"
 SKILL_READ_TOOL_NAMES: frozenset[str] = frozenset({SKILL_LOAD_TOOL_NAME, SKILL_RESOURCE_TOOL_NAME})
 # 直接调用即写文件的工具（成功后清零该文件的读取计数）。
-WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"})
+WRITE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "create_file",
+        "write_chapter",
+        "edit_file",
+        "delete_file",
+        "rename_file",
+        "batch_replace_files",
+    }
+)
 
 # 同一键第几次成功读取开始附提示 / 强警告，第几次起拦下不执行。
 READ_HINT_AT = 2
@@ -129,28 +139,38 @@ def _read_mode(params: dict[str, Any], *, file_ids: list[str] | None = None) -> 
     preview_chars = preview if isinstance(preview, int) and not isinstance(preview, bool) else None
     raw_query = params.get("query")
     normalized_query = raw_query.strip() if isinstance(raw_query, str) and raw_query.strip() else None
+    raw_mode = params.get("response_mode")
+    if isinstance(raw_mode, str) and raw_mode.strip().lower() == "matches":
+        return f"matches:{normalized_query or ''}"
     mode = resolve_query_files_response_mode(
-        params.get("response_mode"),
+        raw_mode,
         file_id=str(params.get("id") or ""),
         file_ids=file_ids,
         include_content=None if include_raw is None else coerce_bool(include_raw),
         content_preview_chars=preview_chars,
         query=normalized_query,
     )
-    if str(mode).strip().lower() == "full":
+    mode_lower = str(mode).strip().lower()
+    if mode_lower == "full":
+        if coerce_bool(params.get("show_paragraph_stats"), default=False):
+            return "full:pstats"
         return "full"
     if normalized_query:
         return f"search:{normalized_query}"
     return f"summary:{preview_chars if preview_chars is not None else 'default'}"
 
 
-def _read_keys_and_truncated(params: Any) -> tuple[list[ReadKey], tuple[str, ...]]:
-    """提取 query_files(id / ids) 对应的全部 ReadKey（去重、上限 5，保持请求顺序）及超限被截断的 id。"""
+def _read_keys_and_truncated(
+    params: Any,
+    *,
+    tool_name: str = READ_TOOL_NAME,
+) -> tuple[list[ReadKey], tuple[str, ...]]:
+    """提取 read_files / query_files(id / ids) 对应的全部 ReadKey（去重、上限 5，保持请求顺序）及超限被截断的 id。"""
     if not isinstance(params, dict):
         return [], ()
     try:
         target_ids, truncated_ids = normalize_query_file_ids(
-            file_id=params.get("id"),
+            file_id=params.get("id") or params.get("file_id") or params.get("fileId"),
             file_ids=params.get("ids"),
             max_ids=QUERY_FILES_MAX_BATCH_IDS,
         )
@@ -158,6 +178,18 @@ def _read_keys_and_truncated(params: Any) -> tuple[list[ReadKey], tuple[str, ...
         return [], ()
     if not target_ids:
         return [], ()
+    if tool_name == "read_files":
+        range_mode = _range_mode(params)
+        if range_mode is not None:
+            if len(target_ids) > 1:
+                return [], ()
+            return [(READ_TOOL_NAME, target_ids[0], f"full:{range_mode}")], tuple(truncated_ids)
+        mode = "full:pstats" if coerce_bool(params.get("show_paragraph_stats"), default=False) else "full"
+        return [(READ_TOOL_NAME, fid, mode) for fid in target_ids], tuple(truncated_ids)
+    raw_mode = params.get("response_mode")
+    if isinstance(raw_mode, str) and raw_mode.strip().lower() == "matches":
+        mode = _read_mode(params, file_ids=target_ids)
+        return [(READ_TOOL_NAME, fid, mode) for fid in target_ids], tuple(truncated_ids)
     range_mode = _range_mode(params)
     if range_mode is not None:
         if len(target_ids) > 1:
@@ -179,7 +211,11 @@ def _read_key(params: Any) -> ReadKey | None:
 
 
 def _is_range_key(key: ReadKey) -> bool:
-    return key[2].startswith("full:")
+    return key[2].startswith("full:") and key[2] != "full:pstats"
+
+
+def _is_full_key(key: ReadKey) -> bool:
+    return key[2] in ("full", "full:pstats")
 
 
 def _parse_skill_offset(raw: Any) -> int | None:
@@ -250,6 +286,7 @@ class ReadPlan:
     """一次工具调用的读取计划：执行用的参数，以及（若整次被拦下）直接返回的输出。"""
 
     arguments: str
+    parsed_arguments: dict[str, Any] | None = None
     blocked_output: str | None = None
     read_key: ReadKey | None = None
     read_keys: tuple[ReadKey, ...] = ()
@@ -334,21 +371,37 @@ class RepeatReadGuard:
         self._read_counts.clear()
 
     # ------------------------------------------------------------------ plan
-    def plan(self, tool_name: str, raw_arguments: str) -> ReadPlan:
+    def plan(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> ReadPlan:
         self._forget_newly_saved_bodies()
-        if tool_name == READ_TOOL_NAME:
-            return self._plan_direct_read(raw_arguments)
+        if tool_name in READ_TOOL_NAMES:
+            return self._plan_direct_read(tool_name, raw_arguments, parsed_args=parsed_args)
         if tool_name in SKILL_READ_TOOL_NAMES:
-            return self._plan_skill_read(tool_name, raw_arguments)
-        return ReadPlan(arguments=raw_arguments)
+            return self._plan_skill_read(tool_name, raw_arguments, parsed_args=parsed_args)
+        return ReadPlan(arguments=raw_arguments, parsed_arguments=parsed_args)
 
-    def _plan_skill_read(self, tool_name: str, raw_arguments: str) -> ReadPlan:
-        args, parse_error, _ = parse_json_object(raw_arguments or "")
-        if parse_error is not None or not isinstance(args, dict):
-            return ReadPlan(arguments=raw_arguments)
+    def _plan_skill_read(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> ReadPlan:
+        if parsed_args is not None:
+            args = parsed_args
+        else:
+            parsed_obj, parse_error, _ = parse_json_object(raw_arguments or "")
+            if parse_error is not None or not isinstance(parsed_obj, dict):
+                return ReadPlan(arguments=raw_arguments)
+            args = parsed_obj
         parsed = _parse_skill_read_args(tool_name, args)
         if parsed is None:
-            return ReadPlan(arguments=raw_arguments)
+            return ReadPlan(arguments=raw_arguments, parsed_arguments=args)
         requested_name, mode = parsed
         alias_key = skill_name_key(requested_name)
         skill_ident = self._skill_aliases.get(alias_key, alias_key)
@@ -358,6 +411,7 @@ class RepeatReadGuard:
             model_msg = self._skill_blocked_message(label, key)
             return ReadPlan(
                 arguments=raw_arguments,
+                parsed_arguments=args,
                 blocked_output=_blocked_error_text(
                     model_msg,
                     user_message=_blocked_skill_user_message(tool_name, self._skill_names.get(skill_ident, "")),
@@ -366,17 +420,28 @@ class RepeatReadGuard:
             )
         return ReadPlan(
             arguments=raw_arguments,
+            parsed_arguments=args,
             read_key=key,
             read_keys=(key,),
         )
 
-    def _plan_direct_read(self, raw_arguments: str) -> ReadPlan:
-        args, parse_error, _ = parse_json_object(raw_arguments or "")
-        if parse_error is not None or not isinstance(args, dict):
-            return ReadPlan(arguments=raw_arguments)
-        keys, truncated_ids = _read_keys_and_truncated(args)
+    def _plan_direct_read(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+    ) -> ReadPlan:
+        if parsed_args is not None:
+            args = parsed_args
+        else:
+            parsed, parse_error, _ = parse_json_object(raw_arguments or "")
+            if parse_error is not None or not isinstance(parsed, dict):
+                return ReadPlan(arguments=raw_arguments)
+            args = parsed
+        keys, truncated_ids = _read_keys_and_truncated(args, tool_name=tool_name)
         if not keys:
-            return ReadPlan(arguments=raw_arguments)
+            return ReadPlan(arguments=raw_arguments, parsed_arguments=args)
         allowed = [key for key in keys if self._read_counts.get(key, 0) + 1 < READ_BLOCK_AT]
         blocked = [key for key in keys if self._read_counts.get(key, 0) + 1 >= READ_BLOCK_AT]
         if blocked and not allowed:
@@ -398,10 +463,11 @@ class RepeatReadGuard:
                 }
             return ReadPlan(
                 arguments=raw_arguments,
+                parsed_arguments=args,
                 blocked_output=_blocked_error_text(
                     model_msg,
                     user_message=_blocked_user_message([self._titles.get(key[1], "") for key in blocked]),
-                    tool_name=READ_TOOL_NAME,
+                    tool_name=tool_name,
                     extra=extra,
                 ),
             )
@@ -412,9 +478,12 @@ class RepeatReadGuard:
             self._register_blocked(blocked[0], display_label="、".join(labels))
             rewritten = dict(args)
             rewritten.pop("id", None)
+            rewritten.pop("file_id", None)
+            rewritten.pop("fileId", None)
             rewritten["ids"] = [key[1] for key in allowed]
             return ReadPlan(
                 arguments=json.dumps(rewritten, ensure_ascii=False),
+                parsed_arguments=rewritten,
                 read_key=allowed[0] if len(allowed) == 1 else None,
                 read_keys=tuple(allowed),
                 blocked_keys=tuple(blocked),
@@ -422,6 +491,7 @@ class RepeatReadGuard:
             )
         return ReadPlan(
             arguments=raw_arguments,
+            parsed_arguments=args,
             read_key=allowed[0] if len(allowed) == 1 else None,
             read_keys=tuple(allowed),
             truncated_ids=truncated_ids,
@@ -441,7 +511,7 @@ class RepeatReadGuard:
         return label
 
     def _blocked_message(self, label: str, key: ReadKey) -> str:
-        what = "全文" if key[2] == "full" else ("这一段内容" if _is_range_key(key) else "摘要")
+        what = "全文" if _is_full_key(key) else ("这一段内容" if _is_range_key(key) else "摘要")
         remaining = max(self.max_blocked_reads - self.blocked_reads, 0)
         tail = (
             f"再有 {remaining} 次重复读取被拦下，本轮将被自动终止。"
@@ -479,19 +549,39 @@ class RepeatReadGuard:
         )
 
     # --------------------------------------------------------------- observe
-    def observe(self, tool_name: str, plan: ReadPlan, output_text: str) -> str:
+    def observe(
+        self,
+        tool_name: str,
+        plan: ReadPlan,
+        output_text: str,
+        *,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> str:
         """记录一次工具结果；返回交给模型的输出（重复读取时附提示）。"""
         if tool_name in WRITE_TOOL_NAMES:
-            self._observe_direct_write(tool_name, plan.arguments, output_text)
+            self._observe_direct_write(
+                tool_name,
+                plan.arguments,
+                output_text,
+                parsed_args=plan.parsed_arguments,
+                parsed_output=parsed_output,
+            )
             return output_text
-        if tool_name == READ_TOOL_NAME and (plan.read_keys or plan.read_key is not None):
-            return self._observe_direct_read(plan, output_text)
+        if tool_name in READ_TOOL_NAMES and (plan.read_keys or plan.read_key is not None):
+            return self._observe_direct_read(plan, output_text, parsed_output=parsed_output)
         if tool_name in SKILL_READ_TOOL_NAMES and plan.read_key is not None:
-            return self._observe_skill_read(tool_name, plan, output_text)
+            return self._observe_skill_read(tool_name, plan, output_text, parsed_output=parsed_output)
         return output_text
 
-    def _observe_skill_read(self, tool_name: str, plan: ReadPlan, output_text: str) -> str:
-        payload = _load_json(output_text)
+    def _observe_skill_read(
+        self,
+        tool_name: str,
+        plan: ReadPlan,
+        output_text: str,
+        *,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> str:
+        payload = parsed_output if parsed_output is not None else _load_json(output_text)
         if payload is None or payload.get("status") != "success":
             return output_text
         data = payload.get("data")
@@ -516,7 +606,11 @@ class RepeatReadGuard:
             mode = "body"
 
         if skill_id:
-            args, parse_error, _ = parse_json_object(plan.arguments or "")
+            if plan.parsed_arguments is not None:
+                args = plan.parsed_arguments
+                parse_error = None
+            else:
+                args, parse_error, _ = parse_json_object(plan.arguments or "")
             if parse_error is None and isinstance(args, dict):
                 raw_name = args.get("name")
                 if isinstance(raw_name, str) and raw_name.strip():
@@ -539,11 +633,17 @@ class RepeatReadGuard:
         hinted["read_hint"] = hint
         return json.dumps(hinted, ensure_ascii=False, separators=(",", ":"))
 
-    def _observe_direct_read(self, plan: ReadPlan, output_text: str) -> str:
+    def _observe_direct_read(
+        self,
+        plan: ReadPlan,
+        output_text: str,
+        *,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> str:
         keys = plan.read_keys or ((plan.read_key,) if plan.read_key is not None else ())
         if not keys:
             return output_text
-        payload = _load_json(output_text)
+        payload = parsed_output if parsed_output is not None else _load_json(output_text)
         if payload is None:
             return output_text
 
@@ -604,7 +704,7 @@ class RepeatReadGuard:
             if key is None:
                 continue
             title = str(row.get("title") or "")
-            is_full = key[2] == "full" or _is_range_key(key)
+            is_full = _is_full_key(key) or _is_range_key(key)
             complete = row.get("content_partial") is not True and not (
                 is_full and row.get("content_truncated") is True
             )
@@ -657,28 +757,66 @@ class RepeatReadGuard:
                 self._saved_bodies_seen.add(file_id)
                 self._forget_reads(file_id)
 
-    def _observe_direct_write(self, tool_name: str, raw_arguments: str, output_text: str) -> None:
-        payload = _load_json(output_text)
+    def _observe_direct_write(
+        self,
+        tool_name: str,
+        raw_arguments: str,
+        output_text: str,
+        *,
+        parsed_args: dict[str, Any] | None = None,
+        parsed_output: dict[str, Any] | None = None,
+    ) -> None:
+        payload = parsed_output if parsed_output is not None else _load_json(output_text)
         if payload is None:
             return
         status = payload.get("status")
+        applied_partial = status == "partial" and payload.get("mutation_applied") is True
+        if tool_name == "batch_replace_files":
+            data = payload.get("data")
+            if isinstance(data, dict):
+                # Always forget reads for any file skipped due to stale_content, even when
+                # every target failed (`status="error"`) or another error preceded it.
+                for skipped in data.get("skipped_files") or []:
+                    if isinstance(skipped, dict) and skipped.get("reason") == "stale_content":
+                        self._forget_reads(str(skipped.get("id") or ""))
+                if (status == "success" or applied_partial) and payload.get("mutation_applied") is True:
+                    modified = data.get("files") or []
+                    recorded = False
+                    for item in modified:
+                        if isinstance(item, dict):
+                            fid = str(item.get("id") or "").strip()
+                            ftitle = str(item.get("title") or "")
+                            if fid:
+                                self._record_write(fid, ftitle)
+                                recorded = True
+                    if not recorded and int(data.get("modified_files") or 0) > 0:
+                        self._record_write("", "")
+            return
         if payload.get("error_type") == "stale_content":
             # 文件在模型读过之后被别人（多半是作者）改了：再读是在看新内容，不算重复，也不能提示「之后未被修改」。
-            args, parse_error, _ = parse_json_object(raw_arguments or "")
-            file_id = str(payload.get("id") or ("" if parse_error is not None else args.get("id") or ""))
+            if parsed_args is not None:
+                args = parsed_args
+                parse_error = None
+            else:
+                args, parse_error, _ = parse_json_object(raw_arguments or "")
+            file_id = str(
+                payload.get("id")
+                or ("" if parse_error is not None or not isinstance(args, dict) else args.get("id") or "")
+            )
             self._forget_reads(file_id)
             return
         # edit_file 部分成功（status=partial）时，已生效的几处确实改了文件：
         # 和计费（StreamBillingTracker 把 partial 当作写入）保持同一口径。
-        applied_partial = status == "partial" and payload.get("mutation_applied") is True
         if status != "success" and not applied_partial:
             return
         data = payload.get("data")
         if isinstance(data, dict) and data.get("all_failed"):
             return
-        args, parse_error, _ = parse_json_object(raw_arguments or "")
-        if parse_error is not None:
-            args = {}
+        if parsed_args is not None:
+            args = parsed_args
+        else:
+            parsed, parse_error, _ = parse_json_object(raw_arguments or "")
+            args = parsed if parse_error is None and isinstance(parsed, dict) else {}
         file_id = str((data.get("id") if isinstance(data, dict) else None) or args.get("id") or "")
         title = str((data.get("title") if isinstance(data, dict) else None) or args.get("title") or "")
         if payload.get("mutation_applied") is False:
@@ -701,7 +839,7 @@ class RepeatReadGuard:
         file_id = key[1]
         if title:
             self._titles[file_id] = title
-        is_full = key[2] == "full" or _is_range_key(key)
+        is_full = _is_full_key(key) or _is_range_key(key)
         if complete and is_full and file_id not in self.files_read:
             self.files_read[file_id] = self._titles.get(file_id, title)
         if count >= READ_HINT_AT:
@@ -720,7 +858,7 @@ class RepeatReadGuard:
         self.files_written[file_id] = self._titles.get(file_id, title)
 
     def _hint_for(self, key: ReadKey, count: int) -> str | None:
-        if key[2] == "full":
+        if _is_full_key(key):
             base = _READ_HINT_TEXT
         elif _is_range_key(key):
             base = _RANGE_READ_HINT_TEXT

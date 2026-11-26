@@ -192,8 +192,8 @@ async def test_real_sdk_runner_threads_agent_request_context_through_hooks_tools
                 ResponseFunctionToolCall(
                     id="fc-1",
                     call_id="call-sdk-read-1",
-                    name="query_files",
-                    arguments=json.dumps({"id": chapter.id}),
+                    name="read_files",
+                    arguments=json.dumps({"ids": [chapter.id]}),
                     type="function_call",
                     status="completed",
                 )

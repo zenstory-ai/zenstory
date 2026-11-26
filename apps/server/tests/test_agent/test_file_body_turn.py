@@ -285,7 +285,8 @@ async def test_breaker_and_budget_stops_keep_priority_over_the_pending_stop(tool
 @pytest.mark.parametrize(
     ("tool_name", "args"),
     [
-        ("query_files", '{"query": "前文"}'),
+        ("read_files", '{"ids": ["f0"]}'),
+        ("search_files", '{"query": "前文"}'),
         ("update_project", '{"current_phase": "正文写作"}'),
         ("load_skill", '{"name": "去AI味"}'),
         ("read_skill_resource", '{"name": "去AI味", "path": "references/表达.md"}'),
@@ -413,18 +414,18 @@ async def test_wall_clock_wrap_up_still_blocks_non_conflicting_tools_when_overdu
     executed: list[str] = []
 
     async def fake(_args):
-        executed.append("query_files")
+        executed.append("search_files")
         return {"content": [{"type": "text", "text": json.dumps({"status": "success"})}]}
 
     meter = AgentRunMeter()
     meter.record_wall_clock_landing_call()
     req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
-        monkeypatch.setattr("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake})
+        monkeypatch.setattr("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"search_files": fake})
         by_name = {tool.name: tool for tool in build_agent_function_tools(run_meter=meter)}
         _overdue(req_ctx)
 
-        out = await _call(by_name["query_files"], req_ctx, '{"query": "大纲"}')
+        out = await _call(by_name["search_files"], req_ctx, '{"query": "大纲"}')
         assert out["status"] == "error"
         assert out["error_type"] == "wall_clock_wrap_up"
         assert "pending_file_reminder" not in out

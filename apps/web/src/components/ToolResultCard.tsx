@@ -140,8 +140,11 @@ interface ToolResultCardProps {
 const PARALLEL_TASK_TYPES = new Set([
   'write_chapter',
   'edit_file',
+  'batch_replace_files',
   'delete_file',
   'query_files',
+  'read_files',
+  'search_files',
   'hybrid_search',
 ]);
 
@@ -168,6 +171,11 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
         icon: <Edit3 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
         label: t('chat:tool.edit_file')
       };
+    case 'batch_replace_files':
+      return {
+        icon: <Edit3 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
+        label: t('chat:tool.batch_replace_files')
+      };
     case 'write_chapter':
       return {
         icon: <FileEdit className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />,
@@ -187,6 +195,16 @@ const getToolDisplayInfo = (toolName: string, t: (key: string) => string): { ico
       return { 
         icon: <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />, 
         label: t('chat:tool.query_files')
+      };
+    case 'read_files':
+      return {
+        icon: <BookOpen className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />,
+        label: t('chat:tool.read_files')
+      };
+    case 'search_files':
+      return {
+        icon: <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />,
+        label: t('chat:tool.search_files')
       };
     case 'hybrid_search':
       return {
@@ -456,6 +474,39 @@ const formatWordCount = (words: number, t: (key: string, options?: Record<string
   return t('chat:size.kCharacters', { length: (words / 1000).toFixed(1) });
 };
 
+const extractFileList = (data: unknown): Array<Record<string, unknown>> => {
+  if (Array.isArray(data)) {
+    return data.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'));
+  }
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    const nested = Array.isArray(record.files)
+      ? record.files
+      : Array.isArray(record.items)
+        ? record.items
+        : null;
+    if (nested) {
+      return nested.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'));
+    }
+  }
+  return [];
+};
+
+const formatMatchCountHeadline = (
+  prefix: 'search_matches' | 'batch_replace_preview' | 'batch_replace_done',
+  files: number,
+  matches: number,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string => {
+  if (files === 1 && matches === 1) {
+    return t(`chat:tool.${prefix}_one_in_one`);
+  }
+  if (files === 1) {
+    return t(`chat:tool.${prefix}_many_in_one`, { matches });
+  }
+  return t(`chat:tool.${prefix}_many_in_many`, { files, matches });
+};
+
 /**
  * Undo on an AI write card. While a later AI write to the same file is still in place (`blocked`),
  * undoing this one would be refused as stale: the button is disabled and says to undo that one first.
@@ -550,6 +601,52 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       } else {
         description = t('chat:tool.query_files_default');
       }
+    } else if (toolName === 'read_files') {
+      const ids = Array.isArray(args.ids)
+        ? args.ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        : [];
+      const section = typeof args.section === 'string' && args.section.trim() ? args.section.trim() : '';
+      const parts = [
+        ids.length > 0 ? t('chat:tool.read_files_count', { count: ids.length }) : '',
+        section ? quote(section) : '',
+      ].filter(Boolean);
+      description = parts.join(' · ');
+    } else if (toolName === 'search_files') {
+      const query = typeof args.query === 'string' && args.query.trim() ? args.query.trim() : '';
+      const rawTypes = Array.isArray(args.file_types)
+        ? args.file_types.filter((ft): ft is string => typeof ft === 'string' && ft.trim().length > 0)
+        : typeof args.file_types === 'string' && args.file_types.trim()
+          ? [args.file_types.trim()]
+          : typeof args.file_type === 'string' && args.file_type.trim()
+            ? [args.file_type.trim()]
+            : [];
+      const typeLabels = rawTypes.map((ft) => getFileTypeInfo(ft, t).label).join(' / ');
+      if (query && typeLabels) {
+        description = `${typeLabels} · ${quote(query)}`;
+      } else if (query) {
+        description = quote(query);
+      } else if (typeLabels) {
+        description = t('chat:tool.query_description', { label: typeLabels });
+      }
+    } else if (toolName === 'batch_replace_files') {
+      const fileIds = Array.isArray(args.file_ids)
+        ? args.file_ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        : [];
+      const rawTypes = Array.isArray(args.file_types)
+        ? args.file_types.filter((ft): ft is string => typeof ft === 'string' && ft.trim().length > 0)
+        : typeof args.file_types === 'string' && args.file_types.trim()
+          ? [args.file_types.trim()]
+          : typeof args.file_type === 'string' && args.file_type.trim()
+            ? [args.file_type.trim()]
+            : [];
+      const typeLabels = rawTypes.map((ft) => getFileTypeInfo(ft, t).label).join(' / ');
+      const parts = [
+        args.dry_run === true ? t('chat:tool.batch_replace_preview_pending') : '',
+        fileIds.length > 0
+          ? t('chat:tool.batch_replace_scope_files', { count: fileIds.length })
+          : typeLabels,
+      ].filter(Boolean);
+      description = parts.join(' · ');
     } else if (toolName === 'update_project') {
       description = t('chat:tool.update_status_description');
     } else if (toolName === 'load_skill' && typeof args.name === 'string' && args.name) {
@@ -841,9 +938,79 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       );
     }
     
-    // query_files success
-    if (toolName === 'query_files' && data) {
-      const files = Array.isArray(data) ? data : [];
+    // query_files & search_files success (historical array format, filtered list, and grep match results)
+    if ((toolName === 'query_files' || toolName === 'search_files') && data) {
+      const files = extractFileList(data);
+      const totalMatches = !Array.isArray(data) && typeof data.total_matches === 'number'
+        ? data.total_matches
+        : null;
+      const queryText = !Array.isArray(data) && typeof data.query === 'string' && data.query.trim()
+        ? data.query.trim()
+        : '';
+
+      if (totalMatches !== null) {
+        const matchedFilesCount =
+          typeof data.matched_files === 'number'
+            ? data.matched_files
+            : typeof data.files_matched === 'number'
+              ? data.files_matched
+              : files.length;
+        if (totalMatches === 0 || matchedFilesCount === 0) {
+          return (
+            <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Search className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+                <span className="text-sm text-[hsl(var(--text-secondary))]">
+                  {t('chat:tool.no_search_matches')}
+                </span>
+                {queryText && (
+                  <span className="text-xs text-[hsl(var(--text-secondary))] break-words">
+                    {quote(queryText)}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+              <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
+                {formatMatchCountHeadline('search_matches', matchedFilesCount, totalMatches, t)}
+              </span>
+              {queryText && (
+                <span className="text-xs text-[hsl(var(--text-secondary))] break-words">
+                  {quote(queryText)}
+                </span>
+              )}
+            </div>
+            {files.length > 0 && files.length <= 5 && (
+              <div className="mt-1.5 pl-6 flex flex-col items-start gap-2 md:gap-1">
+                {files.map((file, index) => {
+                  const itemTitle = (file.title as string) || t('common:untitled');
+                  const itemFileType = (file.file_type as string) || '';
+                  const matchCount = typeof file.match_count === 'number' ? file.match_count : 0;
+                  return (
+                    <div
+                      key={typeof file.id === 'string' && file.id ? file.id : index}
+                      className="flex flex-wrap items-center gap-x-2 gap-y-0.5 max-w-full"
+                    >
+                      {renderFileRow({ id: file.id, title: itemTitle, fileType: itemFileType })}
+                      {matchCount > 0 && (
+                        <span className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">
+                          {t('chat:tool.search_file_match_count', { count: matchCount })}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
       const count = files.length;
       
       if (count === 0) {
@@ -869,13 +1036,295 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
           </div>
           {count <= 5 && (
             <div className="mt-1.5 pl-6 flex flex-col items-start gap-2 md:gap-1">
-              {files.map((file: Record<string, unknown>, index: number) => {
+              {files.map((file, index) => {
                 const itemTitle = file.title as string || t('common:untitled');
                 const itemFileType = file.file_type as string || '';
                 return (
                   <React.Fragment key={typeof file.id === 'string' && file.id ? file.id : index}>
                     {renderFileRow({ id: file.id, title: itemTitle, fileType: itemFileType })}
                   </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // read_files success
+    if (toolName === 'read_files' && data) {
+      const list = extractFileList(data);
+      const files = list.length > 0
+        ? list
+        : (!Array.isArray(data) && (typeof data.id === 'string' || typeof data.title === 'string') ? [data] : []);
+      const count = files.length;
+
+      if (count === 0) {
+        return (
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.no_files_read')}
+              </span>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
+              {t('chat:tool.files_read', { count })}
+            </span>
+          </div>
+          {count <= 5 && (
+            <div className="mt-1.5 pl-6 flex flex-col items-start gap-2 md:gap-1">
+              {files.map((file, index) => {
+                const itemTitle = (file.title as string) || t('common:untitled');
+                const itemFileType = (file.file_type as string) || '';
+                return (
+                  <React.Fragment key={typeof file.id === 'string' && file.id ? file.id : index}>
+                    {renderFileRow({ id: file.id, title: itemTitle, fileType: itemFileType })}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // batch_replace_files success (supports dry_run preview and multi-file writes with per-file undo)
+    if (toolName === 'batch_replace_files' && data && !Array.isArray(data)) {
+      const isDryRun = data.dry_run === true;
+      const toObjectList = (value: unknown): Array<Record<string, unknown>> =>
+        Array.isArray(value)
+          ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+          : [];
+      const affectedFiles = toObjectList(data.files).length > 0
+        ? toObjectList(data.files)
+        : toObjectList(data.modified_files).length > 0
+          ? toObjectList(data.modified_files)
+          : toObjectList(data.matched_files);
+      const failedFiles = toObjectList(data.skipped_files).length > 0
+        ? toObjectList(data.skipped_files)
+        : toObjectList(data.failed_files);
+
+      const filesMatched =
+        typeof data.files_matched === 'number'
+          ? data.files_matched
+          : typeof data.matched_files === 'number'
+            ? data.matched_files
+            : affectedFiles.length;
+      const filesModified =
+        typeof data.files_modified === 'number'
+          ? data.files_modified
+          : typeof data.modified_files === 'number'
+            ? data.modified_files
+            : isDryRun
+              ? 0
+              : affectedFiles.length;
+      const totalMatches =
+        typeof data.total_replacements === 'number'
+          ? data.total_replacements
+          : typeof data.total_matches === 'number'
+            ? data.total_matches
+            : affectedFiles.reduce((sum, file) => {
+                const count =
+                  typeof file.replacements === 'number'
+                    ? file.replacements
+                    : typeof file.match_count === 'number'
+                      ? file.match_count
+                      : 0;
+                return sum + count;
+              }, 0);
+      const remainingFiles =
+        typeof data.remaining_count === 'number' && data.remaining_count > 0
+          ? data.remaining_count
+          : typeof data.remaining_files === 'number' && data.remaining_files > 0
+            ? data.remaining_files
+            : Array.isArray(data.remaining_files)
+              ? data.remaining_files.length
+              : 0;
+
+      const renderBatchFiles = () => (
+        <div className="flex flex-col gap-1.5">
+          {affectedFiles.map((file, index) => {
+            const itemTitle = (file.title as string) || t('common:untitled');
+            const itemFileType = (file.file_type as string) || '';
+            const count =
+              typeof file.replacements === 'number'
+                ? file.replacements
+                : typeof file.match_count === 'number'
+                  ? file.match_count
+                  : 0;
+            const entryUndo = !isDryRun
+              ? readFileEditUndoTarget(file, chatMessageId, toolUseId)
+              : null;
+            const entryUndone = entryUndo !== null && isFileEditUndone(file, entryUndo, undoneEdits);
+
+            return (
+              <div
+                key={typeof file.id === 'string' && file.id ? file.id : index}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 max-w-full"
+              >
+                {renderFileRow({ id: file.id, title: itemTitle, fileType: itemFileType })}
+                {count > 0 && (
+                  <span className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">
+                    {t(isDryRun ? 'chat:tool.search_file_match_count' : 'chat:tool.batch_replace_file_count', { count })}
+                  </span>
+                )}
+                {entryUndone ? (
+                  <span className="ml-auto shrink-0 text-xs text-[hsl(var(--text-secondary))]">
+                    {t('chat:tool.edit_undone')}
+                  </span>
+                ) : onUndo && isPersistedUndoTarget(entryUndo) ? (
+                  <CardUndoControl
+                    target={entryUndo}
+                    blocked={undoBlocked.has(undoneEditKey(entryUndo))}
+                    onUndo={handleUndo}
+                    className="ml-auto"
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      );
+
+      if (isDryRun) {
+        const hasMatches = filesMatched > 0 && totalMatches > 0;
+        return (
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+              <span className={`min-w-0 flex-1 text-sm ${hasMatches ? 'font-medium text-[hsl(var(--text-primary))]' : 'text-[hsl(var(--text-secondary))]'}`}>
+                {hasMatches
+                  ? formatMatchCountHeadline('batch_replace_preview', filesMatched, totalMatches, t)
+                  : t('chat:tool.batch_replace_preview_none')}
+              </span>
+              <span className="shrink-0 rounded-md bg-[hsl(var(--bg-tertiary))] px-1.5 py-0.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.batch_replace_preview_badge')}
+              </span>
+            </div>
+            {remainingFiles > 0 && (
+              <div className="mt-1 pl-6 text-xs text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.batch_replace_remaining_files', { count: remainingFiles })}
+              </div>
+            )}
+            {affectedFiles.length > 0 && affectedFiles.length <= 5 && (
+              <div className="mt-1.5 pl-6">{renderBatchFiles()}</div>
+            )}
+            {affectedFiles.length > 5 && (
+              <AnimatedDetails
+                className="group mt-1.5"
+                summaryClassName="cursor-pointer select-none pl-6 min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
+                summaryStyle={{ listStyle: 'none' }}
+                summary={(isDetailsOpen) => (
+                  <>
+                    <svg
+                      className="w-3 h-3 shrink-0 motion-chevron group-open:rotate-90"
+                      style={!isDetailsOpen ? { transform: 'rotate(0deg)' } : undefined}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    {t('chat:tool.batch_replace_view_files', { count: affectedFiles.length })}
+                  </>
+                )}
+              >
+                <div className="mt-1.5 pl-6">{renderBatchFiles()}</div>
+              </AnimatedDetails>
+            )}
+          </div>
+        );
+      }
+
+      if (filesModified === 0 && failedFiles.length === 0) {
+        return (
+          <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
+              <span className="text-sm text-[hsl(var(--text-secondary))]">
+                {t('chat:tool.batch_replace_no_changes')}
+              </span>
+            </div>
+          </div>
+        );
+      }
+
+      const hasFailures = failedFiles.length > 0;
+      return (
+        <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {hasFailures ? (
+              <AlertCircle className="w-4 h-4 shrink-0 text-[hsl(var(--warning-text))]" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+            )}
+            <span className="min-w-0 flex-1 text-sm font-medium text-[hsl(var(--text-primary))]">
+              {filesModified > 0
+                ? formatMatchCountHeadline('batch_replace_done', filesModified, totalMatches, t)
+                : t('chat:tool.batch_replace_failed_count', { count: failedFiles.length })}
+            </span>
+            {filesModified > 0 && hasFailures && (
+              <span className="shrink-0 text-xs text-[hsl(var(--warning-text))]">
+                {t('chat:tool.batch_replace_failed_count', { count: failedFiles.length })}
+              </span>
+            )}
+          </div>
+          {remainingFiles > 0 && (
+            <div className="mt-1 pl-6 text-xs text-[hsl(var(--text-secondary))]">
+              {t('chat:tool.batch_replace_remaining_files', { count: remainingFiles })}
+            </div>
+          )}
+          {affectedFiles.length > 0 && affectedFiles.length <= 5 && (
+            <div className="mt-1.5 pl-6">{renderBatchFiles()}</div>
+          )}
+          {affectedFiles.length > 5 && (
+            <AnimatedDetails
+              className="group mt-1.5"
+              summaryClassName="cursor-pointer select-none pl-6 min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] flex items-center gap-1 list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
+              summaryStyle={{ listStyle: 'none' }}
+              summary={(isDetailsOpen) => (
+                <>
+                  <svg
+                    className="w-3 h-3 shrink-0 motion-chevron group-open:rotate-90"
+                    style={!isDetailsOpen ? { transform: 'rotate(0deg)' } : undefined}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  {t('chat:tool.batch_replace_view_files', { count: affectedFiles.length })}
+                </>
+              )}
+            >
+              <div className="mt-1.5 pl-6">{renderBatchFiles()}</div>
+            </AnimatedDetails>
+          )}
+          {failedFiles.length > 0 && (
+            <div className="mt-1.5 pl-6 space-y-1">
+              {failedFiles.map((file, index) => {
+                const failedTitle = readUserFacingText(file.title) ?? t('common:untitled');
+                const failureType = readUserFacingText(file.error_type) ?? readUserFacingText(file.reason);
+                const reason = failureType || readUserFacingText(file.user_message)
+                  ? resolveToolFailure({ ...file, error_type: failureType }, t).message
+                  : t('chat:tool.taskNotCompleted');
+                return (
+                  <div
+                    key={typeof file.id === 'string' && file.id ? file.id : index}
+                    className="text-xs text-[hsl(var(--text-secondary))] break-words"
+                  >
+                    <span className="font-medium text-[hsl(var(--text-primary))]">{failedTitle}</span>
+                    <span> · {reason}</span>
+                  </div>
                 );
               })}
             </div>

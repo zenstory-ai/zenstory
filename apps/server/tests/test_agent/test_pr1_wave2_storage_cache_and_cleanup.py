@@ -1229,3 +1229,56 @@ def test_w3_p0_2_path_b_author_edits_second_edit_and_read_never_emit_unchanged(
     )
     assert AUTHOR_EDITS_UNCHANGED_MARKER not in turn3.text
     assert ch2.id in turn3.text
+
+
+@pytest.mark.unit
+def test_read_files_updates_cached_file_hashes_and_annotated_raw_sha_for_fingerprints():
+    """read_files updates cached_file_hashes identically to query_files, including
+    paragraph_stats_annotated raw_content_sha256 and persist-slimmed content_sha256."""
+    from agent.service import _read_file_hashes_for_fingerprints
+    from services.features.file_version_service import content_sha256
+
+    plain_body = "林雾站在雨夜的港口边回望旧钟楼，海风吹起她的风衣下摆。" * 25
+    raw_annotated_body = "第一段原始正文用于校验段落统计哈希一致性，避免注释文本导致指纹漂移。" * 20
+    annotated_display = f"[P1 {len(raw_annotated_body)}字]\n{raw_annotated_body}"
+    raw_sha = content_sha256(raw_annotated_body)
+    slimmed_sha = content_sha256("超长章节被落库瘦身后的原始内容" * 40)
+
+    tool_calls = [
+        {
+            "id": "rf-1",
+            "name": "read_files",
+            "status": "success",
+            "result": [
+                {"id": "f-plain", "title": "第1章", "file_type": "draft", "content": plain_body},
+                {
+                    "id": "f-annotated",
+                    "title": "第2章",
+                    "file_type": "draft",
+                    "content": annotated_display,
+                    "paragraph_stats_annotated": True,
+                    "raw_content_sha256": raw_sha,
+                },
+                {
+                    "id": "f-slim",
+                    "title": "第3章",
+                    "file_type": "draft",
+                    "content_sha256": slimmed_sha,
+                    "archived_note": "已归档",
+                },
+                {
+                    "id": "f-partial",
+                    "title": "第4章",
+                    "file_type": "draft",
+                    "content": plain_body,
+                    "content_partial": True,
+                },
+            ],
+        }
+    ]
+    hashes, read_ids = _read_file_hashes_for_fingerprints(tool_calls)
+    assert read_ids == {"f-plain", "f-annotated", "f-slim", "f-partial"}
+    assert hashes["f-plain"] == content_sha256(plain_body)
+    assert hashes["f-annotated"] == raw_sha
+    assert hashes["f-slim"] == slimmed_sha
+    assert "f-partial" not in hashes

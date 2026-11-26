@@ -16,10 +16,9 @@ import pytest
 from starlette.requests import Request
 
 import api.agent as agent_api
-from agent.core import empty_files, llm_failover, task_board_completion
+from agent.core import empty_files, llm_failover
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop import engine, run_support
-from agent.openai_agents.repeat_read_guard import RepeatReadGuard
 from agent.tools.tool_context import AgentRequestContext, _PendingEmptyFileState
 from models import File, Project, User
 from services.core.auth_service import hash_password
@@ -292,32 +291,6 @@ async def test_p0_7_engine_word_count_notes_run_off_event_loop_thread(monkeypatc
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_p0_7_task_board_completion_offloads_get_tasks_to_thread(monkeypatch):
-    from services.infra import task_board_service as tbs_module
-
-    loop_tid = threading.get_ident()
-    observed_tids: list[int] = []
-
-    def _fake_get_tasks(session_id, *, user_id=None, project_id=None):
-        observed_tids.append(threading.get_ident())
-        return [{"id": "t1", "status": "done", "content": "done"}]
-
-    monkeypatch.setattr(tbs_module.task_board_service, "get_tasks", _fake_get_tasks)
-    req_ctx = AgentRequestContext(project_id="p1", user_id="u1", session_id="s1")
-    req_ctx.mark_chapter_body_saved("f1", "Chapter 1", "draft")
-    guard = RepeatReadGuard(request_context=req_ctx)
-
-    events, has_incomplete = await task_board_completion.auto_finalize_task_board_on_completion(
-        guard, request_context=req_ctx
-    )
-
-    assert events == []
-    assert has_incomplete is False
-    assert observed_tids and observed_tids[0] != loop_tid
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
 async def test_p0_7_llm_failover_async_helpers_offload_store_io(monkeypatch):
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
@@ -510,13 +483,7 @@ async def test_p1_3_english_loop_continuation_uses_english_titles_and_counts(mon
         "session_id": "s1",
         "request_context": req_ctx,
     }
-    with (
-        patch("agent.loop.engine.run_openai_agents_streaming_agent", _fake_runner),
-        patch(
-            "agent.core.task_board_completion.auto_finalize_task_board_on_completion",
-            new=AsyncMock(return_value=([], False)),
-        ),
-    ):
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", _fake_runner):
         _ = [ev async for ev in engine.run_loop_agent_streaming(state, request_context=req_ctx)]
 
     assert len(seen) == 2

@@ -392,6 +392,26 @@ class RoundWrittenFiles:
         tool_name = payload.get("tool_name")
         data = payload.get("data")
         data = data if isinstance(data, dict) else {}
+        if tool_name == "batch_replace_files":
+            if coerce_bool(data.get("dry_run")) or data.get("mutation_applied") is False:
+                return
+            files = data.get("files")
+            if not isinstance(files, list):
+                return
+            has_skipped = isinstance(data.get("skipped_files"), list) and bool(data["skipped_files"])
+            for item in files:
+                if not isinstance(item, dict):
+                    continue
+                fid = item.get("id")
+                if not isinstance(fid, str) or not fid:
+                    continue
+                self._remember_title(fid, item.get("title"))
+                entry = self._entry(fid)
+                entry.edited = True
+                if has_skipped:
+                    entry.partial = True
+                self._tool_writes.add(fid)
+            return
         file_id = data.get("id")
         if not isinstance(file_id, str) or not file_id:
             return

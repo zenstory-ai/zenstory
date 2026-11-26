@@ -334,7 +334,7 @@ async def test_unread_file_first_edit_is_verbatim_then_works_after_a_read(db_ses
         chapter.id,
         {"op": "replace", "old": "温梨把伞收了, 靠在摊子边上, 看那些旧书一本一本被雨打湿.", "new": "温梨收了伞。"},
     )
-    assert blind["status"] == "error" and "query_files" in blind["error"]
+    assert blind["status"] == "error" and "read_files" in blind["error"]
     # 逐字相同的修改不受影响（正常创作不被打断）。
     verbatim = await req.edit(chapter.id, {"op": "replace", "old": "数到第七条船", "new": "数到第八条船"})
     assert verbatim["status"] == "success"
@@ -343,7 +343,7 @@ async def test_unread_file_first_edit_is_verbatim_then_works_after_a_read(db_ses
         chapter.id,
         {"op": "replace", "old": "温梨把伞收了, 靠在摊子边上, 看那些旧书一本一本被雨打湿.", "new": "温梨收了伞。"},
     )
-    assert still_blind["status"] == "error" and "query_files" in still_blind["error"]
+    assert still_blind["status"] == "error" and "read_files" in still_blind["error"]
     await req.read(chapter.id)
     req.next_model_call()
     fuzzy = await req.edit(

@@ -66,6 +66,7 @@ _PG_INSERT_BATCH_SQL = text(
                  AND (
                      strpos(cm.tool_calls, '"edit_file"') > 0
                      OR strpos(cm.tool_calls, '"write_chapter"') > 0
+                     OR strpos(cm.tool_calls, '"batch_replace_files"') > 0
                      OR strpos(cm.tool_calls, '"delete_file"') > 0
                  )
                 THEN cm.tool_calls::json
@@ -251,20 +252,8 @@ _PG_INSERT_BATCH_SQL = text(
     card_counts AS (
         SELECT
             b.id,
-            COUNT(*) FILTER (
-                WHERE json_typeof(elem->'name') = 'string'
-                  AND (elem->>'name') IN ('edit_file', 'write_chapter')
-                  AND json_typeof(d.data) = 'object'
-                  AND json_typeof(d.data->'undo') = 'object'
-            ) AS edit_cards,
-            COUNT(*) FILTER (
-                WHERE json_typeof(elem->'name') = 'string'
-                  AND (elem->>'name') IN ('edit_file', 'write_chapter')
-                  AND json_typeof(d.data) = 'object'
-                  AND json_typeof(d.data->'undo') = 'object'
-                  AND json_typeof(d.data->'undo'->'undone') = 'boolean'
-                  AND (d.data->'undo'->>'undone') = 'true'
-            ) AS edit_undone,
+            COALESCE(SUM(ec.edit_cards), 0) AS edit_cards,
+            COALESCE(SUM(ec.edit_undone), 0) AS edit_undone,
             COUNT(*) FILTER (
                 WHERE json_typeof(elem->'name') = 'string'
                   AND (elem->>'name') = 'delete_file'
@@ -299,6 +288,71 @@ _PG_INSERT_BATCH_SQL = text(
                 ELSE elem->'result'
             END AS data
         ) d
+        CROSS JOIN LATERAL (
+            SELECT
+                CASE
+                    WHEN json_typeof(elem->'name') = 'string'
+                         AND (elem->>'name') IN ('edit_file', 'write_chapter')
+                         AND json_typeof(d.data) = 'object'
+                         AND json_typeof(d.data->'undo') = 'object'
+                    THEN 1
+                    WHEN json_typeof(elem->'name') = 'string'
+                         AND (elem->>'name') = 'batch_replace_files'
+                         AND json_typeof(d.data) = 'object'
+                         AND NOT COALESCE(
+                             json_typeof(d.data->'dry_run') = 'boolean' AND (d.data->>'dry_run') = 'true',
+                             FALSE
+                         )
+                         AND (
+                             CASE
+                                 WHEN json_typeof(d.data->'modified_files') = 'number'
+                                 THEN (d.data->>'modified_files')::numeric <> 0
+                                 ELSE TRUE
+                             END
+                         )
+                         AND json_typeof(d.data->'files') = 'array'
+                    THEN (
+                        SELECT COUNT(*)::int
+                        FROM json_array_elements(d.data->'files') AS f
+                        WHERE json_typeof(f) = 'object'
+                          AND json_typeof(f->'undo') = 'object'
+                    )
+                    ELSE 0
+                END AS edit_cards,
+                CASE
+                    WHEN json_typeof(elem->'name') = 'string'
+                         AND (elem->>'name') IN ('edit_file', 'write_chapter')
+                         AND json_typeof(d.data) = 'object'
+                         AND json_typeof(d.data->'undo') = 'object'
+                         AND json_typeof(d.data->'undo'->'undone') = 'boolean'
+                         AND (d.data->'undo'->>'undone') = 'true'
+                    THEN 1
+                    WHEN json_typeof(elem->'name') = 'string'
+                         AND (elem->>'name') = 'batch_replace_files'
+                         AND json_typeof(d.data) = 'object'
+                         AND NOT COALESCE(
+                             json_typeof(d.data->'dry_run') = 'boolean' AND (d.data->>'dry_run') = 'true',
+                             FALSE
+                         )
+                         AND (
+                             CASE
+                                 WHEN json_typeof(d.data->'modified_files') = 'number'
+                                 THEN (d.data->>'modified_files')::numeric <> 0
+                                 ELSE TRUE
+                             END
+                         )
+                         AND json_typeof(d.data->'files') = 'array'
+                    THEN (
+                        SELECT COUNT(*)::int
+                        FROM json_array_elements(d.data->'files') AS f
+                        WHERE json_typeof(f) = 'object'
+                          AND json_typeof(f->'undo') = 'object'
+                          AND json_typeof(f->'undo'->'undone') = 'boolean'
+                          AND (f->'undo'->>'undone') = 'true'
+                    )
+                    ELSE 0
+                END AS edit_undone
+        ) ec
         WHERE b.calls IS NOT NULL
           AND json_typeof(b.calls) = 'array'
           AND json_typeof(elem) = 'object'

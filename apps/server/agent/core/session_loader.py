@@ -615,7 +615,7 @@ class SessionLoader:
                 file_id = action["file_id"]
                 if (
                     not file_id
-                    or action["name"] in ("delete_file", "query_files")
+                    or action["name"] in ("delete_file", "query_files", "read_files", "search_files")
                     or action.get("outcome_unknown")
                     or file_id in deleted
                     or file_id in seen
@@ -769,7 +769,7 @@ class SessionLoader:
                                 deleted.add(fid)
                         continue
 
-                    if name == "query_files" and status == "success" and isinstance(result, list):
+                    if name in ("query_files", "read_files") and status == "success" and isinstance(result, list):
                         for item in reversed(result):
                             if not isinstance(item, dict):
                                 continue
@@ -795,16 +795,26 @@ class SessionLoader:
                                 else None
                             )
                             content = item.get("content")
-                            raw_sha = item.get("content_sha256")
+                            raw_sha = item.get("raw_content_sha256")
+                            if not (isinstance(raw_sha, str) and raw_sha.strip()):
+                                raw_sha = item.get("content_sha256")
+                            has_raw_sha = isinstance(raw_sha, str) and bool(raw_sha.strip())
                             if isinstance(content, str):
-                                candidates[fid] = {
-                                    "kind": "read",
-                                    "content": content,
-                                    "updated_at": norm_ts,
-                                }
+                                if item.get("paragraph_stats_annotated") is True and has_raw_sha:
+                                    candidates[fid] = {
+                                        "kind": "read_sha256",
+                                        "sha256": raw_sha.strip(),
+                                        "updated_at": norm_ts,
+                                    }
+                                else:
+                                    candidates[fid] = {
+                                        "kind": "read",
+                                        "content": content,
+                                        "updated_at": norm_ts,
+                                    }
                                 if len(candidates) >= limit:
                                     break
-                            elif isinstance(raw_sha, str) and raw_sha.strip():
+                            elif has_raw_sha:
                                 if allow_slimmed_read_sha256:
                                     candidates[fid] = {
                                         "kind": "read_sha256",
@@ -848,6 +858,37 @@ class SessionLoader:
                             }
                         else:
                             unverifiable.add(fid)
+                        if len(candidates) >= limit:
+                            break
+                        continue
+
+                    if name == "batch_replace_files" and isinstance(result, dict):
+                        res_data = result.get("data") if isinstance(result.get("data"), dict) else result
+                        if res_data.get("dry_run") is True or res_data.get("mutation_applied") is False:
+                            continue
+                        applied = status == "success" or (
+                            status == "partial" and res_data.get("mutation_applied") is not False
+                        )
+                        if not applied:
+                            continue
+                        entries = res_data.get("files") if isinstance(res_data.get("files"), list) else []
+                        for entry in reversed(entries):
+                            if not isinstance(entry, dict):
+                                continue
+                            fid = str(entry.get("id") or "").strip()
+                            if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                                continue
+                            exp_sha, exp_ts = self._extract_undo_proof(entry.get("undo"))
+                            if exp_sha is not None:
+                                candidates[fid] = {
+                                    "kind": "undo_write",
+                                    "updated_at": exp_ts,
+                                    "sha256": exp_sha,
+                                }
+                            else:
+                                unverifiable.add(fid)
+                            if len(candidates) >= limit:
+                                break
                         if len(candidates) >= limit:
                             break
                         continue
@@ -1024,6 +1065,22 @@ class SessionLoader:
                     res_data.get("mutation_applied") is False or res_data.get("restored") is True
                 ):
                     continue
+            if name == "batch_replace_files":
+                raw_res = self._parse_json_value(tc.get("result"))
+                res_data = (
+                    raw_res.get("data")
+                    if isinstance(raw_res, dict) and isinstance(raw_res.get("data"), dict)
+                    else raw_res
+                )
+                if isinstance(res_data, dict):
+                    if res_data.get("dry_run") is True or res_data.get("mutation_applied") is False:
+                        continue
+                    for entry in res_data.get("files") or []:
+                        if isinstance(entry, dict):
+                            fid = entry.get("id")
+                            if isinstance(fid, str) and fid.strip():
+                                actions.append({"name": name, "file_id": fid.strip(), **unknown})
+                continue
             if name in {"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"}:
                 actions.append(
                     {

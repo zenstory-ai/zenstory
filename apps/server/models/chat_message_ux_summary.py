@@ -24,7 +24,7 @@ from sqlmodel import Field, SQLModel
 from .chat_message_archive import ChatMessageArchive
 from .entities import ChatMessage
 
-_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter"})
+_UNDOABLE_CARD_TOOLS = frozenset({"edit_file", "write_chapter", "batch_replace_files"})
 _DELETE_CARD_TOOLS = frozenset({"delete_file"})
 _FAILED_CARD_STATUSES = frozenset({"error", "failed", "pending"})
 _RUNAWAY_STOP_REASONS = frozenset({"repetition_loop", "runaway_stop"})
@@ -157,7 +157,23 @@ def count_tool_cards(calls: list[Any]) -> tuple[int, int, int, int]:
             else result
         )
 
-        if tool_name in _UNDOABLE_CARD_TOOLS and isinstance(data, dict):
+        if tool_name == "batch_replace_files" and isinstance(data, dict):
+            if data.get("dry_run") is True:
+                continue
+            modified_files = data.get("modified_files")
+            if isinstance(modified_files, int) and not isinstance(modified_files, bool) and modified_files == 0:
+                continue
+            files = data.get("files")
+            if isinstance(files, list):
+                for entry in files:
+                    if not isinstance(entry, dict):
+                        continue
+                    undo = entry.get("undo")
+                    if isinstance(undo, dict):
+                        edit_cards += 1
+                        if undo.get("undone") is True:
+                            edit_undone += 1
+        elif tool_name in _UNDOABLE_CARD_TOOLS and isinstance(data, dict):
             undo = data.get("undo")
             if isinstance(undo, dict):
                 edit_cards += 1
@@ -211,6 +227,7 @@ def build_chat_message_ux_summary_row(
     if raw_tool_calls and (
         '"edit_file"' in raw_tool_calls
         or '"write_chapter"' in raw_tool_calls
+        or '"batch_replace_files"' in raw_tool_calls
         or '"delete_file"' in raw_tool_calls
     ):
         edit_cards, edit_undone, delete_cards, delete_restored = count_tool_cards(

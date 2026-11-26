@@ -814,7 +814,7 @@ def test_build_loop_turn_context_bounds_oversize_attachments_while_preserving_fo
     assert att1.id not in turn.read_snapshots
     assert att2.id not in turn.read_snapshots
     assert "已截断" in turn.text
-    assert f'query_files(id="{att1.id}")' in turn.text
+    assert f'read_files(ids=["{att1.id}"])' in turn.text
 
 
 @pytest.mark.unit
@@ -871,7 +871,7 @@ def test_build_loop_turn_context_subtracts_selected_skills_from_attachment_budge
     assert turn_with_skills.read_snapshots.get(focus.id) == focus_body
     assert att.id not in turn_with_skills.read_snapshots
     assert "已截断" in turn_with_skills.text
-    assert f'query_files(id="{att.id}")' in turn_with_skills.text
+    assert f'read_files(ids=["{att.id}"])' in turn_with_skills.text
 
 
 @pytest.mark.unit

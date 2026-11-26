@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,20 +16,6 @@ from agent.tools.file_ops.project import TITLE_SOURCE_UNAVAILABLE, ProjectOperat
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from models import Character, Novel, Project, User
-
-
-class _InMemoryBoard:
-    def __init__(self, tasks: list[dict] | None = None) -> None:
-        self.tasks = [dict(task) for task in tasks or []]
-        self.save_calls = 0
-
-    def get_tasks(self, *_args, **_kwargs) -> list[dict]:
-        return [dict(task) for task in self.tasks]
-
-    def save_tasks(self, _session_id: str, tasks: list[dict], **_kwargs) -> bool:
-        self.save_calls += 1
-        self.tasks = [dict(task) for task in tasks]
-        return True
 
 
 def _seed_user_and_project(db_session: Session, *, name: str = "我的小说") -> tuple[User, Project]:
@@ -48,143 +33,6 @@ def _seed_user_and_project(db_session: Session, *, name: str = "我的小说") -
     db_session.refresh(user)
     db_session.refresh(project)
     return user, project
-
-
-def test_refresh_verified_progress_db_failure_preserves_prior_done_and_cleans_session(
-    monkeypatch: pytest.MonkeyPatch,
-    db_session: Session,
-) -> None:
-    """A DB error reading live files must not wipe prior verified done tasks or poison session."""
-    user, project = _seed_user_and_project(db_session)
-    previous_board = [
-        {
-            "phase_id": "p1",
-            "task": "完成大纲",
-            "status": "done",
-            "task_kind": "file",
-            "artifact_file_type": "outline",
-            "artifact_refs": ["outline-1"],
-            "completed_artifact_refs": ["outline-1"],
-        },
-        {
-            "phase_id": "p2",
-            "task": "写第1-2章",
-            "status": "in_progress",
-            "task_kind": "file",
-            "artifact_file_type": "draft",
-            "unit_spec": {"unit": "章", "numbers": [1, 2]},
-            "done_units": [1],
-            "progress": "已写：第1章；待写：第2章",
-            "completed_artifact_refs": ["draft-1"],
-        },
-    ]
-    board = _InMemoryBoard(previous_board)
-    monkeypatch.setattr(importlib.import_module("services.infra.task_board_service"), "task_board_service", board)
-
-    def fail_file_select(_conn, _cursor, statement: str, *_rest) -> None:
-        if "FROM file" in statement or 'FROM "file"' in statement:
-            raise RuntimeError("transient file table failure")
-
-    bind = db_session.get_bind()
-    # Stage an uncommitted outer change to prove savepoint rollback keeps outer work intact.
-    project.summary = "外层未提交改动"
-    db_session.add(project)
-    db_session.flush()
-    assert db_session.in_transaction()
-
-    event.listen(bind, "before_cursor_execute", fail_file_select)
-    try:
-        ops = ProjectOperations(session=db_session, user_id=user.id)
-        result = ops.execute_update_plan(
-            session_id="sess-r2",
-            tasks=[
-                {
-                    "phase_id": "p1",
-                    "task": "完成大纲",
-                    "status": "done",
-                    "task_kind": "file",
-                    "artifact_file_type": "outline",
-                    "artifact_refs": ["outline-1"],
-                },
-                {
-                    "phase_id": "p2",
-                    "task": "写第1-2章",
-                    "status": "in_progress",
-                    "task_kind": "file",
-                    "artifact_file_type": "draft",
-                    "unit_spec": {"unit": "章", "numbers": [1, 2]},
-                },
-            ],
-            user_id=user.id,
-            project_id=project.id,
-        )
-    finally:
-        event.remove(bind, "before_cursor_execute", fail_file_select)
-
-    assert result["status"] == "success"
-    assert board.save_calls == 1
-    assert board.tasks[0]["status"] == "done"
-    assert board.tasks[0]["completed_artifact_refs"] == ["outline-1"]
-    assert board.tasks[1]["status"] == "in_progress"
-    assert board.tasks[1]["done_units"] == [1]
-    assert board.tasks[1]["completed_artifact_refs"] == ["draft-1"]
-
-    db_session.commit()
-    db_session.expire_all()
-    assert db_session.get(Project, project.id).summary == "外层未提交改动"
-
-
-def test_refresh_verified_progress_db_failure_still_rejects_newly_claimed_done(
-    monkeypatch: pytest.MonkeyPatch,
-    db_session: Session,
-) -> None:
-    """A newly claimed file done cannot be accepted when artifact verification fails."""
-    user, project = _seed_user_and_project(db_session)
-    previous_board = [
-        {
-            "phase_id": "p2",
-            "task": "写第1章",
-            "status": "in_progress",
-            "task_kind": "file",
-            "artifact_file_type": "draft",
-            "unit_spec": {"unit": "章", "numbers": [1]},
-        }
-    ]
-    board = _InMemoryBoard(previous_board)
-    monkeypatch.setattr(importlib.import_module("services.infra.task_board_service"), "task_board_service", board)
-
-    def fail_file_select(_conn, _cursor, statement: str, *_rest) -> None:
-        if "FROM file" in statement or 'FROM "file"' in statement:
-            raise RuntimeError("transient file table failure")
-
-    bind = db_session.get_bind()
-    with Session(bind) as idle_session:
-        assert not idle_session.in_transaction()
-        event.listen(bind, "before_cursor_execute", fail_file_select)
-        try:
-            result = ProjectOperations(session=idle_session, user_id=user.id).execute_update_plan(
-                session_id="sess-r2-new-done",
-                tasks=[
-                    {
-                        "phase_id": "p2",
-                        "task": "写第1章",
-                        "status": "done",
-                        "task_kind": "file",
-                        "artifact_file_type": "draft",
-                        "unit_spec": {"unit": "章", "numbers": [1]},
-                    }
-                ],
-                user_id=user.id,
-                project_id=project.id,
-            )
-        finally:
-            event.remove(bind, "before_cursor_execute", fail_file_select)
-
-        assert result["status"] == "ignored"
-        assert result["reason"] == "unverified_done"
-        assert board.save_calls == 0
-        assert not idle_session.in_transaction()
-        assert idle_session.get(Project, project.id) is not None
 
 
 def test_current_title_source_savepoint_protects_locked_project_update(db_session: Session) -> None:
@@ -376,18 +224,5 @@ def test_mcp_tools_probe_queries_clean_session_on_failure(
 
         assert mcp_tools._repeat_of_pending_empty_file(fake_session, {"title": "第1章"}, "p1", req_ctx) is None
         assert fake_session.rollback.call_count == 2
-
-        board = _InMemoryBoard()
-        monkeypatch.setattr(
-            importlib.import_module("services.infra.task_board_service"),
-            "task_board_service",
-            board,
-        )
-        fake_session.get.side_effect = RuntimeError("auto phase sql error")
-        mcp_tools._update_project_sync(
-            {"tasks": [{"task": "收集资料", "status": "in_progress"}]},
-            req_ctx,
-        )
-        assert fake_session.rollback.call_count == 3
     finally:
         req_ctx.clear()

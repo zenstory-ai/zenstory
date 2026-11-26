@@ -148,7 +148,7 @@ def test_compaction_summary_tells_model_not_to_reread_and_keeps_trace():
     assert summary["trace"]["id"] == ["file-123"]
     assert summary["trace"]["title"] == ["标题-file-123"]
     assert "不要整篇重读" in summary["note"]
-    assert 'response_mode="full"' in summary["note"]
+    assert "read_files(ids=[…])" in summary["note"]
     assert summary["original_chars"] == len(items[1]["output"])
 
 

@@ -2516,3 +2516,58 @@ def test_archival_service_and_archive_model_edge_branches(db_session: Session) -
     mock_vac.assert_called_once()
     assert rep.vacuum_analyzed is True
     assert rep.total_deleted == 3
+
+
+@pytest.mark.unit
+def test_compact_archived_tool_calls_slims_read_and_search_files_without_touching_skills():
+    from services.chat_message_archival import compact_archived_tool_calls
+
+    raw = json.dumps(
+        [
+            {
+                "id": "call-read",
+                "name": "read_files",
+                "status": "success",
+                "result": [
+                    {
+                        "id": "f-1",
+                        "title": "第一章",
+                        "file_type": "draft",
+                        "content": "超长正文" * 200,
+                    }
+                ],
+            },
+            {
+                "id": "call-search",
+                "name": "search_files",
+                "status": "success",
+                "result": {
+                    "query": "雾港",
+                    "files": [
+                        {
+                            "id": "f-1",
+                            "title": "第一章",
+                            "matches": [{"snippet": "雾港" * 40}],
+                        }
+                    ],
+                },
+            },
+            {
+                "id": "call-skill",
+                "name": "load_skill",
+                "status": "success",
+                "result": {"skill_id": "sk-1", "skill_name": "短篇节奏", "instructions_chars": 1200},
+            },
+        ],
+        ensure_ascii=True,
+        indent=2,
+    )
+    compacted = compact_archived_tool_calls(raw)
+    assert compacted is not None
+    parsed = json.loads(compacted)
+    assert "content" not in parsed[0]["result"][0]
+    assert parsed[0]["result"][0]["archived_note"] == ARCHIVED_QUERY_CONTENT_NOTE
+    assert "matches" not in parsed[1]["result"]["files"][0]
+    assert parsed[1]["result"]["files"][0]["archived_note"] == ARCHIVED_QUERY_CONTENT_NOTE
+    # Skill cards are preserved byte-for-byte semantically.
+    assert parsed[2]["result"] == {"skill_id": "sk-1", "skill_name": "短篇节奏", "instructions_chars": 1200}

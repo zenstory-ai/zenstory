@@ -438,7 +438,14 @@ function WorkflowStoppedCard({ stop }: {
 }
 
 const CONTROL_FLOW_TOOL_NAMES = new Set(['handoff_to_agent', 'request_clarification']);
-const READ_ONLY_TOOL_NAMES = new Set(['query_files', 'hybrid_search', 'load_skill', 'read_skill_resource']);
+const READ_ONLY_TOOL_NAMES = new Set([
+  'query_files',
+  'read_files',
+  'search_files',
+  'hybrid_search',
+  'load_skill',
+  'read_skill_resource',
+]);
 
 const isCollapsibleReadOnlyToolCall = (call: ToolCall): boolean =>
   READ_ONLY_TOOL_NAMES.has(call.tool_name) && call.status === 'success' && !call.error;

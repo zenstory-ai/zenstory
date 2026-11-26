@@ -158,7 +158,7 @@ def build_ui_action_turn_section(
             "- **Use a single batched `edit_file` call**: apply localized paragraph-level `replace` edits on the target file in one batched `edit_file` call whenever possible.",
             "- **Do NOT call `write_chapter`** to rewrite the whole chapter or replace the whole file.",
             "- **Do NOT call `load_skill`** for Remove AI Tone / 去AI味 — the authoritative method is already provided above.",
-            "- **Do NOT run unnecessary `query_files`**: the full text of the focus file is already in `<turn_context>` above; only query another file if a specific cross-chapter fact genuinely requires checking.",
+            "- **Do NOT run unnecessary `read_files` / `search_files`**: the full text of the focus file is already in `<turn_context>` above; only read or search another file if a specific cross-chapter fact genuinely requires checking.",
             "- **Zero-change rule**: if the target text has no concrete AI-tone problems worth fixing, do NOT call `edit_file` and do NOT make cosmetic or punctuation-only edits; briefly explain to the author that the text already reads naturally and no changes were made.",
         ]
 
@@ -188,6 +188,6 @@ def build_ui_action_turn_section(
         "- **优先单次批量 `edit_file`**：用一次包含多处逐段定位 `replace` 的 `edit_file` 完成目标文件的局部改写，减少往返轮次。",
         "- **禁止调用 `write_chapter` 整章重写**，也不要把整篇正文作为单条 replace 整份覆盖。",
         "- **不要调用 `load_skill` 加载「去AI味」**：权威方法已在上方给出。",
-        "- **不要做非必要的 `query_files`**：当前焦点文件的全文已在上方 `<turn_context>` 中，除非确有必要核对跨章人物/设定事实，否则直接基于当前全文改稿。",
+        "- **不要做非必要的 `read_files` / `search_files`**：当前焦点文件的全文已在上方 `<turn_context>` 中，除非确有必要核对跨章人物/设定事实，否则直接基于当前全文改稿。",
         "- **无改动不强改**：如果三层检查后没有具体阅读问题，**不要调用 `edit_file`**，也不要为了制造差异改标点或换同义词；直接简短告知作者这段已经比较自然、原文未做改动。",
     ]

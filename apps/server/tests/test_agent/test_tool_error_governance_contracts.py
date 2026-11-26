@@ -16,7 +16,6 @@ Covers all 5 items from audit #39:
 
 from __future__ import annotations
 
-import importlib
 import json
 from unittest.mock import MagicMock, patch
 
@@ -38,7 +37,6 @@ from agent.tools.file_ops.edit import (
     EditFileError,
     FileEditor,
 )
-from agent.tools.file_ops.project import ProjectOperations
 from agent.tools.tool_context import AgentRequestContext
 from agent.tools.tool_inputs import EditFileInput, validate_tool_input
 from agent.tools.tool_schemas import EDIT_FILE_TOOL, QUERY_FILES_TOOL
@@ -92,185 +90,6 @@ def _add_file(
     session.commit()
     session.refresh(row)
     return row
-
-
-def _mock_task_board(monkeypatch, previous_tasks=None):
-    module = importlib.import_module("services.infra.task_board_service")
-    service = MagicMock()
-    service.get_tasks.return_value = previous_tasks or []
-    service.save_tasks.return_value = True
-    monkeypatch.setattr(module, "task_board_service", service)
-    return service
-
-
-def _ops_with_rows(rows: list[File]) -> ProjectOperations:
-    session = MagicMock()
-    session.exec.return_value.all.return_value = rows
-    return ProjectOperations(session=session, user_id="u")
-
-
-# ===========================================================================
-# Item 1: update_project false rejections
-# ===========================================================================
-
-
-@pytest.mark.unit
-def test_update_project_auto_normalizes_three_in_progress_tasks_with_warning(monkeypatch):
-    board = _mock_task_board(monkeypatch, previous_tasks=[])
-    ops = ProjectOperations(session=MagicMock(), user_id="u")
-    tasks = [
-        {"task": "世界观设定", "status": "in_progress"},
-        {"task": "人物小传", "status": "in_progress"},
-        {"task": "分卷大纲", "status": "in_progress"},
-    ]
-
-    result = ops.execute_update_plan(session_id="s-multi", tasks=tasks)
-
-    assert result["status"] == "success"
-    assert "3 个任务为 in_progress" in result["warning"]
-    assert "世界观设定" in result["warning"]
-    assert [t["status"] for t in result["tasks"]] == ["in_progress", "pending", "pending"]
-    assert result["task_summary"] == {"total": 3, "pending": 2, "in_progress": 1, "done": 0}
-    board.save_tasks.assert_called_once()
-
-
-@pytest.mark.unit
-def test_update_project_still_blocks_done_to_in_progress_rollback_after_normalization(monkeypatch):
-    board = _mock_task_board(
-        monkeypatch,
-        previous_tasks=[{"task": "总纲", "status": "done", "phase_id": "p1"}],
-    )
-    ops = ProjectOperations(session=MagicMock(), user_id="u")
-    tasks = [
-        {"task": "总纲", "status": "in_progress", "phase_id": "p1"},
-        {"task": "第1章", "status": "in_progress", "phase_id": "p2"},
-    ]
-
-    result = ops.execute_update_plan(session_id="s-rollback", tasks=tasks)
-
-    assert result["status"] == "ignored"
-    assert result["reason"] == "validation_rejected"
-    assert "done -> in_progress rollback is not allowed" in result["error"]
-    board.save_tasks.assert_not_called()
-
-
-@pytest.mark.unit
-def test_update_project_combined_outline_ref_satisfies_done_without_leading_range_title(monkeypatch):
-    board = _mock_task_board(monkeypatch)
-    outline = File(id="out-1", project_id="p", title="分卷分章大纲", file_type="outline", content="第一卷大纲正文")
-    ops = _ops_with_rows([outline])
-
-    # Both explicit unit_spec AND legacy range wording in task name should succeed with valid outline ref.
-    tasks = [
-        {
-            "task": "完成第1-8章大纲",
-            "status": "done",
-            "artifact_file_type": "outline",
-            "artifact_refs": ["out-1"],
-            "unit_spec": {"unit": "章", "numbers": [1, 2, 3, 4, 5]},
-        }
-    ]
-    result = ops.execute_update_plan(session_id="s-outline", tasks=tasks, user_id="u", project_id="p")
-
-    assert result["status"] == "success"
-    assert result["tasks"][0]["status"] == "done"
-    assert result["tasks"][0]["completed_artifact_refs"] == ["out-1"]
-    board.save_tasks.assert_called_once()
-
-
-@pytest.mark.unit
-def test_update_project_ignores_unit_spec_on_character_and_lore_with_valid_refs(monkeypatch):
-    board = _mock_task_board(monkeypatch)
-    char = File(id="c-1", project_id="p", title="沈砚人物卡", file_type="character", content="沈砚：28岁。")
-    lore = File(id="l-1", project_id="p", title="灵气境界设定", file_type="lore", content="九境体系。")
-    ops = _ops_with_rows([char, lore])
-
-    tasks = [
-        {
-            "task": "完善第1-5章主要人物卡",
-            "status": "done",
-            "artifact_file_type": "character",
-            "artifact_refs": ["c-1"],
-            "unit_spec": {"unit": "章", "numbers": [1, 2, 3]},
-        },
-        {
-            "task": "整理第1卷世界观设定",
-            "status": "done",
-            "artifact_file_type": "lore",
-            "artifact_refs": ["l-1"],
-            "unit_spec": {"unit": "卷", "numbers": [1]},
-        },
-    ]
-    result = ops.execute_update_plan(session_id="s-mat", tasks=tasks, user_id="u", project_id="p")
-
-    assert result["status"] == "success"
-    assert [t["status"] for t in result["tasks"]] == ["done", "done"]
-    board.save_tasks.assert_called_once()
-
-
-@pytest.mark.unit
-def test_update_project_compatible_material_ref_types_and_actual_file_type_detail(monkeypatch):
-    board = _mock_task_board(monkeypatch)
-    doc = File(id="doc-1", project_id="p", title="分卷细纲", file_type="document", content="完整细纲。")
-    char_as_doc = File(id="c-doc", project_id="p", title="主角卡", file_type="document", content="主角设定。")
-    ops = _ops_with_rows([doc, char_as_doc])
-
-    # Compatible metadata types (outline <-> document <-> lore) succeed with explicit artifact_refs.
-    ok = ops.execute_update_plan(
-        session_id="s-compat",
-        tasks=[
-            {
-                "task": "完成总纲",
-                "status": "done",
-                "artifact_file_type": "outline",
-                "artifact_refs": ["doc-1"],
-            }
-        ],
-        user_id="u",
-        project_id="p",
-    )
-    assert ok["status"] == "success"
-    assert ok["tasks"][0]["completed_artifact_refs"] == ["doc-1"]
-
-    # Incompatible mismatch (character vs document, or missing/deleted ref) reports actual file_type!
-    bad = ops.execute_update_plan(
-        session_id="s-mismatch",
-        tasks=[
-            {
-                "task": "交付人物卡",
-                "status": "done",
-                "artifact_file_type": "character",
-                "artifact_refs": ["c-doc", "missing-id"],
-            }
-        ],
-        user_id="u",
-        project_id="p",
-    )
-    assert bad["status"] == "ignored"
-    assert bad["reason"] == "unverified_done"
-    missing_detail = bad["unverified_done"][0]["missing"]
-    assert "c-doc" in missing_detail and "document" in missing_detail and "character" in missing_detail
-    assert "missing-id" in missing_detail
-
-    # Body types (draft/script) NEVER cross-accept outline/document refs!
-    body_mismatch = ops.execute_update_plan(
-        session_id="s-body-mismatch",
-        tasks=[
-            {
-                "task": "写第1章",
-                "status": "done",
-                "artifact_file_type": "draft",
-                "artifact_refs": ["doc-1"],
-                "unit_spec": {"unit": "章", "numbers": [1]},
-            }
-        ],
-        user_id="u",
-        project_id="p",
-    )
-    assert body_mismatch["status"] == "ignored"
-    assert body_mismatch["reason"] == "unverified_done"
-    assert "document" in body_mismatch["unverified_done"][0]["missing"]
-    assert board.save_tasks.call_count == 1
 
 
 # ===========================================================================
