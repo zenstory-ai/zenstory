@@ -138,43 +138,44 @@ class TestAuthorEditsAndWorkingSetHelpers:
         session_loader_test_data,
         monkeypatch,
     ):
-        """File 查询失败时必须回滚事务，且如实标注手改未算出而非伪装成零改动。"""
+        """File 查询失败时通过 savepoint 隔离回滚（不回滚外层事务），且如实标注手改未算出而非伪装成零改动。"""
         from agent.tools.author_changes import FAILED_LINE
+        from models import File
 
         project = session_loader_test_data["project"]
         edited = self._make_file(db_session, project.id, "第3章 三十年", "老秦在收摊。")
 
+        # Stage an uncommitted outer write to verify savepoint rollback never destroys outer transaction!
+        outer_file = File(
+            project_id=project.id, title="外层未提交草稿", content="外层正文", file_type="draft"
+        )
+        db_session.add(outer_file)
+        db_session.flush()
+
         loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
 
         real_exec = db_session.exec
-        real_rollback = db_session.rollback
-        state = {"failed_once": False, "aborted": False, "rollbacks": 0}
+        state = {"failed_once": False}
 
         def flaky_exec(statement, *args, **kwargs):
             if not state["failed_once"]:
                 state["failed_once"] = True
-                state["aborted"] = True
                 raise RuntimeError("transient db error")
-            if state["aborted"]:
-                raise RuntimeError("InFailedSqlTransaction: current transaction is aborted")
             return real_exec(statement, *args, **kwargs)
 
-        def tracking_rollback():
-            state["aborted"] = False
-            state["rollbacks"] += 1
-            return real_rollback()
-
         monkeypatch.setattr(db_session, "exec", flaky_exec)
-        monkeypatch.setattr(db_session, "rollback", tracking_rollback)
 
         author_edits_context, author_edited_ids, files_by_id = loader.author_edits_for_files(
             db_session, [edited.id], {edited.id: edited.title}
         )
-        assert state["rollbacks"] == 1
         assert author_edited_ids == set()
         assert files_by_id is None
         assert "<author_edits>" in author_edits_context
         assert FAILED_LINE in author_edits_context
+
+        # Outer uncommitted transaction survived the savepoint rollback intact!
+        db_session.commit()
+        assert db_session.get(File, outer_file.id) is not None
 
     def test_author_edits_for_files_cancel_event_stops_cleanly(
         self,

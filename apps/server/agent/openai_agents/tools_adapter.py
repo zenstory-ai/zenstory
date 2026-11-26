@@ -529,15 +529,21 @@ def build_agent_function_tools(
                 edit_plan = edit_guard.plan(_tool_name, raw_arguments) if edit_guard is not None else None
                 if edit_plan is not None and edit_plan.blocked_output is not None:
                     output = edit_plan.blocked_output
-                elif read_guard is not None:
-                    plan = read_guard.plan(_tool_name, raw_arguments)
-                    if plan.blocked_output is not None:
-                        output = plan.blocked_output
-                    else:
-                        output = await invoke_allowed(plan.arguments)
-                        output = read_guard.observe(_tool_name, plan, output)
                 else:
-                    output = await invoke_allowed(raw_arguments)
+                    effective_args = (
+                        edit_plan.arguments
+                        if edit_plan is not None and edit_plan.arguments is not None
+                        else raw_arguments
+                    )
+                    if read_guard is not None:
+                        plan = read_guard.plan(_tool_name, effective_args)
+                        if plan.blocked_output is not None:
+                            output = plan.blocked_output
+                        else:
+                            output = await invoke_allowed(plan.arguments)
+                            output = read_guard.observe(_tool_name, plan, output)
+                    else:
+                        output = await invoke_allowed(effective_args)
                 if edit_guard is not None and edit_plan is not None and edit_plan.blocked_output is None:
                     output = edit_guard.observe(_tool_name, edit_plan, output)
                 if overdue_reminder_title is not None and req_ctx is not None and req_ctx.overdue_file_bodies():

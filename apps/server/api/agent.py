@@ -183,18 +183,22 @@ async def wait_for_stream_cleanup(timeout_s: float) -> None:
     """关机前等后台的退还、终态写回与部分历史保存落定（有上限）。"""
     from agent.service import AgentService
 
-    tasks = {
-        task
-        for task in (
-            *_detached_refund_tasks,
-            *_round_outcome_tasks,
-            *_round_metric_tasks,
-            *AgentService.background_cleanup_tasks,
-        )
-        if not task.done()
-    }
-    if tasks and timeout_s > 0:
-        await asyncio.wait(tasks, timeout=timeout_s)
+    deadline = time.monotonic() + max(0.0, timeout_s)
+    while True:
+        tasks = {
+            task
+            for task in (
+                *_detached_refund_tasks,
+                *_round_outcome_tasks,
+                *_round_metric_tasks,
+                *AgentService.background_cleanup_tasks,
+            )
+            if not task.done()
+        }
+        remaining = deadline - time.monotonic()
+        if not tasks or remaining <= 0:
+            break
+        await asyncio.wait(tasks, timeout=remaining)
 
 # 认识停止约定（/stop、quota_refunded.removed_files、断线终态）的前端在 /stream 请求上带
 # 这个头。发布前打开的旧标签页不带：它断线时照旧只补存部分历史，不移除空白文件、
@@ -414,6 +418,59 @@ async def _refund_quota(
         )
         return False
 
+
+
+async def _refund_quota_independent(
+    user_id: str,
+    period_start: datetime,
+    reservation_id: str,
+    **log_fields: Any,
+) -> bool:
+    """在独立 DB session 中退还额度（不触碰可能已关闭的请求级 session）。"""
+    try:
+        return await asyncio.to_thread(
+            _release_ai_conversation_sync,
+            user_id,
+            period_start,
+            reservation_id,
+        )
+    except Exception as refund_error:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Failed to refund AI conversation quota after stream error",
+            user_id=user_id,
+            error=str(refund_error),
+            error_type=type(refund_error).__name__,
+            **log_fields,
+        )
+        return False
+
+
+def _schedule_detached_refund_independent(
+    user_id: str,
+    period_start: datetime,
+    reservation_id: str,
+    **log_fields: Any,
+) -> asyncio.Task[bool] | None:
+    """在后台通过独立 ``create_session()`` 退还额度（不触碰已关闭的请求级 session）。"""
+    try:
+        task = asyncio.get_running_loop().create_task(
+            _refund_quota_independent(user_id, period_start, reservation_id, **log_fields)
+        )
+    except RuntimeError as exc:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Could not schedule quota refund after disconnect",
+            user_id=user_id,
+            error=str(exc),
+            **log_fields,
+        )
+        return None
+    _detached_refund_tasks.add(task)
+    task.add_done_callback(_detached_refund_tasks.discard)
+    return task
 
 
 def _schedule_detached_refund(
@@ -1360,17 +1417,23 @@ async def stream_request(
                 try:
                     charged_period_start = await asyncio.shield(reserve_task)
                 except asyncio.CancelledError:
+                    # 持有强引用并纳入 wait_for_stream_cleanup 关机等待，避免 GC 丢回调或 SIGTERM 漏退额度；
+                    # 回调通过独立 create_session() 退还，绝不触碰已随请求关闭的 session。
+                    _detached_refund_tasks.add(reserve_task)
+
                     def _undo_cancelled_reserve(fut: asyncio.Task[datetime | None]) -> None:
-                        if not fut.cancelled() and fut.exception() is None:
-                            period = fut.result()
-                            if period is not None:
-                                _schedule_detached_refund(
-                                    session,
-                                    user_id,
-                                    period,
-                                    agent_run_id,
-                                    billing_reason="prestream_aborted",
-                                )
+                        try:
+                            if not fut.cancelled() and fut.exception() is None:
+                                period = fut.result()
+                                if period is not None:
+                                    _schedule_detached_refund_independent(
+                                        user_id,
+                                        period,
+                                        agent_run_id,
+                                        billing_reason="prestream_aborted",
+                                    )
+                        finally:
+                            _detached_refund_tasks.discard(fut)
 
                     reserve_task.add_done_callback(_undo_cancelled_reserve)
                     raise

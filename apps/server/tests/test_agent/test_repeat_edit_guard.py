@@ -924,3 +924,64 @@ def test_soft_skip_status_does_not_pollute_error_card_telemetry_or_reset_breaker
         assert breaker.is_open and breaker.trip.reason == "repeated_recoverable_tool_failure"
     finally:
         req_ctx.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_w3_p0_3_tools_adapter_wires_edit_plan_arguments_for_mixed_batch_query_files():
+    """P0-3: tools_adapter passes edit_plan.arguments (excluding guarded just-written IDs)
+    into read_guard.plan() and invoke_allowed(), avoiding redundant DB fetch & read_guard pollution."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章 初遇", "draft")
+        req_ctx.record_written_snapshot("ch1", "雨落长安街。" * 400, full=True)
+        edit_guard = RepeatEditGuard(request_context=req_ctx)
+        read_guard = RepeatReadGuard(request_context=req_ctx)
+        breaker = ToolFailureBreaker()
+        received_args: list[dict] = []
+
+        async def fake_query(args, **_kwargs):
+            received_args.append(dict(args))
+            rows = [
+                {"id": fid, "title": "总纲" if fid == "outline-1" else fid, "content": f"{fid}全文"}
+                for fid in (args.get("ids") or ([args["id"]] if args.get("id") else []))
+            ]
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps({"status": "success", "data": rows}, ensure_ascii=False),
+                    }
+                ]
+            }
+
+        with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
+            tools = {
+                t.name: t
+                for t in build_agent_function_tools(
+                    failure_breaker=breaker,
+                    read_guard=read_guard,
+                    edit_guard=edit_guard,
+                )
+            }
+            out = json.loads(
+                await tools["query_files"].on_invoke_tool(
+                    req_ctx, json.dumps({"ids": ["ch1", "outline-1"]})
+                )
+            )
+            # Underlying handler MUST only receive ["outline-1"], NEVER the guarded "ch1"!
+            assert received_args == [{"ids": ["outline-1"]}]
+            # Output merges slim content_omitted row for ch1 + full content for outline-1 in order!
+            assert out["status"] == "success"
+            assert out["self_read_guarded_ids"] == ["ch1"]
+            assert [row["id"] for row in out["data"]] == ["ch1", "outline-1"]
+            assert out["data"][0]["content_omitted"] is True
+            assert "content" not in out["data"][0]
+            assert out["data"][1]["content"] == "outline-1全文"
+            # read_guard observed ONLY outline-1, never ch1!
+            assert any(k[1] == "outline-1" for k in read_guard._read_counts)
+            assert not any(k[1] == "ch1" for k in read_guard._read_counts)
+    finally:
+        req_ctx.clear()

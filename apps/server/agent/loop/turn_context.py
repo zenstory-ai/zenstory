@@ -95,6 +95,7 @@ def build_loop_turn_context(
     ui_action: UIAction | None = None,
     selected_text: str | None = None,
     prior_context_fingerprints: dict[str, Any] | None = None,
+    allow_slimmed_read_snapshots: bool = False,
 ) -> LoopTurnContext:
     from agent.context import get_context_assembler
     from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
@@ -189,7 +190,7 @@ def build_loop_turn_context(
         emitted_project_files = PROJECT_FILES_UNCHANGED_MARKER
         deduped_any = True
 
-    author_edits = _author_edits_block(
+    author_edits, author_edit_states, author_edits_failed = _author_edits_block(
         session,
         project_id=project_id,
         user_id=user_id,
@@ -198,9 +199,22 @@ def build_loop_turn_context(
         force_en=force_en,
         cancel_event=cancel_event,
     )
-    author_edits_sha = _sha256_text(author_edits) if author_edits else ""
+    author_edits_sha = (
+        _sha256_text(
+            json.dumps(
+                {
+                    "block": author_edits,
+                    "states": [list(state) for state in author_edit_states],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+        if author_edits and not author_edits_failed
+        else ""
+    )
     emitted_author_edits = author_edits
-    if author_edits and prior_fp and prior_fp.get("author_edits_sha256") == author_edits_sha:
+    if author_edits_sha and prior_fp and prior_fp.get("author_edits_sha256") == author_edits_sha:
         emitted_author_edits = AUTHOR_EDITS_UNCHANGED_MARKER
         deduped_any = True
 
@@ -253,6 +267,8 @@ def build_loop_turn_context(
         "author_edits_sha256": author_edits_sha,
         # 记录本轮实际按完整正文发出的指纹（供 Stage 2 压缩回退到 full_text 时重置指纹使用）。
         "_current_full_file_hashes": current_full_file_hashes,
+        # 记录本轮 <author_edits> 提醒到的 file_id，若本轮 query_files 读过其中任一文件则清空 author_edits_sha256。
+        "_author_edits_file_ids": [fid for fid, _ts, _ver, _chars in author_edit_states],
     }
 
     from agent.loop.history import valid_compaction
@@ -270,6 +286,7 @@ def build_loop_turn_context(
             chat_session_id=chat_session_id,
             exclude_ids=set(result.read_snapshots),
             cancel_event=cancel_event,
+            allow_slimmed_read_sha256=allow_slimmed_read_snapshots,
         )
         for file_id, content in carried.items():
             if file_id not in result.read_snapshots:
@@ -435,16 +452,17 @@ def _author_edits_block(
     in_context_full_ids: set[str],
     force_en: bool = False,
     cancel_event: threading.Event | None = None,
-) -> str:
+) -> tuple[str, list[tuple[str, str, int, int]], bool]:
     """本会话 AI 写过但不在本轮全文上下文中的正文文件：若在最近 AI 写入后被作者手改，给 1 行提醒。
 
+    返回 ``(rendered_block, [(file_id, updated_at_iso, version_number, char_count), ...], failed)``。
     焦点与附加文件已在本轮 ``<turn_context>`` 里给出最新全文，无需重复提醒；
     增益信息：算不出来时不影响本轮。
     """
     from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES, SessionLoader
 
     if not user_id or not chat_session_id or (cancel_event is not None and cancel_event.is_set()):
-        return ""
+        return "", [], False
     loader = SessionLoader(project_id=project_id, user_id=user_id)
     try:
         # 先按本项目、未删除的正文文件筛，再计名额：大纲、设定等文件不挤掉 AI 写过的章节。
@@ -456,21 +474,29 @@ def _author_edits_block(
             cancel_event=cancel_event,
         )
         if cancel_event is not None and cancel_event.is_set():
-            return ""
+            return "", [], False
         non_context_written = [fid for fid in written if fid not in in_context_full_ids]
         if not non_context_written:
-            return ""
+            return "", [], False
+        alert_states: list[tuple[str, str, int, int]] = []
+        failed_flags: list[bool] = []
         block, _edited, _files = loader.author_edits_for_files(
-            session, non_context_written, {}, force_en=force_en, cancel_event=cancel_event
+            session,
+            non_context_written,
+            {},
+            force_en=force_en,
+            cancel_event=cancel_event,
+            alert_state_out=alert_states,
+            failed_out=failed_flags,
         )
-        return block
+        return block, alert_states, bool(failed_flags)
     except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
         with contextlib.suppress(Exception):
             session.rollback()
         log_with_context(
             logger, 30, "Loop author edits build failed", project_id=project_id, error_type=type(exc).__name__
         )
-        return ""
+        return "", [], True
 
 
 def _session_read_snapshots(
@@ -481,6 +507,7 @@ def _session_read_snapshots(
     chat_session_id: str,
     exclude_ids: set[str],
     cancel_event: threading.Event | None = None,
+    allow_slimmed_read_sha256: bool = False,
 ) -> dict[str, str]:
     """结转本会话此前轮次读/写过且未变更的文件快照（增益信息，失败不影响本轮）。"""
     from agent.core.session_loader import SESSION_SNAPSHOT_MAX_FILES, SessionLoader
@@ -495,6 +522,7 @@ def _session_read_snapshots(
             exclude_ids=exclude_ids,
             limit=SESSION_SNAPSHOT_MAX_FILES,
             cancel_event=cancel_event,
+            allow_slimmed_read_sha256=allow_slimmed_read_sha256,
         )
     except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
         with contextlib.suppress(Exception):

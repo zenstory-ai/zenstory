@@ -488,8 +488,9 @@ def test_author_edits_for_files_prequeries_versions_skips_unedited_and_emits_no_
     assert ai_unversioned.id in block and "无版本手改章" in block
     assert "自你上次写入后已被作者手动修改" in block
 
-    # Zero SAVEPOINTs emitted on healthy paths!
-    assert not any("savepoint" in s.lower() for s in executed_sql), f"Unexpected SAVEPOINT SQL: {executed_sql}"
+    # Wrapped in a single SAVEPOINT to isolate optional <author_edits> failures from outer transactions.
+    savepoints = [s for s in executed_sql if s.lstrip().lower().startswith("savepoint")]
+    assert len(savepoints) == 1, f"Expected exactly 1 SAVEPOINT for savepoint isolation, got {savepoints}"
 
     # 1 batched FileVersion metadata query (zero .content projection) + at most 1 batched
     # reconstruction query for the single equal-length candidate (ai_edited), never per-file N+1.
@@ -598,10 +599,16 @@ def test_author_edits_prequery_catches_same_length_unversioned_none_ts_reviewed_
 
         def all(self) -> list[Any]:
             rows = self._inner.all()
+            patched: list[Any] = []
             for row in rows:
                 if isinstance(row, File) and row.id == same_len_none_ts.id:
                     row.updated_at = None  # type: ignore[assignment]
-            return rows
+                    patched.append(row)
+                elif not isinstance(row, File) and hasattr(row, "__len__") and len(row) == 4 and str(row[0]) == same_len_none_ts.id:
+                    patched.append((row[0], row[1], row[2], None))
+                else:
+                    patched.append(row)
+            return patched
 
         def first(self) -> Any:
             return self._inner.first()
@@ -665,7 +672,7 @@ def test_author_edits_rollback_isolation_survives_orm_expiration(
 
         def flaky_exec(statement: Any, *args: Any, **kwargs: Any) -> Any:
             exec_calls["n"] += 1
-            if exec_calls["n"] == 2:
+            if exec_calls["n"] == 3:
                 raise RuntimeError("simulated sql error on FileVersion metadata query")
             return real_exec(statement, *args, **kwargs)
 
@@ -678,8 +685,137 @@ def test_author_edits_rollback_isolation_survives_orm_expiration(
         finally:
             event.remove(bind, "before_cursor_execute", _on_sql)
 
-    assert by_id is not None and set(by_id) == {f1.id, f2.id}
+    assert by_id is None
     assert edited_ids == set()
     assert FAILED_LINE in block
-    # Exactly ONE initial SELECT FROM file (zero lazy ORM reloads after session.rollback()!).
-    assert len(file_selects) == 1, f"Expected 1 File SELECT (no lazy reloads after rollback), got {len(file_selects)}"
+    # 1 lightweight metadata SELECT + 1 content SELECT for checked slice (zero lazy ORM reloads after savepoint rollback!).
+    assert len(file_selects) == 2, f"Expected 2 File SELECTs (metadata + checked content, no lazy reloads), got {len(file_selects)}"
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Audit P1-4 regressions: savepoint, rename/reorder no false positive,
+# SQL folder filtering & metadata-first bounded content projection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_w3_p1_4_rename_and_reorder_updated_at_bump_never_false_positives_author_edits(
+    db_session: Session,
+) -> None:
+    """P1-4: file.updated_at > latest.created_at without content change (rename_file / sidebar
+    reorder) routes through equal_len_candidates verification and MUST NOT trigger <author_edits>,
+    while a genuine same-length unversioned content edit at updated_at > latest.created_at IS caught."""
+    user, project, _ = _seed_user_and_project(db_session)
+    versions = FileVersionService()
+
+    renamed = File(
+        id="p14-renamed",
+        project_id=project.id,
+        title="第1章 旧名",
+        file_type="draft",
+        content="林墨推门走进雨里。",
+    )
+    reordered = File(
+        id="p14-reordered",
+        project_id=project.id,
+        title="第2章",
+        file_type="draft",
+        content="雨声落在青石板上。",
+        order=1,
+    )
+    truly_edited = File(
+        id="p14-same-len-edit",
+        project_id=project.id,
+        title="第3章",
+        file_type="draft",
+        content="林墨推门走进雨里。",
+    )
+    db_session.add_all([renamed, reordered, truly_edited])
+    db_session.commit()
+
+    v_ren = versions.create_version(db_session, renamed.id, renamed.content, change_type="create", change_source="ai")
+    v_reo = versions.create_version(db_session, reordered.id, reordered.content, change_type="create", change_source="ai")
+    v_edt = versions.create_version(db_session, truly_edited.id, truly_edited.content, change_type="create", change_source="ai")
+
+    # Simulate rename_file & sidebar reorder: bump updated_at strictly past latest AI version without changing content.
+    renamed.title = "第1章 新名"
+    renamed.updated_at = v_ren.created_at + timedelta(seconds=10)
+    reordered.order = 5
+    reordered.updated_at = v_reo.created_at + timedelta(seconds=10)
+    # Simulate real same-length unversioned manual edit:
+    truly_edited.content = "陆沉推门走进雨里。"
+    truly_edited.updated_at = v_edt.created_at + timedelta(seconds=10)
+    db_session.add_all([renamed, reordered, truly_edited])
+    db_session.commit()
+
+    block, edited_ids, _by_id = SessionLoader(project.id, user.id).author_edits_for_files(
+        db_session, [renamed.id, reordered.id, truly_edited.id], {}
+    )
+    assert edited_ids == {truly_edited.id}
+    assert renamed.id not in block
+    assert reordered.id not in block
+    assert truly_edited.id in block
+
+
+@pytest.mark.unit
+def test_w3_p1_4_metadata_first_filters_folders_in_sql_and_fetches_content_only_for_checked_slice(
+    db_session: Session,
+) -> None:
+    """P1-4: author_edits_for_files filters File.file_type != 'folder' in SQL and projects
+    lightweight metadata (no File.content) first, fetching File.content ONLY for [:AUTHOR_EDITS_MAX_FILES]."""
+    from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES
+
+    user, project, _ = _seed_user_and_project(db_session)
+    folder_ids = [f"p14-folder-{i}" for i in range(5)]
+    draft_ids = [f"p14-draft-{i:02d}" for i in range(AUTHOR_EDITS_MAX_FILES + 5)]
+
+    db_session.add_all(
+        [
+            File(id=fid, project_id=project.id, title=f"目录{i}", file_type="folder", content="不应加载")
+            for i, fid in enumerate(folder_ids)
+        ]
+        + [
+            File(id=fid, project_id=project.id, title=f"第{i + 1}章", file_type="draft", content=f"正文{i}" * 20)
+            for i, fid in enumerate(draft_ids)
+        ]
+    )
+    db_session.commit()
+
+    ordered = [*folder_ids, *draft_ids]
+    executed: list[tuple[str, Any]] = []
+    engine = db_session.get_bind()
+
+    def _on_sql(_conn, _cursor, statement, params, _context, _execmany):
+        executed.append((statement, params))
+
+    event.listen(engine, "before_cursor_execute", _on_sql)
+    try:
+        block, edited_ids, by_id = SessionLoader(project.id, user.id).author_edits_for_files(
+            db_session, ordered, {}
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", _on_sql)
+
+    assert edited_ids == set()
+    assert by_id is not None and len(by_id) == AUTHOR_EDITS_MAX_FILES
+    assert "另有 5 个文件没有核对手改" in block
+
+    file_selects = [
+        (s, p)
+        for s, p in executed
+        if s.lstrip().lower().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", s.lower())
+    ]
+    assert len(file_selects) == 2
+    # Query 1: lightweight metadata only (no file.content!) + SQL file_type != 'folder' filter
+    meta_sql, _meta_params = file_selects[0]
+    assert "file.content" not in meta_sql.lower()
+    assert "file_type !=" in meta_sql.lower()
+    # Query 2: content fetched ONLY for the 30 checked IDs (never unchecked files or folders!)
+    content_sql, content_params = file_selects[1]
+    assert "file.content" in content_sql.lower()
+    assert "file_type !=" in content_sql.lower()
+    param_values = set(content_params.values() if isinstance(content_params, dict) else content_params)
+    for overflow_id in draft_ids[AUTHOR_EDITS_MAX_FILES:]:
+        assert overflow_id not in param_values
+    for folder_id in folder_ids:
+        assert folder_id not in param_values

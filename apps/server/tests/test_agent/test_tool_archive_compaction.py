@@ -1802,3 +1802,229 @@ async def test_p2_2_retry_unanswered_merges_carried_and_new_stage1_archived_call
     assert outputs_by_call[f"h{assistant_rows[0].id}_0"]["archived"] is True
     assert outputs_by_call[f"h{assistant_rows[1].id}_0"]["archived"] is True
 
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Audit P0-1 & P1-1 regressions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_w3_p0_1_cold_replay_persist_slimmed_archived_call_records_archived_file_ids(
+    db_session: Session,
+):
+    """P0-1: When a query_files row was ALREADY persist-time slimmed (archived_note without content,
+    so len(receipt_text) >= len(output_text)), cold replay under Stage 1 tool_archive MUST still
+    unconditionally record its file_ids in history.archived_file_ids."""
+    from agent.core.chat_storage import slim_query_files_result_for_persistence
+
+    user, project, chat = _seed_user_project_chat(db_session, "p0_1_slimmed_archive")
+    large_body = "雾港雨夜的灯塔亮了起来，潮水涌上青石阶。" * 300
+    slimmed_result = slim_query_files_result_for_persistence(
+        [{"id": "f-slim-1", "title": "第1章", "file_type": "draft", "content": large_body}]
+    )
+    assert isinstance(slimmed_result, list) and "archived_note" in slimmed_result[0]
+
+    base = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    u1 = ChatMessage(session_id=chat.id, role="user", content="读第1章", created_at=base)
+    a1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="读完了。",
+        tool_calls=json.dumps(
+            [
+                {
+                    "id": "call_slim_0",
+                    "name": "query_files",
+                    "arguments": {"id": "f-slim-1"},
+                    "status": "success",
+                    "result": slimmed_result,
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "display_events": [
+                    {"type": "tool_call", "tool_call_index": 0},
+                    {"type": "content", "content": "读完了。"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base + timedelta(seconds=5),
+    )
+    db_session.add_all([u1, a1])
+    db_session.commit()
+    db_session.refresh(a1)
+
+    u2 = ChatMessage(session_id=chat.id, role="user", content="继续", created_at=base + timedelta(seconds=10))
+    a2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="继续完成。",
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "compaction": {
+                    "mode": COMPACTION_MODE_TOOL_ARCHIVE,
+                    "archived_through_message_id": a1.id,
+                    "archived_call_ids": ["call_slim_0"],
+                    "archived_count": 1,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base + timedelta(seconds=15),
+    )
+    db_session.add_all([u2, a2])
+    db_session.commit()
+
+    hist = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert "f-slim-1" in hist.archived_file_ids
+
+
+@pytest.mark.unit
+def test_w3_p1_1_reused_call_ids_never_misarchive_write_tool_or_skip_old_read():
+    """P1-1: Non-globally-unique call_ids (e.g. call_0 reused across turns) must match the
+    ordered unconsumed function_call, never mis-archiving edit_file or skipping old query_files."""
+    large_edit_out = json.dumps(
+        {"status": "success", "data": {"id": "f-write", "edits_applied": 1, "note": "写" * 3000}},
+        ensure_ascii=False,
+    )
+    large_read_old = _large_query_output("f-old", "旧章", repeat=200)
+    large_read_recent = _large_query_output("f-recent", "近章", repeat=200)
+
+    items = [
+        # Turn 1 (old): write tool uses call_0
+        {"role": "user", "content": "第1轮改稿"},
+        {"type": "function_call", "call_id": "call_0", "name": "edit_file", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call_0", "output": large_edit_out},
+        {"role": "assistant", "content": "改好了。"},
+        # Turn 2 (old): read tool ALSO uses call_0
+        {"role": "user", "content": "第2轮读旧章"},
+        {"type": "function_call", "call_id": "call_0", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call_0", "output": large_read_old},
+        {"role": "assistant", "content": "读完了旧章。"},
+        # Turns 3-5 (protected recent window): Turn 5 ALSO reuses call_0!
+        {"role": "user", "content": "第3轮"},
+        {"role": "assistant", "content": "好3。"},
+        {"role": "user", "content": "第4轮"},
+        {"role": "assistant", "content": "好4。"},
+        {"role": "user", "content": "第5轮读近章"},
+        {"type": "function_call", "call_id": "call_0", "name": "query_files", "arguments": "{}"},
+        {"type": "function_call_output", "call_id": "call_0", "output": large_read_recent},
+        {"role": "assistant", "content": "读完了近章。"},
+    ]
+    history = LoopHistory(items=items, last_prompt_tokens=320_000, last_message_id="m5")
+    res = archive_old_tool_results(
+        history,
+        keep_recent_turns=3,
+        min_output_chars=1000,
+        min_savings_tokens=1,
+        compact_at_tokens=400_000,
+    )
+    assert res.admitted is True
+    assert res.archived_count == 1
+    assert res.archived_call_ids == ["call_0"]
+    assert res.archived_file_ids == {"f-old"}
+    assert res.record is not None
+    assert res.record.get("archived_call_occurrences") == {"call_0": [1]}
+    # Turn 1 write tool (index 2) is NEVER archived!
+    assert res.items[2]["output"] == large_edit_out
+    # Turn 2 old read tool (index 6) IS archived!
+    assert json.loads(res.items[6]["output"])["archived"] is True
+    # Turn 5 protected recent read tool (index 14) is NEVER archived!
+    assert res.items[14]["output"] == large_read_recent
+
+
+@pytest.mark.unit
+def test_w3_p1_1_cold_replay_handles_reused_orig_call_ids_precisely(db_session: Session):
+    """P1-1: Cold DB replay with reused orig_call_id ('call_0') archives ONLY the exact
+    occurrence recorded in archived_call_occurrences and never touches protected recent turns."""
+    user, project, chat = _seed_user_project_chat(db_session, "p1_1_cold_reused")
+    base = utcnow().replace(tzinfo=None) - timedelta(minutes=10)
+    big_old = "旧章正文段落。" * 400
+    big_recent = "近期章节正文段落。" * 400
+
+    rows: list[ChatMessage] = []
+    # Turn 1: edit_file with id="call_0"
+    u1 = ChatMessage(session_id=chat.id, role="user", content="第1轮", created_at=base)
+    a1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="改完了。",
+        tool_calls=json.dumps(
+            [{"id": "call_0", "name": "edit_file", "arguments": {"id": "f-w"}, "status": "success", "result": {"id": "f-w", "edits_applied": 1}}],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": [{"type": "tool_call", "tool_call_index": 0}, {"type": "content", "content": "改完了。"}]}),
+        created_at=base + timedelta(seconds=1),
+    )
+    # Turn 2: query_files with id="call_0" (archived!)
+    u2 = ChatMessage(session_id=chat.id, role="user", content="第2轮", created_at=base + timedelta(seconds=2))
+    a2 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="读旧章。",
+        tool_calls=json.dumps(
+            [{"id": "call_0", "name": "query_files", "arguments": {"id": "f-old"}, "status": "success", "result": [{"id": "f-old", "title": "旧章", "content": big_old}]}],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": [{"type": "tool_call", "tool_call_index": 0}, {"type": "content", "content": "读旧章。"}]}),
+        created_at=base + timedelta(seconds=3),
+    )
+    # Turn 3: query_files with id="call_0" (protected recent turn, NOT archived!)
+    u3 = ChatMessage(session_id=chat.id, role="user", content="第3轮", created_at=base + timedelta(seconds=4))
+    a3 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="读近章。",
+        tool_calls=json.dumps(
+            [{"id": "call_0", "name": "query_files", "arguments": {"id": "f-rec"}, "status": "success", "result": [{"id": "f-rec", "title": "近章", "content": big_recent}]}],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": [{"type": "tool_call", "tool_call_index": 0}, {"type": "content", "content": "读近章。"}]}),
+        created_at=base + timedelta(seconds=5),
+    )
+    rows.extend([u1, a1, u2, a2, u3, a3])
+    db_session.add_all(rows)
+    db_session.commit()
+    for r in rows:
+        db_session.refresh(r)
+
+    # Turn 4 assistant row carries Stage 1 record covering through a3 with occurrence [1] for call_0
+    u4 = ChatMessage(session_id=chat.id, role="user", content="第4轮", created_at=base + timedelta(seconds=6))
+    a4 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="继续。",
+        message_metadata=json.dumps(
+            {
+                "engine": LOOP_ENGINE_METADATA_VALUE,
+                "compaction": {
+                    "mode": COMPACTION_MODE_TOOL_ARCHIVE,
+                    "archived_through_message_id": a3.id,
+                    "archived_call_ids": ["call_0"],
+                    "archived_call_occurrences": {"call_0": [1]},
+                    "archived_count": 1,
+                },
+            },
+            ensure_ascii=False,
+        ),
+        created_at=base + timedelta(seconds=7),
+    )
+    db_session.add_all([u4, a4])
+    db_session.commit()
+
+    replayed = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    outputs = {
+        item["call_id"]: json.loads(item["output"])
+        for item in replayed.items
+        if item.get("type") == "function_call_output"
+    }
+    assert outputs[f"h{a1.id}_0"].get("archived") is not True
+    assert outputs[f"h{a2.id}_0"].get("archived") is True
+    assert outputs[f"h{a3.id}_0"].get("archived") is not True
+    assert replayed.archived_file_ids == {"f-old"}

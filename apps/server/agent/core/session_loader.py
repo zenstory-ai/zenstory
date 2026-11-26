@@ -3,7 +3,6 @@ Session loader helpers for author manual-edit alerts, session-written files,
 session read snapshots, and loop status card history replay.
 """
 
-import contextlib
 import json
 import threading
 from dataclasses import dataclass
@@ -65,16 +64,21 @@ class SessionLoader:
         *,
         force_en: bool = False,
         cancel_event: threading.Event | None = None,
+        alert_state_out: list[tuple[str, str, int, int]] | None = None,
+        failed_out: list[bool] | None = None,
     ) -> tuple[str, set[str], dict[str, Any] | None]:
         """用单次批量 ``FileVersion`` 元数据查询核对 ``ordered``（至多 ``AUTHOR_EDITS_MAX_FILES`` 个）
         中哪些文件在最近一次 AI 写入之后被作者手动修改过，返回 ``(<author_edits> 块, 被手改 id 集, id → File)``。
 
         判定规则（零 ``FileVersion.content`` TOAST 读取，零 ``SequenceMatcher``）：
+        - 先按元数据投影过滤文件夹与已删文件，再仅对 ``[:AUTHOR_EDITS_MAX_FILES]`` 拉取正文；
+        - 所有可选查询包裹在 ``session.begin_nested()`` savepoint 中，异常只回滚 savepoint 绝不破坏外层事务，
+          失败时返回 ``None`` 避免暴露过期 ORM 对象；
         - 0 个版本或从未有过 AI 版本（作者原创/导入原稿）：不提醒；
         - 存在严格 AI 版本且最新版本不是严格 AI（作者编辑 / 作者回滚 / 审阅保存等）：提醒；
-        - 最新版本是严格 AI，但正文字符数或字数与最新版本不一致、时间戳缺失，或
-          ``file.updated_at > latest.created_at``（零宽限窗口，覆盖版本额度耗尽后的无版本手改）：提醒。
-        查询失败时回滚并如实附上不完整提示。
+        - 最新版本是严格 AI，但正文字符数或字数与最新版本不一致或时间戳缺失：提醒；
+          ``file.updated_at > latest.created_at``（可能为 ``rename_file`` / 侧栏拖序或同长无版本手改）
+          统一进入 ``equal_len_candidates`` 批量还原最新 AI 版本正文核验，杜绝零宽限误报。
         """
         from agent.tools.author_changes import (
             _REVIEWED_AI_EDIT_SUMMARY,
@@ -89,17 +93,258 @@ class SessionLoader:
         if cancel_event is not None and cancel_event.is_set():
             return "", set(), {}
 
+        unchecked_titles: list[str] = []
         try:
-            files = session.exec(
-                select(File).where(
-                    File.id.in_(ordered),
-                    File.project_id == self.project_id,
-                    File.is_deleted.is_(False),
+            with session.begin_nested():
+                meta_rows = session.exec(
+                    select(File.id, File.title, File.updated_at).where(
+                        File.id.in_(ordered),
+                        File.project_id == self.project_id,
+                        File.is_deleted.is_(False),
+                        File.file_type != "folder",
+                    )
+                ).all()
+
+                meta_titles: dict[str, str] = {
+                    str(fid): str(title or "").strip() or ("(untitled)" if force_en else "（未命名）")
+                    for fid, title, _updated_at in meta_rows
+                }
+                present = [file_id for file_id in ordered if file_id in meta_titles]
+                checked, unchecked = present[:AUTHOR_EDITS_MAX_FILES], present[AUTHOR_EDITS_MAX_FILES:]
+                unchecked_titles = [
+                    f'"{meta_titles[fid]}"' if force_en else f"《{meta_titles[fid]}》"
+                    for fid in unchecked
+                ]
+
+                if not checked:
+                    return (
+                        render_manual_edit_alerts([], force_en=force_en, unchecked_titles=unchecked_titles),
+                        set(),
+                        {},
+                    )
+
+                if cancel_event is not None and cancel_event.is_set():
+                    all_unchecked = [
+                        f'"{meta_titles[fid]}"' if force_en else f"《{meta_titles[fid]}》"
+                        for fid in present
+                    ]
+                    return (
+                        render_manual_edit_alerts([], force_en=force_en, unchecked_titles=all_unchecked),
+                        set(),
+                        {},
+                    )
+
+                checked_rows = session.exec(
+                    select(File.id, File.title, File.content, File.updated_at).where(
+                        File.id.in_(checked),
+                        File.project_id == self.project_id,
+                        File.is_deleted.is_(False),
+                        File.file_type != "folder",
+                    )
+                ).all()
+
+                snapshots_by_id = {
+                    str(fid): _FileSnapshot(
+                        id=str(fid),
+                        title=str(title or "").strip() or ("(untitled)" if force_en else "（未命名）"),
+                        content=content or "",
+                        updated_at=updated_at,
+                    )
+                    for fid, title, content, updated_at in checked_rows
+                }
+                checked = [fid for fid in checked if fid in snapshots_by_id]
+                if not checked:
+                    return (
+                        render_manual_edit_alerts([], force_en=force_en, unchecked_titles=unchecked_titles),
+                        set(),
+                        snapshots_by_id,
+                    )
+
+                potential_ai_expr = or_(
+                    FileVersion.change_source == "ai",
+                    FileVersion.change_type == "ai_edit",
                 )
-            ).all()
+                strict_ai_expr = or_(
+                    FileVersion.change_source == "ai",
+                    and_(
+                        FileVersion.change_type == "ai_edit",
+                        or_(
+                            FileVersion.change_summary.is_(None),
+                            ~FileVersion.change_summary.startswith(_REVIEWED_AI_EDIT_SUMMARY),
+                        ),
+                    ),
+                )
+                agg_subq = (
+                    select(
+                        FileVersion.file_id.label("file_id"),
+                        func.max(FileVersion.version_number).label("max_ver"),
+                        func.sum(case((potential_ai_expr, 1), else_=0)).label("potential_ai_count"),
+                        func.max(case((potential_ai_expr, FileVersion.version_number), else_=None)).label(
+                            "max_potential_ai_ver"
+                        ),
+                        func.max(case((strict_ai_expr, FileVersion.version_number), else_=None)).label(
+                            "max_strict_ai_ver"
+                        ),
+                    )
+                    .where(FileVersion.file_id.in_(checked))
+                    .group_by(FileVersion.file_id)
+                    .subquery()
+                )
+                ai_fv = aliased(FileVersion)
+                ai_ver_expr = func.coalesce(agg_subq.c.max_strict_ai_ver, agg_subq.c.max_potential_ai_ver)
+                summary_rows = session.exec(
+                    select(
+                        agg_subq.c.file_id,
+                        agg_subq.c.max_ver,
+                        agg_subq.c.potential_ai_count,
+                        agg_subq.c.max_potential_ai_ver,
+                        agg_subq.c.max_strict_ai_ver,
+                        FileVersion.char_count,
+                        FileVersion.word_count,
+                        FileVersion.created_at,
+                        case((strict_ai_expr, 1), else_=0).label("latest_is_strict_ai"),
+                        ai_fv.version_number.label("ai_version_number"),
+                        ai_fv.char_count.label("ai_char_count"),
+                        ai_fv.word_count.label("ai_word_count"),
+                    )
+                    .join(
+                        FileVersion,
+                        and_(
+                            FileVersion.file_id == agg_subq.c.file_id,
+                            FileVersion.version_number == agg_subq.c.max_ver,
+                        ),
+                    )
+                    .outerjoin(
+                        ai_fv,
+                        and_(
+                            ai_fv.file_id == agg_subq.c.file_id,
+                            ai_fv.version_number == ai_ver_expr,
+                        ),
+                    )
+                ).all()
+
+                version_summary: dict[
+                    str,
+                    tuple[
+                        int,
+                        int,
+                        int | None,
+                        int | None,
+                        int,
+                        int,
+                        datetime | None,
+                        bool,
+                        int | None,
+                        int | None,
+                        int | None,
+                    ],
+                ] = {
+                    str(fid): (
+                        int(max_ver or 0),
+                        int(potential_ai_count or 0),
+                        int(max_potential_ai_ver) if max_potential_ai_ver is not None else None,
+                        int(max_strict_ai_ver) if max_strict_ai_ver is not None else None,
+                        int(char_count or 0),
+                        int(word_count or 0),
+                        latest_created_at,
+                        bool(latest_is_strict_ai),
+                        int(ai_version_number) if ai_version_number is not None else None,
+                        int(ai_char_count) if ai_char_count is not None else None,
+                        int(ai_word_count) if ai_word_count is not None else None,
+                    )
+                    for (
+                        fid,
+                        max_ver,
+                        potential_ai_count,
+                        max_potential_ai_ver,
+                        max_strict_ai_ver,
+                        char_count,
+                        word_count,
+                        latest_created_at,
+                        latest_is_strict_ai,
+                        ai_version_number,
+                        ai_char_count,
+                        ai_word_count,
+                    ) in summary_rows
+                }
+
+                definite_edited_ids: set[str] = set()
+                equal_len_candidates: dict[str, int] = {}
+                for file_id in checked:
+                    snap = snapshots_by_id[file_id]
+                    summary = version_summary.get(snap.id)
+                    if summary is None:
+                        continue
+                    (
+                        max_ver,
+                        potential_ai_count,
+                        max_potential_ai_ver,
+                        max_strict_ai_ver,
+                        latest_char_count,
+                        latest_word_count,
+                        latest_created_at,
+                        latest_is_strict_ai,
+                        ai_version_number,
+                        ai_char_count,
+                        ai_word_count,
+                    ) = summary
+                    if potential_ai_count <= 0:
+                        continue
+                    if not latest_is_strict_ai:
+                        # A non-AI version (user edit, user restore, reviewed AI edit, system restore)
+                        # exists after a strict AI version, OR after a legacy "AI edit (reviewed)"
+                        # version (e.g. create/user -> ai_edit/reviewed -> edit/user).
+                        has_post_ai_ver = max_strict_ai_ver is not None or (
+                            max_potential_ai_ver is not None and max_ver > max_potential_ai_ver
+                        )
+                        if not has_post_ai_ver:
+                            continue
+                        if ai_version_number is None or ai_char_count is None or ai_word_count is None:
+                            definite_edited_ids.add(file_id)
+                        elif len(snap.content) != ai_char_count or count_words(snap.content) != ai_word_count:
+                            # Distinct length/word count vs the AI version -> edited with 0 TOAST reads.
+                            definite_edited_ids.add(file_id)
+                        else:
+                            # Rare equal-length/equal-word-count candidate: resolve AI version text in batch
+                            # to distinguish same-length edits from no-op identical-content saves.
+                            equal_len_candidates[file_id] = ai_version_number
+                        continue
+                    current_text = snap.content
+                    if len(current_text) != latest_char_count or count_words(current_text) != latest_word_count:
+                        # Unversioned manual edit after the latest AI version (e.g. version quota exhausted).
+                        definite_edited_ids.add(file_id)
+                    elif not isinstance(snap.updated_at, datetime) or not isinstance(latest_created_at, datetime):
+                        # Fail closed on missing timestamps.
+                        definite_edited_ids.add(file_id)
+                    elif normalize_datetime_to_utc(snap.updated_at) > normalize_datetime_to_utc(latest_created_at):
+                        # Metadata-only writes (rename_file, sidebar reorder, timestamp advance) bump
+                        # file.updated_at without creating a FileVersion or editing text. Verify actual
+                        # content against the latest AI version in batch instead of blindly flagging.
+                        equal_len_candidates[file_id] = max_ver
+
+                if equal_len_candidates:
+                    from services.features.file_version_service import FileVersionService
+
+                    pair_filters = [
+                        and_(FileVersion.file_id == fid, FileVersion.version_number == ver)
+                        for fid, ver in equal_len_candidates.items()
+                    ]
+                    target_versions = {
+                        str(v.file_id): v
+                        for v in session.exec(select(FileVersion).where(or_(*pair_filters))).all()
+                    }
+                    ai_contents = (
+                        FileVersionService()._get_contents_for_versions(session, target_versions)
+                        if target_versions
+                        else {}
+                    )
+                    for fid in equal_len_candidates:
+                        reconstructed = ai_contents.get(fid)
+                        if reconstructed is None or snapshots_by_id[fid].content != reconstructed:
+                            definite_edited_ids.add(fid)
         except Exception as exc:
-            with contextlib.suppress(Exception):
-                session.rollback()
+            if failed_out is not None:
+                failed_out.append(True)
             log_with_context(
                 logger,
                 30,  # WARNING
@@ -109,276 +354,20 @@ class SessionLoader:
                 error=str(exc),
                 error_type=type(exc).__name__,
             )
-            unchecked_ids = ordered[AUTHOR_EDITS_MAX_FILES:]
+            fallback_unchecked = unchecked_titles or [
+                fallback_titles.get(file_id) or ("(untitled)" if force_en else "（未命名）")
+                for file_id in ordered[AUTHOR_EDITS_MAX_FILES:]
+            ]
             return (
                 render_manual_edit_alerts(
                     [],
                     force_en=force_en,
-                    unchecked_titles=[
-                        fallback_titles.get(file_id) or ("(untitled)" if force_en else "（未命名）")
-                        for file_id in unchecked_ids
-                    ],
+                    unchecked_titles=fallback_unchecked,
                     failed=True,
                 ),
                 set(),
                 None,
             )
-
-        by_id = {str(f.id): f for f in files if f.file_type != "folder"}
-        snapshots_by_id = {
-            fid: _FileSnapshot(
-                id=fid,
-                title=str(f.title or "").strip() or ("(untitled)" if force_en else "（未命名）"),
-                content=f.content or "",
-                updated_at=f.updated_at,
-            )
-            for fid, f in by_id.items()
-        }
-        present = [file_id for file_id in ordered if file_id in by_id]
-        checked, unchecked = present[:AUTHOR_EDITS_MAX_FILES], present[AUTHOR_EDITS_MAX_FILES:]
-        unchecked_titles = [
-            f'"{snapshots_by_id[fid].title}"' if force_en else f"《{snapshots_by_id[fid].title}》"
-            for fid in unchecked
-        ]
-
-        if not checked:
-            return (
-                render_manual_edit_alerts([], force_en=force_en, unchecked_titles=unchecked_titles),
-                set(),
-                by_id,
-            )
-
-        if cancel_event is not None and cancel_event.is_set():
-            all_unchecked = [
-                f'"{snapshots_by_id[fid].title}"' if force_en else f"《{snapshots_by_id[fid].title}》"
-                for fid in present
-            ]
-            return (
-                render_manual_edit_alerts([], force_en=force_en, unchecked_titles=all_unchecked),
-                set(),
-                by_id,
-            )
-
-        potential_ai_expr = or_(
-            FileVersion.change_source == "ai",
-            FileVersion.change_type == "ai_edit",
-        )
-        strict_ai_expr = or_(
-            FileVersion.change_source == "ai",
-            and_(
-                FileVersion.change_type == "ai_edit",
-                or_(
-                    FileVersion.change_summary.is_(None),
-                    ~FileVersion.change_summary.startswith(_REVIEWED_AI_EDIT_SUMMARY),
-                ),
-            ),
-        )
-        try:
-            agg_subq = (
-                select(
-                    FileVersion.file_id.label("file_id"),
-                    func.max(FileVersion.version_number).label("max_ver"),
-                    func.sum(case((potential_ai_expr, 1), else_=0)).label("potential_ai_count"),
-                    func.max(case((potential_ai_expr, FileVersion.version_number), else_=None)).label(
-                        "max_potential_ai_ver"
-                    ),
-                    func.max(case((strict_ai_expr, FileVersion.version_number), else_=None)).label(
-                        "max_strict_ai_ver"
-                    ),
-                )
-                .where(FileVersion.file_id.in_(checked))
-                .group_by(FileVersion.file_id)
-                .subquery()
-            )
-            ai_fv = aliased(FileVersion)
-            ai_ver_expr = func.coalesce(agg_subq.c.max_strict_ai_ver, agg_subq.c.max_potential_ai_ver)
-            summary_rows = session.exec(
-                select(
-                    agg_subq.c.file_id,
-                    agg_subq.c.max_ver,
-                    agg_subq.c.potential_ai_count,
-                    agg_subq.c.max_potential_ai_ver,
-                    agg_subq.c.max_strict_ai_ver,
-                    FileVersion.char_count,
-                    FileVersion.word_count,
-                    FileVersion.created_at,
-                    case((strict_ai_expr, 1), else_=0).label("latest_is_strict_ai"),
-                    ai_fv.version_number.label("ai_version_number"),
-                    ai_fv.char_count.label("ai_char_count"),
-                    ai_fv.word_count.label("ai_word_count"),
-                )
-                .join(
-                    FileVersion,
-                    and_(
-                        FileVersion.file_id == agg_subq.c.file_id,
-                        FileVersion.version_number == agg_subq.c.max_ver,
-                    ),
-                )
-                .outerjoin(
-                    ai_fv,
-                    and_(
-                        ai_fv.file_id == agg_subq.c.file_id,
-                        ai_fv.version_number == ai_ver_expr,
-                    ),
-                )
-            ).all()
-        except Exception as exc:
-            with contextlib.suppress(Exception):
-                session.rollback()
-            log_with_context(
-                logger,
-                30,  # WARNING
-                "Author edits version summary query failed",
-                project_id=self.project_id,
-                user_id=self.user_id,
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-            return (
-                render_manual_edit_alerts(
-                    [], force_en=force_en, unchecked_titles=unchecked_titles, failed=True
-                ),
-                set(),
-                by_id,
-            )
-
-        version_summary: dict[
-            str,
-            tuple[
-                int,
-                int,
-                int | None,
-                int | None,
-                int,
-                int,
-                datetime | None,
-                bool,
-                int | None,
-                int | None,
-                int | None,
-            ],
-        ] = {
-            str(fid): (
-                int(max_ver or 0),
-                int(potential_ai_count or 0),
-                int(max_potential_ai_ver) if max_potential_ai_ver is not None else None,
-                int(max_strict_ai_ver) if max_strict_ai_ver is not None else None,
-                int(char_count or 0),
-                int(word_count or 0),
-                latest_created_at,
-                bool(latest_is_strict_ai),
-                int(ai_version_number) if ai_version_number is not None else None,
-                int(ai_char_count) if ai_char_count is not None else None,
-                int(ai_word_count) if ai_word_count is not None else None,
-            )
-            for (
-                fid,
-                max_ver,
-                potential_ai_count,
-                max_potential_ai_ver,
-                max_strict_ai_ver,
-                char_count,
-                word_count,
-                latest_created_at,
-                latest_is_strict_ai,
-                ai_version_number,
-                ai_char_count,
-                ai_word_count,
-            ) in summary_rows
-        }
-
-        definite_edited_ids: set[str] = set()
-        equal_len_candidates: dict[str, int] = {}
-        for file_id in checked:
-            snap = snapshots_by_id[file_id]
-            summary = version_summary.get(snap.id)
-            if summary is None:
-                continue
-            (
-                max_ver,
-                potential_ai_count,
-                max_potential_ai_ver,
-                max_strict_ai_ver,
-                latest_char_count,
-                latest_word_count,
-                latest_created_at,
-                latest_is_strict_ai,
-                ai_version_number,
-                ai_char_count,
-                ai_word_count,
-            ) = summary
-            if potential_ai_count <= 0:
-                continue
-            if not latest_is_strict_ai:
-                # A non-AI version (user edit, user restore, reviewed AI edit, system restore)
-                # exists after a strict AI version, OR after a legacy "AI edit (reviewed)"
-                # version (e.g. create/user -> ai_edit/reviewed -> edit/user).
-                has_post_ai_ver = max_strict_ai_ver is not None or (
-                    max_potential_ai_ver is not None and max_ver > max_potential_ai_ver
-                )
-                if not has_post_ai_ver:
-                    continue
-                if ai_version_number is None or ai_char_count is None or ai_word_count is None:
-                    definite_edited_ids.add(file_id)
-                elif len(snap.content) != ai_char_count or count_words(snap.content) != ai_word_count:
-                    # Distinct length/word count vs the AI version -> edited with 0 TOAST reads.
-                    definite_edited_ids.add(file_id)
-                else:
-                    # Rare equal-length/equal-word-count candidate: resolve AI version text in batch
-                    # to distinguish same-length edits from no-op identical-content saves.
-                    equal_len_candidates[file_id] = ai_version_number
-                continue
-            current_text = snap.content
-            if len(current_text) != latest_char_count or count_words(current_text) != latest_word_count:
-                # Unversioned manual edit after the latest AI version (e.g. version quota exhausted).
-                definite_edited_ids.add(file_id)
-            elif not isinstance(snap.updated_at, datetime) or not isinstance(latest_created_at, datetime):
-                # Fail closed on missing timestamps.
-                definite_edited_ids.add(file_id)
-            elif normalize_datetime_to_utc(snap.updated_at) > normalize_datetime_to_utc(latest_created_at):
-                # Zero grace window so even same-length unversioned edits immediately after an AI write are caught.
-                definite_edited_ids.add(file_id)
-
-        if equal_len_candidates:
-            from services.features.file_version_service import FileVersionService
-
-            try:
-                pair_filters = [
-                    and_(FileVersion.file_id == fid, FileVersion.version_number == ver)
-                    for fid, ver in equal_len_candidates.items()
-                ]
-                target_versions = {
-                    str(v.file_id): v
-                    for v in session.exec(select(FileVersion).where(or_(*pair_filters))).all()
-                }
-                ai_contents = (
-                    FileVersionService()._get_contents_for_versions(session, target_versions)
-                    if target_versions
-                    else {}
-                )
-            except Exception as exc:
-                with contextlib.suppress(Exception):
-                    session.rollback()
-                log_with_context(
-                    logger,
-                    30,  # WARNING
-                    "Author edits AI version reconstruction failed",
-                    project_id=self.project_id,
-                    user_id=self.user_id,
-                    error=str(exc),
-                    error_type=type(exc).__name__,
-                )
-                return (
-                    render_manual_edit_alerts(
-                        [], force_en=force_en, unchecked_titles=unchecked_titles, failed=True
-                    ),
-                    set(),
-                    by_id,
-                )
-            for fid in equal_len_candidates:
-                reconstructed = ai_contents.get(fid)
-                if reconstructed is None or snapshots_by_id[fid].content != reconstructed:
-                    definite_edited_ids.add(fid)
 
         edited_files: list[tuple[str, str]] = []
         edited_ids: set[str] = set()
@@ -387,13 +376,22 @@ class SessionLoader:
                 snap = snapshots_by_id[file_id]
                 edited_files.append((file_id, snap.title))
                 edited_ids.add(file_id)
+                if alert_state_out is not None:
+                    updated_iso = (
+                        normalize_datetime_to_utc(snap.updated_at).isoformat()
+                        if isinstance(snap.updated_at, datetime)
+                        else ""
+                    )
+                    summary_entry = version_summary.get(snap.id)
+                    ver_num = summary_entry[0] if summary_entry is not None else 0
+                    alert_state_out.append((file_id, updated_iso, ver_num, len(snap.content)))
 
         block = render_manual_edit_alerts(
             edited_files,
             force_en=force_en,
             unchecked_titles=unchecked_titles,
         )
-        return block, edited_ids, by_id
+        return block, edited_ids, snapshots_by_id
 
     def session_written_file_ids(
         self,
@@ -536,6 +534,7 @@ class SessionLoader:
         exclude_ids: set[str] | None = None,
         limit: int = SESSION_SNAPSHOT_MAX_FILES,
         cancel_event: threading.Event | None = None,
+        allow_slimmed_read_sha256: bool = False,
     ) -> dict[str, str]:
         """本会话此前轮次读过或写过、且至今未被修改的文件快照（file_id → 当前全文）。
 
@@ -690,13 +689,22 @@ class SessionLoader:
                                     if len(candidates) >= limit:
                                         break
                                 elif isinstance(raw_sha, str) and raw_sha.strip():
-                                    candidates[fid] = {
-                                        "kind": "read_sha256",
-                                        "sha256": raw_sha.strip(),
-                                        "updated_at": norm_ts,
-                                    }
-                                    if len(candidates) >= limit:
-                                        break
+                                    if allow_slimmed_read_sha256:
+                                        candidates[fid] = {
+                                            "kind": "read_sha256",
+                                            "sha256": raw_sha.strip(),
+                                            "updated_at": norm_ts,
+                                        }
+                                        if len(candidates) >= limit:
+                                            break
+                                    else:
+                                        # Cold DB replay: persist-slimmed entry has archived_note without
+                                        # full content in model history -> refuse snapshot carryover and
+                                        # block older reads from masquerading as latest.
+                                        unverifiable.add(fid)
+                                elif isinstance(item.get("archived_note"), str) and item["archived_note"].strip():
+                                    if not allow_slimmed_read_sha256:
+                                        unverifiable.add(fid)
                             if len(candidates) >= limit:
                                 break
                             continue

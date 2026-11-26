@@ -39,10 +39,10 @@ def test_provider_timeout_defaults_and_env_overrides(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek")
 
     minimax, deepseek = llm_providers.configured_providers()
-    assert minimax.first_event_timeout_s == 75.0
+    assert minimax.first_event_timeout_s == 95.0
     assert minimax.stream_idle_timeout_s == 120.0
     assert minimax.kind.read_timeout_s() == 120.0
-    assert deepseek.first_event_timeout_s == 45.0
+    assert deepseek.first_event_timeout_s == 65.0
     assert deepseek.stream_idle_timeout_s == 45.0
     assert deepseek.kind.read_timeout_s() == 45.0
 
@@ -70,7 +70,7 @@ def test_provider_timeout_defaults_and_env_overrides(monkeypatch):
         monkeypatch.setenv("MINIMAX_FIRST_EVENT_TIMEOUT_S", invalid)
         monkeypatch.setenv("MINIMAX_CLIENT_TIMEOUT_S", invalid)
         minimax, _ = llm_providers.configured_providers()
-        assert minimax.first_event_timeout_s == 75.0
+        assert minimax.first_event_timeout_s == 95.0
         assert minimax.stream_idle_timeout_s == 120.0
 
 
@@ -87,7 +87,7 @@ def test_direct_model_provider_construction_resolves_default_timeouts(monkeypatc
         base_url="https://api.minimaxi.com/v1",
         reasoning_effort="high",
     )
-    assert provider.first_event_timeout_s == 75.0
+    assert provider.first_event_timeout_s == 95.0
     assert provider.stream_idle_timeout_s == 120.0
 
     zero_provider = llm_providers.ModelProvider(
@@ -619,3 +619,94 @@ async def test_first_event_timeout_preserves_single_run_minimax_key_pinning(monk
         reset_request_context(tokens)
         llm_failover.reset_failover_state()
         llm_providers.reset_key_routing_state()
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 Audit P1-3: Non-blocking bounded teardown in llm_failover, runner, stream_adapter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_w3_p1_3_collect_responses_stream_nonblocking_teardown_on_timeout(monkeypatch):
+    """P1-3: _collect_responses_stream detaches wedged aclose()/close() on timeout so failover
+    is never blocked, and bounds background cleanup cleanly."""
+    monkeypatch.setattr(llm_failover, "_STREAM_COLLECT_TEARDOWN_TIMEOUT_S", 0.05)
+
+    close_started = asyncio.Event()
+
+    class _WedgedResponsesStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            await asyncio.sleep(5.0)
+
+        async def aclose(self):
+            close_started.set()
+            await asyncio.sleep(5.0)
+
+        async def close(self):
+            await asyncio.sleep(5.0)
+
+    provider = llm_providers.ModelProvider(
+        slot="primary",
+        kind=llm_providers.ProviderKind(
+            name="minimax",
+            api_key_env="MINIMAX_API_KEY",
+            base_url_env="MINIMAX_BASE_URL",
+            default_base_url="https://api.minimaxi.com/v1",
+            default_model="MiniMax-M3.1-Flash",
+            can_disable_thinking=False,
+            reasoning_efforts=frozenset({"high"}),
+            read_timeout_env="TEST_W3_COLLECT_TIMEOUT_S",
+            default_read_timeout_s=0.05,
+        ),
+        model="MiniMax-M3.1-Flash",
+        api_key="sk-test",
+        base_url="https://api.minimaxi.com/v1",
+        reasoning_effort="high",
+    )
+
+    started = time.monotonic()
+    with pytest.raises(llm_failover._StreamCollectError) as exc_info:
+        await llm_failover._collect_responses_stream(_WedgedResponsesStream(), provider)
+    elapsed = time.monotonic() - started
+    assert isinstance(exc_info.value.exc, TimeoutError)
+    # Returned promptly after 0.05s timeout without blocking behind the 5s wedged aclose()!
+    assert elapsed < 0.4
+
+    await asyncio.wait_for(close_started.wait(), timeout=1.0)
+    # Background teardown self-terminates within bounded timeout and cleans up global set.
+    await asyncio.sleep(0.12)
+    assert not llm_failover._pending_stream_collect_teardowns
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_w3_p1_3_background_aclose_in_runner_and_stream_adapter_is_bounded():
+    """P1-3: Hung aclose() in runner._schedule_background_aclose and StreamAdapter._schedule_background_aclose
+    times out via asyncio.wait_for and never leaks tasks in the global sets."""
+    from agent import stream_adapter as adapter_mod
+    from agent.openai_agents import runner as runner_mod
+
+    runner_started = asyncio.Event()
+    adapter_started = asyncio.Event()
+
+    async def hung_runner_aclose():
+        runner_started.set()
+        await asyncio.sleep(10.0)
+
+    async def hung_adapter_aclose():
+        adapter_started.set()
+        await asyncio.sleep(10.0)
+
+    runner_mod._schedule_background_aclose(hung_runner_aclose, timeout_s=0.05)
+    adapter_mod.StreamAdapter._schedule_background_aclose(hung_adapter_aclose, timeout_s=0.05)
+
+    await asyncio.wait_for(runner_started.wait(), timeout=1.0)
+    await asyncio.wait_for(adapter_started.wait(), timeout=1.0)
+    await asyncio.sleep(0.12)
+
+    assert not any(not t.done() for t in runner_mod._background_aclose_tasks)
+    assert not any(not t.done() for t in adapter_mod._ABORT_SAVE_TASKS)

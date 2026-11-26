@@ -7,6 +7,7 @@ Reuses StreamProcessor for handling <file> markers in text content.
 
 import asyncio
 import contextlib
+import inspect
 from collections import deque
 from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
@@ -267,13 +268,21 @@ class StreamAdapter:
             return self._persisted_tool_results_anonymous.popleft()
         return fallback
 
+    _BACKGROUND_ACLOSE_TIMEOUT_S = 2.0
+
     @staticmethod
-    def _schedule_background_aclose(aclose: Callable[[], Any]) -> None:
-        """Schedule upstream generator aclose() in a tracked background task on GeneratorExit."""
+    def _schedule_background_aclose(
+        aclose: Callable[[], Any],
+        *,
+        timeout_s: float = _BACKGROUND_ACLOSE_TIMEOUT_S,
+    ) -> None:
+        """Schedule bounded upstream generator aclose() in a tracked background task on GeneratorExit."""
 
         async def _close_quietly() -> None:
-            with contextlib.suppress(Exception):
-                await aclose()
+            with contextlib.suppress(BaseException):
+                res = aclose()
+                if inspect.isawaitable(res):
+                    await asyncio.wait_for(res, timeout=max(0.0, timeout_s))
 
         try:
             loop = asyncio.get_running_loop()
