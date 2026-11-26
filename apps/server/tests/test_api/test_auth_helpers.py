@@ -26,27 +26,6 @@ def _create_user(db_session: Session, suffix: str) -> User:
     return user
 
 
-def test_normalize_invite_code_and_policy_resolution(monkeypatch):
-    monkeypatch.setenv("AUTH_REGISTER_INVITE_CODE_OPTIONAL", "false")
-    monkeypatch.setenv("AUTH_REGISTER_INVITE_GRAY_PERCENT", "25")
-    monkeypatch.setenv("AUTH_REGISTER_INVITE_GRAY_SALT", "salt")
-
-    assert auth_module._normalize_invite_code(" abcd-1234 ") == "ABCD-1234"
-
-    monkeypatch.setattr(auth_module, "_invite_gray_bucket", lambda identity, salt: 10)
-    assert auth_module._resolve_registration_invite_policy(email="user@example.com", username=None) == (
-        True,
-        "treatment_optional",
-        25,
-    )
-    monkeypatch.setattr(auth_module, "_invite_gray_bucket", lambda identity, salt: 80)
-    assert auth_module._resolve_registration_invite_policy(email="user@example.com", username=None) == (
-        False,
-        "control_required",
-        25,
-    )
-
-
 def test_register_request_rejects_a_short_username():
     with pytest.raises(ValidationError):
         auth_module.RegisterRequest(username="ab", email="valid@example.com", password="abcdef")

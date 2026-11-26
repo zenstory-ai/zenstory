@@ -2,7 +2,6 @@
 Authentication API endpoints
 """
 import asyncio
-import hashlib
 import logging
 import os
 from datetime import datetime, timedelta
@@ -27,7 +26,6 @@ from models import (
     RefreshTokenRecord,
     User,
 )
-from models.referral import InviteCode
 from services.core.auth_service import (
     ALLOW_LEGACY_REFRESH_WITHOUT_JTI,
     TOKEN_TYPE_REFRESH,
@@ -48,7 +46,6 @@ from services.core.auth_service import (
 from services.core.registration_email_policy import ensure_registration_email_allowed
 from services.features import password_reset_service
 from services.features.activation_event_service import activation_event_service
-from services.features.referral_service import create_referral as create_referral_service
 from services.features.registration_recovery_service import correct_registration_email
 from services.features.user_preference_service import get_ui_language, normalize_ui_language, set_ui_language
 from services.features.verification_service import clear_registration_verification, send_verification_code
@@ -73,8 +70,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     language: str | None = "zh"  # Default to Chinese
-    invite_code: str | None = None  # Invitation code for referral
-    device_fingerprint: str | None = None  # Device fingerprint for fraud detection
     # First-touch acquisition from the web app (codes and a host name; normalized server-side).
     acquisition: dict[str, Any] | None = None
 
@@ -125,12 +120,6 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
-class RegisterPolicyResponse(BaseModel):
-    invite_code_optional: bool
-    variant: str
-    rollout_percent: int
-
-
 class UpdateUserRequest(BaseModel):
     username: str | None = None
     email: EmailStr | None = None
@@ -176,78 +165,6 @@ def _validate_new_password(value: str) -> str:
     if len(value.encode("utf-8")) > 72:
         raise ValueError("password must be at most 72 bytes")
     return value
-
-
-def _normalize_invite_code(code: str) -> str:
-    """Normalize invite code input for case-insensitive matching."""
-    return code.strip().upper()
-
-
-def _is_registration_invite_code_optional() -> bool:
-    """
-    Whether registration invite code is optional.
-
-    Controlled by env var AUTH_REGISTER_INVITE_CODE_OPTIONAL.
-    Default is False (invite code required).
-    """
-    return os.getenv("AUTH_REGISTER_INVITE_CODE_OPTIONAL", "false").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
-def _get_registration_invite_gray_rollout_percent() -> int:
-    """Rollout percent for invite-code optional registration experiment."""
-    raw = _safe_int_from_env("AUTH_REGISTER_INVITE_GRAY_PERCENT", 0, minimum=0)
-    return max(0, min(raw, 100))
-
-
-def _get_registration_invite_gray_salt() -> str:
-    return (os.getenv("AUTH_REGISTER_INVITE_GRAY_SALT", "auth-register-invite-v1") or "").strip() or "auth-register-invite-v1"
-
-
-def _invite_gray_bucket(identity: str, *, salt: str) -> int:
-    digest = hashlib.sha256(f"{salt}:{identity}".encode()).hexdigest()
-    return int(digest[:8], 16) % 100
-
-
-def _resolve_registration_invite_policy(
-    *,
-    email: str | None,
-    username: str | None,
-) -> tuple[bool, str, int]:
-    """
-    Resolve invite-code requirement policy for current registration request.
-
-    Priority:
-    1) AUTH_REGISTER_INVITE_CODE_OPTIONAL=true  => always optional
-    2) AUTH_REGISTER_INVITE_GRAY_PERCENT rollout => optional by stable bucket
-    3) fallback => required
-    """
-    if _is_registration_invite_code_optional():
-        return True, "global_optional", 100
-
-    rollout_percent = _get_registration_invite_gray_rollout_percent()
-    if rollout_percent <= 0:
-        return False, "control_required", 0
-
-    identity = (email or username or "").strip().lower()
-    if not identity:
-        return False, "control_required", rollout_percent
-
-    bucket = _invite_gray_bucket(identity, salt=_get_registration_invite_gray_salt())
-    if bucket < rollout_percent:
-        return True, "treatment_optional", rollout_percent
-    return False, "control_required", rollout_percent
-
-
-def _is_invite_code_expired(expires_at: datetime | None) -> bool:
-    """Check invite code expiration with robust timezone handling."""
-    if not expires_at:
-        return False
-    return normalize_datetime_to_utc(expires_at) <= utcnow()
 
 
 def _is_truthy(value: str | None) -> bool:
@@ -419,26 +336,9 @@ def _revoke_refresh_family(session: Session, *, family_id: str, reason: str) -> 
 
 
 # Endpoints
-@router.get("/register-policy", response_model=RegisterPolicyResponse)
-async def get_register_policy(
-    email: str | None = None,
-    username: str | None = None,
-):
-    invite_code_optional, variant, rollout_percent = _resolve_registration_invite_policy(
-        email=email,
-        username=username,
-    )
-    return RegisterPolicyResponse(
-        invite_code_optional=invite_code_optional,
-        variant=variant,
-        rollout_percent=rollout_percent,
-    )
-
-
 @router.post("/register")
 async def register(
     request: RegisterRequest,
-    http_request: Request,  # For capturing client IP
     session: Session = Depends(get_session),
     _accept_language: str = Depends(get_accept_language)
 ):
@@ -448,7 +348,6 @@ async def register(
     - Creates a new user account with email_verified=False
     - Sends verification code to user's email
     - User must verify email before logging in
-    - Supports invitation codes for referral rewards
     """
     normalized_email = normalize_email_identity(str(request.email))
 
@@ -484,76 +383,6 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST
         )
 
-    invite_code_optional, invite_policy_variant, invite_policy_rollout_percent = (
-        _resolve_registration_invite_policy(
-            email=normalized_email,
-            username=username,
-        )
-    )
-
-    # Validate invite code
-    referral_invite_code_id: str | None = None
-    referral_inviter_id: str | None = None
-    normalized_invite_code: str | None = None
-    if request.invite_code:
-        normalized_invite_code = _normalize_invite_code(request.invite_code)
-        if not normalized_invite_code:
-            normalized_invite_code = None
-
-    # Invite code is required by default (unless env explicitly allows optional).
-    if not normalized_invite_code and not invite_code_optional:
-        raise APIException(
-            error_code=ErrorCode.AUTH_INVITE_CODE_REQUIRED,
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if normalized_invite_code:
-        invite_code_obj = session.exec(
-            select(InviteCode).where(InviteCode.code == normalized_invite_code)
-        ).first()
-
-        if not invite_code_obj:
-            raise APIException(
-                error_code=ErrorCode.REFERRAL_CODE_INVALID,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not invite_code_obj.is_active:
-            raise APIException(
-                error_code=ErrorCode.REFERRAL_CODE_INVALID,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if invite_code_obj.current_uses >= invite_code_obj.max_uses:
-            raise APIException(
-                error_code=ErrorCode.REFERRAL_CODE_USED_UP,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if _is_invite_code_expired(invite_code_obj.expires_at):
-            raise APIException(
-                error_code=ErrorCode.REFERRAL_CODE_EXPIRED,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # SECURITY: Prevent self-referral (check if owner has same email)
-        owner = session.get(User, invite_code_obj.owner_id)
-        if owner and normalize_email_identity(owner.email) == normalized_email:
-            log_with_context(
-                logger,
-                logging.WARNING,
-                "Self-referral attempt blocked",
-                email=normalized_email,
-                invite_code=normalized_invite_code,
-            )
-            raise APIException(
-                error_code=ErrorCode.REFERRAL_CODE_INVALID,
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        referral_invite_code_id = invite_code_obj.id
-        referral_inviter_id = invite_code_obj.owner_id
-
     # Create new user with email_verified=False
     # bcrypt is CPU-bound (~0.3s); keep it off the event loop.
     hashed_password = await asyncio.to_thread(hash_password, request.password)
@@ -566,7 +395,7 @@ async def register(
 
     session.add(new_user)
     # Reserve uniqueness before sending, but keep a rejected recipient out of
-    # the database and avoid committing any referral/subscription side effects.
+    # the database and avoid committing any subscription side effects.
     await asyncio.to_thread(session.flush)
     try:
         # An abandoned correction may have left code/cooldown under this address.
@@ -585,51 +414,6 @@ async def register(
     set_ui_language(session, new_user.id, request.language)
     session.commit()
     session.refresh(new_user)
-
-    # Create referral relationship if valid invite code was used
-    if referral_invite_code_id and referral_inviter_id:
-        # Capture client IP for fraud detection
-        client_ip = get_client_ip(http_request)
-        if client_ip == "unknown":
-            client_ip = None
-
-        try:
-            invite_code_obj = session.get(InviteCode, referral_invite_code_id)
-            if invite_code_obj:
-                await create_referral_service(
-                    invite_code=invite_code_obj,
-                    invitee_id=new_user.id,
-                    session=session,
-                    device_fingerprint=request.device_fingerprint,
-                    ip_address=client_ip,
-                )
-                log_with_context(
-                    logger,
-                    logging.INFO,
-                    "Referral relationship created",
-                    inviter_id=referral_inviter_id,
-                    invitee_id=new_user.id,
-                    invite_code=normalized_invite_code,
-                )
-            else:
-                log_with_context(
-                    logger,
-                    logging.INFO,
-                    "Referral skipped: invite code missing during registration",
-                    invite_code_id=referral_invite_code_id,
-                    invitee_id=new_user.id,
-                )
-        except Exception as e:
-            session.rollback()
-            log_with_context(
-                logger,
-                logging.WARNING,
-                "Referral creation failed after user registration",
-                invite_code_id=referral_invite_code_id,
-                invitee_id=new_user.id,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
 
     try:
         _ensure_user_free_subscription_and_quota(
@@ -670,9 +454,6 @@ async def register(
         event_metadata={
             "source": "register_api",
             "acquisition": normalize_acquisition(request.acquisition),
-            "invite_policy_variant": invite_policy_variant,
-            "invite_policy_rollout_percent": invite_policy_rollout_percent,
-            "invite_code_optional": invite_code_optional,
         },
     )
 

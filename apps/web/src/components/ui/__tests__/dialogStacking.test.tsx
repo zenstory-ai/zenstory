@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { Modal } from '../Modal';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { readComposedStylesheet } from '../../../test/readStylesheet';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback ?? 'Close' }) }));
 
@@ -14,7 +15,7 @@ const zIndexOf = (source: string, pattern: RegExp): number => {
 
 describe('dialog stacking contract', () => {
   it('layers ConfirmDialog above Modal and below Toast', () => {
-    const css = readFileSync('src/index.css', 'utf8');
+    const css = readComposedStylesheet('src/index.css');
     const confirmLayer = zIndexOf(css, /\.modal-overlay \{\s*@apply[^;]*\bz-\[(\d+)\]/);
     const modalLayer = zIndexOf(readFileSync('src/components/ui/Modal.tsx', 'utf8'), /overlayClasses = `[^`]*\bz-\[(\d+)\]/);
     const toastLayer = zIndexOf(readFileSync('src/components/Toast.tsx', 'utf8'), /fixed bottom-20[^"]*\bz-\[(\d+)\]/);

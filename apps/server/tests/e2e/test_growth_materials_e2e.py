@@ -1,8 +1,8 @@
 """
-Request-driven growth and materials e2e workflows.
+Request-driven materials e2e workflows.
 
-These tests extend the server e2e skeleton with points/referral and materials
-library flows while staying deterministic and provider-free.
+These tests cover materials library flows while staying deterministic and
+provider-free.
 """
 
 from __future__ import annotations
@@ -17,10 +17,8 @@ from sqlmodel import Session
 
 from models import File, User
 from models.material_models import Character, IngestionJob, Novel, WorldView
-from models.referral import UserReward, UserStats
 from models.subscription import SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
-from services.features.points_service import POINTS_CHECK_IN, POINTS_REFERRAL
 
 pytestmark = pytest.mark.e2e
 
@@ -104,90 +102,6 @@ async def _create_project(client: AsyncClient, access_token: str, *, name: str) 
     )
     assert response.status_code == 200
     return response.json()
-
-
-@pytest.mark.asyncio
-async def test_points_and_referral_roundtrip(client: AsyncClient, db_session: Session):
-    user = await _create_user(db_session, prefix="growth_flow")
-    login_payload = await _login(client, identifier=user.username)
-    headers = _auth_headers(login_payload["access_token"])
-
-    config_response = await client.get("/api/v1/points/config")
-    assert config_response.status_code == 200
-    assert config_response.json()["check_in"] == POINTS_CHECK_IN
-    assert config_response.json()["referral"] == POINTS_REFERRAL
-
-    status_before = await client.get("/api/v1/points/check-in/status", headers=headers)
-    assert status_before.status_code == 200
-    assert status_before.json()["checked_in"] is False
-
-    check_in_response = await client.post("/api/v1/points/check-in", headers=headers)
-    assert check_in_response.status_code == 200
-    assert check_in_response.json()["points_earned"] == POINTS_CHECK_IN
-    assert check_in_response.json()["streak_days"] == 1
-
-    balance_response = await client.get("/api/v1/points/balance", headers=headers)
-    assert balance_response.status_code == 200
-    assert balance_response.json()["available"] == POINTS_CHECK_IN
-
-    transactions_response = await client.get("/api/v1/points/transactions", headers=headers)
-    assert transactions_response.status_code == 200
-    transactions = transactions_response.json()["transactions"]
-    assert len(transactions) == 1
-    assert transactions[0]["transaction_type"] == "check_in"
-
-    create_code_response = await client.post("/api/v1/referral/codes", headers=headers)
-    assert create_code_response.status_code == 201
-    invite_code = create_code_response.json()
-    assert invite_code["is_active"] is True
-
-    validate_response = await client.post(f"/api/v1/referral/codes/{invite_code['code']}/validate")
-    assert validate_response.status_code == 200
-    assert validate_response.json()["valid"] is True
-
-    reward = UserReward(
-        user_id=user.id,
-        reward_type="points",
-        amount=POINTS_REFERRAL,
-        source="referral",
-        is_used=False,
-    )
-    stats = UserStats(
-        user_id=user.id,
-        total_invites=1,
-        successful_invites=1,
-        total_points=POINTS_REFERRAL,
-        available_points=POINTS_REFERRAL,
-    )
-    db_session.add(reward)
-    db_session.add(stats)
-    db_session.commit()
-
-    referral_stats_response = await client.get("/api/v1/referral/stats", headers=headers)
-    assert referral_stats_response.status_code == 200
-    stats_payload = referral_stats_response.json()
-    assert stats_payload["total_invites"] == 1
-    assert stats_payload["successful_invites"] == 1
-    assert stats_payload["total_points"] == POINTS_REFERRAL
-    # Referral stats endpoint exposes unified wallet balance.
-    assert stats_payload["available_points"] == POINTS_CHECK_IN
-
-    rewards_response = await client.get("/api/v1/referral/rewards", headers=headers)
-    assert rewards_response.status_code == 200
-    rewards_payload = rewards_response.json()
-    assert len(rewards_payload) == 1
-    assert rewards_payload[0]["reward_type"] == "points"
-    assert rewards_payload[0]["amount"] == POINTS_REFERRAL
-
-    deactivate_response = await client.delete(
-        f"/api/v1/referral/codes/{invite_code['id']}",
-        headers=headers,
-    )
-    assert deactivate_response.status_code == 204
-
-    validate_after_deactivate = await client.post(f"/api/v1/referral/codes/{invite_code['code']}/validate")
-    assert validate_after_deactivate.status_code == 200
-    assert validate_after_deactivate.json()["valid"] is False
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,291 @@
+/* ========================================
+   Chat Markdown Styles (compact)
+   ======================================== */
+
+.markdown-content {
+    white-space: normal;
+    line-height: 1.68;
+    word-break: break-word;
+    color: hsl(var(--text-primary));
+}
+
+/* Extra small prose for thinking content */
+.prose-xs {
+    font-size: 0.75rem; /* 12px */
+    line-height: 1.5;
+}
+
+.prose-xs * {
+    font-size: inherit;
+}
+
+.prose-xs p,
+.prose-xs ul,
+.prose-xs ol {
+    margin-bottom: 0.5em !important;
+}
+
+.prose-xs h1,
+.prose-xs h2,
+.prose-xs h3,
+.prose-xs h4 {
+    font-size: 0.875em; /* Slightly larger than body */
+    margin-top: 0.75em !important;
+    margin-bottom: 0.25em !important;
+}
+
+.prose-xs ul,
+.prose-xs ol {
+    padding-left: 1em !important;
+}
+
+.prose-xs li {
+    margin-bottom: 0.25em !important;
+}
+
+.prose-xs code {
+    padding: 0.05em 0.2em !important;
+    font-size: 0.85em;
+}
+
+.prose-xs pre {
+    padding: 0.5em !important;
+    font-size: 0.85em;
+}
+
+/* Reset all margins first */
+.markdown-content * {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* 2. 增加段落和列表之间的"呼吸感" */
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote {
+    margin-bottom: 0.75em !important;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+    margin-top: 1.5em !important;
+    margin-bottom: 0.5em !important;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.markdown-content h1 {
+    font-size: 1.1em;
+}
+
+.markdown-content h2 {
+    font-size: 1.05em;
+}
+
+.markdown-content h3,
+.markdown-content h4 {
+    font-size: 1em;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin: 0 !important;
+    margin-top: 0.25em !important;
+    padding-left: 1.25em !important;
+    list-style-position: outside;
+}
+
+.markdown-content ul {
+    list-style-type: disc;
+}
+
+.markdown-content ol {
+    list-style-type: decimal;
+}
+
+.markdown-content li {
+    margin-bottom: 0.5em !important;
+    padding: 0 !important;
+}
+
+.markdown-content li + li {
+    margin-top: 0 !important;
+}
+
+.markdown-content li > ul,
+.markdown-content li > ol {
+    margin-top: 0.5em !important;
+    margin-bottom: 0 !important;
+}
+
+.markdown-content li > p {
+    margin: 0 !important;
+    display: inline;
+}
+
+.markdown-content strong {
+    font-weight: 600;
+    color: hsl(var(--text-primary));
+}
+
+.markdown-content em {
+    color: hsl(var(--text-secondary));
+}
+
+.markdown-content code {
+    padding: 0.1em 0.3em !important;
+    border-radius: 0.25em;
+    font-size: 0.85em;
+    background-color: hsl(var(--bg-secondary));
+}
+
+.markdown-content pre {
+    margin: 0.5em 0 !important;
+    padding: 0.5em !important;
+    border-radius: 0.5em;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    background-color: hsl(var(--bg-secondary));
+}
+
+.markdown-content pre code {
+    padding: 0 !important;
+    background-color: transparent;
+}
+
+.markdown-content blockquote {
+    @apply border-l-2 pl-2 my-1;
+    border-color: hsl(var(--border-color));
+    color: hsl(var(--text-secondary));
+}
+
+.markdown-content hr {
+    margin: 0.5em 0;
+    border: 0;
+    border-top: 1px solid hsl(var(--border-color));
+}
+
+/* Table styles (GFM) */
+.markdown-content table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 0.75em 0 !important;
+    font-size: 0.85em !important;
+    display: block !important;
+    overflow-x: auto !important;
+}
+
+.markdown-content th,
+.markdown-content td {
+    border: 1px solid hsl(var(--border-color)) !important;
+    padding: 0.4em 0.75em !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+}
+
+.markdown-content th {
+    background-color: hsl(var(--bg-secondary)) !important;
+    font-weight: 600 !important;
+}
+
+.markdown-content tr:nth-child(even) {
+    background-color: hsl(var(--bg-tertiary) / 0.3) !important;
+}
+
+.markdown-content > *:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* ========================================
+   Message Bubble Styles (Chat)
+   ======================================== */
+
+@layer components {
+    /* Base message bubble */
+    .chat-message-bubble {
+        border-radius: 1.125rem;
+        word-break: break-word;
+    }
+
+    /* Calm, low-saturation user message pill */
+    .chat-message-bubble-user {
+        border-bottom-right-radius: 0.375rem;
+        background: hsl(var(--chat-user-pill-bg));
+        border: 1px solid hsl(var(--chat-user-pill-border));
+        color: hsl(var(--text-primary));
+        line-height: 1.6;
+    }
+
+    /* Box-less editorial AI reply surface */
+    .chat-message-bubble-ai {
+        border-radius: 0;
+        background: transparent;
+        color: hsl(var(--text-primary));
+        box-shadow: none;
+    }
+
+    /* Timestamp styling (full AA contrast over both --bg-rail light and dark) */
+    .chat-timestamp {
+        font-size: 0.6875rem;
+        line-height: 1rem;
+        color: hsl(var(--text-secondary));
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 767px) {
+        .chat-message-bubble {
+            border-radius: 1rem;
+        }
+        .chat-message-bubble-user {
+            border-bottom-right-radius: 0.375rem;
+        }
+    }
+
+    /* Soft top/bottom scroll-edge fade for chat message feed (preserves right-edge scrollbar gutter) */
+    .chat-message-feed-fade {
+        --chat-feed-scrollbar-gutter: 8px;
+        --chat-feed-fade-content: linear-gradient(
+            to bottom,
+            transparent 0,
+            rgb(0 0 0 / 0.35) 5px,
+            rgb(0 0 0 / 0.82) 10px,
+            black 14px,
+            black calc(100% - 24px),
+            rgb(0 0 0 / 0.8) calc(100% - 17px),
+            rgb(0 0 0 / 0.42) calc(100% - 10px),
+            rgb(0 0 0 / 0.14) calc(100% - 4px),
+            transparent 100%
+        );
+        -webkit-mask-image:
+            var(--chat-feed-fade-content),
+            linear-gradient(
+                to right,
+                transparent 0,
+                transparent calc(100% - var(--chat-feed-scrollbar-gutter)),
+                black calc(100% - var(--chat-feed-scrollbar-gutter))
+            ),
+            linear-gradient(to bottom, black, black);
+        mask-image:
+            var(--chat-feed-fade-content),
+            linear-gradient(
+                to right,
+                transparent 0,
+                transparent calc(100% - var(--chat-feed-scrollbar-gutter)),
+                black calc(100% - var(--chat-feed-scrollbar-gutter))
+            ),
+            linear-gradient(to bottom, black, black);
+        -webkit-mask-composite: source-over, source-in, source-in;
+        mask-composite: add, intersect, intersect;
+    }
+
+    @media (forced-colors: active) {
+        .chat-message-feed-fade {
+            -webkit-mask-image: none;
+            mask-image: none;
+        }
+    }
+}

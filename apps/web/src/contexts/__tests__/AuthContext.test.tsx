@@ -1307,37 +1307,10 @@ describe('AuthContext', () => {
   })
 
   // ========================================
-  // Registration with Invite Code Tests
+  // Registration Payload Tests
   // ========================================
-  describe('register with invite code', () => {
-    it('passes invite code to API when provided', async () => {
-      const mockResponse = {
-        email: 'new@example.com',
-        email_verified: false,
-      }
-      vi.mocked(api.authApi.register).mockResolvedValueOnce(mockResponse)
-
-      const { result } = renderHook(() => useAuth(), {
-        wrapper: createWrapper(),
-      })
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false)
-      })
-
-      await act(async () => {
-        await result.current.register('new@example.com', 'password123', 'INVITE123')
-      })
-
-      expect(api.authApi.register).toHaveBeenCalledWith({
-        email: 'new@example.com',
-        password: 'password123',
-        invite_code: 'INVITE123',
-        language: 'zh',
-      })
-    })
-
-    it('works without invite code (optional parameter)', async () => {
+  describe('register payload', () => {
+    it('passes email, password, and language to API', async () => {
       const mockResponse = {
         email: 'new@example.com',
         email_verified: false,

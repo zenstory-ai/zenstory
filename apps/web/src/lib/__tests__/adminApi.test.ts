@@ -316,48 +316,19 @@ describe('adminApi', () => {
     })
   })
 
-  // ==================== Inspirations & Feedback ====================
+  // ==================== Feedback ====================
 
-  describe('inspirations and feedback', () => {
-    it('builds optional query strings and forwards review/status mutations', async () => {
+  describe('feedback', () => {
+    it('builds optional query strings and forwards status mutations', async () => {
       const { adminApi } = await import('../adminApi')
       mockApi.get
         .mockResolvedValueOnce({ items: [], total: 0 })
         .mockResolvedValueOnce({ items: [], total: 1 })
-        .mockResolvedValueOnce({ items: [], total: 0 })
-        .mockResolvedValueOnce({ items: [], total: 1 })
-      mockApi.post.mockResolvedValueOnce({ message: 'ok' })
       mockApi.patch
-        .mockResolvedValueOnce({ id: 'ins-1', name: 'Hook updated' })
         .mockResolvedValueOnce({ id: 'fb-1', status: 'processing' })
-      mockApi.delete.mockResolvedValueOnce({ message: 'deleted' })
-
-      await adminApi.getInspirations()
-      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/inspirations')
-
-      await adminApi.getInspirations({ status: 'pending', source: 'community', skip: 20, limit: 20 })
-      expect(mockApi.get).toHaveBeenNthCalledWith(
-        2,
-        '/api/admin/inspirations?status=pending&source=community&skip=20&limit=20',
-      )
-
-      expect(await adminApi.reviewInspiration('ins-1', false, 'needs refinement')).toEqual({ message: 'ok' })
-      expect(mockApi.post).toHaveBeenCalledWith('/api/admin/inspirations/ins-1/review', {
-        approve: false,
-        rejection_reason: 'needs refinement',
-      })
-
-      expect(await adminApi.updateInspiration('ins-1', { name: 'Hook updated' })).toEqual({
-        id: 'ins-1',
-        name: 'Hook updated',
-      })
-      expect(mockApi.patch).toHaveBeenNthCalledWith(1, '/api/admin/inspirations/ins-1', { name: 'Hook updated' })
-
-      expect(await adminApi.deleteInspiration('ins-1')).toEqual({ message: 'deleted' })
-      expect(mockApi.delete).toHaveBeenCalledWith('/api/admin/inspirations/ins-1')
 
       await adminApi.getFeedbackList()
-      expect(mockApi.get).toHaveBeenNthCalledWith(3, '/api/admin/feedback')
+      expect(mockApi.get).toHaveBeenNthCalledWith(1, '/api/admin/feedback')
 
       await adminApi.getFeedbackList({
         status: 'open',
@@ -368,7 +339,7 @@ describe('adminApi', () => {
         limit: 20,
       })
       expect(mockApi.get).toHaveBeenNthCalledWith(
-        4,
+        2,
         '/api/admin/feedback?status=open&source_page=editor&has_screenshot=false&search=alice&skip=0&limit=20',
       )
 
@@ -376,7 +347,7 @@ describe('adminApi', () => {
         id: 'fb-1',
         status: 'processing',
       })
-      expect(mockApi.patch).toHaveBeenNthCalledWith(2, '/api/admin/feedback/fb-1/status', {
+      expect(mockApi.patch).toHaveBeenNthCalledWith(1, '/api/admin/feedback/fb-1/status', {
         status: 'processing',
       })
     })
@@ -478,73 +449,25 @@ describe('adminApi', () => {
     })
   })
 
-  // ==================== Points, Check-in, Referrals, Quotas ====================
+  // ==================== Quotas ====================
 
-  describe('points, check-in, referrals, and quotas', () => {
-    it('routes points, check-in, referral, and quota endpoints with expected query params', async () => {
+  describe('quotas', () => {
+    it('routes quota endpoints with expected paths', async () => {
       const { adminApi } = await import('../adminApi')
-      const pointsStats = { total_points_issued: 20 }
-      const userPoints = { user_id: 'u-1', available: 100 }
-      const txResp = { items: [], total: 9, page: 2, page_size: 20 }
-      const checkInStats = { today_count: 4, streak_distribution: { 7: 3 } }
-      const checkInRecords = { items: [], total: 22, page: 1, page_size: 20 }
-      const referralStats = { total_codes: 8, total_points_awarded: 40 }
-      const inviteCodes = { items: [], total: 1, page: 1, page_size: 20 }
-      const rewards = { items: [], total: 1, page: 1, page_size: 20 }
       const quotaStats = { material_decompositions: 4, inspiration_copies: 2, skills_created: 1 }
       const userQuota = { user_id: 'u-1', custom_skills: { used: 2, limit: -1, reset_at: null } }
 
       mockApi.get
-        .mockResolvedValueOnce(pointsStats)
-        .mockResolvedValueOnce(userPoints)
-        .mockResolvedValueOnce(txResp)
-        .mockResolvedValueOnce(checkInStats)
-        .mockResolvedValueOnce(checkInRecords)
-        .mockResolvedValueOnce(referralStats)
-        .mockResolvedValueOnce(inviteCodes)
-        .mockResolvedValueOnce(rewards)
         .mockResolvedValueOnce(quotaStats)
         .mockResolvedValueOnce(userQuota)
-      mockApi.post
-        .mockResolvedValueOnce({ message: 'ok', new_balance: 80 })
-        .mockResolvedValueOnce({ id: 'c2', code: 'WXYZ-5678' })
-
-      expect(await adminApi.getPointsStats()).toBe(pointsStats)
-      expect(await adminApi.getUserPoints('u-1')).toBe(userPoints)
-      expect(await adminApi.getUserPointsTransactions('u-1', { page: 2, page_size: 20 })).toBe(txResp)
-      expect(await adminApi.adjustUserPoints('u-1', { amount: -20, reason: 'manual correction' })).toEqual({
-        message: 'ok',
-        new_balance: 80,
-      })
-
-      expect(await adminApi.getCheckInStats()).toBe(checkInStats)
-      expect(await adminApi.getCheckInRecords({ page: 1, page_size: 20, user_id: 'u-1' })).toBe(checkInRecords)
-
-      expect(await adminApi.getReferralStats()).toBe(referralStats)
-      expect(await adminApi.createAdminInviteCode()).toEqual({ id: 'c2', code: 'WXYZ-5678' })
-      expect(await adminApi.getInviteCodes({ page: 1, page_size: 20, is_active: true })).toBe(inviteCodes)
-      expect(await adminApi.getReferralRewards({ page: 1, page_size: 20 })).toBe(rewards)
 
       expect(await adminApi.getQuotaUsageStats()).toBe(quotaStats)
       expect(await adminApi.getUserQuota('u-1')).toBe(userQuota)
 
       expect(mockApi.get.mock.calls.map(([url]) => url)).toEqual([
-        '/api/admin/points/stats',
-        '/api/admin/points/u-1',
-        '/api/admin/points/u-1/transactions?page=2&page_size=20',
-        '/api/admin/check-in/stats',
-        '/api/admin/check-in/records?page=1&page_size=20&user_id=u-1',
-        '/api/admin/referrals/stats',
-        '/api/admin/invites?page=1&page_size=20&is_active=true',
-        '/api/admin/referrals/rewards?page=1&page_size=20',
         '/api/admin/quota/usage',
         '/api/admin/quota/u-1',
       ])
-      expect(mockApi.post).toHaveBeenNthCalledWith(1, '/api/admin/points/u-1/adjust', {
-        amount: -20,
-        reason: 'manual correction',
-      })
-      expect(mockApi.post).toHaveBeenNthCalledWith(2, '/api/admin/invites')
     })
   })
 
@@ -599,24 +522,6 @@ describe('adminApi', () => {
         created_at: '2026-03-01T00:00:00Z',
         updated_at: '2026-03-01T00:00:00Z',
       }
-      const pointsTxWithoutUsername = {
-        items: [{
-          id: 'tx-1',
-          user_id: 'user-1',
-          amount: 10,
-          balance_after: 120,
-          transaction_type: 'check_in',
-          source_id: null,
-          description: null,
-          expires_at: null,
-          is_expired: false,
-          expired_at: null,
-          created_at: '2026-03-01T00:00:00Z',
-        }],
-        total: 1,
-        page: 1,
-        page_size: 10,
-      }
       const codeWithoutUpdatedAt = {
         items: [{
           id: 'code-1',
@@ -652,20 +557,12 @@ describe('adminApi', () => {
         page: 1,
         page_size: 20,
       }
-      const adjustResponse = {
-        success: true,
-        transaction: pointsTxWithoutUsername.items[0],
-        old_balance: 110,
-        new_balance: 120,
-      }
 
       mockApi.get
         .mockResolvedValueOnce(subscriptionDetail)
         .mockResolvedValueOnce(promptWithNulls)
-        .mockResolvedValueOnce(pointsTxWithoutUsername)
         .mockResolvedValueOnce(codeWithoutUpdatedAt)
         .mockResolvedValueOnce(batchAuditLog)
-      mockApi.post.mockResolvedValueOnce(adjustResponse)
 
       const subResult = await adminApi.getUserSubscription('user-1')
       expect(subResult.plan?.name).toBe('pro')
@@ -674,19 +571,12 @@ describe('adminApi', () => {
       const promptResult = await adminApi.getPrompt('novel')
       expect(promptResult.directory_structure).toBeNull()
 
-      const txResult = await adminApi.getUserPointsTransactions('user-1', { page: 1, page_size: 10 })
-      expect(txResult.items[0].username).toBeUndefined()
-
       const codesResult = await adminApi.getCodes()
       expect(codesResult.items[0].updated_at).toBeUndefined()
 
       const auditResult = await adminApi.getAuditLogs()
       expect(auditResult.items[0].admin_name).toBe('-')
       expect(auditResult.items[0].resource_id).toBeNull()
-
-      const adjustResult = await adminApi.adjustUserPoints('user-1', { amount: 10, reason: 'bonus' })
-      expect(adjustResult.success).toBe(true)
-      expect(adjustResult.new_balance).toBe(120)
     })
   })
 

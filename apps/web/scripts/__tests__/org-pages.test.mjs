@@ -504,7 +504,7 @@ test('docs pages sit on the organization shell with resolved links and their own
   }
   // Every docs page: one h1, the English article one level below it, focusable code blocks.
   const docsPages = readdirSync(join(outDir, 'docs'), { recursive: true }).filter((file) => file.endsWith('index.html'))
-  assert.equal(docsPages.length, 25)
+  assert.equal(docsPages.length, 24)
   for (const file of docsPages) {
     const html = readFileSync(join(outDir, 'docs', file), 'utf8')
     assert.equal(matches(html, /<h1\b/g).length, 1, `docs/${file} has one h1`)

@@ -261,11 +261,10 @@ async def test_dashboard_stats_can_skip_commercialization_and_lists_skip_optiona
     event.listen(bind, "before_cursor_execute", capture)
     try:
         stats_resp = await client.get(
-            "/api/admin/dashboard/stats?include_commercialization=false",
+            "/api/admin/dashboard/stats",
             headers=headers,
         )
         assert stats_resp.status_code == 200
-        assert stats_resp.json()["total_points_in_circulation"] == 0
         assert not any("points_transaction" in s for s in statements)
         assert not any("check_in_record" in s for s in statements)
 

@@ -64,10 +64,7 @@ class TestRouterPrefixContract:
     EXPECTED_V1_PREFIX_ROUTERS = {
         "/api/v1/public-skills",  # Public skill discovery
         "/api/v1/skills",         # User skills
-        "/api/v1/inspirations",   # Inspirations
         "/api/v1/materials",      # Materials
-        "/api/v1/points",         # Points system
-        "/api/v1/referral",       # Referral system
         "/api/v1/agent-api-keys", # Agent API keys
         "/api/v1/agent",          # Agent API
     }
@@ -123,15 +120,6 @@ class TestRouterPrefixContract:
             "Skills router may not be registered correctly."
         )
 
-    def test_inspirations_uses_v1_prefix(self):
-        """Verify inspirations router uses /api/v1/inspirations prefix."""
-        routes = self._get_all_routes()
-        inspirations_routes = [r for r in routes if r.path.startswith("/api/v1/inspirations")]
-
-        assert len(inspirations_routes) > 0, (
-            "No routes found with /api/v1/inspirations prefix."
-        )
-
     def test_materials_uses_v1_prefix(self):
         """Verify materials router uses /api/v1/materials prefix."""
         routes = self._get_all_routes()
@@ -141,14 +129,24 @@ class TestRouterPrefixContract:
             "No routes found with /api/v1/materials prefix."
         )
 
-    def test_referral_uses_v1_prefix(self):
-        """Verify referral router uses /api/v1/referral prefix."""
+    def test_retired_points_inspirations_referral_routes_removed(self):
+        """Verify retired points, inspirations, and referral routes are not mounted."""
         routes = self._get_all_routes()
-        referral_routes = [r for r in routes if r.path.startswith("/api/v1/referral")]
-
-        assert len(referral_routes) > 0, (
-            "No routes found with /api/v1/referral prefix."
+        retired_prefixes = (
+            "/api/v1/inspirations",
+            "/api/v1/points",
+            "/api/v1/referral",
+            "/api/admin/inspirations",
+            "/api/admin/points",
+            "/api/admin/check-in",
+            "/api/admin/referrals",
+            "/api/admin/invites",
         )
+        for route in routes:
+            for prefix in retired_prefixes:
+                assert not (route.path == prefix or route.path.startswith(f"{prefix}/")), (
+                    f"Retired route still mounted: {route.path}"
+                )
 
     def test_agent_api_keys_uses_v1_prefix(self):
         """Verify agent_api_keys router uses /api/v1/agent-api-keys prefix."""

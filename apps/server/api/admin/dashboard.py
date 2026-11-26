@@ -10,16 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, case
 from sqlmodel import Session, func, select
 
-from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
-from config.feature_flags import is_inspirations_enabled
+from config.datetime_utils import beijing_day_bounds, utcnow
 from database import get_session
-from models import Inspiration, Project, UpgradeFunnelEvent, User, WorkspaceOnboarding
-from models.points import CheckInRecord
-from models.referral import InviteCode, Referral
+from models import Project, UpgradeFunnelEvent, User, WorkspaceOnboarding
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UserSubscription
 from services.core.auth_service import get_current_superuser
 from services.features.activation_event_service import activation_event_service
-from services.features.points_service import effective_check_in_date, points_service
 from services.features.upgrade_funnel_event_service import upgrade_funnel_event_service
 from services.infra.admin_analytics_cache import (
     DEFAULT_CACHE_TTL_SECONDS,
@@ -154,19 +150,12 @@ def get_dashboard_acquisition(
     return AcquisitionStatsResponse(**payload)
 
 
-def _compute_dashboard_stats(
-    session: Session,
-    *,
-    inspirations_enabled: bool,
-    include_commercialization: bool,
-) -> dict[str, int]:
+def _compute_dashboard_stats(session: Session) -> dict[str, int]:
     now = utcnow()
     now_naive = now.replace(tzinfo=None)
-    today_beijing = beijing_date(now)
-    # "Today" and "this week" are Beijing calendar days. Bounds are naive UTC,
+    # "Today" is the Beijing calendar day. Bounds are naive UTC,
     # matching how these created_at columns are stored.
     today_start, today_end = (bound.replace(tzinfo=None) for bound in beijing_day_bounds(now))
-    week_start = today_start - timedelta(days=6)
 
     with admin_read_statement_timeout(session):
         # Single scan for total, active, and today's new users.
@@ -202,21 +191,6 @@ def _compute_dashboard_stats(
         auto_initialized_projects = int(auto_initialized_projects or 0)
         author_created_projects = total_projects - auto_initialized_projects
 
-        total_inspirations = 0
-        pending_inspirations = 0
-        if inspirations_enabled:
-            insp_row = session.exec(
-                select(
-                    func.count(Inspiration.id).label("total"),
-                    func.coalesce(
-                        func.sum(case((Inspiration.status == "pending", 1), else_=0)),
-                        0,
-                    ).label("pending"),
-                )
-            ).one()
-            total_inspirations = int(insp_row.total or 0)
-            pending_inspirations = int(insp_row.pending or 0)
-
         # Paid subscriptions that are entitled right now (single query for active + pro).
         sub_row = session.exec(
             select(
@@ -235,47 +209,6 @@ def _compute_dashboard_stats(
         active_subscriptions = int(sub_row.active_subs or 0)
         pro_users = int(sub_row.pro_users or 0)
 
-        total_points_in_circulation = 0
-        today_check_ins = 0
-        active_invite_codes = 0
-        week_referrals = 0
-        if include_commercialization:
-            # Use the same FIFO/expiry rules as each user's spendable balance.
-            total_points_in_circulation = points_service.get_total_available_points(session)
-
-            # Today's check-ins
-            check_in_candidates = session.exec(
-                select(CheckInRecord)
-                .where(
-                    CheckInRecord.check_in_date.in_(
-                        (today_beijing, today_beijing - timedelta(days=1))
-                    )
-                )
-                .order_by(CheckInRecord.created_at.asc(), CheckInRecord.id.asc())
-            ).all()
-            today_check_ins_by_user = {
-                record.user_id: record
-                for record in check_in_candidates
-                if effective_check_in_date(record) == today_beijing
-            }
-            today_check_ins = len(today_check_ins_by_user)
-
-            # Active invite codes
-            active_invite_codes = int(
-                session.exec(
-                    select(func.count(InviteCode.id)).where(InviteCode.is_active.is_(True))
-                ).one()
-                or 0
-            )
-
-            # Referrals created in the last 7 Beijing days, today included
-            week_referrals = int(
-                session.exec(
-                    select(func.count(Referral.id)).where(Referral.created_at >= week_start)
-                ).one()
-                or 0
-            )
-
     return {
         "total_users": total_users,
         "active_users": active_users,
@@ -283,20 +216,13 @@ def _compute_dashboard_stats(
         "total_projects": total_projects,
         "author_created_projects": author_created_projects,
         "auto_initialized_projects": auto_initialized_projects,
-        "total_inspirations": total_inspirations,
-        "pending_inspirations": pending_inspirations,
         "active_subscriptions": active_subscriptions,
         "pro_users": pro_users,
-        "total_points_in_circulation": total_points_in_circulation,
-        "today_check_ins": today_check_ins,
-        "active_invite_codes": active_invite_codes,
-        "week_referrals": week_referrals,
     }
 
 
 @router.get("/dashboard/stats", response_model=DashboardStatsResponse)
 def get_dashboard_stats(
-    include_commercialization: bool = Query(True),
     refresh: bool = Query(False),
     current_user: User = Depends(get_current_superuser),
     session: Session = Depends(get_session),
@@ -306,18 +232,11 @@ def get_dashboard_stats(
 
     Requires superuser privileges.
     """
-    inspirations_enabled = is_inspirations_enabled()
     payload = cached_admin_analytics(
         "dashboard:stats",
-        lambda: _compute_dashboard_stats(
-            session,
-            inspirations_enabled=inspirations_enabled,
-            include_commercialization=include_commercialization,
-        ),
+        lambda: _compute_dashboard_stats(session),
         ttl_seconds=60,
         refresh=refresh,
-        inspirations_enabled=inspirations_enabled,
-        include_commercialization=include_commercialization,
     )
 
     log_with_context(

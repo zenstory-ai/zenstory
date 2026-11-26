@@ -448,15 +448,15 @@ class TestAgentServiceProcessStream:
         assert [item["id"] for item in selected] == [skill.id]
         assert pending in db_session.new
 
-    async def test_selected_skills_are_clipped_to_the_skill_token_budget(
+    async def test_selected_skills_return_full_instructions_up_to_max_selected_cap(
         self,
         mock_agent_service,
         test_user_with_project,
         db_session: Session,
     ):
-        """3 个超长技能全选时，注入 system prompt 的正文合计不超过显式选择预算，并提示分段续读。"""
+        """显式选择的长技能（>24k tokens，≤50k 字符）完整注入本轮上下文且保持最多 3 个上限。"""
         from agent.core.message_manager import MessageManager
-        from agent.skills.content_budget import SELECTED_SKILLS_TOKEN_BUDGET
+        from agent.skills.active_skills import MAX_SELECTED_SKILLS
         from agent.utils.token_utils import estimate_text_tokens
 
         service, _ = mock_agent_service
@@ -464,39 +464,38 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
 
         long_text = ("人物动机必须清楚，冲突要逐步升级。" * 4000)[:50_000]
+        assert estimate_text_tokens(long_text) > 24_000
         skills = [
-            UserSkill(user_id=user.id, name=f"长技能{index}", instructions=long_text, is_active=True)
+            UserSkill(user_id=user.id, name=f"长技能{index}", instructions=f"SKILL_{index}:" + long_text[8:], is_active=True)
             for index in range(3)
         ]
         short = UserSkill(user_id=user.id, name="短技能", instructions="只写对白。", is_active=True)
         db_session.add_all([*skills, short])
         db_session.commit()
 
+        # 传 4 个技能 ID，仍严格限制最多 MAX_SELECTED_SKILLS=3 个
         selected = service._resolve_selected_skills(
             db_session,
             user_id=str(user.id),
-            selected_skill_ids=[short.id, skills[0].id, skills[1].id],
+            selected_skill_ids=[short.id, skills[0].id, skills[1].id, skills[2].id],
         )
 
+        assert len(selected) == MAX_SELECTED_SKILLS == 3
         assert [item["id"] for item in selected] == [short.id, skills[0].id, skills[1].id]
         assert selected[0]["instructions"] == "只写对白。"
-        assert selected[0]["instructions_next_offset"] is None
-        total_tokens = sum(estimate_text_tokens(item["instructions"]) for item in selected)
-        assert total_tokens <= SELECTED_SKILLS_TOKEN_BUDGET
-        assert sum(item["instructions_tokens"] for item in selected) <= SELECTED_SKILLS_TOKEN_BUDGET
-        for item in selected[1:]:
-            assert item["instructions_next_offset"] == len(item["instructions"])
-            assert item["instructions_total_chars"] == 50_000
+        assert selected[1]["instructions"] == skills[0].instructions
+        assert selected[2]["instructions"] == skills[1].instructions
+        assert len(selected[1]["instructions"]) == 50_000
+        assert len(selected[2]["instructions"]) == 50_000
 
         section = "\n".join(
             MessageManager(project_id=str(project.id), user_id=str(user.id))._build_selected_skill_section(
                 selected, False
             )
         )
-        assert (
-            f'read_skill_resource(name="{skills[0].id}", path="SKILL.md", '
-            f'offset={selected[1]["instructions_next_offset"]})'
-        ) in section
+        assert skills[0].instructions in section
+        assert skills[1].instructions in section
+        assert "分段读取" not in section
 
     async def test_process_stream_ignores_foreign_and_inactive_selected_skill_ids(
         self,
@@ -601,6 +600,132 @@ class TestAgentServiceProcessStream:
         assert self._skill_matched_payloads(events) == [
             {"skill_id": public_skill.id, "skill_name": "阴影编织者", "matched_trigger": "selected"},
         ]
+
+    async def test_selected_skills_share_three_distinct_skill_cap_with_skill_tools(
+        self,
+        mock_agent_service,
+        test_user_with_project,
+        db_session: Session,
+        mock_workflow_stream,
+    ):
+        """显式 selected_skills 预登记进 req_ctx.skill_content_budget：全请求合计最多 3 个不同技能，但已选技能仍允许读资源与加载。"""
+        from agent.tools.mcp_tools import load_skill, read_skill_resource
+
+        service, _ = mock_agent_service
+        project = test_user_with_project["project"]
+        user = test_user_with_project["user"]
+
+        u1 = UserSkill(user_id=user.id, name="自建一", instructions="方法一", is_active=True)
+        u2 = UserSkill(user_id=user.id, name="自建二", instructions="方法二", is_active=True)
+        u3 = UserSkill(user_id=user.id, name="自建三", instructions="方法三", is_active=True)
+        u4 = UserSkill(user_id=user.id, name="自建四", instructions="方法四", is_active=True)
+        pub = PublicSkill(
+            name="官方技能",
+            description="官方",
+            instructions="官方方法",
+            status="approved",
+            source="official",
+        )
+        db_session.add_all([u1, u2, u3, u4, pub])
+        db_session.commit()
+        added = UserAddedSkill(user_id=user.id, public_skill_id=pub.id, is_active=True)
+        db_session.add(added)
+        db_session.add(SkillResource(public_skill_id=pub.id, path="references/guide.md", content="官方参考", size=12))
+        db_session.add(SkillResource(user_skill_id=u1.id, path="examples/sample.md", content="范例一", size=9))
+        db_session.add(SkillResource(user_skill_id=u4.id, path="references/four.md", content="参考四", size=9))
+        db_session.commit()
+
+        # 场景 A：显式选择 3 个技能（含用 added.id 选中的官方技能）→ 拦下第 4 个，但允许对已选技能调用 read_skill_resource / load_skill
+        tool_results_a: dict[str, dict] = {}
+
+        async def workflow_a(state, **_kwargs):
+            req_ctx = state["request_context"]
+            # 在测试 DB session 上执行工具验证同一 req_ctx.skill_content_budget 门禁
+            req_ctx.session = db_session
+            req_ctx.create_session_func = None
+            # 先尝试加载第 4 个未选技能：即便之前没调用过任何技能工具，也必须因 3 个已选技能预占名额而被立即拦截
+            tool_results_a["load_u4"] = json.loads(
+                (await load_skill({"name": "自建四"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            tool_results_a["res_u4"] = json.loads(
+                (await read_skill_resource({"name": "自建四", "path": "references/four.md"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            # 已选中的 3 个技能照常允许 read_skill_resource / load_skill
+            tool_results_a["res_pub"] = json.loads(
+                (await read_skill_resource({"name": "官方技能", "path": "references/guide.md"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            tool_results_a["res_u1"] = json.loads(
+                (await read_skill_resource({"name": u1.id, "path": "examples/sample.md"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            tool_results_a["load_u2"] = json.loads(
+                (await load_skill({"name": "自建二"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            async for ev in mock_workflow_stream():
+                yield ev
+
+        with patch("agent.service.run_loop_agent_streaming", side_effect=workflow_a):
+            _ = [
+                ev
+                async for ev in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="用这三个技能写",
+                    session=db_session,
+                    selected_skill_ids=[added.id, u1.id, u2.id],
+                )
+            ]
+
+        assert tool_results_a["res_pub"]["status"] == "success"
+        assert tool_results_a["res_pub"]["data"]["content"] == "官方参考"
+        assert tool_results_a["res_u1"]["status"] == "success"
+        assert tool_results_a["res_u1"]["data"]["content"] == "范例一"
+        assert tool_results_a["load_u2"]["status"] == "success"
+        assert tool_results_a["load_u4"]["status"] == "error"
+        assert "3" in tool_results_a["load_u4"]["error"] and "自建四" in tool_results_a["load_u4"]["error"]
+        assert tool_results_a["res_u4"]["status"] == "error"
+        assert "3" in tool_results_a["res_u4"]["error"] and "自建四" in tool_results_a["res_u4"]["error"]
+
+        # 场景 B：显式选择 1 个技能 → 还可再通过工具加载 2 个不同技能，第 3 个新技能（总第 4 个）被拦下
+        tool_results_b: dict[str, dict] = {}
+
+        async def workflow_b(state, **_kwargs):
+            req_ctx = state["request_context"]
+            req_ctx.session = db_session
+            req_ctx.create_session_func = None
+            tool_results_b["load_u2"] = json.loads(
+                (await load_skill({"name": "自建二"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            tool_results_b["load_u3"] = json.loads(
+                (await load_skill({"name": "自建三"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            # 此时 u1(已选) + u2 + u3 = 3 个：尚未对 u1 调过工具时，尝试第 4 个技能 u4 也必须被拦下
+            tool_results_b["load_u4"] = json.loads(
+                (await load_skill({"name": "自建四"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            # 已选中的 u1 仍可读取资源
+            tool_results_b["res_u1"] = json.loads(
+                (await read_skill_resource({"name": "自建一", "path": "examples/sample.md"}, request_context=req_ctx))["content"][0]["text"]
+            )
+            async for ev in mock_workflow_stream():
+                yield ev
+
+        with patch("agent.service.run_loop_agent_streaming", side_effect=workflow_b):
+            _ = [
+                ev
+                async for ev in service.process_stream(
+                    project_id=str(project.id),
+                    user_id=str(user.id),
+                    message="先用一个技能",
+                    session=db_session,
+                    selected_skill_ids=[u1.id],
+                )
+            ]
+
+        assert tool_results_b["load_u2"]["status"] == "success"
+        assert tool_results_b["load_u3"]["status"] == "success"
+        assert tool_results_b["res_u1"]["status"] == "success"
+        assert tool_results_b["load_u4"]["status"] == "error"
+        assert "3" in tool_results_b["load_u4"]["error"] and "自建四" in tool_results_b["load_u4"]["error"]
 
     async def test_process_stream_without_user_id(
         self, mock_agent_service, test_user_with_project, db_session: Session, mock_workflow_stream
@@ -1179,10 +1304,10 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
 
         async def stream():
-            result = {"status": "success", "data": {"count": 1}}
+            result = {"status": "success", "data": {"edits_applied": 1}}
             if mutation is not None:
                 result["mutation_applied"] = mutation
-            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "parallel_execute", "result": result})
+            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "edit_file", "result": result})
             yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
 
@@ -1208,7 +1333,7 @@ class TestAgentServiceProcessStream:
         user = test_user_with_project["user"]
 
         async def stream():
-            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "parallel_execute", "result": {"status": "success", "mutation_applied": True}})
+            yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"name": "edit_file", "result": {"status": "success", "mutation_applied": True}})
             if has_assistant_payload:
                 yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Completed"})
             yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})

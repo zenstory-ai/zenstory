@@ -867,12 +867,12 @@ class ReadSkillResourceInput(_ToolInputModel):
         description="技能名称（与 load_skill 使用的名称一致），也可以传技能 ID；同名技能必须传 id",
     )
     path: StrictStr = Field(
-        description="资源文件路径（以 references/ 或 assets/ 开头），或 SKILL.md 表示技能正文",
+        description="资源文件路径（以 references/、assets/、examples/ 或 templates/ 开头），或 SKILL.md 表示技能正文",
     )
     offset: OptionalNonBoolInt = Field(
         default=None,
         ge=0,
-        description="从第几个字符开始读取，默认 0；续读时传上次返回的 next_offset",
+        description="从第几个字符开始读取，默认 0（默认返回完整内容）",
     )
 
     @field_validator("name", mode="before")

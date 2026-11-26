@@ -1,0 +1,299 @@
+/* ========================================
+   Separator Styles
+   ======================================== */
+
+/* Resizable panel separators:
+   Keep the layout track fixed at 1px so hovering/dragging never triggers panel reflow.
+   A wider invisible hit target (::before) and GPU-composited accent rail (::after)
+   give crisp feedback while staying 100% immediate during drag. */
+.panel-resize-handle,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle] {
+    position: relative;
+    width: 1px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: hsl(var(--separator-color));
+    touch-action: none;
+}
+
+.panel-resize-handle::before,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline: -4px;
+    z-index: 20;
+}
+
+.panel-resize-handle::after,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle]::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 50%;
+    width: 3px;
+    transform: translateX(-50%) scaleX(0);
+    border-radius: 9999px;
+    background: hsl(var(--accent-primary) / 0.72);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 21;
+    transition:
+        transform var(--duration-instant) var(--ease-out-expo),
+        opacity var(--duration-instant) var(--ease-standard);
+}
+
+.panel-resize-handle:hover::after,
+.panel-resize-handle:focus-visible::after,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle]:hover::after,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle]:focus-visible::after {
+    transform: translateX(-50%) scaleX(1);
+    opacity: 1;
+}
+
+.panel-resize-handle[data-resize-handle-state="drag"]::after,
+.panel-resize-handle[data-resize-handle-active]::after,
+.panel-resize-handle:active::after,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle][data-resize-handle-state="drag"]::after,
+[data-panel-group][data-orientation="horizontal"] > [data-panel-resize-handle]:active::after {
+    transform: translateX(-50%) scaleX(1);
+    opacity: 1;
+    background: hsl(var(--accent-primary));
+    transition: none;
+}
+
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle] {
+    position: relative;
+    height: 1px;
+    flex-shrink: 0;
+    cursor: row-resize;
+    background: hsl(var(--separator-color));
+    touch-action: none;
+}
+
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle]::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: -4px;
+    z-index: 20;
+}
+
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle]::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 3px;
+    transform: translateY(-50%) scaleY(0);
+    border-radius: 9999px;
+    background: hsl(var(--accent-primary) / 0.72);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 21;
+    transition:
+        transform var(--duration-instant) var(--ease-out-expo),
+        opacity var(--duration-instant) var(--ease-standard);
+}
+
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle]:hover::after,
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle]:focus-visible::after {
+    transform: translateY(-50%) scaleY(1);
+    opacity: 1;
+}
+
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle][data-resize-handle-state="drag"]::after,
+[data-panel-group][data-orientation="vertical"] > [data-panel-resize-handle]:active::after {
+    transform: translateY(-50%) scaleY(1);
+    opacity: 1;
+    background: hsl(var(--accent-primary));
+    transition: none;
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+/* Custom animations */
+@keyframes breathe {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ========================================
+   Focus-Visible Styles
+   Ensures keyboard-only focus indication across all browsers
+   ======================================== */
+
+/* Remove default focus outline for mouse users */
+@layer base {
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Show focus ring for keyboard navigation */
+:focus-visible {
+    outline: 2px solid hsl(var(--accent-primary));
+    outline-offset: 2px;
+}
+
+/* Apply focus-visible to all interactive elements globally */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="option"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="radio"]:focus-visible {
+    outline: 2px solid hsl(var(--accent-primary));
+    outline-offset: 2px;
+}
+}
+
+/* Public pages need readable small labels and white-on-blue actions, even
+   when ThemeProvider supplies the lighter workbench accent inline. */
+.public-page {
+    --text-tertiary: var(--text-secondary);
+    --primary: var(--accent-primary);
+    --primary-hover: var(--accent-dark);
+}
+
+.light .public-page {
+    --text-secondary: 210 15% 38%;
+    --accent-primary: 217 75% 44%;
+    --accent-dark: 217 75% 38%;
+    --purple-light: 270 55% 40%;
+}
+
+.dark .public-page {
+    --text-secondary: 0 0% 70%;
+    --accent-primary: 217 85% 72%;
+    --accent-dark: 217 75% 64%;
+    --primary-foreground: var(--bg-primary);
+}
+
+.dark .public-page .text-white {
+    color: hsl(var(--bg-primary));
+}
+
+@layer base {
+    * { border-color: hsl(var(--border-color)); }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans); /* UI elements use sans-serif */
+}
+
+/* Keep layout width stable when pages have different scroll heights */
+html {
+    scrollbar-gutter: stable both-edges;
+}
+
+/* Only app-like pages lock the document. Auth/docs keep natural page scrolling.
+   Safari may pan the visual viewport as well as shrink it when an input focuses. */
+@media (max-width: 1023px) {
+    html:has(.viewport-shell),
+    html:has(.viewport-shell) body {
+        overflow: hidden;
+    }
+
+    .viewport-shell,
+    .viewport-overlay {
+        position: fixed;
+        top: var(--app-viewport-top);
+        bottom: auto;
+        left: 0;
+        right: 0;
+        height: var(--app-viewport-height);
+    }
+
+    .viewport-overlay > [role="dialog"] {
+        max-height: 100%;
+    }
+}
+
+/* NOTE:
+   Do not force `overflow-y: scroll` as a fallback. In fixed app layouts
+   (editor/chat workspace), that creates an extra page-level scrollbar in
+   browsers without `scrollbar-gutter` support. */
+
+/* Heading fonts live in `@layer base` so they are defaults, not overrides: a heading that
+   asks for a font explicitly (a Tailwind `font-*` utility, or the unlayered `.heading-display`
+   below) wins. Unlayered, these rules beat every layered Tailwind utility. */
+@layer base {
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-display);
+    }
+
+    /* Control surfaces use UI sans; manuscript headings below keep their reading font. */
+    .ui-sans-headings :is(h1, h2, h3, h4, h5, h6),
+    .ui-sans-headings:is(h1, h2, h3, h4, h5, h6) {
+        font-family: var(--font-sans);
+    }
+
+    .public-page :is(h1, h2, h3) {
+        font-family: var(--font-sans);
+    }
+
+    /* Writing content shown inside a control surface (a chapter preview in a dialog) keeps
+       its serif headings. Same specificity as the rule above, so this later rule wins. */
+    :is(.prose, .editor-content) :is(h1, h2, h3, h4, h5, h6) {
+        font-family: var(--font-display);
+    }
+}
+
+/* Code font */
+code, pre, .font-mono {
+    font-family: var(--font-mono);
+}
+
+/* Selection */
+::selection {
+    background-color: hsl(var(--selection));
+}
+
+/* ========================================
+   Scrollbar Styles
+   ======================================== */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: hsl(var(--scrollbar-track));
+}
+
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb));
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--scrollbar-thumb-hover));
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+}

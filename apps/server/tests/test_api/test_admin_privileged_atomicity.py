@@ -7,9 +7,7 @@ import pytest
 from sqlmodel import Session, func, select
 
 from api.admin.codes import update_code
-from api.admin.points import adjust_user_points
 from api.admin.schemas import (
-    AdminPointsAdjustRequest,
     CodeUpdateRequest,
     SkillReviewRequest,
     SubscriptionUpdateRequest,
@@ -18,9 +16,7 @@ from api.admin.skills import approve_skill, reject_skill
 from api.admin.subscriptions import update_user_subscription
 from config.datetime_utils import utcnow
 from models import PublicSkill, User, UserSkill
-from models.points import PointsTransaction
 from models.subscription import RedemptionCode, SubscriptionHistory, SubscriptionPlan, UserSubscription
-from services.features.points_service import points_service
 
 
 def _user(session: Session, suffix: str, *, admin: bool = False) -> User:
@@ -110,34 +106,6 @@ def test_subscription_update_audit_failure_rolls_back_subscription_and_history(d
             SubscriptionHistory.user_id == target.id
         )
     ).one() == 0
-
-
-def test_points_adjustment_audit_failure_rolls_back_ledger(db_session: Session):
-    admin = _user(db_session, "points-admin", admin=True)
-    target = _user(db_session, "points-target")
-    points_service.earn_points(db_session, target.id, 20, "seed")
-    before_count = db_session.exec(
-        select(func.count()).select_from(PointsTransaction).where(
-            PointsTransaction.user_id == target.id
-        )
-    ).one()
-
-    with patch("api.admin.points.admin_audit_service.log_action", side_effect=_audit_failure):
-        with pytest.raises(RuntimeError, match="audit unavailable"):
-            adjust_user_points(
-                target.id,
-                AdminPointsAdjustRequest(amount=10, reason="manual"),
-                http_request=None,
-                current_user=admin,
-                session=db_session,
-            )
-
-    assert points_service.get_balance(db_session, target.id)["available"] == 20
-    assert db_session.exec(
-        select(func.count()).select_from(PointsTransaction).where(
-            PointsTransaction.user_id == target.id
-        )
-    ).one() == before_count
 
 
 @pytest.mark.parametrize("decision", ["approve", "reject"])
@@ -232,26 +200,18 @@ def test_privileged_mutations_emit_complete_audits_without_issued_code_secret(db
         current_user=admin,
         session=db_session,
     )
-    adjust_user_points(
-        target.id,
-        AdminPointsAdjustRequest(amount=5, reason="audited"),
-        http_request=None,
-        current_user=admin,
-        session=db_session,
-    )
     approve_skill(skill.id, http_request=None, current_user=admin, session=db_session)
 
     audits = db_session.exec(
         select(AdminAuditLog).where(AdminAuditLog.admin_user_id == admin.id)
     ).all()
     by_action = {audit.action: audit for audit in audits}
-    assert {"create_code", "update_subscription", "adjust_points", "approve_skill"} <= set(by_action)
-    for action in ("create_code", "update_subscription", "adjust_points", "approve_skill"):
+    assert {"create_code", "update_subscription", "approve_skill"} <= set(by_action)
+    for action in ("create_code", "update_subscription", "approve_skill"):
         audit = by_action[action]
         assert audit.resource_type
         assert audit.resource_id
         assert audit.new_value is not None
     assert issued_secret not in str(by_action["create_code"].new_value)
     assert by_action["update_subscription"].old_value is not None
-    assert by_action["adjust_points"].old_value is not None
     assert by_action["approve_skill"].old_value == {"status": "pending"}

@@ -13,7 +13,6 @@ import { formatAdminDate, formatAdminDateTime, parseUTCDate } from "../../lib/da
 import { getLocaleCode } from "../../lib/i18n-helpers";
 import { getLocalizedPlanDisplayName } from "../../lib/subscriptionEntitlements";
 import { toast } from "../../lib/toast";
-import { pointsConfig } from "../../config/points";
 
 const RECENT_LIMIT = 10;
 
@@ -67,8 +66,6 @@ export const AdminUserDetail: React.FC = () => {
     duration_days: 0,
     status: "active",
   });
-  const [adjustAmount, setAdjustAmount] = useState("");
-  const [adjustReason, setAdjustReason] = useState("");
 
   const userQuery = useQuery({
     queryKey: ["admin", "user", userId],
@@ -98,16 +95,6 @@ export const AdminUserDetail: React.FC = () => {
     queryFn: () => adminApi.getUserQuota(userId),
     enabled: Boolean(userId),
   });
-  const pointsQuery = useQuery({
-    queryKey: ["admin", "points", "user", userId],
-    queryFn: () => adminApi.getUserPoints(userId),
-    enabled: Boolean(userId) && pointsConfig.enabled,
-  });
-  const transactionsQuery = useQuery({
-    queryKey: ["admin", "points", "transactions", userId, 1],
-    queryFn: () => adminApi.getUserPointsTransactions(userId, { page: 1, page_size: RECENT_LIMIT }),
-    enabled: Boolean(userId) && pointsConfig.enabled,
-  });
   const ordersQuery = useQuery({
     queryKey: ["admin", "payment-orders", "user", userId],
     queryFn: () =>
@@ -131,18 +118,6 @@ export const AdminUserDetail: React.FC = () => {
       toast.success(t("subscriptions.updateSuccess"));
     },
     onError: () => toast.error(t("subscriptions.updateFailed")),
-  });
-
-  const adjustMutation = useMutation({
-    mutationFn: (data: { amount: number; reason: string }) => adminApi.adjustUserPoints(userId, data),
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "points", "user", userId] });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "points", "transactions", userId] });
-      setAdjustAmount("");
-      setAdjustReason("");
-      toast.success(t("points.adjustSuccess", { balance: result.new_balance }));
-    },
-    onError: () => toast.error(t("points.adjustFailed")),
   });
 
   const user = userQuery.data;
@@ -179,13 +154,6 @@ export const AdminUserDetail: React.FC = () => {
       return;
     }
     subscriptionMutation.mutate(change.payload);
-  };
-
-  const submitAdjust = (event: React.FormEvent) => {
-    event.preventDefault();
-    const amount = Number.parseInt(adjustAmount, 10);
-    if (!Number.isFinite(amount) || amount === 0 || !adjustReason.trim()) return;
-    adjustMutation.mutate({ amount, reason: adjustReason.trim() });
   };
 
   const sectionState = {
@@ -316,90 +284,6 @@ export const AdminUserDetail: React.FC = () => {
           {quotaQuery.data && <UserQuotaCards quota={quotaQuery.data} />}
         </AdminPageState>
       </Section>
-
-      {pointsConfig.enabled && (
-      <Section title={t("userDetail.points")}>
-        <AdminPageState
-          isLoading={pointsQuery.isLoading}
-          isFetching={pointsQuery.isFetching}
-          isError={pointsQuery.isError}
-          isEmpty={!pointsQuery.data}
-          errorText={errorText(pointsQuery.error, t("common:error"))}
-          onRetry={() => void pointsQuery.refetch()}
-          {...sectionState}
-        >
-          {pointsQuery.data && (
-            <dl className="admin-surface grid grid-cols-2 gap-4 p-4 lg:grid-cols-4">
-              <Field label={t("points.available")}>{pointsQuery.data.available.toLocaleString()}</Field>
-              <Field label={t("points.pendingExpiration")}>{pointsQuery.data.pending_expiration.toLocaleString()}</Field>
-              <Field label={t("points.totalEarned")}>{pointsQuery.data.total_earned.toLocaleString()}</Field>
-              <Field label={t("points.totalSpent")}>{pointsQuery.data.total_spent.toLocaleString()}</Field>
-            </dl>
-          )}
-        </AdminPageState>
-
-        <form onSubmit={submitAdjust} className="admin-surface grid grid-cols-1 gap-3 p-4 lg:grid-cols-[160px_minmax(0,1fr)_auto] lg:items-end">
-          <label className="block text-sm text-[hsl(var(--text-primary))]">
-            {t("points.adjustAmount")}
-            <input
-              type="number"
-              value={adjustAmount}
-              onChange={(e) => setAdjustAmount(e.target.value)}
-              placeholder={t("points.adjustAmountPlaceholder")}
-              className={`mt-1 ${inputClass}`}
-            />
-          </label>
-          <label className="block text-sm text-[hsl(var(--text-primary))]">
-            {t("points.adjustReason")}
-            <input
-              type="text"
-              value={adjustReason}
-              onChange={(e) => setAdjustReason(e.target.value)}
-              placeholder={t("points.adjustReasonPlaceholder")}
-              className={`mt-1 ${inputClass}`}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={adjustMutation.isPending || !adjustReason.trim() || !Number.parseInt(adjustAmount, 10)}
-            className="min-h-11 rounded-lg bg-[hsl(var(--accent-primary))] px-4 text-sm text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {adjustMutation.isPending ? t("common:loading") : t("points.adjustPoints")}
-          </button>
-        </form>
-
-        <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))]">{t("userDetail.recentTransactions")}</h3>
-        <AdminPageState
-          isLoading={transactionsQuery.isLoading}
-          isFetching={transactionsQuery.isFetching}
-          isError={transactionsQuery.isError}
-          isEmpty={(transactionsQuery.data?.items?.length ?? 0) === 0}
-          errorText={errorText(transactionsQuery.error, t("common:error"))}
-          onRetry={() => void transactionsQuery.refetch()}
-          {...sectionState}
-          emptyText={t("userDetail.noTransactions")}
-        >
-          <ul className="admin-surface divide-y divide-[hsl(var(--separator-color))]">
-            {transactionsQuery.data?.items?.map((tx) => (
-              <li key={tx.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                <span className="text-[hsl(var(--text-primary))]">
-                  {t(`points.types.${tx.transaction_type}`, tx.transaction_type)}
-                  {tx.description && tx.transaction_type === "admin_adjust" && (
-                    <span className="ml-2 text-xs text-[hsl(var(--text-secondary))]">{tx.description}</span>
-                  )}
-                </span>
-                <span className="flex items-center gap-4">
-                  <span className={tx.amount > 0 ? "text-[hsl(var(--success-text))]" : "text-[hsl(var(--error-text))]"}>
-                    {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-[hsl(var(--text-secondary))]">{formatAdminDateTime(tx.created_at)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </AdminPageState>
-      </Section>
-      )}
 
       <Section title={t("userDetail.payments")}>
         <AdminPageState

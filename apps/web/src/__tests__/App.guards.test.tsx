@@ -9,7 +9,6 @@ const state = vi.hoisted(() => ({
     loading: false,
   },
   initialPath: "/",
-  inspirationsEnabled: false,
   project: {
     currentProject: null as { id: string; name?: string } | null,
     projects: [] as Array<{ id: string; name?: string }>,
@@ -20,12 +19,6 @@ const state = vi.hoisted(() => ({
   fileGet: vi.fn(),
   ssoRedirect: vi.fn(),
   personaGetState: vi.fn(),
-}));
-
-vi.mock("../config/inspirations", () => ({
-  inspirationsConfig: {
-    get enabled() { return state.inspirationsEnabled; },
-  },
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -196,14 +189,6 @@ vi.mock("../components/admin/AdminLayout", async () => {
   };
 });
 
-vi.mock("../pages/InspirationsPage", () => ({
-  default: () => <div>Inspiration List Page</div>,
-}));
-
-vi.mock("../pages/InspirationDetailPage", () => ({
-  default: () => <div>Inspiration Detail Page</div>,
-}));
-
 vi.mock("../pages/admin/AdminDashboard", () => ({
   default: () => <div>Admin Dashboard</div>,
 }));
@@ -235,7 +220,6 @@ describe("App route guards", () => {
     state.auth.user = null;
     state.auth.loading = false;
     state.initialPath = "/";
-    state.inspirationsEnabled = false;
     state.project.currentProject = null;
     state.project.projects = [];
     state.project.setCurrentProjectId.mockReset();
@@ -287,13 +271,11 @@ describe("App route guards", () => {
   });
 
   it.each(["/dashboard/inspirations", "/dashboard/inspirations/template-1"])(
-    "redirects disabled library deep link %s without rendering the feature",
+    "redirects retired library deep link %s to dashboard",
     async (path) => {
       state.auth.user = { id: "user-auth" };
       renderAppAt(path);
       await waitFor(() => expect(screen.getByTestId("dashboard-path")).toHaveTextContent(/^\/dashboard$/));
-      expect(screen.queryByText("Inspiration List Page")).not.toBeInTheDocument();
-      expect(screen.queryByText("Inspiration Detail Page")).not.toBeInTheDocument();
     },
   );
 
@@ -305,19 +287,8 @@ describe("App route guards", () => {
     ["/admin/quota", "/admin/users"],
   ])("redirects removed admin route %s to %s", async (path, destination) => {
     state.auth.user = { id: "admin-user" };
-    state.inspirationsEnabled = true;
     renderAppAt(path);
     await waitFor(() => expect(screen.getByTestId("admin-path")).toHaveTextContent(new RegExp(`^${destination}$`)));
-  });
-
-  it.each([
-    ["/dashboard/inspirations", "Inspiration List Page"],
-    ["/dashboard/inspirations/template-1", "Inspiration Detail Page"],
-  ])("preserves enabled feature route %s", async (path, page) => {
-    state.auth.user = { id: "user-auth" };
-    state.inspirationsEnabled = true;
-    renderAppAt(path);
-    expect(await screen.findByText(page)).toBeInTheDocument();
   });
 
   it("redirects authenticated users away from login to dashboard", async () => {
