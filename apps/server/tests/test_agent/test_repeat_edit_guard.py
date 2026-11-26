@@ -640,6 +640,150 @@ def test_per_file_intercept_cap_escalates_even_when_interleaved_with_other_tools
         req_ctx.clear()
 
 
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_escalated_edit_file_omits_top_level_id_and_emits_no_file_edit_sse_events():
+    """P1-3 regression: escalated edit_file error omits top-level 'id' (uses 'file_id') so
+    StreamAdapter emits tool_result(status='error') with ZERO fake file_edit_* SSE events."""
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.stream_adapter import create_stream_adapter
+
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        guard = RepeatEditGuard(request_context=req_ctx)
+        raw = _edit_args("ch1", [{"op": "replace", "old": "旧句", "new": "新句"}])
+        _run_edit(guard, raw, _edit_ok("ch1", new_length=2000, new_word_count=1950))
+        _run_edit(guard, raw, _edit_ok("ch1", new_length=1995, new_word_count=1945))
+
+        # First 2 blocks are soft-skipped; 3rd escalates.
+        for _ in range(MAX_CONSECUTIVE_GUARD_INTERCEPTS - 1):
+            p = guard.plan("edit_file", raw)
+            assert json.loads(p.blocked_output)["status"] == "skipped"
+        esc_plan = guard.plan("edit_file", raw)
+        assert esc_plan.blocked_output is not None
+        esc_payload = json.loads(esc_plan.blocked_output)
+        assert esc_payload["status"] == "error"
+        assert esc_payload["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
+        assert "id" not in esc_payload
+        assert esc_payload["file_id"] == "ch1"
+
+        adapter = create_stream_adapter(project_id="p", user_id="u")
+
+        async def wf_gen():
+            yield StreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "tool_use_id": "call-esc-1",
+                    "name": "edit_file",
+                    "result": {"content": [{"type": "text", "text": esc_plan.blocked_output}]},
+                },
+            )
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        sse_events = [ev async for ev in adapter.process_workflow_events(wf_gen())]
+        event_types = [ev.type.value for ev in sse_events]
+        assert "tool_result" in event_types
+        assert "file_edit_start" not in event_types
+        assert "file_edit_applied" not in event_types
+        assert "file_edit_end" not in event_types
+        tool_res = next(ev for ev in sse_events if ev.type.value == "tool_result")
+        assert tool_res.data["status"] == "error"
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.unit
+def test_mixed_batch_self_read_rewrites_plan_arguments_and_merges_slim_rows_in_observe():
+    """P1-4 regression: mixed query_files(ids=[ch1, outline-1, ch2]) rewrites plan.arguments
+    to exclude just-written ch1/ch2 before DB execution, and observe() merges slim
+    content_omitted=True rows back in original request order."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        req_ctx.mark_chapter_body_saved("ch2", "第2章", "draft")
+        req_ctx.record_written_snapshot("ch1", "甲" * 1000, full=True)
+        req_ctx.record_written_snapshot("ch2", "乙" * 1500, full=True)
+        guard = RepeatEditGuard(request_context=req_ctx)
+
+        raw_args = json.dumps({"ids": ["ch1", "outline-1", "ch2"]})
+        plan = guard.plan("query_files", raw_args)
+        assert plan.blocked_output is None
+        assert plan.arguments is not None
+        assert json.loads(plan.arguments)["ids"] == ["outline-1"]
+        assert plan.self_read_guarded_ids == ("ch1", "ch2")
+        assert plan.requested_ids == ("ch1", "outline-1", "ch2")
+
+        # Simulate DB executing only the rewritten arguments (["outline-1"]).
+        db_output = json.dumps(
+            {
+                "status": "success",
+                "data": [{"id": "outline-1", "title": "总纲", "content": "总纲全文"}],
+            },
+            ensure_ascii=False,
+        )
+        merged = json.loads(guard.observe("query_files", plan, db_output))
+        assert merged["status"] == "success"
+        assert merged["self_read_guarded_ids"] == ["ch1", "ch2"]
+        assert [row["id"] for row in merged["data"]] == ["ch1", "outline-1", "ch2"]
+        assert merged["data"][0] == {"id": "ch1", "title": "第1章", "content_omitted": True, "word_count": 1000}
+        assert merged["data"][1] == {"id": "outline-1", "title": "总纲", "content": "总纲全文"}
+        assert merged["data"][2] == {"id": "ch2", "title": "第2章", "content_omitted": True, "word_count": 1500}
+        assert "read_hint" in merged
+        assert guard.guarded_self_reads == 1
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.unit
+def test_no_context_read_resets_consecutive_intercepts_and_partial_failed_edits_unlock_recovery():
+    """P2-1 & P2-2: query_files with request_context=None resets consecutive intercepts;
+    status='partial' with failed_edits[*].error_type='anchor_not_found' unlocks 1 recovery read."""
+    # P2-1
+    guard_no_ctx = RepeatEditGuard(request_context=None)
+    guard_no_ctx._consecutive_intercepts = 2
+    guard_no_ctx.plan("query_files", json.dumps({"id": "any-file"}))
+    assert guard_no_ctx._consecutive_intercepts == 0
+
+    # P2-2
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        guard = RepeatEditGuard(request_context=req_ctx)
+        raw = _edit_args("ch1", [{"op": "replace", "old": "旧", "new": "新"}], continue_on_error=True)
+        partial_with_anchor_miss = json.dumps(
+            {
+                "status": "partial",
+                "mutation_applied": True,
+                "data": {
+                    "id": "ch1",
+                    "title": "第1章",
+                    "edits_applied": 1,
+                    "new_length": 1800,
+                    "new_word_count": 1750,
+                    "failed_edits": [{"index": 1, "error_type": "anchor_not_found", "error": "找不到锚点"}],
+                },
+            },
+            ensure_ascii=False,
+        )
+        _run_edit(guard, raw, partial_with_anchor_miss)
+        assert guard._files["ch1"].post_write_clean_calls == 1
+        assert "ch1" in guard._allow_self_read
+
+        # One recovery read is now allowed!
+        rec_plan = guard.plan("query_files", json.dumps({"id": "ch1"}))
+        assert rec_plan.blocked_output is None
+        assert rec_plan.self_read_recovery_id == "ch1"
+    finally:
+        req_ctx.clear()
+
+
 @pytest.mark.unit
 def test_multi_file_edits_across_ten_files_tracked_independently():
     """Editing 10 different existing files 3 times each never interferes or triggers hints/blocks."""

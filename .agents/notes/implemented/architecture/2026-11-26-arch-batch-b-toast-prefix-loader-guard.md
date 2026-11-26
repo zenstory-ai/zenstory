@@ -25,13 +25,12 @@ Status: implemented
    - `MessageManager.build_system_prompt` 先拼接 `static_prefix`（BASE + `GENRE_NORMS`）、回复语言规则、`LOOP_INPUT_LAYOUT_SECTION`、`LOOP_WORKING_RULES`、`skill_catalog`，再在最末尾拼接 `project_suffix`（`folder_ids`、`directory_structure`、`character_detection`、`project_id`）。
    - `_get_folder_ids` 改用不可变的 `(created_at ASC, id ASC)` 决胜（规范目录优先，兜底未识别旧目录仅在无规范目录时按需查去重 `(parent_id, file_type)` 并同样按 `(created_at ASC, id ASC)` 排序），确保会话中途增删移动文件永不翻转 `folder_ids`。
 3. **SessionLoader 批量查询、游标分页与免 SAVEPOINT 健康路径（`agent/core/session_loader.py`）**：
-   - `session_written_file_ids` 与 `session_read_snapshots` 全部改用 `(created_at, id) < cursor` 游标分页消除 `OFFSET`；`session_written_file_ids` 先收集扫描出的候选 `file_id`，循环外执行单次批量 `SELECT File.id ... WHERE File.id IN (...)`。
-   - `author_edits_for_files` 先用单条批量聚合 + 最新版本元数据联表 SQL（不碰 `FileVersion.content`）预查候选文件的 `max_ver`、`ai_count`、`author_count`、最新 `char_count` 与 `created_at`，直接跳过无版本、无 AI 版本、以及无作者版本且长度/时间戳均未漂移（未超回放窗口与行数上限）的文件；同时保留无版本手改（长度或 `updated_at` 漂移）的完整检测。
-   - 移除 `author_edits_for_files` 健康路径上的逐文件 `session.begin_nested()`，仅在 `author_changes` 异常或返回 `failed=True` 时回滚只读事务。
+   - `session_written_file_ids` 与 `session_read_snapshots` 全部改用 `(created_at, id) < cursor` 游标分页消除 `OFFSET`；`session_written_file_ids` 按 20 行一页收集 `page_candidates` 并在每页末尾执行单次批量 `SELECT File.id ... WHERE File.id IN (...)`，凑够 `limit` 即刻提前终止，既消逐行 N+1 又避免全会话扫描。
+   - `author_edits_for_files` 先将 `File` 元数据（`id`/`title`/`content`/`updated_at`）快照为纯 Python `_FileSnapshot`（避免异常路径 `session.rollback()` 令 ORM 对象过期并触发懒加载或崩溃），再用单条批量聚合 + 最新版本联表 SQL（不碰 `FileVersion.content`）预查 `max_ver`、`potential_ai_count`（含 `change_type="ai_edit"` 以覆盖旧 `"AI edit (reviewed)"` 链）、`min_ai_ver`、`max_non_ai_ver`（覆盖 `restore/system` 等全部 AI 之后非 AI 版本）、最新 `char_count`/`word_count`/`created_at` 与 `latest_is_strict_ai`；仅在明确无手改（零宽限窗口、缺失时间戳 fail-closed、字数/字符数一致且无 AI 后非 AI 版本）时跳过回放；健康路径不开启逐文件 `session.begin_nested()`，仅在异常或 `failed=True` 时回滚只读事务。
 4. **`RepeatEditGuard` 闭环加固（`agent/openai_agents/repeat_edit_guard.py`）**：
-   - 新增连续拦截硬上限 `MAX_CONSECUTIVE_GUARD_INTERCEPTS = 3` 与单文件累计上限 `MAX_PER_FILE_GUARD_INTERCEPTS = 4`：前 1–2 次保持软跳过/自读保护以维持既有温和收敛体验，触顶后升级返回 `status="error"`、`error_type="edit_guard_loop_exhausted"`（`guard_escalated=True`、`stop_calling_tools=True`），由既有 `ToolFailureBreaker` 计数并在继续空转时熔断，无需改动 `tools_adapter.py` 或 `runner.py`。
-   - `_plan_self_read` 支持多 ID `query_files(ids=[...])`：全为本轮刚写文件时同步整次拦截（零 DB 查询）；混合批（刚写章 + 既有文件）放行既有文件读取并在 `observe()` 中剥离刚写章正文并累计单文件拦截计数（超单文件上限时同步升级拒绝）。
-   - `observe()` 将 `status="partial"` 且实际发生落库变更（`mutation_applied=True` 或 `edits_applied > 0`）计为真实编辑并更新 `last_length` / `last_word_count`，仅豁免真实失败与无变更调用。
+   - 新增连续拦截硬上限 `MAX_CONSECUTIVE_GUARD_INTERCEPTS = 3` 与单文件累计上限 `MAX_PER_FILE_GUARD_INTERCEPTS = 4`：前 1–2 次保持软跳过/自读保护以维持既有温和收敛体验，触顶后升级返回 `status="error"`、`error_type="edit_guard_loop_exhausted"`（`guard_escalated=True`、`stop_calling_tools=True`，`edit_file` 升级载荷省略顶层 `id` 改用 `file_id` 以防 `StreamAdapter` 发出假 `file_edit_*` 事件），由既有 `ToolFailureBreaker` 计数并在继续空转时熔断。
+   - `_plan_self_read` 支持多 ID `query_files(ids=[...])`：全为本轮刚写文件时同步整次拦截（零 DB 查询）；混合批通过 `EditPlan.arguments` 改写参数在 DB 执行前剔除 `guarded_ids` 并在 `observe()` 按原序合并 `content_omitted=True` 轻量行（同时保留未改写时的纵深剥离兜底），触及单文件上限时同步升级拒绝。
+   - `observe()` 将 `status="partial"` 且实际发生落库变更（`mutation_applied=True` 或 `edits_applied > 0`）计为真实编辑并更新 `last_length` / `last_word_count`，并检查 `data["failed_edits"][*]["error_type"]` 以按需解锁一次恢复性重读。
 
 ## Alternatives considered
 

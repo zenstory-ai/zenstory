@@ -254,6 +254,7 @@ class EditPlan:
     """Plan returned before executing a tool call."""
 
     file_id: str = ""
+    arguments: str | None = None
     edit_count: int = 0
     is_append: bool = False
     is_bulk: bool = False
@@ -264,6 +265,7 @@ class EditPlan:
     self_read_recovery_id: str = ""
     self_read_recovery_ids: tuple[str, ...] = ()
     self_read_guarded_ids: tuple[str, ...] = ()
+    requested_ids: tuple[str, ...] = ()
     blocked_output: str | None = None
 
 
@@ -419,11 +421,13 @@ class RepeatEditGuard:
         Supports both single-ID ``query_files(id=...)`` and multi-ID ``query_files(ids=[...])``:
         - When ALL requested IDs were just written this turn (and not unlocked for recovery),
           blocks synchronously without querying DB.
-        - When a batch mixes just-written IDs with normal existing IDs, lets the existing IDs
-          execute and strips just-written bodies in ``observe()`` (or escalates synchronously
-          once a guarded file hits ``MAX_PER_FILE_GUARD_INTERCEPTS``).
+        - When a batch mixes just-written IDs with normal existing IDs, rewrites ``plan.arguments``
+          to exclude ``guarded_ids`` before DB execution and merges slim ``content_omitted=True``
+          rows back in ``observe()`` (with defense-in-depth stripping if caller passed raw args),
+          or escalates synchronously once a guarded file hits ``MAX_PER_FILE_GUARD_INTERCEPTS``.
         """
         if self.request_context is None:
+            self._consecutive_intercepts = 0
             return EditPlan()
         args, parse_error, _ = parse_json_object(raw_arguments or "", tool_name=READ_TOOL_NAME)
         if parse_error is not None or not isinstance(args, dict):
@@ -486,12 +490,19 @@ class RepeatEditGuard:
             ]
             if not cap_exceeding:
                 self._consecutive_intercepts = 0
+                guarded_set = set(guarded_ids)
+                remaining_ids = [fid for fid in target_ids if fid not in guarded_set]
+                rewritten = dict(args)
+                rewritten.pop("id", None)
+                rewritten["ids"] = remaining_ids
                 first_recovery = recovery_ids[0] if recovery_ids else ""
                 return EditPlan(
                     file_id=first_recovery or guarded_ids[0],
+                    arguments=json.dumps(rewritten, ensure_ascii=False, separators=(",", ":")),
                     self_read_recovery_id=first_recovery,
                     self_read_recovery_ids=tuple(recovery_ids),
                     self_read_guarded_ids=tuple(guarded_ids),
+                    requested_ids=tuple(target_ids),
                 )
             self.guarded_self_reads += 1
             self._record_intercept(cap_exceeding, increment_consecutive=True)
@@ -638,6 +649,9 @@ class RepeatEditGuard:
                 per_file_intercepts=per_file_count,
                 reason=reason,
             )
+            # Omit top-level "id" (use "file_id") matching tool_error_text() so StreamAdapter
+            # does not emit fake file_edit_start/file_edit_end events or pop UI overlays for an
+            # unexecuted escalated edit_file call.
             payload: dict[str, Any] = {
                 "status": "error",
                 "error": error_msg,
@@ -646,7 +660,7 @@ class RepeatEditGuard:
                 "guard_escalated": True,
                 "stop_calling_tools": True,
                 "tool_name": EDIT_TOOL_NAME,
-                "id": file_id,
+                "file_id": file_id,
                 "edits_applied": 0,
                 "mutation_applied": False,
                 "user_message": "这一步的细微调整已跳过，之前的修改都已保存。",
@@ -717,6 +731,18 @@ class RepeatEditGuard:
         )
 
     # --------------------------------------------------------------- observe
+    @staticmethod
+    def _has_self_read_recovery_error(payload: dict[str, Any], data: dict[str, Any]) -> bool:
+        """True when top-level error_type or any partial failed_edits[*].error_type warrants 1 recovery read."""
+        if str(payload.get("error_type") or "") in _SELF_READ_RECOVERY_ERROR_TYPES:
+            return True
+        failed_edits = data.get("failed_edits")
+        if isinstance(failed_edits, list):
+            for item in failed_edits:
+                if isinstance(item, dict) and str(item.get("error_type") or "") in _SELF_READ_RECOVERY_ERROR_TYPES:
+                    return True
+        return False
+
     def observe(self, tool_name: str, plan: EditPlan, output_text: str) -> str:
         if tool_name == READ_TOOL_NAME:
             recovery_ids = plan.self_read_recovery_ids or (
@@ -725,7 +751,7 @@ class RepeatEditGuard:
             for rid in recovery_ids:
                 self._allow_self_read.discard(rid)
             if plan.self_read_guarded_ids:
-                return self._strip_guarded_self_reads_from_batch(plan.self_read_guarded_ids, output_text)
+                return self._merge_or_strip_guarded_self_reads(plan, output_text)
             return output_text
 
         if tool_name != EDIT_TOOL_NAME or not plan.file_id:
@@ -739,7 +765,7 @@ class RepeatEditGuard:
         mutation_applied = payload.get("mutation_applied")
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         edits_applied = data.get("edits_applied")
-        error_type = str(payload.get("error_type") or "")
+        needs_recovery_read = self._has_self_read_recovery_error(payload, data)
 
         is_applied_edit = (
             (status == "success" and mutation_applied is not False)
@@ -758,14 +784,15 @@ class RepeatEditGuard:
             or (status not in ("error", "skipped") and mutation_applied is True)
         )
         if not is_applied_edit:
-            if error_type in _SELF_READ_RECOVERY_ERROR_TYPES:
+            if needs_recovery_read:
                 self._allow_self_read.add(plan.file_id)
             return output_text
 
-        # A clean successful edit clears any pending self-read recovery allowance.
+        # A clean successful edit clears any pending self-read recovery allowance;
+        # a partial edit whose failed_edits include anchor_not_found/stale_content unlocks 1 recovery read.
         if status == "success":
             self._allow_self_read.discard(plan.file_id)
-        elif error_type in _SELF_READ_RECOVERY_ERROR_TYPES:
+        elif needs_recovery_read:
             self._allow_self_read.add(plan.file_id)
 
         state = self._files.setdefault(plan.file_id, _FileEditState())
@@ -847,52 +874,109 @@ class RepeatEditGuard:
             )
         return output_text
 
-    def _strip_guarded_self_reads_from_batch(
-        self, guarded_ids: tuple[str, ...], output_text: str
+    def _merge_or_strip_guarded_self_reads(
+        self, plan: EditPlan, output_text: str
     ) -> str:
-        """Strip full bodies for just-written chapters inside a mixed ``query_files(ids=[...])`` result."""
+        """Merge slim ``content_omitted=True`` rows for excluded just-written chapters when
+        ``plan.arguments`` was rewritten, or strip them defense-in-depth if caller passed raw args."""
         payload = _load_json(output_text)
-        if payload is None or payload.get("status") != "success":
+        if payload is None:
             return output_text
+
+        guarded_ids = list(plan.self_read_guarded_ids)
+        guarded_set = set(guarded_ids)
+
+        if payload.get("status") != "success":
+            if plan.arguments is None:
+                return output_text
+            # Caller executed the rewritten batch (without guarded_ids) and all remaining IDs
+            # failed/missed; attach guarded metadata note so the model still knows why they were omitted.
+            labels: list[str] = []
+            for fid in guarded_ids:
+                _row, title, _wc = self._self_read_row(fid)
+                labels.append(f"《{title}》" if title else f"文件(id={fid})")
+            self.guarded_self_reads += 1
+            self._record_intercept(guarded_ids, increment_consecutive=False)
+            patched = dict(payload)
+            patched["self_read_guarded_ids"] = guarded_ids
+            hint = (
+                f"{'、'.join(labels)}是本轮刚写完并保存的正文，本次批量读取已跳过其读取；"
+                "请直接对照上方内容继续任务，不要重读刚写完的章节。"
+            )
+            existing_hint = patched.get("read_hint")
+            patched["read_hint"] = f"{existing_hint}\n{hint}" if isinstance(existing_hint, str) and existing_hint else hint
+            return json.dumps(patched, ensure_ascii=False, separators=(",", ":"))
+
         data = payload.get("data")
         if not isinstance(data, list):
             return output_text
 
-        guarded_set = set(guarded_ids)
-        stripped_ids: list[str] = []
-        labels: list[str] = []
-        new_data: list[Any] = []
+        handled_by_id: dict[str, dict[str, Any]] = {}
+        labels_by_id: dict[str, str] = {}
+        non_guarded_rows: list[Any] = []
+        row_by_id: dict[str, dict[str, Any]] = {}
+
         for row in data:
             if isinstance(row, dict):
                 fid = str(row.get("id") or "").strip()
                 if fid in guarded_set:
+                    # Defense-in-depth: strip body if caller did not pass rewritten plan.arguments.
                     slim_row, title, word_count = self._self_read_row(fid)
                     if not slim_row.get("title") and isinstance(row.get("title"), str):
                         slim_row["title"] = row["title"]
                         title = row["title"]
                     if word_count is None and isinstance(row.get("word_count"), int):
                         slim_row["word_count"] = row["word_count"]
-                    new_data.append(slim_row)
-                    stripped_ids.append(fid)
-                    labels.append(f"《{title}》" if title else f"文件(id={fid})")
+                    handled_by_id[fid] = slim_row
+                    labels_by_id[fid] = f"《{title}》" if title else f"文件(id={fid})"
+                    row_by_id[fid] = slim_row
                     continue
-            new_data.append(row)
+                if fid:
+                    row_by_id[fid] = row
+            non_guarded_rows.append(row)
 
-        if not stripped_ids:
+        # Rewritten-arguments path: merge slim rows back for guarded_ids excluded before DB execution.
+        if plan.arguments is not None:
+            for fid in guarded_ids:
+                if fid in handled_by_id:
+                    continue
+                slim_row, title, _word_count = self._self_read_row(fid)
+                handled_by_id[fid] = slim_row
+                labels_by_id[fid] = f"《{title}》" if title else f"文件(id={fid})"
+                row_by_id[fid] = slim_row
+
+        if not handled_by_id:
             return output_text
 
+        ordered_guarded = [fid for fid in guarded_ids if fid in handled_by_id]
+        if plan.requested_ids:
+            new_data: list[Any] = []
+            emitted_ids: set[str] = set()
+            for fid in plan.requested_ids:
+                if fid in row_by_id and fid not in emitted_ids:
+                    new_data.append(row_by_id[fid])
+                    emitted_ids.add(fid)
+            for row in non_guarded_rows:
+                fid = str(row.get("id") or "").strip() if isinstance(row, dict) else ""
+                if not fid or fid not in emitted_ids:
+                    new_data.append(row)
+        else:
+            new_data = [*non_guarded_rows, *(handled_by_id[fid] for fid in ordered_guarded)]
+
+        labels = [labels_by_id[fid] for fid in ordered_guarded]
         self.guarded_self_reads += 1
-        self._record_intercept(stripped_ids, increment_consecutive=False)
+        self._record_intercept(ordered_guarded, increment_consecutive=False)
         log_with_context(
             logger,
             20,  # INFO
-            "RepeatEditGuard stripped just-written chapter from batch query_files",
-            file_ids=stripped_ids,
-            per_file_intercepts={fid: self._per_file_intercepts.get(fid, 0) for fid in stripped_ids},
+            "RepeatEditGuard guarded just-written chapter in batch query_files",
+            file_ids=ordered_guarded,
+            rewritten=plan.arguments is not None,
+            per_file_intercepts={fid: self._per_file_intercepts.get(fid, 0) for fid in ordered_guarded},
         )
         patched = dict(payload)
         patched["data"] = new_data
-        patched["self_read_guarded_ids"] = stripped_ids
+        patched["self_read_guarded_ids"] = ordered_guarded
         hint = (
             f"{'、'.join(labels)}是本轮刚写完并保存的正文，本次批量读取已省略其正文以避免重复灌入上下文；"
             "请直接对照上方内容继续任务，不要重读刚写完的章节。"

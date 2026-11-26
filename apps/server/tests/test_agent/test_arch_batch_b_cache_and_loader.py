@@ -222,16 +222,16 @@ def test_folder_ids_and_system_prompt_hash_stay_immutable_across_mid_session_wri
 
 
 @pytest.mark.unit
-def test_session_written_file_ids_uses_single_batched_file_query_and_keyset_pagination(
+def test_session_written_file_ids_uses_per_page_batched_file_query_early_stop_and_keyset(
     db_session: Session,
 ) -> None:
-    """P0-3: Scanning >1 page of assistant rows runs ONE batched SELECT File.id (no N+1)
-    and uses keyset pagination instead of OFFSET."""
+    """P0-3 / P1-1: session_written_file_ids batches SELECT File.id once per 20-row page (no N+1),
+    uses keyset pagination (no non-zero OFFSET), and stops early once limit is satisfied."""
     user, project, chat = _seed_user_and_project(db_session)
     base_time = datetime(2026, 11, 20, 10, 0, 0)
 
-    # Create 25 files (15 drafts, 10 outlines) across 25 assistant rows (> SESSION_WRITTEN_FILES_PAGE_ROWS=20).
-    total_rows = SESSION_WRITTEN_FILES_PAGE_ROWS + 5
+    # Create 45 files across 45 assistant rows (> 2 pages of SESSION_WRITTEN_FILES_PAGE_ROWS=20).
+    total_rows = SESSION_WRITTEN_FILES_PAGE_ROWS * 2 + 5
     expected_drafts_newest_first: list[str] = []
     for idx in range(total_rows):
         ftype = "draft" if idx % 5 != 0 else "outline"
@@ -262,32 +262,59 @@ def test_session_written_file_ids_uses_single_batched_file_query_and_keyset_pagi
     db_session.commit()
     expected_drafts_newest_first.reverse()
 
+    engine = db_session.get_bind()
+    loader = SessionLoader(project_id=project.id, user_id=user.id)
+
+    # 1) Early stop: limit=10 is already satisfied by page 1 (16 drafts in newest 20 rows) ->
+    #    ONLY 1 ChatMessage query and 1 batched File query (never scans pages 2–3!).
+    early_sql: list[tuple[str, Any]] = []
+
+    def _on_early_sql(_conn, _cursor, statement, params, _context, _execmany):
+        early_sql.append((statement, params))
+
+    event.listen(engine, "before_cursor_execute", _on_early_sql)
+    try:
+        early_result = loader.session_written_file_ids(
+            db_session,
+            chat_session_id=chat.id,
+            limit=10,
+            file_types=("draft", "script"),
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", _on_early_sql)
+
+    assert early_result == expected_drafts_newest_first[:10]
+    early_msg_queries = [s for s, _p in early_sql if "from chat_message" in s.lower()]
+    early_file_selects = [
+        s for s, _p in early_sql
+        if s.lstrip().lower().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", s.lower())
+    ]
+    assert len(early_msg_queries) == 1, f"Expected early stop after 1 page, got {len(early_msg_queries)}"
+    assert len(early_file_selects) == 1, f"Expected 1 batched File SELECT for page 1, got {len(early_file_selects)}"
+
+    # 2) Multi-page scan: limit=25 spans 2 pages -> 2 ChatMessage keyset queries + 2 batched File SELECTs (not 40 N+1!).
     executed_sql: list[tuple[str, Any]] = []
 
     def _on_sql(_conn, _cursor, statement, params, _context, _execmany):
         executed_sql.append((statement, params))
 
-    engine = db_session.get_bind()
     event.listen(engine, "before_cursor_execute", _on_sql)
     try:
-        loader = SessionLoader(project_id=project.id, user_id=user.id)
         result = loader.session_written_file_ids(
             db_session,
             chat_session_id=chat.id,
-            limit=30,
+            limit=25,
             file_types=("draft", "script"),
         )
     finally:
         event.remove(engine, "before_cursor_execute", _on_sql)
 
-    assert result == expected_drafts_newest_first
+    assert result == expected_drafts_newest_first[:25]
     file_selects = [
         s for s, _p in executed_sql
         if s.lstrip().lower().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", s.lower())
     ]
-    assert len(file_selects) == 1, f"Expected 1 batched File SELECT, got {len(file_selects)}: {file_selects}"
-    # Verify keyset pagination (created_at < cursor) and zero non-zero OFFSET values
-    # (SQLite dialect always renders "LIMIT ? OFFSET ?" with offset=0 for .limit()).
+    assert len(file_selects) == 2, f"Expected 1 batched File SELECT per scanned page (2), got {len(file_selects)}"
     msg_queries = [(s, p) for s, p in executed_sql if "from chat_message" in s.lower()]
     assert len(msg_queries) == 2
     assert "chat_message.created_at <" in msg_queries[1][0].lower()
@@ -469,3 +496,191 @@ def test_author_edits_for_files_prequeries_versions_skips_unedited_and_emits_no_
         s for s in executed_sql if s.lstrip().lower().startswith("select") and "file_version" in s.lower()
     ]
     assert len(fv_selects) <= 8, f"Expected skipped files to avoid per-file FileVersion SQL, got {len(fv_selects)}"
+
+
+@pytest.mark.unit
+def test_author_edits_prequery_catches_same_length_unversioned_none_ts_reviewed_and_system_restore(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P0-1 regression: FileVersion pre-query must NEVER skip:
+    (a) same-length unversioned edits ('林墨'->'陆沉') within 1s or with updated_at=None,
+    (b) legacy create/user -> ai_edit/user/'AI edit (reviewed)' -> edit/user promotion chains,
+    (c) create/ai -> restore/system chains that remove AI paragraphs."""
+    user, project, _ = _seed_user_and_project(db_session)
+    versions = FileVersionService()
+
+    # (a1) Same-length unversioned edit within 500ms after AI write
+    same_len_fast = File(
+        id="same-len-fast",
+        project_id=project.id,
+        title="同长秒改",
+        file_type="draft",
+        content="林墨推门走进雨里。",
+    )
+    # (a2) Same-length unversioned edit when updated_at is None on loaded object (fail-closed)
+    same_len_none_ts = File(
+        id="same-len-none-ts",
+        project_id=project.id,
+        title="无时间戳同长改",
+        file_type="draft",
+        content="林墨推门走进雨里。",
+    )
+    # (b) Legacy create/user -> ai_edit/user/"AI edit (reviewed)" -> edit/user
+    legacy_reviewed = File(
+        id="legacy-reviewed",
+        project_id=project.id,
+        title="旧润色链",
+        file_type="draft",
+        content="作者原稿第一句。",
+    )
+    # (c) create/ai -> restore/system deleting an AI paragraph
+    system_restore = File(
+        id="sys-restore",
+        project_id=project.id,
+        title="系统恢复章",
+        file_type="draft",
+        content="第一段。\nAI写下的第二段。",
+    )
+    db_session.add_all([same_len_fast, same_len_none_ts, legacy_reviewed, system_restore])
+    db_session.commit()
+
+    v_fast = versions.create_version(
+        db_session, same_len_fast.id, "林墨推门走进雨里。", change_type="create", change_source="ai"
+    )
+    same_len_fast.content = "陆沉推门走进雨里。"
+    same_len_fast.updated_at = v_fast.created_at + timedelta(milliseconds=500)
+    db_session.add(same_len_fast)
+
+    v_none = versions.create_version(
+        db_session, same_len_none_ts.id, "林墨推门走进雨里。", change_type="create", change_source="ai"
+    )
+    same_len_none_ts.content = "陆沉推门走进雨里。"
+    same_len_none_ts.updated_at = v_none.created_at - timedelta(seconds=10)
+    db_session.add(same_len_none_ts)
+    db_session.commit()
+
+    versions.create_version(
+        db_session, legacy_reviewed.id, "作者原稿第一句。", change_type="create", change_source="user"
+    )
+    versions.create_version(
+        db_session,
+        legacy_reviewed.id,
+        "AI润色后的第一句。",
+        change_type="ai_edit",
+        change_source="user",
+        change_summary="AI edit (reviewed)",
+    )
+    versions.create_version(
+        db_session, legacy_reviewed.id, "作者二次手改第一句。", change_type="edit", change_source="user"
+    )
+    legacy_reviewed.content = "作者二次手改第一句。"
+    db_session.add(legacy_reviewed)
+
+    versions.create_version(
+        db_session, system_restore.id, "第一段。\nAI写下的第二段。", change_type="create", change_source="ai"
+    )
+    versions.create_version(
+        db_session, system_restore.id, "第一段。", change_type="restore", change_source="system"
+    )
+    system_restore.content = "第一段。"
+    db_session.add(system_restore)
+    db_session.commit()
+
+    # Simulate updated_at=None on same_len_none_ts when read from session (column is NOT NULL in SQLite).
+    real_exec = db_session.exec
+
+    class _NullUpdatedAtResult:
+        def __init__(self, inner: Any) -> None:
+            self._inner = inner
+
+        def all(self) -> list[Any]:
+            rows = self._inner.all()
+            for row in rows:
+                if isinstance(row, File) and row.id == same_len_none_ts.id:
+                    row.updated_at = None  # type: ignore[assignment]
+            return rows
+
+        def first(self) -> Any:
+            return self._inner.first()
+
+    def wrapped_exec(statement: Any, *args: Any, **kwargs: Any) -> Any:
+        return _NullUpdatedAtResult(real_exec(statement, *args, **kwargs))
+
+    monkeypatch.setattr(db_session, "exec", wrapped_exec)
+
+    ordered = [same_len_fast.id, same_len_none_ts.id, legacy_reviewed.id, system_restore.id]
+    block, edited_ids, _by_id = SessionLoader(project.id, user.id).author_edits_for_files(
+        db_session, ordered, {}
+    )
+
+    assert edited_ids == set(ordered)
+    assert "陆沉推门走进雨里。" in block
+    assert "作者二次手改第一句。" in block
+    assert "AI写下的第二段。" in block
+
+
+@pytest.mark.unit
+def test_author_edits_rollback_isolation_survives_orm_expiration(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P1-2 regression: when file 1 triggers a DB error + session.rollback() on a session with
+    expire_on_commit=True, file 1 degrades to failed=True while file 2 still succeeds cleanly
+    and no lazy SELECT file.* refreshes fire on expired ORM instances."""
+    from agent.tools import author_changes as author_changes_mod
+    from agent.tools.author_changes import FAILED_LINE
+
+    user, project, _ = _seed_user_and_project(db_session)
+    versions = FileVersionService()
+
+    f1 = File(id="iso-f1", project_id=project.id, title="故障章", file_type="draft", content="旧一。")
+    f2 = File(id="iso-f2", project_id=project.id, title="正常章", file_type="draft", content="老周在收摊。")
+    db_session.add_all([f1, f2])
+    db_session.commit()
+
+    versions.create_version(db_session, f1.id, "旧一。", change_type="create", change_source="ai")
+    versions.create_version(db_session, f1.id, "新一。", change_type="edit", change_source="user")
+    f1.content = "新一。"
+    versions.create_version(db_session, f2.id, "老周在收摊。", change_type="create", change_source="ai")
+    versions.create_version(db_session, f2.id, "老秦在收摊。", change_type="edit", change_source="user")
+    f2.content = "老秦在收摊。"
+    db_session.add_all([f1, f2])
+    db_session.commit()
+
+    real_author_changes = author_changes_mod.author_changes
+
+    def flaky_author_changes(sess, file_obj):
+        if file_obj.id == f1.id:
+            raise RuntimeError("simulated sql error on file 1")
+        return real_author_changes(sess, file_obj)
+
+    monkeypatch.setattr(author_changes_mod, "author_changes", flaky_author_changes)
+
+    bind = db_session.get_bind()
+    file_selects: list[str] = []
+
+    def _on_sql(_conn, _cursor, statement, _params, _context, _execmany):
+        lower = statement.lower()
+        if lower.lstrip().startswith("select") and re.search(r"\bfrom\s+\"?file\"?\b", lower):
+            file_selects.append(statement)
+
+    # Use a fresh Session with expire_on_commit=True (production default) so rollback() expires ORM rows.
+    with Session(bind) as prod_session:
+        assert prod_session.expire_on_commit is True
+        event.listen(bind, "before_cursor_execute", _on_sql)
+        try:
+            block, edited_ids, by_id = SessionLoader(project.id, user.id).author_edits_for_files(
+                prod_session, [f1.id, f2.id], {}
+            )
+        finally:
+            event.remove(bind, "before_cursor_execute", _on_sql)
+
+    assert by_id is not None and set(by_id) == {f1.id, f2.id}
+    assert edited_ids == {f2.id}
+    assert "故障章" in block
+    assert FAILED_LINE in block
+    assert "正常章" in block
+    assert "老秦在收摊。" in block
+    # Exactly ONE initial SELECT FROM file (zero lazy ORM reloads after session.rollback()!).
+    assert len(file_selects) == 1, f"Expected 1 File SELECT (no lazy reloads after rollback), got {len(file_selects)}"
