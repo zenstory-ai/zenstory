@@ -1724,10 +1724,26 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     }
   }, [mapBackendHistoryMessages, queryClient, userId]);
 
+  const isHistoryLoadBlocked =
+    isStreaming || isThinking || isCreatingSession || newChatPending;
+  const isHistoryLoadBlockedRef = useRef(isHistoryLoadBlocked);
+  isHistoryLoadBlockedRef.current = isHistoryLoadBlocked;
+
   const handleLoadEarlierMessages = useCallback(async () => {
     const projectId = currentProjectIdRef.current;
-    if (!projectId || isLoadingMoreHistory || isLoadingHistory) return;
-    const nextLimit = Math.min(100, historyLimitRef.current < 50 ? 50 : 100);
+    if (
+      !projectId ||
+      isLoadingMoreHistory ||
+      isLoadingHistory ||
+      isHistoryLoadBlockedRef.current ||
+      sendLockRef.current ||
+      creatingSessionRef.current !== null ||
+      newChatAfterStopRef.current
+    ) {
+      return;
+    }
+    const targetLimit = historyLimitRef.current < 50 ? 50 : 100;
+    const fetchLimit = targetLimit < 100 ? targetLimit + 1 : 100;
     const requestId = ++historyRequestSeqRef.current;
     const container = messagesScrollContainerRef.current;
     const prevScrollHeight = container?.scrollHeight ?? 0;
@@ -1735,14 +1751,25 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
     setIsLoadingMoreHistory(true);
     try {
-      const olderMessages = await getRecentMessages(projectId, nextLimit);
-      if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
+      const olderMessages = await getRecentMessages(projectId, fetchLimit);
+      if (
+        currentProjectIdRef.current !== projectId ||
+        requestId !== historyRequestSeqRef.current ||
+        isHistoryLoadBlockedRef.current ||
+        sendLockRef.current ||
+        creatingSessionRef.current !== null ||
+        newChatAfterStopRef.current
+      ) {
         return;
       }
+      const hasMore = targetLimit < 100 && olderMessages.length > targetLimit;
+      const displayedMessages = hasMore
+        ? olderMessages.slice(olderMessages.length - targetLimit)
+        : olderMessages;
       shouldAutoScrollRef.current = false;
-      setMessages(mapBackendHistoryMessages(olderMessages));
-      historyLimitRef.current = nextLimit;
-      setHasMoreHistory(olderMessages.length >= nextLimit && nextLimit < 100);
+      setMessages(mapBackendHistoryMessages(displayedMessages));
+      historyLimitRef.current = targetLimit;
+      setHasMoreHistory(hasMore);
       if (container) {
         requestAnimationFrame(() => {
           const delta = container.scrollHeight - prevScrollHeight;
@@ -3036,7 +3063,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                   <button
                     type="button"
                     data-testid="chat-load-earlier-messages"
-                    disabled={isLoadingMoreHistory}
+                    disabled={isLoadingMoreHistory || isHistoryLoadBlocked}
                     onClick={() => void handleLoadEarlierMessages()}
                     className={`inline-flex min-h-11 md:min-h-0 items-center gap-1.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3.5 py-2 md:px-3 md:py-1 text-xs text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]`}
                   >

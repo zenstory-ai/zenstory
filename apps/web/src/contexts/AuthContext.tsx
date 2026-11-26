@@ -141,8 +141,8 @@ const getValidCachedUser = (): User | null => {
 
 // Helper to read optimistic boot user when an active access_token exists:
 // prefers the 5-min localStorage cache, then falls back to the tab-scoped
-// sessionStorage user snapshot (cross-checked against localStorage user id to
-// prevent stale cross-tab identity leaks). Never stores or reads secrets here.
+// sessionStorage user snapshot (strictly cross-checked against localStorage.user.id
+// to prevent stale cross-tab identity leaks). Never stores or reads secrets here.
 const getOptimisticBootUser = (): User | null => {
   let accessToken: string | null = null;
   try {
@@ -153,20 +153,30 @@ const getOptimisticBootUser = (): User | null => {
   if (!accessToken) return null;
 
   const validCached = getValidCachedUser();
-  if (validCached) return validCached;
+  if (validCached) {
+    const existingSessionSnapshot = readAuthSessionUserSnapshot<User>();
+    if (existingSessionSnapshot && existingSessionSnapshot.id !== validCached.id) {
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
+    }
+    return validCached;
+  }
 
   const sessionUser = readAuthSessionUserSnapshot<User>();
   if (!sessionUser) return null;
 
   try {
     const storedUserStr = localStorage.getItem(CACHE_KEYS.USER);
-    if (storedUserStr) {
-      const storedUser = JSON.parse(storedUserStr) as Partial<User> | null;
-      if (storedUser && typeof storedUser.id === 'string' && storedUser.id && storedUser.id !== sessionUser.id) {
-        clearAuthSessionUserSnapshot();
-        clearWorkbenchSwrCache();
-        return null;
-      }
+    if (!storedUserStr) {
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
+      return null;
+    }
+    const storedUser = JSON.parse(storedUserStr) as Partial<User> | null;
+    if (!storedUser || typeof storedUser.id !== 'string' || !storedUser.id || storedUser.id !== sessionUser.id) {
+      clearAuthSessionUserSnapshot();
+      clearWorkbenchSwrCache();
+      return null;
     }
   } catch {
     clearAuthSessionUserSnapshot();

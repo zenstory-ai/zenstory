@@ -3770,27 +3770,79 @@ describe("ChatPanel starter cards in a work's first chat", () => {
     // Zero duplicate GET /chat/session/project-1/recent calls on initial boot!
     expect(vi.mocked(getRecentMessages)).not.toHaveBeenCalled()
 
-    const expandedHistory = [
-      {
-        id: 'older-msg-0',
-        session_id: 'session-boot',
-        role: 'user' as const,
-        content: '更早的对话消息',
-        created_at: '2026-11-26T07:30:00Z',
-      },
-      ...bootMessages,
-    ]
+    const expandedHistory = Array.from({ length: 50 }, (_, index) => ({
+      id: index === 49 ? 'boot-msg-1' : `older-msg-${index}`,
+      session_id: 'session-boot',
+      role: 'user' as const,
+      content: index === 49 ? '从 bootstrap 带来的消息' : `更早的对话消息 ${index}`,
+      created_at: `2026-11-26T07:${String(index).padStart(2, '0')}:00Z`,
+    }))
     vi.mocked(getRecentMessages).mockResolvedValueOnce(expandedHistory as never)
 
     fireEvent.click(loadEarlierBtn)
 
     await waitFor(() => {
       expect(vi.mocked(getRecentMessages)).toHaveBeenCalledTimes(1)
-      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledWith('project-1', 50)
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledWith('project-1', 51)
     })
     await waitFor(() => {
       const lastProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ id: string }> }
-      expect(lastProps.messages?.map((m) => m.id)).toEqual(['older-msg-0', 'boot-msg-1'])
+      expect(lastProps.messages).toHaveLength(50)
+      expect(lastProps.messages?.[0]?.id).toBe('older-msg-0')
+      expect(lastProps.messages?.[49]?.id).toBe('boot-msg-1')
     })
+    // Exactly 50 messages returned (< 51), so button disappears cleanly with no spurious extra page.
+    await waitFor(() => {
+      expect(screen.queryByTestId('chat-load-earlier-messages')).not.toBeInTheDocument()
+    })
+  })
+
+  it('disables Load earlier messages while streaming so active/optimistic messages cannot be clobbered', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    const seededClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    seededClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '测试作品' },
+          files: [],
+          initial_file: null,
+          chat_session: null,
+          recent_messages: [
+            {
+              id: 'boot-msg-1',
+              session_id: 'session-boot',
+              role: 'user' as const,
+              content: '已有消息',
+              created_at: '2026-11-26T08:00:00Z',
+            },
+          ],
+          has_more_messages: true,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: 'missing',
+      }),
+      settled: true,
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    mockAgentStreamState.isStreaming = true
+    try {
+      rtlRender(<QueryClientProvider client={seededClient}><ChatPanel /></QueryClientProvider>)
+
+      const loadEarlierBtn = await screen.findByTestId('chat-load-earlier-messages')
+      expect(loadEarlierBtn).toBeDisabled()
+      fireEvent.click(loadEarlierBtn)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(vi.mocked(getRecentMessages)).not.toHaveBeenCalled()
+    } finally {
+      mockAgentStreamState.isStreaming = false
+    }
   })
 })

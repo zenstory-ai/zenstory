@@ -16,13 +16,14 @@ import { ApiError } from "../lib/apiClient";
 import { logger } from "../lib/logger";
 import { trackEvent } from "../lib/analytics";
 import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "../lib/lastOpenedFile";
-import { seedPreloadedFile } from "../lib/preloadedFileCache";
+import { consumePreloadedFile, seedPreloadedFile } from "../lib/preloadedFileCache";
 import { readEditorDraftSnapshot } from "../lib/editorDraftRecovery";
 import { notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { readWorkbenchSwr } from "../lib/workbenchSwrCache";
 import {
   BOOTSTRAP_DEFAULT_CHAT_LIMIT,
   dispatchWorkbenchFreshFile,
+  evictProjectBootstrapHandoff,
   isProjectBootstrapAvailable,
   startProjectBootstrap,
 } from "../lib/workbenchBootstrap";
@@ -62,12 +63,15 @@ export default function ProjectEditor() {
   const selectedFromQueryRef = React.useRef<string | null>(null);
   const restoreAttemptedRef = React.useRef<string | null>(null);
   const bootstrappedProjectRef = React.useRef<string | null>(null);
+  const previousBootstrapProjectRef = React.useRef<string | null>(null);
   const selectedItemRef = React.useRef(selectedItem ?? null);
   selectedItemRef.current = selectedItem ?? null;
   const locationSearchRef = React.useRef(location.search);
   locationSearchRef.current = location.search;
 
   const isRouteProjectActive = Boolean(currentProject && projectId && currentProject.id === projectId);
+  const isRouteProjectActiveRef = React.useRef(isRouteProjectActive);
+  isRouteProjectActiveRef.current = isRouteProjectActive;
   const currentProjectType = currentProject?.project_type;
   // New-user funnel: the route's project resolved and the workspace renders (once per project).
   const trackedOpenRef = React.useRef<string | null>(null);
@@ -93,11 +97,24 @@ export default function ProjectEditor() {
       return;
     }
 
+    // Evict the previous project's settled bootstrap handoff on real project switch
+    // (never during StrictMode double-mount of the same projectId) so A→B→A always fetches fresh data.
+    const previousProjectId = previousBootstrapProjectRef.current;
+    if (previousProjectId && previousProjectId !== projectId) {
+      evictProjectBootstrapHandoff(queryClient, userId, previousProjectId);
+    }
+    previousBootstrapProjectRef.current = projectId;
+
     let cancelled = false;
     const searchParams = new URLSearchParams(locationSearchRef.current);
     const linkedFileId = searchParams.get("file");
     const rememberedFileId = linkedFileId ? null : getLastOpenedFile(userId, projectId);
     const requestedFileId = linkedFileId || rememberedFileId || null;
+    // During an A→B project switch, selectedItemRef can still hold A's file until
+    // setCurrentProjectId(B) commits; treat selection as belonging to this project
+    // only once this route project is active.
+    const hasSelectionForThisProject = () =>
+      isRouteProjectActiveRef.current && Boolean(selectedItemRef.current);
 
     // Fence legacy separate fileApi.get effects so boot does not duplicate the file read.
     bootstrappedProjectRef.current = projectId;
@@ -116,17 +133,23 @@ export default function ProjectEditor() {
         requestedFileId &&
         swrEntry.initial_file &&
         swrEntry.initial_file.id === requestedFileId &&
-        !selectedItemRef.current
+        !hasSelectionForThisProject()
       ) {
         // CRITICAL draft protection invariant: if an unsaved recovery snapshot exists in
         // localStorage for this file, wait for authoritative server updated_at from /bootstrap
         // instead of resolving draft recovery against a potentially stale SWR copy.
-        const hasPendingRecoveryDraft =
-          readEditorDraftSnapshot(localStorage, {
-            userId,
-            projectId,
-            fileId: requestedFileId,
-          }) !== null;
+        let hasPendingRecoveryDraft = false;
+        try {
+          hasPendingRecoveryDraft =
+            readEditorDraftSnapshot(window.localStorage, {
+              userId,
+              projectId,
+              fileId: requestedFileId,
+            }) !== null;
+        } catch {
+          // Storage unavailable: proceed without throwing or claiming draft protection.
+          hasPendingRecoveryDraft = false;
+        }
         if (!hasPendingRecoveryDraft) {
           seedPreloadedFile(queryClient, userId, projectId, swrEntry.initial_file);
           swrPaintedFileId = swrEntry.initial_file.id;
@@ -151,18 +174,22 @@ export default function ProjectEditor() {
         if (requestedFileId) {
           if (initialFile && initialFile.id === requestedFileId) {
             if (swrPaintedFileId === requestedFileId) {
-              // Silently reconcile the open SWR-painted file with fresh server version/content.
+              // Always overwrite preloadedFileCache with the fresh server copy BEFORE dispatching
+              // the event so a late-mounting or microtask-yielded Editor never commits stale SWR data.
+              seedPreloadedFile(queryClient, userId, projectId, initialFile);
               dispatchWorkbenchFreshFile({ userId, projectId, file: initialFile });
-            } else if (!selectedItemRef.current) {
+            } else if (!hasSelectionForThisProject()) {
               seedPreloadedFile(queryClient, userId, projectId, initialFile);
               setSelectedItem(toSelectedItem(initialFile));
             }
-          } else {
-            // Requested file was deleted, moved, or is a folder.
+          } else if (result.initialFileStatus !== "transient_error") {
+            // Definitive answer: requested file was deleted, moved, or is a folder.
+            // Transient legacy fallback errors preserve lastOpenedFile and avoid false removal.
             if (rememberedFileId && !linkedFileId) {
               clearLastOpenedFile(userId, projectId);
             }
             if (swrPaintedFileId === requestedFileId) {
+              consumePreloadedFile(queryClient, userId, projectId, requestedFileId);
               notifyFileRemoved(projectId, requestedFileId);
             }
           }
@@ -177,6 +204,13 @@ export default function ProjectEditor() {
         if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
           setNotFound(true);
           return;
+        }
+        // Transient /bootstrap failure: allow legacy restore effects to retry once ProjectContext loads.
+        if (restoreAttemptedRef.current === projectId) {
+          restoreAttemptedRef.current = null;
+        }
+        if (linkedFileId && selectedFromQueryRef.current === linkedFileId) {
+          selectedFromQueryRef.current = null;
         }
         logger.warn("[ProjectEditor] Bootstrap load failed, falling back to ProjectContext", {
           projectId,

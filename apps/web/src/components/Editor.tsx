@@ -266,9 +266,10 @@ const EditorComponent: React.FC<EditorProps> = () => {
   } | null>(null);
   const hasLoadedRef = useRef(false);
   const loadGenerationRef = useRef(0);
-  // Counts every server read that can replace the open editor copy, so an older
-  // loadData/syncOpenFileFromServer response answering late is known.
+  // Counts every server read/save that can advance the open editor copy, so an older
+  // loadData/syncOpenFileFromServer/bootstrap response answering late can never roll it back.
   const serverSyncSeqRef = useRef(0);
+  const initialLoadSyncSeqRef = useRef<{ fileId: string; seq: number } | null>(null);
   const restoredSelectionRef = useRef<string | null>(null);
   const currentFileRef = useRef<File | null>(file);
   const translateRef = useRef(t);
@@ -452,8 +453,15 @@ const EditorComponent: React.FC<EditorProps> = () => {
         // drop the one-shot handoff before the surviving effect commits.
         await Promise.resolve();
         if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
+        if (isFileRemoved(currentProjectId, selectedItem.id)) return;
+        // Re-read after yield so a fresher /bootstrap overwrite written during the yield wins over stale SWR.
+        const latestPreloaded = peekPreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
         consumePreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
-        data = preloaded;
+        if (!latestPreloaded) {
+          // Entry was explicitly evicted (e.g. deleted-file notification from /bootstrap).
+          return;
+        }
+        data = latestPreloaded;
       } else {
         data = await fileApi.get(selectedItem.id);
         if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
@@ -468,6 +476,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
         return;
       }
       clearFileRemoved(currentProjectId, data.id);
+      initialLoadSyncSeqRef.current = { fileId: data.id, seq: serverReadSeq };
+      currentFileRef.current = data;
       setFile(data);
       // New-user funnel: the author opened a file, or the AI finished writing the file the author
       // had open. The server counts it only when the file has an AI-written version, once per
@@ -505,6 +515,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
       if (!snapshot) {
         if (scope) clearRemovedDraftEntry(scope);
         setDraftRecovery(null);
+        editTitleRef.current = data.title;
+        editContentRef.current = serverContent;
         setEditTitle(data.title);
         setEditContent(serverContent);
         if (followServer) markServerBaseline(data);
@@ -520,6 +532,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
             clearRemovedDraftEntry(scope);
           }
           setDraftRecovery(null);
+          editTitleRef.current = data.title;
+          editContentRef.current = serverContent;
           setEditTitle(data.title);
           setEditContent(serverContent);
           if (followServer) markServerBaseline(data);
@@ -950,13 +964,27 @@ const EditorComponent: React.FC<EditorProps> = () => {
   syncOpenFileFromServerRef.current = syncOpenFileFromServer;
 
   // Reconcile an SWR-painted open file when fresh /bootstrap returns without a duplicate GET.
+  // Never rolls back a newer saved or server-synced version.
   useEffect(() => {
     const onFreshFile = (event: Event) => {
       const detail = (event as CustomEvent<WorkbenchFreshFileDetail>).detail;
       if (!detail || detail.userId !== currentUserId || detail.projectId !== activeProjectIdRef.current) {
         return;
       }
-      if (currentFileRef.current?.id !== detail.file.id || selectedIdRef.current !== detail.file.id) {
+      const current = currentFileRef.current;
+      if (!current || current.id !== detail.file.id || selectedIdRef.current !== detail.file.id) {
+        return;
+      }
+      // If a local save or syncOpenFileFromServer already advanced this file after its initial load,
+      // ignore a slower /bootstrap snapshot so newer commits are never rolled back.
+      const loadedAt = initialLoadSyncSeqRef.current;
+      if (!loadedAt || loadedAt.fileId !== current.id || serverSyncSeqRef.current !== loadedAt.seq) {
+        return;
+      }
+      // Also guard by timestamp monotonicity so an older server updated_at can never replace a newer one.
+      const incomingMs = Date.parse(detail.file.updated_at);
+      const currentMs = Date.parse(current.updated_at);
+      if (Number.isFinite(incomingMs) && Number.isFinite(currentMs) && incomingMs < currentMs) {
         return;
       }
       const generation = loadGenerationRef.current;
@@ -1187,6 +1215,8 @@ const EditorComponent: React.FC<EditorProps> = () => {
     // Update local state（同步 updated_at，作为下一次保存的并发令牌）
     const currentTargetFile = currentFileRef.current;
     if (currentTargetFile?.id === targetFileId) {
+      // Advance sync sequence so any slower in-flight /bootstrap snapshot is fenced out.
+      serverSyncSeqRef.current += 1;
       currentFileRef.current = {
         ...currentTargetFile,
         title: submission.title,

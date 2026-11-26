@@ -29,6 +29,8 @@ export interface ProjectBootstrapResult {
   usedFallback: boolean;
   fileTreeReady: boolean;
   chatReady: boolean;
+  /** Distinguishes definitive missing/invalid file from transient 5xx/network errors on legacy fallback. */
+  initialFileStatus: "resolved" | "missing" | "transient_error";
 }
 
 export interface BootstrapHandoffEntry {
@@ -37,6 +39,7 @@ export interface BootstrapHandoffEntry {
   requestedFileId: string | null;
   startedAt: number;
   promise: Promise<ProjectBootstrapResult | null>;
+  settled: boolean;
   fileTreeConsumed: boolean;
   chatConsumed: boolean;
 }
@@ -75,6 +78,7 @@ export async function fetchProjectBootstrapWithFallback(
       usedFallback: false,
       fileTreeReady: true,
       chatReady: true,
+      initialFileStatus: data.initial_file ? "resolved" : "missing",
     };
   } catch (error) {
     if (!isBootstrapEndpointMissingError(error)) {
@@ -104,22 +108,27 @@ export async function fetchProjectBootstrapWithFallback(
       fileId
         ? apiModule.fileApi
             .get(fileId)
-            .then((file) => {
+            .then((file): { status: "resolved" | "missing"; file: File | null } => {
               const isDeleted = (file as { is_deleted?: boolean }).is_deleted === true;
               if (file.project_id !== projectId || isDeleted || (file.file_type as string) === "folder") {
-                return null;
+                return { status: "missing", file: null };
               }
-              return file;
+              return { status: "resolved", file };
             })
-            .catch(() => null)
-        : Promise.resolve(null),
+            .catch((fileErr): { status: "missing" | "transient_error"; file: null } => {
+              if (fileErr instanceof ApiError && fileErr.status >= 400 && fileErr.status < 500) {
+                return { status: "missing", file: null };
+              }
+              return { status: "transient_error", file: null };
+            })
+        : Promise.resolve<{ status: "missing"; file: null }>({ status: "missing", file: null }),
     ]);
 
     return {
       data: {
         project,
         files: treeResult.files,
-        initial_file: fileResult,
+        initial_file: fileResult.file,
         chat_session: null,
         recent_messages: chatResult.messages,
         has_more_messages: chatResult.hasMore,
@@ -127,8 +136,18 @@ export async function fetchProjectBootstrapWithFallback(
       usedFallback: true,
       fileTreeReady: treeResult.ok,
       chatReady: chatResult.ok,
+      initialFileStatus: fileResult.status,
     };
   }
+}
+
+export function evictProjectBootstrapHandoff(
+  queryClient: QueryClient | undefined,
+  userId: string | null | undefined,
+  projectId: string | null | undefined,
+): void {
+  if (!queryClient || !userId || !projectId) return;
+  queryClient.removeQueries({ queryKey: workbenchBootstrapQueryKey(userId, projectId), exact: true });
 }
 
 export function startProjectBootstrap(
@@ -147,12 +166,15 @@ export function startProjectBootstrap(
 
   if (queryClient) {
     const existing = queryClient.getQueryData<BootstrapHandoffEntry>(key);
+    // Only deduplicate an in-flight (or freshly settled & unconsumed, e.g. StrictMode
+    // remount) handoff; never serve a stale consumed bootstrap on A→B→A revisit.
     if (
       existing &&
       existing.userId === userId &&
       existing.projectId === projectId &&
       existing.requestedFileId === fileId &&
-      now - existing.startedAt <= BOOTSTRAP_HANDOFF_MAX_AGE_MS
+      now - existing.startedAt <= BOOTSTRAP_HANDOFF_MAX_AGE_MS &&
+      (!existing.settled || (!existing.fileTreeConsumed && !existing.chatConsumed))
     ) {
       return existing.promise;
     }
@@ -161,6 +183,7 @@ export function startProjectBootstrap(
   let entry: BootstrapHandoffEntry | null = null;
   const settledPromise = fetchProjectBootstrapWithFallback(projectId, { fileId, chatLimit })
     .then((result) => {
+      if (entry) entry.settled = true;
       // Persist user-scoped SWR cache only when the entry still belongs to the active query key.
       if (!queryClient || !entry || queryClient.getQueryData<BootstrapHandoffEntry>(key) === entry) {
         writeWorkbenchSwr(userId, projectId, {
@@ -170,6 +193,10 @@ export function startProjectBootstrap(
         });
       }
       return result;
+    })
+    .catch((err) => {
+      if (entry) entry.settled = true;
+      throw err;
     });
 
   if (queryClient) {
@@ -181,6 +208,7 @@ export function startProjectBootstrap(
       // Suppress unhandled rejections on the shared promise for passive consumers (useFileTree/ChatPanel)
       // while ProjectEditor still observes rejections on `settledPromise`.
       promise: settledPromise.catch(() => null),
+      settled: false,
       fileTreeConsumed: false,
       chatConsumed: false,
     };

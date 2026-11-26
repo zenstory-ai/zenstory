@@ -1,7 +1,7 @@
 import { StrictMode, createContext, useContext } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, clearAuthStorage } from "../lib/apiClient";
 import { setLastOpenedFile } from "../lib/lastOpenedFile";
@@ -582,6 +582,222 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
       clearWorkbenchSwrCache();
     }
   });
+
+  it("never rolls back a newer saved edit when a slower /bootstrap returns older T1 (P1-1)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    const t1File: File = {
+      ...sampleFile,
+      content: "旧版正文 T1。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    const t3SavedFile: File = {
+      ...sampleFile,
+      content: "作者刚刚保存的新版正文 T3。",
+      updated_at: "2026-11-26T09:00:00Z",
+    };
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: t1File,
+    });
+
+    const slowBootstrap = deferred<ProjectBootstrapResponse>();
+    mocks.getBootstrap.mockReturnValue(slowBootstrap.promise);
+    mocks.fileUpdate.mockResolvedValue(t3SavedFile);
+
+    mountEditor(queryClient);
+
+    const editorInput = await screen.findByPlaceholderText("editor:placeholder.contentPlaceholder");
+    expect(editorInput).toHaveValue("旧版正文 T1。");
+
+    // Author edits and saves via the Save button BEFORE slow /bootstrap returns!
+    fireEvent.change(editorInput, { target: { value: "作者刚刚保存的新版正文 T3。" } });
+    fireEvent.click(screen.getByRole("button", { name: "editor:save" }));
+
+    await waitFor(() => {
+      expect(mocks.fileUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // Slow /bootstrap finally resolves with pre-edit T1 -> MUST NOT roll back T3!
+    await act(async () => {
+      slowBootstrap.resolve({
+        ...sampleBootstrap,
+        initial_file: t1File,
+      });
+      await slowBootstrap.promise;
+    });
+    await act(async () => Promise.resolve());
+
+    expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+      "作者刚刚保存的新版正文 T3。",
+    );
+    expect(screen.queryByRole("button", { name: "editor:draftRecovery.restore" })).not.toBeInTheDocument();
+  });
+
+  it("delivers fresh V2 when /bootstrap resolves before Editor finishes mounting SWR V1 (P1-2)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    const v1File: File = {
+      ...sampleFile,
+      content: "SWR 旧版 V1。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: v1File,
+    });
+
+    // /bootstrap resolves immediately (microtask) with fresher V2 before Editor mounts/commits V1.
+    mocks.getBootstrap.mockResolvedValue(sampleBootstrap);
+
+    mountEditor(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+    expect(mocks.fileGet).not.toHaveBeenCalled();
+  });
+
+  it("refetches fresh /bootstrap on A→B→A project revisit and clears stale selection on switch (P1-3)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const projectB: Project = {
+      id: "project-2",
+      name: "第二个作品",
+      project_type: "short",
+      created_at: "2026-11-02T00:00:00Z",
+      updated_at: "2026-11-26T08:00:00Z",
+    };
+    const fileB: File = {
+      id: "file-b1",
+      project_id: "project-2",
+      title: "B 第一章",
+      content: "作品 B 正文。",
+      file_type: "draft",
+      parent_id: null,
+      order: 1,
+      file_metadata: null,
+      created_at: "2026-11-02T00:00:00Z",
+      updated_at: "2026-11-26T08:00:00Z",
+    };
+    const updatedFileA: File = {
+      ...sampleFile,
+      content: "回到作品 A 后拉到的最新正文 V2。",
+      updated_at: "2026-11-26T10:00:00Z",
+    };
+
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+    setLastOpenedFile("user-1", "project-2", fileB.id);
+
+    mocks.getBootstrap
+      .mockResolvedValueOnce(sampleBootstrap)
+      .mockResolvedValueOnce({
+        project: projectB,
+        files: [],
+        initial_file: fileB,
+        chat_session: null,
+        recent_messages: [],
+        has_more_messages: false,
+      })
+      .mockResolvedValueOnce({
+        ...sampleBootstrap,
+        initial_file: updatedFileA,
+      });
+
+    const listeners = new Set<() => void>();
+    const notify = () => listeners.forEach((l) => l());
+    let navigateFn: ((to: string) => void) | null = null;
+
+    function NavHarness() {
+      const nav = useNavigate();
+      React.useLayoutEffect(() => {
+        navigateFn = (to: string) => nav(to);
+      }, [nav]);
+      return null;
+    }
+
+    function SwitchHost() {
+      const [rev, setRev] = React.useState(0);
+      React.useLayoutEffect(() => {
+        const l = () => setRev((v) => v + 1);
+        listeners.add(l);
+        return () => {
+          listeners.delete(l);
+        };
+      }, []);
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ProjectRevContext.Provider value={rev}>
+            <MemoryRouter initialEntries={["/project/project-1"]}>
+              <NavHarness />
+              <Routes>
+                <Route path="/project/:projectId" element={<ProjectEditor />} />
+              </Routes>
+            </MemoryRouter>
+          </ProjectRevContext.Provider>
+        </QueryClientProvider>
+      );
+    }
+
+    mocks.setCurrentProjectId.mockImplementation((id: string | null) => {
+      const prev = mocks.project.currentProjectId;
+      mocks.project.currentProjectId = id;
+      mocks.project.currentProject = mocks.project.projects.find((p) => p.id === id) ?? null;
+      if (prev !== id) {
+        mocks.project.selectedItem = null;
+      }
+      notify();
+    });
+    mocks.hydrateProject.mockImplementation((project: Project) => {
+      const rest = mocks.project.projects.filter((p) => p.id !== project.id);
+      mocks.project.projects = [...rest, project];
+      mocks.project.currentProjectId = project.id ?? null;
+      mocks.project.currentProject = project;
+      mocks.project.loading = false;
+      notify();
+    });
+    mocks.setSelectedItem.mockImplementation((item: SelectedItem | null) => {
+      mocks.project.selectedItem = item;
+      notify();
+    });
+
+    render(<SwitchHost />);
+
+    // 1) Initial load of Project A -> V1
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+    });
+    expect(mocks.getBootstrap).toHaveBeenCalledTimes(1);
+
+    // 2) Switch A -> B: even with A's selection active before switch, B loads its own file!
+    await act(async () => {
+      navigateFn?.("/project/project-2");
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        fileB.content,
+      );
+    });
+    expect(mocks.getBootstrap).toHaveBeenCalledTimes(2);
+
+    // 3) Switch B -> A within 15s: MUST refetch fresh /bootstrap (NOT reuse stale consumed V1)!
+    await act(async () => {
+      navigateFn?.("/project/project-1");
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        updatedFileA.content,
+      );
+    });
+    expect(mocks.getBootstrap).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("AuthContext non-blocking session snapshot boot and 401 eviction", () => {
@@ -640,5 +856,63 @@ describe("AuthContext non-blocking session snapshot boot and 401 eviction", () =
     expect(localStorage.getItem("access_token")).toBeNull();
     expect(readAuthSessionUserSnapshot()).toBeNull();
     expect(readWorkbenchSwr(mocks.user.id, "project-1")).toBeNull();
+  });
+
+  it("clears mismatched session snapshot + SWR cache on cross-tab switch and rejects orphan session snapshot (P2-1)", async () => {
+    const actualAuth = await vi.importActual<typeof import("../contexts/AuthContext")>(
+      "../contexts/AuthContext",
+    );
+    const { AuthProvider, useAuth } = actualAuth;
+
+    const userB = { ...mocks.user, id: "user-b", username: "writerB", email: "b@example.com" };
+    // Tab had User A's session snapshot + SWR cache, while another tab logged in as User B within 5m TTL.
+    writeAuthSessionUserSnapshot(mocks.user);
+    writeWorkbenchSwr(mocks.user.id, "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: sampleFile,
+    });
+    localStorage.setItem("access_token", "user-b-token");
+    localStorage.setItem("user", JSON.stringify(userB));
+    localStorage.setItem("auth_validated_at", String(Date.now()));
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(userB), { status: 200 })) as unknown as typeof fetch;
+
+    const { result, unmount } = renderHook(() => useAuth(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <AuthProvider>{children}</AuthProvider>
+      ),
+    });
+
+    expect(result.current.user?.id).toBe("user-b");
+    expect(readWorkbenchSwr(mocks.user.id, "project-1")).toBeNull();
+    unmount();
+
+    // Orphan sessionStorage snapshot with missing localStorage.user must NOT bypass /api/auth/me!
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem("access_token", "orphan-token");
+    writeAuthSessionUserSnapshot(mocks.user);
+    const pendingMe = deferred<Response>();
+    global.fetch = vi.fn().mockReturnValue(pendingMe.promise) as unknown as typeof fetch;
+
+    const orphanView = renderHook(() => useAuth(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <AuthProvider>{children}</AuthProvider>
+      ),
+    });
+
+    expect(orphanView.result.current.loading).toBe(true);
+    expect(orphanView.result.current.user).toBeNull();
+    expect(readAuthSessionUserSnapshot()).toBeNull();
+
+    await act(async () => {
+      pendingMe.resolve(new Response(JSON.stringify(mocks.user), { status: 200 }));
+      await pendingMe.promise;
+    });
+    await waitFor(() => expect(orphanView.result.current.loading).toBe(false));
+    orphanView.unmount();
   });
 });
