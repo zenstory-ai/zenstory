@@ -591,3 +591,14 @@ def test_settle_cancelled_stream_never_relaxes_material_trial_guard(db_session):
     assert row.settled_units is None
     assert after_trial_units == before_trial_units
 
+
+def test_cost_budget_exhaustion_copy_never_leaks_internal_cap_details():
+    """User-facing copy for ERR_QUOTA_AI_DAILY_COST_EXCEEDED must never expose ¥15, cost, or percentages."""
+    from core.error_codes import get_error_message
+
+    for lang in ("zh", "en"):
+        msg = get_error_message(budget.COST_LIMIT_CODE, lang)
+        lowered = msg.lower()
+        assert msg.strip(), f"Empty error message for {lang}"
+        for forbidden in ("15", "¥", "cny", "rmb", "budget", "cost", "%", "元"):
+            assert forbidden not in lowered, f"Leaked {forbidden!r} in {lang} error copy: {msg}"
