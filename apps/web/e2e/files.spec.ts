@@ -203,11 +203,15 @@ test.describe('Files', () => {
 
   test('user can expand and collapse folders', async ({ page }) => {
     const folder = treeNode(page, '大纲')
-    await expect(folder.locator('svg.lucide-chevron-down')).toBeVisible()
+    const chevron = folder.locator('svg.lucide-chevron-right')
+    await expect(folder).toHaveAttribute('aria-expanded', 'true')
+    await expect(chevron).toHaveClass(/rotate-90/)
     await folder.click()
-    await expect(folder.locator('svg.lucide-chevron-right')).toBeVisible()
+    await expect(folder).toHaveAttribute('aria-expanded', 'false')
+    await expect(chevron).not.toHaveClass(/rotate-90/)
     await folder.click()
-    await expect(folder.locator('svg.lucide-chevron-down')).toBeVisible()
+    await expect(folder).toHaveAttribute('aria-expanded', 'true')
+    await expect(chevron).toHaveClass(/rotate-90/)
   })
 
   test('file tree shows folder children count', async ({ page }) => {
