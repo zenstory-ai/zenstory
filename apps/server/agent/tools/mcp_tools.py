@@ -15,11 +15,19 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import func
-from sqlmodel import Session, and_, select
+from sqlmodel import Session, and_, col, select
 
 from agent.constants import CONTENT_FILE_TYPES, coerce_bool
-from agent.tools.file_ops.content_range import apply_content_range, wants_range
+from agent.tools.file_ops.content_range import (
+    apply_content_range,
+    count_paragraphs,
+    find_literal_matches,
+    format_paragraph_stats,
+    paragraph_index_at_offset,
+    wants_range,
+)
 from agent.tools.file_ops.edit import (
+    BATCH_REPLACE_MAX_FILES,
     EDIT_ERROR_FILE_BUSY,
     EDIT_ERROR_FILE_NOT_FOUND,
     EDIT_ERROR_GENERIC,
@@ -46,13 +54,14 @@ from agent.tools.file_ops.serialization import (
     resolve_summary_preview_chars_for_listing,
     serialize_file,
 )
-from agent.tools.permissions import ForbiddenError, NotFoundError
+from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
 from agent.tools.tool_context import (  # noqa: F401 - re-exported for callers
     AgentRequestContext,
     _PendingEmptyFileState,
     _ReadSnapshots,
 )
 from agent.tools.tool_inputs import (
+    BatchReplaceFilesInput,
     CreateFileInput,
     DeleteFileInput,
     EditFileInput,
@@ -1929,6 +1938,12 @@ def _query_files_sync(
         return _make_mcp_payload(validation_error, tool_name=tool_name)
 
     with req_ctx.session_scope() as session:
+        if (
+            isinstance(parsed.response_mode, str)
+            and parsed.response_mode.strip().lower() == QUERY_FILES_RESPONSE_MODE_MATCHES
+        ):
+            return _query_files_matches_sync(session, req_ctx, project_id, parsed)
+
         executor = req_ctx.executor(session)
         try:
             # 校验、去重并按上限（最多 5 个）截断 id / ids；单 id 保持 100% 兼容。
@@ -2071,6 +2086,7 @@ def _query_files_sync(
                 rows = result if isinstance(result, list) else []
                 if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
                     full_row = rows[0]
+                    raw_full_content = full_row["content"]
                     sliced = apply_content_range(full_row, range_args)
                     result = [sliced]
                     if sliced.get("content_partial"):
@@ -2082,15 +2098,39 @@ def _query_files_sync(
                             and isinstance(content_range.get("end"), int)
                             else None
                         )
+                        # Always record the raw unannotated body in read_snapshots before any paragraph formatting.
                         req_ctx.record_range_read_snapshot(
                             str(full_row.get("id") or ""),
-                            full_row["content"],
+                            raw_full_content,
                             span=span,
                             ticket=read_ticket,
                         )
+                        sliced["paragraph_count"] = count_paragraphs(raw_full_content)
+                        if parsed.show_paragraph_stats and isinstance(sliced.get("content"), str):
+                            start_offset = span[0] if span is not None else 0
+                            start_p = paragraph_index_at_offset(raw_full_content, start_offset)
+                            annotated, _ = format_paragraph_stats(
+                                sliced["content"], start_paragraph=start_p
+                            )
+                            sliced["content"] = annotated
+                            sliced["paragraph_stats_annotated"] = True
                         return _make_result({"status": "success", "data": result}, tool_name=tool_name)
 
             rows = result if isinstance(result, list) else []
+            # Capture raw unannotated contents BEFORE paragraph formatting so read_snapshots always stay raw.
+            raw_contents: dict[str, str] = {}
+            for row in rows:
+                if isinstance(row, dict) and isinstance(row.get("content"), str):
+                    fid = str(row.get("id") or "")
+                    raw_body = row["content"]
+                    if fid:
+                        raw_contents[fid] = raw_body
+                    row["paragraph_count"] = count_paragraphs(raw_body)
+                    if parsed.show_paragraph_stats:
+                        annotated, _ = format_paragraph_stats(raw_body)
+                        row["content"] = annotated
+                        row["paragraph_stats_annotated"] = True
+
             missing_ids: list[str] = []
             is_query_filter = (not wants_full or list_full_query_downgraded) and bool(normalized_keyword)
             if is_batch and not is_query_filter:
@@ -2123,7 +2163,7 @@ def _query_files_sync(
                 payload["note"] = " ".join(notes)
             if has_exact_ids and len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
                 # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
-                _note_file_read(result, req_ctx, ticket=read_ticket)
+                _note_file_read(result, req_ctx, ticket=read_ticket, raw_contents=raw_contents)
             return _make_result(payload, tool_name=tool_name)
         except Exception as e:
             return _make_error(str(e), tool_name=tool_name)
@@ -2132,6 +2172,124 @@ def _query_files_sync(
 # 关键词查询的命中位置：每个文件最多列这么多处，每处前后各带这么多字原文。
 QUERY_MATCHES_PER_FILE = 8
 QUERY_MATCH_CONTEXT_CHARS = 30
+
+# Precise grep mode (`response_mode="matches"`) caps.
+QUERY_FILES_RESPONSE_MODE_MATCHES = "matches"
+QUERY_MATCHES_MAX_TOTAL = 60
+QUERY_MATCHES_MAX_FILES = 30
+QUERY_MATCHES_SNIPPET_CONTEXT_CHARS = 40
+
+
+def _query_files_matches_sync(
+    session: Session,
+    req_ctx: AgentRequestContext,
+    project_id: str,
+    parsed: QueryFilesInput,
+) -> dict[str, Any]:
+    """Literal substring grep across project files without dumping full bodies."""
+    from models import File
+
+    tool_name = "query_files"
+    needle = parsed.query.strip() if isinstance(parsed.query, str) else ""
+    if not needle:
+        return _make_structured_error(
+            "response_mode='matches' 需要非空的 query 搜索词。",
+            error_type="invalid_tool_input",
+            tool_name=tool_name,
+        )
+
+    try:
+        check_project_ownership(session, project_id, req_ctx.user_id)
+        requested_ids, _ = normalize_query_file_ids(
+            file_id=parsed.id,
+            file_ids=parsed.ids,
+            max_ids=QUERY_MATCHES_MAX_FILES,
+        )
+        stmt = (
+            select(File.id, File.title, File.file_type, File.content)
+            .where(
+                File.project_id == project_id,
+                File.is_deleted.is_(False),
+                File.file_type != "folder",
+                File.content.contains(needle, autoescape=True),  # type: ignore[attr-defined]
+            )
+            .order_by(
+                File.order.asc(),  # type: ignore[attr-defined]
+                col(File.created_at).asc(),
+                col(File.id).asc(),
+            )
+        )
+        if requested_ids:
+            stmt = stmt.where(File.id.in_(requested_ids))  # type: ignore[attr-defined]
+        if parsed.file_types:
+            stmt = stmt.where(File.file_type.in_(parsed.file_types))  # type: ignore[attr-defined]
+        elif parsed.file_type:
+            stmt = stmt.where(File.file_type == parsed.file_type)
+        if parsed.parent_id is not None:
+            stmt = stmt.where(File.parent_id == parsed.parent_id)
+
+        rows = session.exec(stmt).all()
+    except Exception as exc:
+        return _make_error(str(exc), tool_name=tool_name)
+
+    max_files = QUERY_MATCHES_MAX_FILES
+    if isinstance(parsed.limit, int) and parsed.limit > 0:
+        max_files = min(parsed.limit, QUERY_MATCHES_MAX_FILES)
+    skip_files = parsed.offset if isinstance(parsed.offset, int) and parsed.offset > 0 else 0
+
+    total_matches = 0
+    matched_files = 0
+    collected_matches = 0
+    truncated = False
+    file_entries: list[dict[str, Any]] = []
+
+    for row in rows:
+        content = row.content or ""
+        if needle not in content:
+            continue
+        file_match_count, all_capped = find_literal_matches(
+            content,
+            needle,
+            max_matches=QUERY_MATCHES_PER_FILE,
+            context_chars=QUERY_MATCHES_SNIPPET_CONTEXT_CHARS,
+        )
+        if file_match_count <= 0:
+            continue
+        matched_files += 1
+        total_matches += file_match_count
+        if matched_files <= skip_files:
+            continue
+        if len(file_entries) >= max_files or collected_matches >= QUERY_MATCHES_MAX_TOTAL:
+            truncated = True
+            continue
+        remaining_budget = QUERY_MATCHES_MAX_TOTAL - collected_matches
+        file_matches = all_capped[:remaining_budget]
+        if file_match_count > len(file_matches):
+            truncated = True
+        collected_matches += len(file_matches)
+        file_entries.append(
+            {
+                "id": row.id,
+                "title": row.title,
+                "file_type": row.file_type,
+                "match_count": file_match_count,
+                "matches": file_matches,
+            }
+        )
+
+    return _make_result(
+        {
+            "status": "success",
+            "data": {
+                "query": needle,
+                "total_matches": total_matches,
+                "matched_files": matched_files,
+                "truncated": truncated,
+                "files": file_entries,
+            },
+        },
+        tool_name=tool_name,
+    )
 
 
 def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> None:
@@ -2166,17 +2324,130 @@ def _attach_query_matches(session: Session, rows: list[Any], keyword: str) -> No
 
 
 def _note_file_read(
-    result: Any, req_ctx: AgentRequestContext, *, ticket: int | None = None
+    result: Any,
+    req_ctx: AgentRequestContext,
+    *,
+    ticket: int | None = None,
+    raw_contents: dict[str, str] | None = None,
 ) -> None:
-    """按 id / ids 读到全文时记下模型看到的正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
+    """按 id / ids 读到全文时记下模型看到的原始正文（edit_file 的陈旧检查）。作者手改差异由 crud 附在同一行里。"""
     rows = result if isinstance(result, list) else []
     for row in rows:
         if not isinstance(row, dict):
             continue
         file_id = str(row.get("id") or "")
-        content = row.get("content")
+        content = raw_contents.get(file_id) if raw_contents and file_id in raw_contents else row.get("content")
         if file_id and isinstance(content, str) and not row.get("content_truncated") and not row.get("content_partial"):
             req_ctx.record_read_snapshot(file_id, content, ticket=ticket)
+
+
+async def batch_replace_files(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
+    """跨文件确定性逐字批量替换。"""
+    return await _offload_write_tool(
+        "batch_replace_files", _batch_replace_files_sync, args, request_context
+    )
+
+
+def _batch_replace_files_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
+    """Synchronous batch_replace_files implementation."""
+    tool_name = "batch_replace_files"
+    project_id = req_ctx.project_id if req_ctx is not None else None
+
+    if req_ctx is None or project_id is None:
+        return _make_error("project_id not set", tool_name=tool_name)
+
+    parsed, validation_error = validate_tool_input(
+        BatchReplaceFilesInput,
+        args,
+        tool_name=tool_name,
+        error_type=EDIT_ERROR_INVALID_EDIT,
+    )
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
+    pending_ids = {
+        str(entry.get("file_id") or "")
+        for entry in req_ctx.get_pending_empty_files()
+        if entry.get("file_id")
+    }
+
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            result = executor.batch_replace_files(
+                project_id=project_id,
+                old_text=parsed.old_text,
+                new_text=parsed.new_text,
+                file_ids=parsed.file_ids,
+                file_type=parsed.file_type,
+                dry_run=parsed.dry_run,
+                max_files=BATCH_REPLACE_MAX_FILES,
+                body_guards=req_ctx.is_loop_agent,
+                read_snapshot_lookup=req_ctx.read_snapshot,
+                pending_file_ids=pending_ids,
+            )
+            modified_count = int(result.get("modified_files") or 0)
+            skipped = result.get("skipped_files") if isinstance(result.get("skipped_files"), list) else []
+            if parsed.dry_run:
+                status = "success"
+                mutation_applied = False
+            elif modified_count > 0 and skipped:
+                status = "partial"
+                mutation_applied = True
+            elif modified_count == 0 and skipped:
+                first_skip = skipped[0] if isinstance(skipped[0], dict) else {}
+                reason = str(first_skip.get("reason") or EDIT_ERROR_GENERIC)
+                return _make_structured_error(
+                    str(first_skip.get("error") or "批量替换未修改任何文件，所有目标文件均被跳过。"),
+                    error_type=reason,
+                    tool_name=tool_name,
+                    mutation_applied=False,
+                    data=result,
+                )
+            else:
+                status = "success"
+                mutation_applied = result.get("mutation_applied") is True
+
+            payload: dict[str, Any] = {
+                "status": status,
+                "mutation_applied": mutation_applied,
+                "data": result,
+            }
+            if result.get("truncated"):
+                remaining_count = int(result.get("remaining_count") or 0)
+                payload["note"] = (
+                    f"单次最多修改 {BATCH_REPLACE_MAX_FILES} 个文件，已处理前 {BATCH_REPLACE_MAX_FILES} 个；"
+                    f"还有 {remaining_count} 个匹配文件列在 remaining_files 中，可再次调用 batch_replace_files 继续处理。"
+                )
+            return _make_result(payload, tool_name=tool_name)
+        except EditFileError as exc:
+            return _make_structured_error(
+                str(exc),
+                error_type=exc.error_type,
+                tool_name=tool_name,
+                user_message=exc.user_message,
+            )
+        except NotFoundError as exc:
+            return _make_structured_error(
+                str(exc),
+                error_type=EDIT_ERROR_FILE_NOT_FOUND,
+                tool_name=tool_name,
+            )
+        except ForbiddenError as exc:
+            return _make_structured_error(
+                str(exc),
+                error_type=EDIT_ERROR_PERMISSION_DENIED,
+                tool_name=tool_name,
+            )
+        except Exception as exc:
+            return _make_error(str(exc), tool_name=tool_name)
 
 
 _PHASE_BODY_TRIM_CHARS = " \t\r\n\u3000"
@@ -2729,5 +3000,6 @@ MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "update_project": update_project,
     "load_skill": load_skill,
     "read_skill_resource": read_skill_resource,
+    "batch_replace_files": batch_replace_files,
 }
 

@@ -426,6 +426,41 @@ def wall_clock_wrap_up_text(tool_name: str) -> str:
     )
 
 
+def _maybe_reset_breaker_for_batch_replace(
+    failure_breaker: ToolFailureBreaker, output: str
+) -> None:
+    """Reset consecutive failures when ``batch_replace_files`` commits cross-file writes.
+
+    ``ToolFailureBreaker`` only tracks single-file mutation tools internally; a successful
+    ``batch_replace_files`` call that mutates files (with at least one file differing from
+    ``_last_mutated_file_id``, or >= 2 files in the batch) is verified cross-file progress.
+    """
+    if failure_breaker.is_open:
+        return
+    try:
+        payload = json.loads(output)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(payload, dict):
+        return
+    status = str(payload.get("status") or "").strip().lower()
+    if status not in {"success", "partial"} or payload.get("mutation_applied") is not True:
+        return
+    data = payload.get("data")
+    if not isinstance(data, dict) or data.get("dry_run") is True:
+        return
+    modified_ids = [
+        str(item.get("id") or "").strip()
+        for item in (data.get("files") or [])
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    if not modified_ids:
+        return
+    if len(modified_ids) >= 2 or any(fid != failure_breaker._last_mutated_file_id for fid in modified_ids):
+        failure_breaker.consecutive_failures = 0
+        failure_breaker._last_mutated_file_id = modified_ids[-1]
+
+
 def build_agent_function_tools(
     *,
     failure_breaker: ToolFailureBreaker | None = None,
@@ -548,6 +583,8 @@ def build_agent_function_tools(
                 req_ctx.clear_pending_empty_file(cancelled_id)
             if failure_breaker is not None:
                 output = failure_breaker.observe(_tool_name, raw_arguments, output)
+                if _tool_name == "batch_replace_files":
+                    _maybe_reset_breaker_for_batch_replace(failure_breaker, output)
             return output
 
         function_tools.append(

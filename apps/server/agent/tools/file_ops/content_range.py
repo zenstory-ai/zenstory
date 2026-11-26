@@ -9,6 +9,7 @@ body is never mistaken for the whole file.
 
 from __future__ import annotations
 
+import bisect
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -352,3 +353,119 @@ def _non_negative_int(value: Any, name: str) -> int:
     if number < 0:
         raise ContentRangeError(f"{name} 必须是非负整数")
     return number
+
+
+def count_paragraphs(content: str) -> int:
+    """Count non-empty paragraphs (non-blank lines) in a manuscript body."""
+    if not content:
+        return 0
+    return sum(1 for line in content.split("\n") if line.strip())
+
+
+def format_paragraph_stats(content: str, *, start_paragraph: int = 1) -> tuple[str, int]:
+    """Annotate each non-empty paragraph with ``[P01 · 84字] `` while preserving blank lines.
+
+    Blank lines stay verbatim and do not advance the 1-based paragraph counter.
+    The returned ``paragraph_count`` is the number of non-empty paragraphs inside
+    ``content``.
+    """
+    if not content:
+        return "", 0
+    p_num = max(1, start_paragraph) - 1
+    annotated: list[str] = []
+    count = 0
+    for line in content.split("\n"):
+        if line.strip():
+            p_num += 1
+            count += 1
+            words = count_words(line)
+            annotated.append(f"[P{p_num:02d} · {words}字] {line}")
+        else:
+            annotated.append(line)
+    return "\n".join(annotated), count
+
+
+def paragraph_index_at_offset(content: str, offset: int) -> int:
+    """Return the 1-based paragraph number for ``offset`` inside ``content``."""
+    if not content or offset <= 0:
+        return 1
+    prefix = content[:offset]
+    prior = count_paragraphs(prefix)
+    # If offset lands inside an already-started non-blank line, keep that line's paragraph number.
+    last_nl = prefix.rfind("\n")
+    current_line_prefix = prefix[last_nl + 1 :]
+    if current_line_prefix.strip():
+        return max(1, prior)
+    return prior + 1
+
+
+def find_literal_matches(
+    content: str,
+    needle: str,
+    *,
+    max_matches: int = 8,
+    context_chars: int = 40,
+) -> tuple[int, list[dict[str, Any]]]:
+    """Pure literal substring search returning ``(total_count, structured_matches)``.
+
+    Never compiles ``needle`` as a regex (zero ReDoS risk). Works for single-character
+    punctuation such as ``"?"``. Each match entry includes 1-based ``paragraph`` (non-blank
+    line index), 1-based ``line`` (physical line index), and a compact verbatim ``snippet``.
+    """
+    if not content or not needle:
+        return 0, []
+
+    positions: list[int] = []
+    pos = content.find(needle)
+    step = len(needle)
+    while pos >= 0:
+        positions.append(pos)
+        pos = content.find(needle, pos + step)
+
+    total = len(positions)
+    if total == 0:
+        return 0, []
+
+    lines = content.split("\n")
+    line_starts: list[int] = []
+    line_paragraphs: list[int] = []
+    offset = 0
+    p_num = 0
+    for line in lines:
+        line_starts.append(offset)
+        if line.strip():
+            p_num += 1
+            line_paragraphs.append(p_num)
+        else:
+            line_paragraphs.append(0)
+        offset += len(line) + 1
+
+    multiline = "\n" in needle
+    matches: list[dict[str, Any]] = []
+    for match_pos in positions[:max_matches]:
+        line_idx = bisect.bisect_right(line_starts, match_pos) - 1
+        line_idx = max(0, min(line_idx, len(lines) - 1))
+        line_num = line_idx + 1
+        paragraph_num = line_paragraphs[line_idx]
+        if paragraph_num == 0:
+            # Blank-line match (only possible if needle starts with newline): map to next non-blank paragraph if any.
+            for probe in range(line_idx + 1, len(line_paragraphs)):
+                if line_paragraphs[probe] > 0:
+                    paragraph_num = line_paragraphs[probe]
+                    break
+        if multiline:
+            snippet = content[
+                max(0, match_pos - context_chars) : match_pos + step + context_chars
+            ].strip("\r")
+        else:
+            line_text = lines[line_idx].rstrip("\r")
+            col = match_pos - line_starts[line_idx]
+            snippet = line_text[max(0, col - context_chars) : col + step + context_chars]
+        matches.append(
+            {
+                "paragraph": paragraph_num,
+                "line": line_num,
+                "snippet": snippet,
+            }
+        )
+    return total, matches

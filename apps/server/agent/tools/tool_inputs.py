@@ -663,13 +663,12 @@ class QueryFilesInput(_ToolInputModel):
     # Deferred to serialization.py so empty results & full-mode ignore keep exact legacy timing.
     response_mode: Annotated[
         Any,
-        WithJsonSchema({"type": "string", "enum": ["summary", "full"]}),
+        WithJsonSchema({"type": "string", "enum": ["summary", "full", "matches"]}),
     ] = Field(
         default=None,
         description=(
-            "返回模式：full（返回完整 content）或 summary（只返回 content_preview，"
-            "并给出 content_length 与 content_truncated，content_truncated=true 表示只是预览，"
-            "这时不带 word_count——要长文件的字数按 id 读 full）。"
+            "返回模式：full（返回完整 content）、summary（只返回 content_preview，含 content_length 与 content_truncated；"
+            "content_truncated=true 时不带 word_count，要长文件字数按 id 读 full）或 matches（配合 query 跨文件精确检索命中段落与行号，不返回全文）。"
             "不传时：按 id 读取默认 full，其余默认 summary"
         ),
     )
@@ -704,6 +703,10 @@ class QueryFilesInput(_ToolInputModel):
         default=None,
         json_schema_extra={"default": False},
         description="兼容参数：true 等同于 response_mode=full",
+    )
+    show_paragraph_stats: CoercedBool = Field(
+        default=False,
+        description="按 id/ids 读全文或范围读时，设为 true 在每段前标注 `[P01 · 84字] ` 便于控字数与定位；edit_file 仍传原文，勿抄前缀",
     )
 
     @model_validator(mode="before")
@@ -890,6 +893,72 @@ class ReadSkillResourceInput(_ToolInputModel):
         return value
 
 
+class BatchReplaceFilesInput(_ToolInputModel):
+    """Input model for ``batch_replace_files``."""
+
+    old_text: StrictStr = Field(
+        description="要精确替换的原文（逐字匹配，非正则，不能为空）",
+    )
+    new_text: StrictStr = Field(
+        description="替换后的新文本（可为空串表示删除，不能与 old_text 相同）",
+    )
+    file_ids: list[StrictStr] | None = Field(
+        default=None,
+        description="可选：限定只处理这些文件 ID；不传则扫描本项目所有非文件夹文件",
+    )
+    file_type: AllFileType | None = Field(
+        default=None,
+        description="可选：限定文件类型（如 draft / script / outline / character）",
+    )
+    dry_run: CoercedBool = Field(
+        default=False,
+        description="设为 true 时只预览各文件命中次数与示例片段，不写入数据库",
+    )
+
+    @field_validator("old_text", mode="before")
+    @classmethod
+    def _validate_old_text(cls, value: Any) -> str:
+        if not isinstance(value, str) or not value:
+            raise ValueError("batch_replace_files 的 old_text 必须是非空字符串")
+        return value
+
+    @field_validator("file_type", mode="before")
+    @classmethod
+    def _normalize_file_type(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip().lower()
+            if not cleaned:
+                return None
+            if cleaned == "folder":
+                raise ValueError("batch_replace_files 不支持 folder 类型")
+            return cleaned
+        return value
+
+    @field_validator("file_ids", mode="before")
+    @classmethod
+    def _validate_file_ids(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str | bytes) or not isinstance(value, list | tuple):
+            raise ValueError("batch_replace_files 的 file_ids 必须是文件 ID 字符串列表")
+        cleaned: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("batch_replace_files 的 file_ids 每一项都必须是非空字符串文件 ID")
+            cleaned.append(item.strip())
+        if not cleaned:
+            raise ValueError("batch_replace_files 的 file_ids 不能为空列表；省略此参数可扫描整个项目")
+        return cleaned
+
+    @model_validator(mode="after")
+    def _check_old_differs_from_new(self) -> BatchReplaceFilesInput:
+        if self.old_text == self.new_text:
+            raise ValueError("batch_replace_files 的 old_text 与 new_text 相同，无需替换")
+        return self
+
+
 TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "create_file": CreateFileInput,
     "write_chapter": WriteChapterInput,
@@ -900,6 +969,7 @@ TOOL_INPUT_MODELS: dict[str, type[BaseModel]] = {
     "update_project": UpdateProjectInput,
     "load_skill": LoadSkillInput,
     "read_skill_resource": ReadSkillResourceInput,
+    "batch_replace_files": BatchReplaceFilesInput,
 }
 
 
@@ -928,7 +998,7 @@ def _format_single_error(err: Mapping[str, Any]) -> tuple[str, bool]:
 
     if err_type == "value_error":
         cleaned = _clean_pydantic_value_error(raw_msg)
-        if loc and not cleaned.startswith((loc, "write_chapter", "edit_file", "delete_file", "rename_file", "load_skill", "read_skill_resource")):
+        if loc and not cleaned.startswith((loc, "write_chapter", "edit_file", "delete_file", "rename_file", "load_skill", "read_skill_resource", "batch_replace_files")):
             return f"参数 {loc} {cleaned}", False
         return cleaned, True
 
@@ -1058,6 +1128,7 @@ def validate_tool_input[ModelT: BaseModel](
 __all__ = [
     "TOOL_INPUT_MODELS",
     "TOOL_INPUT_VALIDATION_ERROR_TYPE",
+    "BatchReplaceFilesInput",
     "CoercedBool",
     "CoercedBoolDefaultTrue",
     "CoercedOptionalBool",

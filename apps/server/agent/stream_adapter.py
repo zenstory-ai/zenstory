@@ -789,6 +789,15 @@ class StreamAdapter:
                 async for event in self._handle_edit_file_result(result_data):
                     yield event
 
+            if (
+                tool_name == "batch_replace_files"
+                and status == "success"
+                and isinstance(result_data, dict)
+                and not coerce_bool(result_data.get("dry_run"))
+            ):
+                async for event in self._handle_batch_replace_result(result_data):
+                    yield event
+
             # 技能用量来自 load_skill 工具调用（用量记录在工具内完成），这里只发前端事件；
             # 同一技能在一次流里只发一次。
             if tool_name == "load_skill" and status == "success" and isinstance(result_data, dict):
@@ -2012,6 +2021,48 @@ class StreamAdapter:
             warnings=warnings,
         )
         yield end_event
+
+    async def _handle_batch_replace_result(
+        self,
+        result: dict[str, Any],
+    ) -> AsyncIterator[SSEEvent]:
+        """Emit per-file edit SSE events for every file modified by ``batch_replace_files``."""
+        files = result.get("files")
+        if not isinstance(files, list) or not files:
+            return
+        old_preview = str(result.get("old_text") or "")[:50] or None
+        new_preview = str(result.get("new_text") or "")[:50] or None
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            file_id = str(item.get("id") or "").strip()
+            if not file_id:
+                continue
+            title = str(item.get("title") or "")
+            file_type = item.get("file_type")
+            replacements = int(item.get("replacements") or 0)
+            new_length = int(item.get("new_length") or 0)
+            if replacements <= 0:
+                continue
+            yield file_edit_start_event(file_id, title, replacements, file_type=file_type)
+            yield file_edit_applied_event(
+                file_id=file_id,
+                edit_index=0,
+                op="replace",
+                old_preview=old_preview,
+                new_preview=new_preview,
+                success=True,
+                error=None,
+            )
+            yield file_edit_end_event(
+                file_id=file_id,
+                edits_applied=replacements,
+                new_length=new_length,
+                new_content=None,
+                original_content=None,
+                file_type=file_type,
+                title=title,
+            )
 
     @staticmethod
     def _normalize_edit_failures(raw: Any) -> list[dict[str, Any]]:

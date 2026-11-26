@@ -40,8 +40,8 @@ from agent.tools.tool_inputs import (
 )
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 
-# Compact JSON char count budget for TOOL_SCHEMAS (11,453 baseline + concise write_chapter pre-read/<file> guidance).
-BASELINE_TOOL_SCHEMAS_COMPACT_CHARS = 11_530
+# Compact JSON char count budget for TOOL_SCHEMAS (11,530 baseline + tools v2: matches mode, show_paragraph_stats, batch_replace_files).
+BASELINE_TOOL_SCHEMAS_COMPACT_CHARS = 12_600
 
 
 def _parse_mcp(result: dict[str, Any]) -> dict[str, Any]:
@@ -180,6 +180,14 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     rsr_schema = TOOL_SCHEMAS["read_skill_resource"]["input_schema"]
     assert rsr_schema["required"] == ["name", "path"]
     assert rsr_schema["properties"]["offset"]["minimum"] == 0
+
+    # batch_replace_files: ultra-compact 5 fields
+    br_schema = TOOL_SCHEMAS["batch_replace_files"]["input_schema"]
+    assert br_schema["required"] == ["old_text", "new_text"]
+    assert list(br_schema["properties"].keys()) == ["old_text", "new_text", "file_ids", "file_type", "dry_run"]
+    assert br_schema["properties"]["dry_run"]["default"] is False
+    assert qf_props["response_mode"]["enum"] == ["summary", "full", "matches"]
+    assert qf_props["show_paragraph_stats"]["default"] is False
 
 
 # ---------------------------------------------------------------------------

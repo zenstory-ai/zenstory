@@ -11,6 +11,7 @@ from typing import Any
 
 from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
 from agent.tools.tool_inputs import (
+    BatchReplaceFilesInput,
     CreateFileInput,
     DeleteFileInput,
     EditFileInput,
@@ -146,6 +147,18 @@ READ_SKILL_RESOURCE_TOOL: dict[str, Any] = build_tool_schema(
 )
 
 
+# Tool: batch_replace_files（跨文件确定性批量替换）
+BATCH_REPLACE_FILES_TOOL: dict[str, Any] = build_tool_schema(
+    "batch_replace_files",
+    description=(
+        "跨多个文件执行确定性的逐字批量替换（如全书人名、专名、半角标点统一）。"
+        "只做逐字精确匹配，不做模糊猜测；支持 dry_run=true 先预览命中次数与示例片段，"
+        "单次最多修改 30 个文件（超出时返回 remaining_files 供继续），每个修改文件均生成独立历史版本与撤销锚点。"
+    ),
+    model_cls=BatchReplaceFilesInput,
+)
+
+
 # Export all tool schemas by name (schema source-of-truth).
 TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "create_file": CREATE_FILE_TOOL,
@@ -157,4 +170,5 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "update_project": UPDATE_PROJECT_TOOL,
     "load_skill": LOAD_SKILL_TOOL,
     "read_skill_resource": READ_SKILL_RESOURCE_TOOL,
+    "batch_replace_files": BATCH_REPLACE_FILES_TOOL,
 }

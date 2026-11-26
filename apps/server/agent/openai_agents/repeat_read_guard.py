@@ -50,7 +50,14 @@ from agent.tools.file_ops.serialization import (
 
 READ_TOOL_NAME = "query_files"
 # 直接调用即写文件的工具（成功后清零该文件的读取计数）。
-WRITE_TOOL_NAMES: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "delete_file", "rename_file"})
+WRITE_TOOL_NAMES: frozenset[str] = frozenset({
+    "create_file",
+    "write_chapter",
+    "edit_file",
+    "delete_file",
+    "rename_file",
+    "batch_replace_files",
+})
 
 # 同一键第几次成功读取开始附提示 / 强警告，第几次起拦下不执行。
 READ_HINT_AT = 2
@@ -130,7 +137,12 @@ def _read_mode(params: dict[str, Any], *, file_ids: list[str] | None = None) -> 
         content_preview_chars=preview_chars,
         query=normalized_query,
     )
-    if str(mode).strip().lower() == "full":
+    mode_lower = str(mode).strip().lower()
+    if mode_lower == "matches":
+        return f"matches:{normalized_query or ''}"
+    if mode_lower == "full":
+        if coerce_bool(params.get("show_paragraph_stats"), default=False):
+            return "full:pstats"
         return "full"
     if normalized_query:
         return f"search:{normalized_query}"
@@ -172,7 +184,11 @@ def _read_key(params: Any) -> ReadKey | None:
 
 
 def _is_range_key(key: ReadKey) -> bool:
-    return key[2].startswith("full:")
+    return key[2].startswith("full:") and key[2] != "full:pstats"
+
+
+def _is_full_key(key: ReadKey) -> bool:
+    return key[2] in ("full", "full:pstats")
 
 
 def _is_partial(data: Any) -> bool:
@@ -358,7 +374,7 @@ class RepeatReadGuard:
         return label
 
     def _blocked_message(self, label: str, key: ReadKey) -> str:
-        what = "全文" if key[2] == "full" else ("这一段内容" if _is_range_key(key) else "摘要")
+        what = "全文" if _is_full_key(key) else ("这一段内容" if _is_range_key(key) else "摘要")
         remaining = max(self.max_blocked_reads - self.blocked_reads, 0)
         tail = (
             f"再有 {remaining} 次重复读取被拦下，本轮将被自动终止。"
@@ -447,7 +463,7 @@ class RepeatReadGuard:
             if key is None:
                 continue
             title = str(row.get("title") or "")
-            is_full = key[2] == "full" or _is_range_key(key)
+            is_full = _is_full_key(key) or _is_range_key(key)
             complete = row.get("content_partial") is not True and not (
                 is_full and row.get("content_truncated") is True
             )
@@ -517,6 +533,24 @@ class RepeatReadGuard:
         if status != "success" and not applied_partial:
             return
         data = payload.get("data")
+        if tool_name == "batch_replace_files":
+            if isinstance(data, dict):
+                for skipped in data.get("skipped_files") or []:
+                    if isinstance(skipped, dict) and skipped.get("reason") == "stale_content":
+                        self._forget_reads(str(skipped.get("id") or ""))
+                if payload.get("mutation_applied") is True:
+                    modified = data.get("files") or []
+                    recorded = False
+                    for item in modified:
+                        if isinstance(item, dict):
+                            fid = str(item.get("id") or "").strip()
+                            ftitle = str(item.get("title") or "")
+                            if fid:
+                                self._record_write(fid, ftitle)
+                                recorded = True
+                    if not recorded and int(data.get("modified_files") or 0) > 0:
+                        self._record_write("", "")
+            return
         if isinstance(data, dict) and data.get("all_failed"):
             return
         args, parse_error, _ = parse_json_object(raw_arguments or "")
@@ -544,7 +578,7 @@ class RepeatReadGuard:
         file_id = key[1]
         if title:
             self._titles[file_id] = title
-        is_full = key[2] == "full" or _is_range_key(key)
+        is_full = _is_full_key(key) or _is_range_key(key)
         if complete and is_full and file_id not in self.files_read:
             self.files_read[file_id] = self._titles.get(file_id, title)
         if count >= READ_HINT_AT:
@@ -563,7 +597,7 @@ class RepeatReadGuard:
         self.files_written[file_id] = self._titles.get(file_id, title)
 
     def _hint_for(self, key: ReadKey, count: int) -> str | None:
-        if key[2] == "full":
+        if _is_full_key(key):
             base = _READ_HINT_TEXT
         elif _is_range_key(key):
             base = _RANGE_READ_HINT_TEXT

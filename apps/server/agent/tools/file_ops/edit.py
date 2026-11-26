@@ -9,14 +9,19 @@ the LLM provides slightly different text.
 """
 
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from agent.constants import coerce_bool
-from agent.tools.permissions import check_file_access_in_tool_context
+from agent.tools.permissions import (
+    ForbiddenError,
+    NotFoundError,
+    check_file_access_in_tool_context,
+    check_project_ownership,
+)
 from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from models import File
 from models.file_version import (
@@ -44,6 +49,7 @@ from utils.file_write_lock import (
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
+from .content_range import find_literal_matches
 from .paragraph_layout import (
     NOTE_INDENT_FOLLOWS_FILE,
     NOTE_SENTENCE_SNAP,
@@ -75,6 +81,33 @@ logger = get_logger(__name__)
 # only guards pathological inputs and is surfaced as an explicit warning when
 # actually hit.
 REPLACE_ALL_MAX_FUZZY_MATCHES = 1000
+
+# Cross-file deterministic batch replace caps.
+BATCH_REPLACE_MAX_FILES = 30
+BATCH_REPLACE_PREVIEW_SNIPPETS = 3
+BATCH_REPLACE_SNIPPET_CONTEXT_CHARS = 35
+
+# Failure-only paragraph/line-number prefix stripping (minimax-code edit-line-number-retry safety contract).
+# Uses `[ \t]*` after `]` instead of `\s*` so Chinese full-width indentation (`\u3000\u3000`) is preserved.
+_PARAGRAPH_MARKER_PREFIX_RE = re.compile(
+    r"^(?:\[P\d+(?:\s*·\s*\d+字)?\][ \t]*|[ \t]*\d+→)"
+)
+
+
+def _all_non_empty_lines_have_marker_prefix(text: str) -> bool:
+    """Return True iff ``text`` has >=1 non-empty line and EVERY non-empty line starts with a view marker."""
+    non_empty = [line for line in text.splitlines() if line.strip()]
+    if not non_empty:
+        return False
+    return all(_PARAGRAPH_MARKER_PREFIX_RE.match(line) is not None for line in non_empty)
+
+
+def _strip_marker_prefixes(text: str) -> str:
+    """Strip one leading paragraph/line-number marker prefix from every non-empty line."""
+    return "".join(
+        _PARAGRAPH_MARKER_PREFIX_RE.sub("", line, count=1) if line.strip() else line
+        for line in text.splitlines(keepends=True)
+    )
 
 
 class PreWriteHistoryUnavailableError(RuntimeError):
@@ -1059,81 +1092,59 @@ class FileEditor:
 
                 content_before_edit = content
                 applied_before_edit = len(applied_edits)
+                warnings_before_edit = len(warnings)
                 edit_hunks: list[tuple[int, int, int]] = []
                 replace_already_matched: list[bool] = []
 
-                old_field = edit.get("old")
-                if op == "replace" and isinstance(old_field, str) and old_field and self._peek_replace_new(edit) == old_field:
-                    # old 与 new 相同就是不改。只核对原文里逐字（含引号写法等价）有这段，不走模糊/近似
-                    # 定位：那条路按原文边缘标点扩展范围，会把模型漏抄的逗号、句号删掉还报成功（F-01）。
-                    if locate_exact_or_quote_equivalent(content, old_field) is None:
-                        suggestions = suggest_similar_lines(content, old_field)
-                        raise _not_found(
-                            f"Edit {i}: old 与 new 相同，但原文里没有逐字对应的这段（标点也要一致），没有修改。"
-                            f"不需要改这里就去掉这条；要改请从当前文件原文中复制。候选片段: {suggestions}"
-                        )
-                    # 模型重复确认已完成的改动：如实报未修改，但不算失败（否则它会原样重发到熔断）。
-                    unchanged_edits.append({"index": i, "op": op, "reason": "already_matches"})
-                    warnings.append(f"Edit {i}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
+                try:
+                    content, is_noop = self._run_single_edit_attempt(
+                        content_before_edit,
+                        edit,
+                        i,
+                        op,
+                        applied_edits,
+                        unchanged_edits,
+                        warnings,
+                        quote_style=quote_style,
+                        active_spans=active_spans,
+                        edit_hunks=edit_hunks,
+                        replace_already_matched=replace_already_matched,
+                        allow_approx_with_marker_prefix=False,
+                    )
+                except EditFileError as first_exc:
+                    stripped_edit = (
+                        self._strip_edit_marker_prefixes(edit, op)
+                        if first_exc.error_type == EDIT_ERROR_ANCHOR_NOT_FOUND
+                        and op in ("replace", "delete", "insert_after", "insert_before")
+                        else None
+                    )
+                    if stripped_edit is None:
+                        raise
+                    # Failure-only prefix-strip retry: clean partial state from attempt 1 and retry once.
+                    del applied_edits[applied_before_edit:]
+                    del warnings[warnings_before_edit:]
+                    edit_hunks.clear()
+                    replace_already_matched.clear()
+                    content, is_noop = self._run_single_edit_attempt(
+                        content_before_edit,
+                        stripped_edit,
+                        i,
+                        op,
+                        applied_edits,
+                        unchanged_edits,
+                        warnings,
+                        quote_style=quote_style,
+                        active_spans=active_spans,
+                        edit_hunks=edit_hunks,
+                        replace_already_matched=replace_already_matched,
+                        allow_approx_with_marker_prefix=True,
+                    )
+                    edit = stripped_edit
+                    for detail in applied_edits[applied_before_edit:]:
+                        if isinstance(detail, dict):
+                            detail["paragraph_prefixes_stripped"] = True
+                if is_noop:
                     continue
-
-                if op == "replace":
-                    content = self._apply_replace(
-                        content,
-                        edit,
-                        i,
-                        applied_edits,
-                        warnings,
-                        quote_style=quote_style,
-                        allowed_fuzzy_spans=active_spans,
-                        applied_hunks=edit_hunks,
-                        already_matched=replace_already_matched,
-                    )
-                elif op in ("insert_after", "insert_before"):
-                    content = self._apply_insert(
-                        content,
-                        edit,
-                        i,
-                        applied_edits,
-                        warnings,
-                        after=op == "insert_after",
-                        quote_style=quote_style,
-                        allowed_fuzzy_spans=active_spans,
-                        applied_hunks=edit_hunks,
-                    )
-                elif op in ("append", "prepend"):
-                    notes: list[str] = []
-                    pos, text = self._position_insert(
-                        content,
-                        len(content) if op == "append" else 0,
-                        edit.get("text", ""),
-                        direction="after" if op == "append" else "before",
-                        snap_sentence=False,
-                        notes=notes,
-                    )
-                    content, text = self._place_new_text(content, pos, pos, text, quote_style)
-                    edit_hunks.append((pos, pos, len(text)))
-                    detail = {
-                        "op": op,
-                        "text_len": len(text),
-                        "text_words": count_words(text),
-                        "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
-                    }
-                    if notes:
-                        detail["layout_notes"] = notes
-                    applied_edits.append(detail)
-                elif op == "delete":
-                    content = self._apply_delete(
-                        content,
-                        edit,
-                        i,
-                        applied_edits,
-                        warnings,
-                        allowed_fuzzy_spans=active_spans,
-                        applied_hunks=edit_hunks,
-                    )
-                else:
-                    raise ValueError(f"Edit {i}: unknown operation '{op}'. Valid ops: replace, insert_after, insert_before, append, prepend, delete")
 
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
                     # 报告成功就必须真的改了：撤回这一条的 applied 记录。
@@ -1469,6 +1480,276 @@ class FileEditor:
             result["undo"] = undo
         return result
 
+    def batch_replace_files(
+        self,
+        *,
+        project_id: str,
+        old_text: str,
+        new_text: str,
+        file_ids: Sequence[str] | None = None,
+        file_type: str | None = None,
+        dry_run: bool = False,
+        max_files: int = BATCH_REPLACE_MAX_FILES,
+        body_guards: bool = False,
+        read_snapshot_lookup: Callable[[str], str | None] | None = None,
+        pending_file_ids: Collection[str] | None = None,
+    ) -> dict[str, Any]:
+        """Deterministic literal exact-match batch replace across project files.
+
+        - Strictly scoped to ``project_id``; excludes soft-deleted files and folders.
+        - Validates ownership via ``check_project_ownership`` and per-file
+          ``check_file_access_in_tool_context``.
+        - Zero fuzzy matching; only exact literal substring replacement.
+        - Caps modifications to ``max_files`` (default 30) in deterministic chapter/order
+          sequence and reports ``remaining_files`` when more files match.
+        - When ``dry_run=False``, every modified file commits through
+          ``FileEditor._commit_ai_content`` (write lock, pre-write backup, AI FileVersion,
+          ``body_guards`` for draft/script, and per-file ``undo`` anchor). Per-file failures
+          are isolated cleanly into ``skipped_files`` without corrupting sibling files.
+        """
+        if not isinstance(old_text, str) or not old_text:
+            raise EditFileError("batch_replace_files 的 old_text 不能为空。", error_type=EDIT_ERROR_INVALID_EDIT)
+        if not isinstance(new_text, str):
+            raise EditFileError("batch_replace_files 的 new_text 必须是字符串。", error_type=EDIT_ERROR_INVALID_EDIT)
+        if old_text == new_text:
+            raise EditFileError("batch_replace_files 的 old_text 与 new_text 相同，无需替换。", error_type=EDIT_ERROR_INVALID_EDIT)
+        if file_type == "folder":
+            raise EditFileError("batch_replace_files 不支持 folder 类型。", error_type=EDIT_ERROR_INVALID_EDIT)
+
+        check_project_ownership(self.session, project_id, self.user_id)
+
+        skipped_files: list[dict[str, Any]] = []
+        requested_ids: list[str] = []
+        if file_ids is not None:
+            requested_ids = list(dict.fromkeys(fid.strip() for fid in file_ids if isinstance(fid, str) and fid.strip()))
+            stmt = select(File).where(
+                File.id.in_(requested_ids),  # type: ignore[attr-defined]
+                File.project_id == project_id,
+                File.is_deleted.is_(False),
+                File.file_type != "folder",
+            )
+            if file_type:
+                stmt = stmt.where(File.file_type == file_type)
+            candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
+            by_id = {f.id: f for f in candidates}
+            missing_ids = [fid for fid in requested_ids if fid not in by_id]
+            if missing_ids and not candidates:
+                raise EditFileError(
+                    "未找到属于当前项目的有效文件（文件不存在、已删除、为文件夹或不属于当前项目）。",
+                    error_type=EDIT_ERROR_FILE_NOT_FOUND,
+                )
+            for missing_id in missing_ids:
+                skipped_files.append(
+                    {
+                        "id": missing_id,
+                        "reason": EDIT_ERROR_FILE_NOT_FOUND,
+                        "error": "文件不存在、已删除、为文件夹或不属于当前项目。",
+                    }
+                )
+            ordered_candidates = [by_id[fid] for fid in requested_ids if fid in by_id]
+        else:
+            stmt = (
+                select(File)
+                .where(
+                    File.project_id == project_id,
+                    File.is_deleted.is_(False),
+                    File.file_type != "folder",
+                    File.content.contains(old_text, autoescape=True),  # type: ignore[attr-defined]
+                )
+                .order_by(
+                    File.order.asc(),  # type: ignore[attr-defined]
+                    col(File.created_at).asc(),
+                    col(File.id).asc(),
+                )
+            )
+            if file_type:
+                stmt = stmt.where(File.file_type == file_type)
+            ordered_candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
+
+        # Exact literal filter in Python (SQLite LIKE is ASCII case-insensitive).
+        matching_candidates = [
+            f for f in ordered_candidates if isinstance(f.content, str) and old_text in f.content
+        ]
+        matched_total = len(matching_candidates)
+        effective_max = max(1, int(max_files))
+        batch_targets = matching_candidates[:effective_max]
+        overflow_targets = matching_candidates[effective_max:]
+        remaining_files = [
+            {"id": f.id, "title": f.title, "file_type": f.file_type}
+            for f in overflow_targets
+        ]
+
+        if dry_run:
+            preview_files: list[dict[str, Any]] = []
+            total_replacements = 0
+            for candidate in batch_targets:
+                hit_count, match_items = find_literal_matches(
+                    candidate.content or "",
+                    old_text,
+                    max_matches=BATCH_REPLACE_PREVIEW_SNIPPETS,
+                    context_chars=BATCH_REPLACE_SNIPPET_CONTEXT_CHARS,
+                )
+                total_replacements += hit_count
+                preview_files.append(
+                    {
+                        "id": candidate.id,
+                        "title": candidate.title,
+                        "file_type": candidate.file_type,
+                        "replacements": hit_count,
+                        "sample_snippets": match_items,
+                    }
+                )
+            return {
+                "dry_run": True,
+                "old_text": old_text,
+                "new_text": new_text,
+                "mutation_applied": False,
+                "matched_files": matched_total,
+                "modified_files": 0,
+                "total_replacements": total_replacements,
+                "files": preview_files,
+                "skipped_files": skipped_files,
+                "remaining_files": remaining_files,
+                "remaining_count": len(remaining_files),
+                "truncated": bool(remaining_files),
+            }
+
+        pending_set = set(pending_file_ids) if pending_file_ids else set()
+        modified_files: list[dict[str, Any]] = []
+        total_replacements = 0
+        for candidate in batch_targets:
+            if candidate.id in pending_set:
+                skipped_files.append(
+                    {
+                        "id": candidate.id,
+                        "title": candidate.title,
+                        "reason": "chapter_replace_pending",
+                        "error": "该文件正在等待 <file> 正文写入，已跳过。",
+                    }
+                )
+                continue
+            try:
+                entry = self._batch_replace_one_file(
+                    file_id=candidate.id,
+                    old_text=old_text,
+                    new_text=new_text,
+                    body_guards=body_guards,
+                    read_snapshot_lookup=read_snapshot_lookup,
+                )
+                if entry is not None:
+                    modified_files.append(entry)
+                    total_replacements += int(entry.get("replacements") or 0)
+            except (
+                EditFileError,
+                FileWriteBusyError,
+                PreWriteHistoryUnavailableError,
+                NotFoundError,
+                ForbiddenError,
+            ) as exc:
+                self.session.rollback()
+                if isinstance(exc, EditFileError):
+                    reason = exc.error_type
+                elif isinstance(exc, FileWriteBusyError):
+                    reason = EDIT_ERROR_FILE_BUSY
+                elif isinstance(exc, PreWriteHistoryUnavailableError):
+                    reason = exc.error_type
+                elif isinstance(exc, NotFoundError):
+                    reason = EDIT_ERROR_FILE_NOT_FOUND
+                else:
+                    reason = EDIT_ERROR_PERMISSION_DENIED
+                skipped_files.append(
+                    {
+                        "id": candidate.id,
+                        "title": candidate.title,
+                        "reason": reason,
+                        "error": str(exc),
+                    }
+                )
+
+        return {
+            "dry_run": False,
+            "old_text": old_text,
+            "new_text": new_text,
+            "mutation_applied": bool(modified_files),
+            "matched_files": matched_total,
+            "modified_files": len(modified_files),
+            "total_replacements": total_replacements,
+            "files": modified_files,
+            "skipped_files": skipped_files,
+            "remaining_files": remaining_files,
+            "remaining_count": len(remaining_files),
+            "truncated": bool(remaining_files),
+        }
+
+    def _batch_replace_one_file(
+        self,
+        *,
+        file_id: str,
+        old_text: str,
+        new_text: str,
+        body_guards: bool,
+        read_snapshot_lookup: Callable[[str], str | None] | None,
+    ) -> dict[str, Any] | None:
+        from database import is_postgres
+
+        def _apply_locked() -> dict[str, Any] | None:
+            if is_postgres:
+                file = self.session.exec(
+                    select(File)
+                    .where(File.id == file_id)
+                    .with_for_update(key_share=True)
+                    .execution_options(populate_existing=True)
+                ).first()
+            else:
+                file = self.session.get(File, file_id, populate_existing=True)
+            if not file or file.is_deleted or file.file_type == "folder":
+                raise EditFileError("文件不存在或已删除。", error_type=EDIT_ERROR_FILE_NOT_FOUND)
+            check_file_access_in_tool_context(
+                self.session, file, self.user_id, request_context=self.request_context
+            )
+            old_content = file.content or ""
+            if read_snapshot_lookup is not None:
+                snap = read_snapshot_lookup(file.id)
+                if snap is not None and snap != old_content:
+                    raise StaleContentError(snap, old_content)
+            replacements = old_content.count(old_text)
+            if replacements <= 0:
+                return None
+            new_content = old_content.replace(old_text, new_text)
+            if new_content == old_content:
+                return None
+            if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
+                check_body_edit_guards(
+                    old_content,
+                    new_content,
+                    [{"op": "replace", "old": old_text, "new": new_text, "replace_all": True}],
+                )
+            summary = f"AI 批量替换: {old_text[:20]} → {new_text[:20]} ({replacements} 处)"
+            undo = self._commit_ai_content(
+                file,
+                old_content,
+                new_content,
+                create_version=lambda: self._create_ai_version(file.id, new_content, summary),
+                tool="batch_replace_files",
+                full_snapshot=False,
+            )
+            entry: dict[str, Any] = {
+                "id": file.id,
+                "title": file.title,
+                "file_type": file.file_type,
+                "replacements": replacements,
+                "new_length": len(new_content),
+                "new_word_count": count_words(new_content),
+            }
+            if undo is not None:
+                entry["undo"] = undo
+            return entry
+
+        if is_postgres:
+            return _apply_locked()
+        with acquire_file_write_lock(file_id):
+            return _apply_locked()
+
     @staticmethod
     def _normalize_placed_spans(content: str, spans: list[tuple[int, int]], quote_style: str | None) -> str:
         """规范已经落到 content 里的新文本（spans）的双引号；不需要时原样返回。
@@ -1608,6 +1889,147 @@ class FileEditor:
     _REPLACE_NEW_ALIASES = ("text", "content", "new_text", "replacement")
     # append/prepend/insert_* 漏写 text 时可接受的写入文本键。
     _INSERT_TEXT_ALIASES = ("new", "new_text", "replacement")
+
+    def _run_single_edit_attempt(
+        self,
+        content_before_edit: str,
+        active_edit: dict[str, Any],
+        edit_index: int,
+        op: str,
+        applied_edits: list[dict[str, Any]],
+        unchanged_edits: list[dict[str, Any]],
+        warnings: list[str],
+        *,
+        quote_style: str | None,
+        active_spans: list[tuple[int, int]] | None,
+        edit_hunks: list[tuple[int, int, int]],
+        replace_already_matched: list[bool],
+        allow_approx_with_marker_prefix: bool,
+    ) -> tuple[str, bool]:
+        """Execute one edit attempt. Returns ``(new_content, already_matched_noop)``."""
+        old_field = active_edit.get("old")
+        if (
+            op == "replace"
+            and isinstance(old_field, str)
+            and old_field
+            and self._peek_replace_new(active_edit) == old_field
+        ):
+            # old 与 new 相同就是不改。只核对原文里逐字（含引号写法等价）有这段，不走模糊/近似
+            # 定位：那条路按原文边缘标点扩展范围，会把模型漏抄的逗号、句号删掉还报成功（F-01）。
+            if locate_exact_or_quote_equivalent(content_before_edit, old_field) is None:
+                suggestions = suggest_similar_lines(content_before_edit, old_field)
+                raise _not_found(
+                    f"Edit {edit_index}: old 与 new 相同，但原文里没有逐字对应的这段（标点也要一致），没有修改。"
+                    f"不需要改这里就去掉这条；要改请从当前文件原文中复制。候选片段: {suggestions}"
+                )
+            unchanged_edits.append({"index": edit_index, "op": op, "reason": "already_matches"})
+            warnings.append(f"Edit {edit_index}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
+            return content_before_edit, True
+
+        if op == "replace":
+            return (
+                self._apply_replace(
+                    content_before_edit,
+                    active_edit,
+                    edit_index,
+                    applied_edits,
+                    warnings,
+                    quote_style=quote_style,
+                    allowed_fuzzy_spans=active_spans,
+                    applied_hunks=edit_hunks,
+                    already_matched=replace_already_matched,
+                    allow_approx_with_marker_prefix=allow_approx_with_marker_prefix,
+                ),
+                False,
+            )
+        if op in ("insert_after", "insert_before"):
+            return (
+                self._apply_insert(
+                    content_before_edit,
+                    active_edit,
+                    edit_index,
+                    applied_edits,
+                    warnings,
+                    after=op == "insert_after",
+                    quote_style=quote_style,
+                    allowed_fuzzy_spans=active_spans,
+                    applied_hunks=edit_hunks,
+                    allow_approx_with_marker_prefix=allow_approx_with_marker_prefix,
+                ),
+                False,
+            )
+        if op in ("append", "prepend"):
+            notes: list[str] = []
+            pos, text = self._position_insert(
+                content_before_edit,
+                len(content_before_edit) if op == "append" else 0,
+                active_edit.get("text", ""),
+                direction="after" if op == "append" else "before",
+                snap_sentence=False,
+                notes=notes,
+            )
+            next_content, text = self._place_new_text(
+                content_before_edit, pos, pos, text, quote_style
+            )
+            edit_hunks.append((pos, pos, len(text)))
+            detail: dict[str, Any] = {
+                "op": op,
+                "text_len": len(text),
+                "text_words": count_words(text),
+                "text_preview": text[:200] + ("..." if len(text) > 200 else ""),
+            }
+            if notes:
+                detail["layout_notes"] = notes
+            applied_edits.append(detail)
+            return next_content, False
+        if op == "delete":
+            return (
+                self._apply_delete(
+                    content_before_edit,
+                    active_edit,
+                    edit_index,
+                    applied_edits,
+                    warnings,
+                    allowed_fuzzy_spans=active_spans,
+                    applied_hunks=edit_hunks,
+                    allow_approx_with_marker_prefix=allow_approx_with_marker_prefix,
+                ),
+                False,
+            )
+        raise ValueError(
+            f"Edit {edit_index}: unknown operation '{op}'. Valid ops: replace, insert_after, insert_before, append, prepend, delete"
+        )
+
+    @classmethod
+    def _strip_edit_marker_prefixes(cls, edit: dict[str, Any], op: str) -> dict[str, Any] | None:
+        """Build a failure-only retry copy with paragraph/line prefixes stripped.
+
+        Returns None unless EVERY non-empty line of the target (``old`` or ``anchor``)
+        carries a marker prefix. When stripping ``old``/``anchor``, also strips
+        ``new``/``text`` if every non-empty line of it carries a marker prefix so
+        view markers are never written into the manuscript.
+        """
+        target_key = "anchor" if op in ("insert_after", "insert_before") else "old"
+        target_val = edit.get(target_key)
+        if not isinstance(target_val, str) or not _all_non_empty_lines_have_marker_prefix(target_val):
+            return None
+        stripped_target = _strip_marker_prefixes(target_val)
+        if not stripped_target:
+            return None
+
+        retry_edit = dict(edit)
+        retry_edit[target_key] = stripped_target
+        if op == "replace":
+            for key in ("new", *cls._REPLACE_NEW_ALIASES):
+                val = retry_edit.get(key)
+                if isinstance(val, str) and _all_non_empty_lines_have_marker_prefix(val):
+                    retry_edit[key] = _strip_marker_prefixes(val)
+        elif op in ("insert_after", "insert_before"):
+            for key in ("text", *cls._INSERT_TEXT_ALIASES):
+                val = retry_edit.get(key)
+                if isinstance(val, str) and _all_non_empty_lines_have_marker_prefix(val):
+                    retry_edit[key] = _strip_marker_prefixes(val)
+        return retry_edit
 
     @classmethod
     def _require_insert_text(
@@ -1838,6 +2260,7 @@ class FileEditor:
         allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
         applied_hunks: list[tuple[int, int, int]] | None = None,
         already_matched: list[bool] | None = None,
+        allow_approx_with_marker_prefix: bool = True,
     ) -> str:
         """Apply a replace edit operation."""
         old_text = edit.get("old", "")
@@ -2088,7 +2511,11 @@ class FileEditor:
             # 已读区间做近似匹配，避免误伤已读区间里的相似句。
             approx_match = None
             approx_stats: dict[str, int] = {}
-            if not spans and not replace_all and not unseen_fuzzy_rejected:
+            defer_approx_for_prefix_retry = (
+                not allow_approx_with_marker_prefix
+                and _all_non_empty_lines_have_marker_prefix(old_text)
+            )
+            if not spans and not replace_all and not unseen_fuzzy_rejected and not defer_approx_for_prefix_retry:
                 if allowed_fuzzy_spans is not None:
                     approx_match = _find_approximate_in_spans(
                         content,
@@ -2278,6 +2705,7 @@ class FileEditor:
         quote_style: str | None = None,
         allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
         applied_hunks: list[tuple[int, int, int]] | None = None,
+        allow_approx_with_marker_prefix: bool = True,
     ) -> str:
         """Apply an insert_after (after=True) or insert_before edit operation."""
         op = "insert_after" if after else "insert_before"
@@ -2401,7 +2829,11 @@ class FileEditor:
         # Secondary fallback: approximate match (handles word errors)
         # 若全文模糊匹配已命中但全部落在未读区间，不得退化到已读区间做近似/段落兜底匹配。
         approx_stats: dict[str, int] = {}
-        if not unseen_fuzzy_rejected:
+        defer_approx_for_prefix_retry = (
+            not allow_approx_with_marker_prefix
+            and _all_non_empty_lines_have_marker_prefix(anchor)
+        )
+        if not unseen_fuzzy_rejected and not defer_approx_for_prefix_retry:
             if allowed_fuzzy_spans is not None:
                 approx_match = _find_approximate_in_spans(
                     content,
@@ -2492,6 +2924,7 @@ class FileEditor:
         *,
         allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
         applied_hunks: list[tuple[int, int, int]] | None = None,
+        allow_approx_with_marker_prefix: bool = True,
     ) -> str:
         """Apply a delete edit operation."""
         old_text = edit.get("old", "")
@@ -2603,7 +3036,11 @@ class FileEditor:
             # shrunk window cannot silently skip a subject/clause and leave orphaned text.
             approx_match = None
             approx_stats: dict[str, int] = {}
-            if not spans and not unseen_fuzzy_rejected:
+            defer_approx_for_prefix_retry = (
+                not allow_approx_with_marker_prefix
+                and _all_non_empty_lines_have_marker_prefix(old_text)
+            )
+            if not spans and not unseen_fuzzy_rejected and not defer_approx_for_prefix_retry:
                 if allowed_fuzzy_spans is not None:
                     approx_match = _find_approximate_in_spans(
                         content,
@@ -2750,6 +3187,7 @@ class FileEditor:
 
 
 __all__ = [
+    "BATCH_REPLACE_MAX_FILES",
     "EDIT_ERROR_ANCHOR_AMBIGUOUS",
     "EDIT_ERROR_ANCHOR_NOT_FOUND",
     "EDIT_ERROR_FILE_BUSY",

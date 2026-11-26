@@ -24,6 +24,7 @@ LOOP_TOOL_NAMES: list[str] = [
     "update_project",
     "load_skill",
     "read_skill_resource",
+    "batch_replace_files",
 ]
 
 # Name -> MCP handler
