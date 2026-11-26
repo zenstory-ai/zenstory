@@ -12,16 +12,17 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, desc
+from sqlalchemy import delete, desc, exists, literal
 from sqlalchemy.orm import load_only
-from sqlmodel import Session, func, select
+from sqlmodel import Session, col, func, select
 
 from agent.loop.history import client_message_metadata, client_tool_calls
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import create_session, get_session
-from models import ChatMessage, ChatMessageUxSummary, ChatSession, Project, User
+from models import ChatMessage, ChatMessageArchive, ChatMessageUxSummary, ChatSession, Project, User
+from models.chat_message_archive import has_chat_message_archive_table
 from models.chat_message_ux_summary import has_chat_message_ux_summary_table
 from services.chat_feedback_service import chat_feedback_service
 from services.chat_session_service import latest_active_chat_session, lock_active_chat_session
@@ -227,25 +228,42 @@ def get_or_create_session(
     )
 
 
-@router.get("/session/{project_id}/recent", response_model=list[MessageResponse])
-def get_recent_messages(
+def serialize_chat_session(chat_session: ChatSession) -> SessionResponse:
+    """Serialize a ChatSession row into the shared REST response shape."""
+    return SessionResponse(
+        id=chat_session.id,
+        user_id=chat_session.user_id,
+        project_id=chat_session.project_id,
+        title=chat_session.title,
+        is_active=chat_session.is_active,
+        message_count=chat_session.message_count,
+        created_at=chat_session.created_at,
+        updated_at=chat_session.updated_at,
+    )
+
+
+def load_active_session_recent_messages(
+    session: Session,
+    *,
     project_id: str,
-    limit: int = Query(20, ge=1, le=100),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-    message_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
-):
-    """Get recent history, optionally one known message in the active session."""
-    user_id = current_user.id
+    user_id: str,
+    limit: int,
+    message_id: str | None = None,
+) -> tuple[SessionResponse | None, list[MessageResponse], bool]:
+    """Read active session metadata and latest slimmed messages across hot + cold tables.
 
-    # Check if project exists and is not deleted
-    verify_project_access_sync(project_id, session, current_user)
-
+    Fetches up to ``limit + 1`` rows (probing ``chat_message_archive`` via an index-only
+    watermark whenever needed) so callers know accurately whether older messages exist —
+    including the exact boundary where ``len(hot) == limit`` and older rows live in
+    ``chat_message_archive`` as well as interleaved hot/cold windows.
+    """
     active_sessions = _list_active_sessions(session, project_id, user_id)
     chat_session = active_sessions[0] if active_sessions else None
 
     if not chat_session:
-        return []
+        return None, [], False
+
+    fetch_limit = 1 if message_id is not None else limit + 1
 
     # Keep completion hydration scoped to the same ownership-checked active session.
     stmt = (
@@ -265,10 +283,103 @@ def get_recent_messages(
     )
     if message_id is not None:
         stmt = stmt.where(ChatMessage.id == message_id)
-    stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(limit)
-    messages = list(reversed(session.exec(stmt).all()))
+    stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(fetch_limit)
+    hot_messages: list[ChatMessage | ChatMessageArchive] = list(session.exec(stmt).all())
 
-    return [
+    # Transparent cold-archive fallback:
+    # - For targeted `message_id`, fall back to cold only when absent from hot.
+    # - For recent windows, use a 1-row index-only watermark on (session_id, created_at, id)
+    #   so hot-only and strictly-newer hot windows avoid full-row cold fetches, while
+    #   interleaved hot/cold windows (e.g. older hot row skipped by FOR UPDATE SKIP LOCKED)
+    #   still merge up to `fetch_limit` cold rows so newer cold rows are never hidden.
+    has_more = message_id is None and len(hot_messages) > limit
+    messages: list[ChatMessage | ChatMessageArchive] = list(reversed(hot_messages[:limit]))
+
+    if has_chat_message_archive_table(session.connection()):
+        if message_id is not None:
+            if not hot_messages:
+                cold_stmt = (
+                    select(ChatMessageArchive)
+                    .options(
+                        load_only(
+                            ChatMessageArchive.id,
+                            ChatMessageArchive.session_id,
+                            ChatMessageArchive.role,
+                            ChatMessageArchive.content,
+                            ChatMessageArchive.tool_calls,
+                            ChatMessageArchive.message_metadata,
+                            ChatMessageArchive.created_at,
+                        )
+                    )
+                    .where(
+                        ChatMessageArchive.session_id == chat_session.id,
+                        ChatMessageArchive.id == message_id,
+                    )
+                    .limit(1)
+                )
+                cold_messages = list(session.exec(cold_stmt).all())
+                messages = cold_messages
+                has_more = False
+        else:
+            watermark_row = session.exec(
+                select(ChatMessageArchive.created_at, ChatMessageArchive.id)
+                .where(ChatMessageArchive.session_id == chat_session.id)
+                .order_by(ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id))
+                .limit(1)
+            ).first()
+            if watermark_row is not None:
+                cold_watermark = (watermark_row[0], watermark_row[1])
+                hot_ids = [msg.id for msg in hot_messages]
+                oldest_hot_key = (
+                    (hot_messages[-1].created_at, hot_messages[-1].id) if hot_messages else None
+                )
+                interleaved = oldest_hot_key is not None and cold_watermark > oldest_hot_key
+
+                if len(hot_messages) == limit and not interleaved:
+                    # Exact hot == limit boundary with all cold rows <= oldest hot row:
+                    # hot already holds the newest `limit` messages, so an index-only check
+                    # suffices to prove whether any distinct older cold row exists (`has_more`).
+                    older_cold_stmt = select(ChatMessageArchive.id).where(
+                        ChatMessageArchive.session_id == chat_session.id
+                    )
+                    if hot_ids:
+                        older_cold_stmt = older_cold_stmt.where(
+                            col(ChatMessageArchive.id).notin_(hot_ids)
+                        )
+                    has_more = session.exec(older_cold_stmt.limit(1)).first() is not None
+                elif len(hot_messages) < limit or interleaved:
+                    cold_stmt = (
+                        select(ChatMessageArchive)
+                        .options(
+                            load_only(
+                                ChatMessageArchive.id,
+                                ChatMessageArchive.session_id,
+                                ChatMessageArchive.role,
+                                ChatMessageArchive.content,
+                                ChatMessageArchive.tool_calls,
+                                ChatMessageArchive.message_metadata,
+                                ChatMessageArchive.created_at,
+                            )
+                        )
+                        .where(ChatMessageArchive.session_id == chat_session.id)
+                    )
+                    if hot_ids:
+                        cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
+                    cold_stmt = cold_stmt.order_by(
+                        ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)
+                    ).limit(fetch_limit)
+                    cold_messages = list(session.exec(cold_stmt).all())
+                    if cold_messages:
+                        by_id: dict[str, ChatMessage | ChatMessageArchive] = {
+                            msg.id: msg for msg in cold_messages
+                        }
+                        # Prefer hot row when an ID temporarily exists in both tables during archival.
+                        for msg in hot_messages:
+                            by_id[msg.id] = msg
+                        merged_asc = sorted(by_id.values(), key=lambda msg: (msg.created_at, msg.id))
+                        has_more = len(merged_asc) > limit
+                        messages = merged_asc[-limit:]
+    serialized = [
         MessageResponse(
             id=msg.id,
             session_id=msg.session_id,
@@ -280,6 +391,31 @@ def get_recent_messages(
         )
         for msg in messages
     ]
+    return serialize_chat_session(chat_session), serialized, has_more
+
+
+@router.get("/session/{project_id}/recent", response_model=list[MessageResponse])
+def get_recent_messages(
+    project_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+    message_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+):
+    """Get recent history, optionally one known message in the active session."""
+    user_id = current_user.id
+
+    # Check if project exists and is not deleted
+    verify_project_access_sync(project_id, session, current_user)
+
+    _, serialized, _ = load_active_session_recent_messages(
+        session,
+        project_id=project_id,
+        user_id=user_id,
+        limit=limit,
+        message_id=message_id,
+    )
+    return serialized
 
 
 @router.post("/messages/{message_id}/feedback", response_model=MessageFeedbackResponse)
@@ -359,13 +495,33 @@ def clear_session(
             .where(ChatMessage.session_id == chat_session.id)
         ).one()
     )
+    has_archive_table = has_chat_message_archive_table(session.connection())
+    if has_archive_table:
+        cleared_count += int(
+            session.exec(
+                select(func.count())
+                .select_from(ChatMessageArchive)
+                .where(
+                    ChatMessageArchive.session_id == chat_session.id,
+                    ~exists(select(literal(1)).where(ChatMessage.id == ChatMessageArchive.id)),
+                )
+            ).one()
+        )
+    # Delete hot chat_message FIRST, then cold chat_message_archive, then ux_summary.
+    # Matching archival's hot -> cold lock order prevents both deadlocks and ghost
+    # resurrection where an in-flight archival commits rows to chat_message_archive
+    # after clear_session already swept the cold table.
+    session.exec(
+        delete(ChatMessage).where(ChatMessage.session_id == chat_session.id)
+    )
+    if has_archive_table:
+        session.exec(
+            delete(ChatMessageArchive).where(ChatMessageArchive.session_id == chat_session.id)
+        )
     if has_chat_message_ux_summary_table(session.connection()):
         session.exec(
             delete(ChatMessageUxSummary).where(ChatMessageUxSummary.session_id == chat_session.id)
         )
-    session.exec(
-        delete(ChatMessage).where(ChatMessage.session_id == chat_session.id)
-    )
 
     chat_session.message_count = 0
     chat_session.updated_at = utcnow()

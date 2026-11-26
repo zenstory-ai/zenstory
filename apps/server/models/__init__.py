@@ -26,6 +26,7 @@ from .agent_api_key import (
 from .agent_round_metric import AgentRoundMetric
 from .ai_cost_budget import AICostDailyBudget, AICostReservation
 from .announcement import AnnouncementConfig
+from .chat_message_archive import ChatMessageArchive
 from .chat_message_ux_summary import ChatMessageUxSummary
 from .entities import (
     AgentArtifactLedger,
@@ -133,6 +134,7 @@ __all__ = [
     "Snapshot",
     "ChatSession",
     "ChatMessage",
+    "ChatMessageArchive",
     "ChatMessageUxSummary",
     "SystemPromptConfig",
     # File models

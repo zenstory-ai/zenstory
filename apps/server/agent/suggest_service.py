@@ -11,7 +11,7 @@ import logging
 from typing import Any
 
 from sqlalchemy import desc
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from config.env import get_positive_float_env
 from core.error_handler import APIException
@@ -320,7 +320,8 @@ class SuggestService:
         Returns:
             List of message dicts with role and content
         """
-        from models import ChatMessage, Project
+        from models import ChatMessage, ChatMessageArchive, Project
+        from models.chat_message_archive import has_chat_message_archive_table
 
         # Validate project
         project = session.get(Project, project_id)
@@ -347,12 +348,40 @@ class SuggestService:
 
         # Suggestions need only role/content, not reasoning or tool/UI payloads.
         stmt = (
-            select(ChatMessage.role, ChatMessage.content)
+            select(ChatMessage.id, ChatMessage.role, ChatMessage.content, ChatMessage.created_at)
             .where(ChatMessage.session_id == chat_session.id)
             .order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id))  # type: ignore[attr-defined]
             .limit(CHAT_HISTORY_LIMIT)
         )
-        messages = list(reversed(session.exec(stmt).all()))
+        hot_rows = list(session.exec(stmt).all())
+        messages = list(reversed(hot_rows))
+
+        if len(hot_rows) < CHAT_HISTORY_LIMIT and has_chat_message_archive_table(
+            session.connection()
+        ):
+            cold_stmt = select(
+                ChatMessageArchive.id,
+                ChatMessageArchive.role,
+                ChatMessageArchive.content,
+                ChatMessageArchive.created_at,
+            ).where(ChatMessageArchive.session_id == chat_session.id)
+            hot_ids = [row.id for row in hot_rows]
+            if hot_ids:
+                cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
+            cold_rows = list(
+                session.exec(
+                    cold_stmt.order_by(
+                        ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)  # type: ignore[attr-defined]
+                    ).limit(CHAT_HISTORY_LIMIT)
+                ).all()
+            )
+            if cold_rows:
+                by_id = {row.id: row for row in cold_rows}
+                for row in hot_rows:
+                    by_id[row.id] = row
+                messages = sorted(
+                    by_id.values(), key=lambda row: (row.created_at, row.id)
+                )[-CHAT_HISTORY_LIMIT:]
 
         return [
             {"role": msg.role, "content": msg.content}

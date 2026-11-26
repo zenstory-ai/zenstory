@@ -393,6 +393,154 @@ class SessionLoader:
         )
         return block, edited_ids, snapshots_by_id
 
+    @staticmethod
+    def _iter_session_projection_desc(
+        session: Session,
+        *,
+        chat_session_id: str,
+        roles: tuple[str, ...],
+        column_names: tuple[str, ...],
+        page_size: int,
+        max_rows: int | None = None,
+        cancel_event: threading.Event | None = None,
+    ):
+        """Lazy 2-way descending keyset iterator across ``ChatMessage`` and ``ChatMessageArchive``.
+
+        Yields tuples of the requested ``column_names`` in strict ``(created_at, id) DESC``
+        order, deduplicating by ``id`` (hot wins). Uses an index-only cold watermark on
+        ``(session_id, created_at, id)`` so hot-only sessions or early-stopping callers
+        never execute full-row cold queries.
+        """
+        from models import ChatMessage, ChatMessageArchive
+        from models.chat_message_archive import has_chat_message_archive_table
+
+        def _fetch_page(model: Any, cursor: tuple[Any, Any] | None) -> list[Any]:
+            cols = [model.id, model.created_at, *(getattr(model, name) for name in column_names)]
+            stmt = select(*cols).where(
+                and_(
+                    model.session_id == chat_session_id,
+                    model.role.in_(roles),
+                )
+            )
+            if cursor is not None:
+                cursor_created_at, cursor_id = cursor
+                stmt = stmt.where(
+                    or_(
+                        model.created_at < cursor_created_at,
+                        and_(model.created_at == cursor_created_at, model.id < cursor_id),
+                    )
+                )
+            return list(
+                session.exec(
+                    stmt.order_by(desc(model.created_at), desc(model.id)).limit(page_size)
+                ).all()
+            )
+
+        hot_buf: list[Any] = []
+        hot_idx = 0
+        hot_cursor: tuple[Any, Any] | None = None
+        hot_exhausted = False
+
+        cold_buf: list[Any] = []
+        cold_idx = 0
+        cold_cursor: tuple[Any, Any] | None = None
+        cold_exhausted = not has_chat_message_archive_table(session)
+        cold_watermark: tuple[Any, Any] | None = None
+        cold_watermark_checked = False
+        cold_active = False
+
+        seen_ids: set[str] = set()
+        yielded = 0
+
+        def _peek_hot() -> Any | None:
+            nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted
+            if hot_idx >= len(hot_buf) and not hot_exhausted:
+                if cancel_event is not None and cancel_event.is_set():
+                    hot_exhausted = True
+                    return None
+                hot_buf = _fetch_page(ChatMessage, hot_cursor)
+                hot_idx = 0
+                if hot_buf:
+                    hot_cursor = (hot_buf[-1][1], hot_buf[-1][0])
+                if len(hot_buf) < page_size:
+                    hot_exhausted = True
+            return hot_buf[hot_idx] if hot_idx < len(hot_buf) else None
+
+        def _ensure_cold_watermark() -> tuple[Any, Any] | None:
+            nonlocal cold_watermark, cold_watermark_checked, cold_exhausted
+            if not cold_watermark_checked:
+                cold_watermark_checked = True
+                if cold_exhausted:
+                    return None
+                row = session.exec(
+                    select(ChatMessageArchive.created_at, ChatMessageArchive.id)
+                    .where(ChatMessageArchive.session_id == chat_session_id)
+                    .order_by(desc(ChatMessageArchive.created_at), desc(ChatMessageArchive.id))
+                    .limit(1)
+                ).first()
+                if row is None:
+                    cold_exhausted = True
+                    return None
+                cold_watermark = (row[0], row[1])
+            return cold_watermark
+
+        def _peek_cold() -> Any | None:
+            nonlocal cold_buf, cold_idx, cold_cursor, cold_exhausted
+            if cold_idx >= len(cold_buf) and not cold_exhausted:
+                if cancel_event is not None and cancel_event.is_set():
+                    cold_exhausted = True
+                    return None
+                cold_buf = _fetch_page(ChatMessageArchive, cold_cursor)
+                cold_idx = 0
+                if cold_buf:
+                    cold_cursor = (cold_buf[-1][1], cold_buf[-1][0])
+                if len(cold_buf) < page_size:
+                    cold_exhausted = True
+            return cold_buf[cold_idx] if cold_idx < len(cold_buf) else None
+
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                return
+            if max_rows is not None and yielded >= max_rows:
+                return
+
+            hot_row = _peek_hot()
+            if cold_active:
+                cold_row = _peek_cold()
+            elif cold_exhausted:
+                cold_row = None
+            else:
+                watermark = _ensure_cold_watermark()
+                if watermark is None:
+                    cold_row = None
+                elif hot_row is None or (hot_row[1], hot_row[0]) < watermark:
+                    cold_active = True
+                    cold_row = _peek_cold()
+                else:
+                    cold_row = None
+
+            if hot_row is None and cold_row is None:
+                return
+            if cold_row is None:
+                chosen = hot_row
+                hot_idx += 1
+            elif hot_row is None:
+                chosen = cold_row
+                cold_idx += 1
+            elif (hot_row[1], hot_row[0]) >= (cold_row[1], cold_row[0]):
+                chosen = hot_row
+                hot_idx += 1
+            else:
+                chosen = cold_row
+                cold_idx += 1
+
+            row_id = chosen[0]
+            if row_id in seen_ids:
+                continue
+            seen_ids.add(row_id)
+            yielded += 1
+            yield chosen[2:]
+
     def session_written_file_ids(
         self,
         session: Session,
@@ -406,92 +554,73 @@ class SessionLoader:
 
         之后被删掉的（结果未知的删除不算）不列。只读 assistant 行持久化的 tool_calls，不读正文。
         给了 file_types 时先按本项目、未删除、这些类型筛，再计 limit：别的类型的文件不占名额。
+        热表不足或已归档时按需懒回退到 ``chat_message_archive``。
         """
-        from models import ChatMessage, File
+        from models import File
 
         if limit <= 0 or (cancel_event is not None and cancel_event.is_set()):
             return []
 
-        base_query = (
-            select(ChatMessage.id, ChatMessage.created_at, ChatMessage.tool_calls)
-            .where(
-                and_(
-                    ChatMessage.session_id == chat_session_id,
-                    ChatMessage.role == "assistant",
-                )
-            )
-            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
-        )
-
-        # 新 → 旧按页 keyset 分页（替代 OFFSET），每页结束后执行一次批量 SELECT File.id
-        # 消除逐行 N+1，同时在凑够 limit 后立刻提前终止，不扫描更早的历史页。
+        # 新 → 旧按页 keyset 分页（热表不足或已归档时懒回退到 chat_message_archive），
+        # 每页结束后执行单次批量 SELECT File.id 消除逐行 N+1，凑够 limit 即刻提前终止。
         written: list[str] = []
         seen: set[str] = set()
         deleted: set[str] = set()
-        cursor_created_at: datetime | None = None
-        cursor_id: str | None = None
+        page_candidates: list[str] = []
+        rows_in_batch = 0
 
-        while len(written) < limit:
-            if cancel_event is not None and cancel_event.is_set():
-                return written[:limit]
-            stmt = base_query
-            if cursor_created_at is not None and cursor_id is not None:
-                stmt = stmt.where(
-                    or_(
-                        ChatMessage.created_at < cursor_created_at,
-                        and_(
-                            ChatMessage.created_at == cursor_created_at,
-                            ChatMessage.id < cursor_id,
-                        ),
-                    )
+        def _flush_candidates() -> None:
+            if not page_candidates:
+                return
+            if file_types is None:
+                written.extend(page_candidates)
+            else:
+                accepted = set(
+                    session.exec(
+                        select(File.id).where(
+                            File.id.in_(page_candidates),
+                            File.project_id == self.project_id,
+                            File.is_deleted.is_(False),
+                            File.file_type.in_(file_types),
+                        )
+                    ).all()
                 )
-            page = session.exec(stmt.limit(SESSION_WRITTEN_FILES_PAGE_ROWS)).all()
-            if not page:
-                break
+                written.extend(fid for fid in page_candidates if fid in accepted)
+            page_candidates.clear()
 
-            page_candidates: list[str] = []
-            for _row_id, _row_created_at, tool_calls in page:
-                actions = self._extract_file_actions(tool_calls)
-                for action in actions:
-                    if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):
-                        deleted.add(action["file_id"])
-                for action in actions:
-                    file_id = action["file_id"]
-                    if (
-                        not file_id
-                        or action["name"] in ("delete_file", "query_files")
-                        or action.get("outcome_unknown")
-                        or file_id in deleted
-                        or file_id in seen
-                    ):
-                        continue
-                    seen.add(file_id)
-                    page_candidates.append(file_id)
+        for (tool_calls,) in self._iter_session_projection_desc(
+            session,
+            chat_session_id=chat_session_id,
+            roles=("assistant",),
+            column_names=("tool_calls",),
+            page_size=SESSION_WRITTEN_FILES_PAGE_ROWS,
+            cancel_event=cancel_event,
+        ):
+            actions = self._extract_file_actions(tool_calls)
+            for action in actions:
+                if action["name"] == "delete_file" and action["file_id"] and not action.get("outcome_unknown"):
+                    deleted.add(action["file_id"])
+            for action in actions:
+                file_id = action["file_id"]
+                if (
+                    not file_id
+                    or action["name"] in ("delete_file", "query_files")
+                    or action.get("outcome_unknown")
+                    or file_id in deleted
+                    or file_id in seen
+                ):
+                    continue
+                seen.add(file_id)
+                page_candidates.append(file_id)
+            rows_in_batch += 1
+            if rows_in_batch >= SESSION_WRITTEN_FILES_PAGE_ROWS or len(written) + len(page_candidates) >= limit:
+                _flush_candidates()
+                rows_in_batch = 0
+                if len(written) >= limit:
+                    break
 
-            if page_candidates:
-                if file_types is None:
-                    written.extend(page_candidates)
-                else:
-                    accepted = set(
-                        session.exec(
-                            select(File.id).where(
-                                File.id.in_(page_candidates),
-                                File.project_id == self.project_id,
-                                File.is_deleted.is_(False),
-                                File.file_type.in_(file_types),
-                            )
-                        ).all()
-                    )
-                    written.extend(fid for fid in page_candidates if fid in accepted)
-
-            if len(written) >= limit or len(page) < SESSION_WRITTEN_FILES_PAGE_ROWS:
-                break
-
-            last_id, last_created_at, _ = page[-1]
-            if last_created_at is None or last_id is None:
-                break
-            cursor_created_at = last_created_at
-            cursor_id = str(last_id)
+        if len(written) < limit:
+            _flush_candidates()
 
         return written[:limit]
 
@@ -552,7 +681,7 @@ class SessionLoader:
         """
         from agent.loop.history import LOOP_ENGINE_METADATA_VALUE, valid_compaction
         from agent.tools.author_changes import AI, version_actor
-        from models import ChatMessage, File
+        from models import File
         from models.file_version import FileVersion
         from services.features.file_version_service import FileVersionService, content_sha256
 
@@ -565,163 +694,161 @@ class SessionLoader:
         unverifiable: set[str] = set()
         candidates: dict[str, dict[str, Any]] = {}
 
-        # 每轮包含 user + assistant 两行：按双倍行宽 keyset 分页以维持相同轮次覆盖深度。
+        # 每轮包含 user + assistant 两行：按双倍行宽 keyset 分页以维持相同轮次覆盖深度，
+        # 并在热表耗尽或与冷表交错时懒回退到 chat_message_archive。
         page_rows = SESSION_WRITTEN_FILES_PAGE_ROWS * 2
-        query = (
-            select(
-                ChatMessage.id,
-                ChatMessage.role,
-                ChatMessage.tool_calls,
-                ChatMessage.created_at,
-                ChatMessage.message_metadata,
-            )
-            .where(
-                and_(
-                    ChatMessage.session_id == chat_session_id,
-                    ChatMessage.role.in_(("user", "assistant")),
-                )
-            )
-            .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
-        )
+        max_scan_rows = SESSION_SNAPSHOT_MAX_PAGES * page_rows
 
         hit_compaction = False
-        cursor_created_at: datetime | None = None
-        cursor_id: str | None = None
-        for _page_index in range(SESSION_SNAPSHOT_MAX_PAGES):
-            if cancel_event is not None and cancel_event.is_set():
-                return {}
-            stmt = query
-            if cursor_created_at is not None and cursor_id is not None:
-                stmt = stmt.where(
-                    or_(
-                        ChatMessage.created_at < cursor_created_at,
-                        and_(
-                            ChatMessage.created_at == cursor_created_at,
-                            ChatMessage.id < cursor_id,
-                        ),
-                    )
-                )
-            rows = session.exec(stmt.limit(page_rows)).all()
-            if not rows:
-                break
-            for _row_id, role, tool_calls_raw, row_created_at, metadata_raw in rows:
-                meta = self._parse_json_value(metadata_raw)
-                has_compaction = isinstance(meta, dict) and valid_compaction(meta) is not None
-                if role == "user":
-                    if has_compaction:
-                        # 压缩发生在这一条未得到助手回复的轮次开始前：更早的轮次已被折叠进摘要。
-                        hit_compaction = True
-                        break
-                    continue
-
+        for role, tool_calls_raw, row_created_at, metadata_raw in self._iter_session_projection_desc(
+            session,
+            chat_session_id=chat_session_id,
+            roles=("user", "assistant"),
+            column_names=("role", "tool_calls", "created_at", "message_metadata"),
+            page_size=page_rows,
+            max_rows=max_scan_rows,
+            cancel_event=cancel_event,
+        ):
+            meta = self._parse_json_value(metadata_raw)
+            has_compaction = isinstance(meta, dict) and valid_compaction(meta) is not None
+            if role == "user":
                 if has_compaction:
-                    # 压缩发生在本轮开始前：本行的工具调用仍在压缩后历史里，更早的行不再扫描。
+                    # 压缩发生在这一条未得到助手回复的轮次开始前：更早的轮次已被折叠进摘要。
                     hit_compaction = True
+                    break
+                continue
 
-                if not isinstance(meta, dict) or meta.get("engine") != LOOP_ENGINE_METADATA_VALUE:
-                    if hit_compaction:
-                        break
-                    continue
+            if has_compaction:
+                # 压缩发生在本轮开始前：本行的工具调用仍在压缩后历史里，更早的行不再扫描。
+                hit_compaction = True
 
-                tool_calls = self._parse_json_value(tool_calls_raw)
-                if isinstance(tool_calls, list):
-                    for tc in reversed(tool_calls):
-                        if not isinstance(tc, dict):
-                            continue
-                        name = str(tc.get("name") or "").strip()
-                        status = str(tc.get("status") or "").strip().lower()
-                        if status in _FAILED_TOOL_STATUSES or status == _PENDING_TOOL_STATUS or tc.get("error"):
-                            continue
+            # 旧多角色图写下的 assistant 行只回放单行文本面包屑、不回放工具正文，绝不结转。
+            if not isinstance(meta, dict) or meta.get("engine") != LOOP_ENGINE_METADATA_VALUE:
+                if hit_compaction:
+                    break
+                continue
 
-                        result = self._parse_json_value(tc.get("result"))
-                        if name == "delete_file":
-                            res_data = (
-                                result.get("data")
-                                if isinstance(result, dict) and "data" in result
-                                else result
+            tool_calls = self._parse_json_value(tool_calls_raw)
+            if isinstance(tool_calls, list):
+                for tc in reversed(tool_calls):
+                    if not isinstance(tc, dict):
+                        continue
+                    name = str(tc.get("name") or "").strip()
+                    status = str(tc.get("status") or "").strip().lower()
+                    if status in _FAILED_TOOL_STATUSES or status == _PENDING_TOOL_STATUS or tc.get("error"):
+                        continue
+
+                    result = self._parse_json_value(tc.get("result"))
+                    if name == "delete_file":
+                        res_data = (
+                            result.get("data")
+                            if isinstance(result, dict) and "data" in result
+                            else result
+                        )
+                        if (
+                            result is not False
+                            and res_data is not False
+                            and not (
+                                isinstance(res_data, dict)
+                                and (res_data.get("mutation_applied") is False or res_data.get("restored") is True)
                             )
-                            if (
-                                result is not False
-                                and res_data is not False
-                                and not (
-                                    isinstance(res_data, dict)
-                                    and (res_data.get("mutation_applied") is False or res_data.get("restored") is True)
-                                )
-                            ):
-                                fid = self._extract_breadcrumb_file_id(tc)
-                                if fid:
-                                    deleted.add(fid)
-                            continue
+                        ):
+                            fid = self._extract_breadcrumb_file_id(tc)
+                            if fid:
+                                deleted.add(fid)
+                        continue
 
-                        if name == "query_files" and status == "success" and isinstance(result, list):
-                            for item in reversed(result):
-                                if not isinstance(item, dict):
-                                    continue
-                                fid = str(item.get("id") or "").strip()
-                                if (
-                                    not fid
-                                    or fid in excluded
-                                    or fid in deleted
-                                    or fid in unverifiable
-                                    or fid in candidates
-                                ):
-                                    continue
-                                if (
-                                    item.get("file_type") == "folder"
-                                    or item.get("content_truncated")
-                                    or item.get("content_partial")
-                                ):
-                                    continue
-                                updated_at = item.get("updated_at")
-                                norm_ts = (
-                                    updated_at.strip()
-                                    if isinstance(updated_at, str) and updated_at.strip()
-                                    else None
-                                )
-                                content = item.get("content")
-                                raw_sha = item.get("content_sha256")
-                                if isinstance(content, str):
+                    if name == "query_files" and status == "success" and isinstance(result, list):
+                        for item in reversed(result):
+                            if not isinstance(item, dict):
+                                continue
+                            fid = str(item.get("id") or "").strip()
+                            if (
+                                not fid
+                                or fid in excluded
+                                or fid in deleted
+                                or fid in unverifiable
+                                or fid in candidates
+                            ):
+                                continue
+                            if (
+                                item.get("file_type") == "folder"
+                                or item.get("content_truncated")
+                                or item.get("content_partial")
+                            ):
+                                continue
+                            updated_at = item.get("updated_at")
+                            norm_ts = (
+                                updated_at.strip()
+                                if isinstance(updated_at, str) and updated_at.strip()
+                                else None
+                            )
+                            content = item.get("content")
+                            raw_sha = item.get("content_sha256")
+                            if isinstance(content, str):
+                                candidates[fid] = {
+                                    "kind": "read",
+                                    "content": content,
+                                    "updated_at": norm_ts,
+                                }
+                                if len(candidates) >= limit:
+                                    break
+                            elif isinstance(raw_sha, str) and raw_sha.strip():
+                                if allow_slimmed_read_sha256:
                                     candidates[fid] = {
-                                        "kind": "read",
-                                        "content": content,
+                                        "kind": "read_sha256",
+                                        "sha256": raw_sha.strip(),
                                         "updated_at": norm_ts,
                                     }
                                     if len(candidates) >= limit:
                                         break
-                                elif isinstance(raw_sha, str) and raw_sha.strip():
-                                    if allow_slimmed_read_sha256:
-                                        candidates[fid] = {
-                                            "kind": "read_sha256",
-                                            "sha256": raw_sha.strip(),
-                                            "updated_at": norm_ts,
-                                        }
-                                        if len(candidates) >= limit:
-                                            break
-                                    else:
-                                        # Cold DB replay: persist-slimmed entry has archived_note without
-                                        # full content in model history -> refuse snapshot carryover and
-                                        # block older reads from masquerading as latest.
-                                        unverifiable.add(fid)
-                                elif (
-                                    not allow_slimmed_read_sha256
-                                    and isinstance(item.get("archived_note"), str)
-                                    and item["archived_note"].strip()
-                                ):
+                                else:
+                                    # Cold DB replay: persist-slimmed entry has archived_note without
+                                    # full content in model history -> refuse snapshot carryover and
+                                    # block older reads from masquerading as latest.
                                     unverifiable.add(fid)
-                            if len(candidates) >= limit:
-                                break
-                            continue
+                            elif (
+                                not allow_slimmed_read_sha256
+                                and isinstance(item.get("archived_note"), str)
+                                and item["archived_note"].strip()
+                            ):
+                                unverifiable.add(fid)
+                        if len(candidates) >= limit:
+                            break
+                        continue
 
-                        if name == "edit_file" and isinstance(result, dict):
-                            if result.get("all_failed"):
-                                continue
-                            applied = status == "success" or (
-                                status == "partial" and result.get("mutation_applied") is True
-                            )
-                            if not applied or result.get("mutation_applied") is False:
-                                continue
-                            fid = self._extract_breadcrumb_file_id(tc)
-                            if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                    if name == "edit_file" and isinstance(result, dict):
+                        if result.get("all_failed"):
+                            continue
+                        applied = status == "success" or (
+                            status == "partial" and result.get("mutation_applied") is True
+                        )
+                        if not applied or result.get("mutation_applied") is False:
+                            continue
+                        fid = self._extract_breadcrumb_file_id(tc)
+                        if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                            continue
+                        exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
+                        if exp_sha is not None:
+                            candidates[fid] = {
+                                "kind": "undo_write",
+                                "updated_at": exp_ts,
+                                "sha256": exp_sha,
+                            }
+                        else:
+                            unverifiable.add(fid)
+                        if len(candidates) >= limit:
+                            break
+                        continue
+
+                    if name in {"write_chapter", "create_file"} and status == "success" and isinstance(result, dict):
+                        fid = self._extract_breadcrumb_file_id(tc)
+                        if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                            continue
+                        if result.get("file_type") == "folder":
+                            continue
+                        if name == "write_chapter" and result.get("action") == "replaced":
+                            if result.get("body_saved") is not True:
                                 continue
                             exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
                             if exp_sha is not None:
@@ -732,60 +859,31 @@ class SessionLoader:
                                 }
                             else:
                                 unverifiable.add(fid)
-                            if len(candidates) >= limit:
-                                break
-                            continue
-
-                        if name in {"write_chapter", "create_file"} and status == "success" and isinstance(result, dict):
-                            fid = self._extract_breadcrumb_file_id(tc)
-                            if not fid or fid in excluded or fid in deleted or fid in unverifiable or fid in candidates:
+                        elif result.get("awaiting_body") is True or result.get("body_in_reply") is True:
+                            if result.get("body_saved") is False:
                                 continue
-                            if result.get("file_type") == "folder":
-                                continue
-                            if name == "write_chapter" and result.get("action") == "replaced":
-                                if result.get("body_saved") is not True:
-                                    continue
-                                exp_sha, exp_ts = self._extract_undo_proof(result.get("undo"))
-                                if exp_sha is not None:
-                                    candidates[fid] = {
-                                        "kind": "undo_write",
-                                        "updated_at": exp_ts,
-                                        "sha256": exp_sha,
-                                    }
-                                else:
-                                    unverifiable.add(fid)
-                            elif result.get("awaiting_body") is True or result.get("body_in_reply") is True:
-                                if result.get("body_saved") is False:
-                                    continue
-                                if isinstance(row_created_at, datetime):
-                                    candidates[fid] = {
-                                        "kind": "streamed_create",
-                                        "turn_created_at": row_created_at,
-                                    }
-                                else:
-                                    unverifiable.add(fid)
-                            elif isinstance(result.get("content"), str):
-                                updated_at = result.get("updated_at")
+                            if isinstance(row_created_at, datetime):
                                 candidates[fid] = {
-                                    "kind": "read",
-                                    "content": result["content"],
-                                    "updated_at": (
-                                        updated_at.strip()
-                                        if isinstance(updated_at, str) and updated_at.strip()
-                                        else None
-                                    ),
+                                    "kind": "streamed_create",
+                                    "turn_created_at": row_created_at,
                                 }
-                            if len(candidates) >= limit:
-                                break
-                if len(candidates) >= limit or hit_compaction:
-                    break
-            if len(candidates) >= limit or hit_compaction or len(rows) < page_rows:
+                            else:
+                                unverifiable.add(fid)
+                        elif isinstance(result.get("content"), str):
+                            updated_at = result.get("updated_at")
+                            candidates[fid] = {
+                                "kind": "read",
+                                "content": result["content"],
+                                "updated_at": (
+                                    updated_at.strip()
+                                    if isinstance(updated_at, str) and updated_at.strip()
+                                    else None
+                                ),
+                            }
+                        if len(candidates) >= limit:
+                            break
+            if len(candidates) >= limit or hit_compaction:
                 break
-            last_row_id, _last_role, _last_tc, last_created_at, _last_meta = rows[-1]
-            if last_created_at is None or last_row_id is None:
-                break
-            cursor_created_at = last_created_at
-            cursor_id = str(last_row_id)
 
         if not candidates or (cancel_event is not None and cancel_event.is_set()):
             return {}
