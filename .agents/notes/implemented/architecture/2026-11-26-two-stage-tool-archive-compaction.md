@@ -19,16 +19,17 @@
      - `AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS`（默认 `3`，保护最近 3 个真实用户轮次逐字节不动）
      - `AGENT_LOOP_TOOL_ARCHIVE_MIN_OUTPUT_CHARS`（默认 `2000`）
      - `AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS`（默认 `30000`，确保留出足够余量，避免下一轮立刻抖动重压）
+   - 保护窗口按**真实用户轮次**计数：提取 `str` 或 SDK 内容块列表首段文字，排除系统注入的精确协议前缀（`SUMMARY_PREFIX`、`AGENT_DIRECTIVE_HEADER`、`[系统提醒]`、`[System note]`），避免单轮内写后自查 / 截断续写 / 收尾提醒等合成 `user` 项挤占最近 3 个真实轮次的保护名额。
    - 仅归档保护窗口之前、工具名属于 `ARCHIVABLE_READ_TOOLS`（`query_files` / `read_skill_resource` / `load_skill`）、输出长度 `>= 2000` 字符、且为成功 JSON 结果（`status="success"`、无 `error`/`error_type`、非已归档回执）的 `function_call_output`。绝不触碰任何写工具（`write_chapter` / `create_file` / `edit_file` / `delete_file` / `rename_file` / `update_project`）或错误结果。
    - 使用 `history.py` 单一纯函数 `build_tool_archive_receipt` 生成紧凑确定性 JSON 回执，保留 `status="success"`、`archived=true`、`tool_name`、提取的 `files`（`id`/`title`）或 `skill_id`/`skill_name`/`path`、`original_chars` 与简短重读提示；绝不放大原输出。
-   - **准入条件**：用同一供应商同量纲估算器 `estimate_provider_items_tokens` 计量，仅当 `archived_count > 0`、`saved_tokens >= AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS` 且 `after_tokens + turn_input_tokens <= AGENT_LOOP_COMPACT_AT_TOKENS` 时直接放行（0 次模型调用、0 延迟、100% 无损保留对话与写入记录）。
+   - **准入条件**：用供应商同量纲估算器 `estimate_provider_items_tokens` 计算 `saved_tokens` 与 `after_tokens`，并结合实测 `history.last_prompt_tokens` 投射归档后真实水位 `projected_after = max(after_tokens, max(0, last_prompt_tokens - saved_tokens))`（防止实测含系统提示/工具 schema 高于估算导致归档后仍 > 300k、连续两轮击穿缓存）；仅当 `archived_count > 0`、`saved_tokens >= AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS` 且 `projected_after + turn_input_tokens <= AGENT_LOOP_COMPACT_AT_TOKENS` 时直接放行（0 次模型调用、0 延迟、100% 无损保留对话与写入记录）。
 3. **Stage 2 兜底与串联**：
    - 若 Stage 1 未达准入条件，自动回落到既有 Stage 2 LLM 交接摘要；若 Stage 1 已归档至少一条旧只读输出（`archived_count > 0`），则直接将更小的已归档历史送入 Stage 2，降低摘要调用体积与延迟。
 4. **跨轮前缀稳定、冷库确定性回放与前后端兼容**：
-   - Stage 1 成功后在 `message_metadata.compaction` 落库结构化记录：`{"mode": "tool_archive", "archived_through_message_id": ..., "archived_call_ids": [...], "archived_count": ..., "saved_tokens": ..., "before_tokens": ..., "after_tokens": ..., "created_at": ...}`。
+   - Stage 1 成功后在 `message_metadata.compaction` 落库结构化记录：`{"mode": "tool_archive", "archived_through_message_id": ..., "archived_call_ids": [...], "archived_count": ..., "saved_tokens": ..., "before_tokens": ..., "after_tokens": ..., "projected_after_tokens": ..., "created_at": ...}`。
    - 保持 `valid_compaction()` 仅识别 LLM 摘要记录，确保既有 `message_manager.py` 的 `archive_pre_compaction_tool_calls_safe`、`session_loader.py` 与旧 LLM 摘要记录 100% 向后兼容；新增 `valid_tool_archive_compaction()` 与 `is_tool_archive_compaction()`。
-   - `load_loop_history()` 从新到旧扫描到最近一个 LLM 摘要压缩点为止，累积收集期间所有 `tool_archive` 记录的 `archived_call_ids`（同时匹配合成 id `h{row.id}_{index}` 与原始供应商 `call["id"]`），并用同一个 `build_tool_archive_receipt` 确定性回放，使冷库回放与实时 Stage 1 逐字节一致；遇到 `tool_archive` 边界同样停止向前继承压缩前的 `prompt_tokens` 与更早的 `compaction_skipped`。
-   - `client_message_metadata()` 在发往浏览器前移除 `mode="tool_archive"` 的 `compaction` 键；`service.py` 在 Stage 1 成功时只发瞬态 `thinking` 提示，不发空摘要 `history_compacted` 帧也不写 `display_events`，且撤销被归档文件的跨轮 `initial_read_snapshots`（含后续轮次跨轮承接），防止 `edit_file` 误判旧章节仍在模型视野内。
+   - `load_loop_history()` 从新到旧扫描到最近一个 LLM 摘要压缩点为止，按每条 `tool_archive` 记录各自的 `archived_through_message_id` 边界限定作用范围（只对 `<= archived_through_message_id` 的历史行生效，杜绝未来轮次同名供应商 `call_id` 冲突），同时匹配合成 id `h{row.id}_{index}` 与原始供应商 `call["id"]`，并用同一个 `build_tool_archive_receipt` 确定性回放；遇到 `tool_archive` 边界同样停止向前继承压缩前的 `prompt_tokens` 与更早的 `compaction_skipped`。
+   - `client_message_metadata()` 在发往浏览器前移除 `mode="tool_archive"` 的 `compaction` 键；`service.py` 在 Stage 1 成功时只发瞬态 `thinking` 提示，不发空摘要 `history_compacted` 帧也不写 `display_events`；快照撤销精确按被归档的 `query_files` 文件 id（排除保护窗口或后续轮次中完整非截断/非范围重读过的文件，且仅在归档了无 id 的 `query_files` 时保守全撤，不因归档技能误撤近期文件快照）；`retry_unanswered` 时若重试轮再次触发 Stage 1，自动合并被删作者行结转的 `archived_call_ids`。
    - 回合正常结束时 `wire_prefix_cache` 原样写入归档后的 `completed_items`，下一轮直接命中热前缀缓存。
 
 ## Alternatives considered

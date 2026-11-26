@@ -21,6 +21,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
 from agent.core.usage import extract_response_usage, merge_usage_dicts
 from config import agent_runtime
 from config.agent_runtime import (
@@ -44,6 +45,7 @@ from .history import (
     is_successful_archivable_payload,
     kept_author_messages,
     parse_tool_json,
+    query_result_full_file_ids,
     summary_message,
 )
 from .prompts import COMPACT_PROMPT, SUMMARY_PREFIX
@@ -73,9 +75,12 @@ class ToolArchiveResult:
     items: list[dict[str, Any]]
     archived_call_ids: list[str] = field(default_factory=list)
     archived_file_ids: set[str] = field(default_factory=set)
+    # 仅当归档了未能提取出具体 file_id 的 query_files 输出时为 True，供 service 保守撤销全部会话结转快照。
+    archived_unidentified_query_files: bool = False
     archived_count: int = 0
     before_tokens: int = 0
     after_tokens: int = 0
+    projected_after_tokens: int = 0
     saved_tokens: int = 0
     admitted: bool = False
     record: dict[str, Any] | None = None
@@ -90,14 +95,40 @@ class CompactionOutcome:
     usage: dict[str, int] | None = None
     skipped: str | None = None
     archived_file_ids: set[str] | None = None
+    archived_unidentified_query_files: bool = False
+
+
+# 单轮内系统注入到 SDK input 里的合成 user 项前缀（精确协议前缀，不作自然语言语义猜测）：
+# 压缩摘要、本轮系统指令、写后自查/空文件纠偏/输出截断续写/收尾提醒等。
+_SYNTHETIC_USER_PREFIXES: tuple[str, ...] = (
+    SUMMARY_PREFIX,
+    AGENT_DIRECTIVE_HEADER,
+    "[系统提醒]",
+    "[System note]",
+)
+
+
+def _leading_user_text(content: Any) -> str:
+    """提取 user 项（纯字符串或 SDK 内容块列表）的首段非空文字，供精确前缀比对。"""
+    if isinstance(content, str):
+        return content.lstrip()
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, str) and part.strip():
+                return part.lstrip()
+            if isinstance(part, dict):
+                text = part.get("text")
+                if isinstance(text, str) and text.strip():
+                    return text.lstrip()
+    return ""
 
 
 def _is_user_turn_item(item: Any) -> bool:
-    """是否为真实作者轮次（排除合成的「【上下文已压缩】」摘要消息）。"""
+    """是否为真实作者轮次（排除摘要消息与单轮内系统注入的续跑/收尾/指令 user 项）。"""
     if not isinstance(item, dict) or item.get("role") != "user":
         return False
-    content = item.get("content")
-    return not (isinstance(content, str) and content.startswith(SUMMARY_PREFIX))
+    leading = _leading_user_text(item.get("content"))
+    return not leading.startswith(_SYNTHETIC_USER_PREFIXES)
 
 
 def archive_old_tool_results(
@@ -112,13 +143,16 @@ def archive_old_tool_results(
     """Stage 1：零 LLM 确定性归档较早轮次的大体积只读工具输出。
 
     规则：
-    - 最近 ``keep_recent_turns`` 个用户轮次完整保留，逐字节不碰；
+    - 最近 ``keep_recent_turns`` 个真实用户轮次完整保留，逐字节不碰（排除单轮内系统注入的
+      ``[系统提醒]`` / ``[System note]`` / ``[本次运行的系统指令]`` / 摘要等合成 user 项）；
     - 仅归档早于保护窗口、且属于 ``ARCHIVABLE_READ_TOOLS``（``query_files`` /
       ``read_skill_resource`` / ``load_skill``）、长度 ``>= min_output_chars``、
       且为成功 JSON 结果的 ``function_call_output``；绝不触碰写工具、错误结果或已归档回执；
-    - 用供应商同量纲估算 ``estimate_provider_items_tokens`` 计算归档前后体积与节省量；
+    - 用供应商同量纲估算 ``estimate_provider_items_tokens`` 计算归档前后体积与节省量，
+      并结合实测 ``history.last_prompt_tokens`` 投射归档后真实提示词水位
+      ``projected_after = max(after_tokens, max(0, last_prompt_tokens - saved_tokens))``；
     - 仅当 ``archived_count > 0``、``saved_tokens >= min_savings_tokens`` 且
-      ``after_tokens + turn_input_tokens <= compact_at_tokens`` 时准入（``admitted=True``）。
+      ``projected_after + turn_input_tokens <= compact_at_tokens`` 时准入（``admitted=True``）。
     """
     keep_turns = (
         agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS
@@ -158,11 +192,11 @@ def archive_old_tool_results(
             items=list(history.items),
             before_tokens=before_tokens,
             after_tokens=before_tokens,
+            projected_after_tokens=max(before_tokens, history.last_prompt_tokens),
         )
 
     call_info_by_id: dict[str, tuple[int, str]] = {}
-    for idx in range(archive_cutoff_index):
-        item = history.items[idx]
+    for idx, item in enumerate(history.items):
         if isinstance(item, dict) and item.get("type") == "function_call":
             call_id = item.get("call_id") or item.get("id")
             tool_name = item.get("name")
@@ -172,6 +206,7 @@ def archive_old_tool_results(
     new_items: list[dict[str, Any]] = list(history.items)
     archived_call_ids: list[str] = []
     archived_file_ids: set[str] = set()
+    archived_unidentified_query_files = False
     archived_count = 0
 
     for idx in range(archive_cutoff_index):
@@ -184,8 +219,8 @@ def archive_old_tool_results(
         info = call_info_by_id.get(call_id)
         if info is None:
             continue
-        _call_idx, tool_name = info
-        if tool_name not in ARCHIVABLE_READ_TOOLS:
+        call_idx, tool_name = info
+        if call_idx >= archive_cutoff_index or tool_name not in ARCHIVABLE_READ_TOOLS:
             continue
         output = item.get("output")
         if not isinstance(output, str) or len(output) < min_chars:
@@ -198,7 +233,11 @@ def archive_old_tool_results(
             continue
         new_items[idx] = {**item, "output": receipt_json}
         archived_call_ids.append(call_id)
-        archived_file_ids.update(file_ids)
+        if tool_name == "query_files":
+            if file_ids:
+                archived_file_ids.update(file_ids)
+            else:
+                archived_unidentified_query_files = True
         archived_count += 1
 
     if archived_count == 0:
@@ -206,14 +245,40 @@ def archive_old_tool_results(
             items=list(history.items),
             before_tokens=before_tokens,
             after_tokens=before_tokens,
+            projected_after_tokens=max(before_tokens, history.last_prompt_tokens),
         )
+
+    # 若被归档的文件在受保护的最近轮次中又被完整重读，该文件全文仍在模型视野中，不撤销其快照。
+    if archived_file_ids:
+        for idx in range(archive_cutoff_index, len(history.items)):
+            item = history.items[idx]
+            if not isinstance(item, dict) or item.get("type") != "function_call_output":
+                continue
+            call_id = item.get("call_id") or item.get("id")
+            if not isinstance(call_id, str) or not call_id:
+                continue
+            info = call_info_by_id.get(call_id)
+            if info is None or info[1] != "query_files":
+                continue
+            output = item.get("output")
+            if not isinstance(output, str) or not output:
+                continue
+            parsed = parse_tool_json(output)
+            if is_successful_archivable_payload(parsed):
+                for fid in query_result_full_file_ids(parsed):
+                    archived_file_ids.discard(fid)
 
     after_tokens = estimate_provider_items_tokens(new_items)
     saved_tokens = max(0, before_tokens - after_tokens)
+    projected_after_tokens = (
+        max(after_tokens, max(0, history.last_prompt_tokens - saved_tokens))
+        if history.last_prompt_tokens > 0
+        else after_tokens
+    )
     admitted = (
         archived_count > 0
         and saved_tokens >= min_savings
-        and (after_tokens + max(0, turn_input_tokens)) <= compact_limit
+        and (projected_after_tokens + max(0, turn_input_tokens)) <= compact_limit
     )
     record: dict[str, Any] | None = None
     if admitted:
@@ -225,15 +290,18 @@ def archive_old_tool_results(
             "saved_tokens": saved_tokens,
             "before_tokens": before_tokens,
             "after_tokens": after_tokens,
+            "projected_after_tokens": projected_after_tokens,
             "created_at": utcnow().isoformat(),
         }
     return ToolArchiveResult(
         items=new_items,
         archived_call_ids=archived_call_ids,
         archived_file_ids=archived_file_ids,
+        archived_unidentified_query_files=archived_unidentified_query_files,
         archived_count=archived_count,
         before_tokens=before_tokens,
         after_tokens=after_tokens,
+        projected_after_tokens=projected_after_tokens,
         saved_tokens=saved_tokens,
         admitted=admitted,
         record=record,
@@ -487,6 +555,7 @@ async def compact_history(
                 archived_count=archive_result.archived_count,
                 before_tokens=archive_result.before_tokens,
                 after_tokens=archive_result.after_tokens,
+                projected_after_tokens=archive_result.projected_after_tokens,
                 saved_tokens=archive_result.saved_tokens,
                 turn_input_tokens=turn_input_tokens,
                 history_items=len(history.items),
@@ -496,6 +565,7 @@ async def compact_history(
                 items=archive_result.items,
                 usage=None,
                 archived_file_ids=set(archive_result.archived_file_ids),
+                archived_unidentified_query_files=archive_result.archived_unidentified_query_files,
             )
         if archive_result.archived_count > 0:
             source_items = archive_result.items

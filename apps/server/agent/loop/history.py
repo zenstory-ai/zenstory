@@ -638,8 +638,12 @@ def _tool_output_text(call: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def _query_result_full_file_ids(result: Any) -> list[str]:
-    """提取非归档 ``query_files`` 结果里实际携带非空 ``content`` 的文件 id。"""
+def query_result_full_file_ids(result: Any) -> list[str]:
+    """提取非归档 ``query_files`` 结果里实际携带完整非空 ``content`` 的非文件夹文件 id。
+
+    严格排除范围读取（``content_partial=True``）、超长截断（``content_truncated=True``）
+    与文件夹条目，口径与 ``SessionLoader.session_read_snapshots`` 保持一致。
+    """
     found: list[str] = []
 
     def _visit(node: Any, depth: int = 0) -> None:
@@ -651,7 +655,15 @@ def _query_result_full_file_ids(result: Any) -> list[str]:
         elif isinstance(node, dict):
             fid = node.get("id") or node.get("file_id")
             content = node.get("content")
-            if isinstance(fid, str) and fid.strip() and isinstance(content, str) and content:
+            if (
+                isinstance(fid, str)
+                and fid.strip()
+                and isinstance(content, str)
+                and content
+                and not node.get("content_truncated")
+                and not node.get("content_partial")
+                and node.get("file_type") != "folder"
+            ):
                 found.append(fid.strip())
             for container_key in ("data", "files", "items", "results"):
                 nested = node.get(container_key)
@@ -710,11 +722,11 @@ def _loop_row_items(
                     if archived_file_ids is not None:
                         archived_file_ids.update(fids)
         if not was_archived and archived_file_ids is not None and tool_name == "query_files":
-            # 只有后续非归档的 query_files 再次返回了实际正文，该文件才重新进入模型视野；
-            # edit_file / summary 查询不提供全文，不能清除已归档标记。
+            # 只有后续非归档的 query_files 再次返回了完整、未截断、非范围读取的正文，该文件才重新进入模型视野；
+            # edit_file / summary / partial / truncated 查询不提供全文，不能清除已归档标记。
             status = str(call.get("status") or "").strip().lower()
             if status == "success":
-                for fid in _query_result_full_file_ids(call.get("result")):
+                for fid in query_result_full_file_ids(call.get("result")):
                     archived_file_ids.discard(fid)
         items.append({
             "type": "function_call",
@@ -860,6 +872,9 @@ def load_loop_history(
     compaction: dict[str, Any] | None = None
     stored_kept: list[str] | None = None
     archived_call_ids: set[str] = set()
+    # 每条 tool_archive 记录按其 archived_through_message_id 限定作用范围，避免未来轮次同名 call_id 误伤。
+    # 元素为 (record_row_id_or_None_if_carried, archived_through_message_id, call_ids_frozenset)。
+    tool_archive_scopes: list[tuple[str | None, str, frozenset[str]]] = []
     covered_reached = False
     kept_tokens_seen = 0
     measured_seen = False
@@ -869,13 +884,15 @@ def load_loop_history(
     truncation_streak_open = True
     cursor: tuple[Any, Any] | None = None
 
-    def note_compaction(metadata: dict[str, Any]) -> None:
+    def note_compaction(metadata: dict[str, Any], *, row_id: str | None = None) -> None:
         nonlocal compaction, stored_kept, skip_seen
         if compaction is not None:
             return
         tool_archive = valid_tool_archive_compaction(metadata)
         if tool_archive is not None:
-            archived_call_ids.update(tool_archive["archived_call_ids"])
+            call_set = frozenset(tool_archive["archived_call_ids"])
+            archived_call_ids.update(call_set)
+            tool_archive_scopes.append((row_id, str(tool_archive["archived_through_message_id"]), call_set))
             # 成功的 Stage 1 归档压缩覆盖其之前的退避记录，但不会截断会话行，继续往前扫描。
             skip_seen = True
             return
@@ -894,7 +911,7 @@ def load_loop_history(
             skip_seen = True
 
     if carried_metadata:
-        note_compaction(carried_metadata)
+        note_compaction(carried_metadata, row_id=None)
         if (
             valid_compaction(carried_metadata) is not None
             or valid_tool_archive_compaction(carried_metadata) is not None
@@ -967,7 +984,7 @@ def load_loop_history(
             if not measured_seen:
                 unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
             # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
-            note_compaction(metadata)
+            note_compaction(metadata, row_id=row.id)
         if stop:
             break
         last = page[-1]
@@ -995,13 +1012,38 @@ def load_loop_history(
         )
     latest_assistant_id = next((row.id for row in after_rows if row.role == "assistant"), None)
     result.archived_call_ids = archived_call_ids
-    for row in reversed(after_rows):
+    chronological_rows = list(reversed(after_rows))
+    row_positions = {row.id: pos for pos, row in enumerate(chronological_rows)}
+    scoped_archives: list[tuple[int, frozenset[str]]] = []
+    for record_row_id, anchor_id, call_set in tool_archive_scopes:
+        anchor_pos = row_positions.get(anchor_id)
+        if anchor_pos is not None:
+            cutoff_pos = anchor_pos
+        elif record_row_id is not None and record_row_id in row_positions:
+            # 锚点行被删时仍严格限定在记录行之前，绝不向后误伤新轮次。
+            cutoff_pos = row_positions[record_row_id] - 1
+        elif record_row_id is None:
+            cutoff_pos = len(chronological_rows) - 1
+        else:
+            continue
+        if cutoff_pos >= 0:
+            scoped_archives.append((cutoff_pos, call_set))
+
+    for pos, row in enumerate(chronological_rows):
+        row_archived_ids: set[str] | None = None
+        if scoped_archives:
+            active_ids: set[str] = set()
+            for cutoff_pos, call_set in scoped_archives:
+                if pos <= cutoff_pos:
+                    active_ids.update(call_set)
+            if active_ids:
+                row_archived_ids = active_ids
         items.extend(
             _row_items(
                 loader,
                 row,
                 latest_assistant=row.id == latest_assistant_id,
-                archived_call_ids=archived_call_ids or None,
+                archived_call_ids=row_archived_ids,
                 archived_file_ids=result.archived_file_ids,
             )
         )

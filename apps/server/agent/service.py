@@ -1414,6 +1414,7 @@ class AgentService:
                                     items=pre_archive.items,
                                     usage=None,
                                     archived_file_ids=set(pre_archive.archived_file_ids),
+                                    archived_unidentified_query_files=pre_archive.archived_unidentified_query_files,
                                 )
                                 log_with_context(
                                     logger,
@@ -1423,6 +1424,7 @@ class AgentService:
                                     archived_count=pre_archive.archived_count,
                                     before_tokens=pre_archive.before_tokens,
                                     after_tokens=pre_archive.after_tokens,
+                                    projected_after_tokens=pre_archive.projected_after_tokens,
                                     saved_tokens=pre_archive.saved_tokens,
                                     turn_input_tokens=current_turn_tokens,
                                 )
@@ -1460,15 +1462,14 @@ class AgentService:
                             loop_compaction_record = outcome.record
                             writing_state["history_items"] = outcome.items
                             if is_tool_archive_compaction(outcome.record):
-                                # Stage 1 只折叠了旧轮次的只读工具结果：撤销被归档文件的跨轮快照结转
-                                # （无具体 id 时保守全撤），防止 edit_file 误以为旧章节全文仍在视野内。
+                                # Stage 1 只折叠了旧轮次的只读工具结果：仅撤销被归档文件的跨轮快照结转；
+                                # 仅当存在未能提取具体 id 的 query_files 归档时才保守全撤，绝不因归档技能而误撤近期文件快照。
                                 if loop_turn.session_carried_snapshot_ids:
-                                    archived_ids = outcome.archived_file_ids or set()
-                                    to_drop = (
-                                        (archived_ids & loop_turn.session_carried_snapshot_ids)
-                                        if archived_ids
-                                        else loop_turn.session_carried_snapshot_ids
-                                    )
+                                    if outcome.archived_unidentified_query_files:
+                                        to_drop = loop_turn.session_carried_snapshot_ids
+                                    else:
+                                        archived_ids = outcome.archived_file_ids or set()
+                                        to_drop = archived_ids & loop_turn.session_carried_snapshot_ids
                                     if to_drop:
                                         request_context.drop_initial_read_snapshots(to_drop)
                                 yield thinking_event(
@@ -1494,7 +1495,8 @@ class AgentService:
                                 else "未能压缩对话，按原样继续",
                                 step=HISTORY_COMPACTION_SKIPPED_STEP,
                             ).to_sse()
-                    # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库，之后的轮次照样读到。
+                    # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库；
+                    # 若重试轮本身又触发了新的 Stage 1 tool_archive，合并被删作者行结转的 archived_call_ids 防丢失。
                     carried_record = valid_compaction(retry_carried_compaction)
                     carried_archive = valid_tool_archive_compaction(retry_carried_compaction)
                     if loop_compaction_record is None:
@@ -1502,6 +1504,20 @@ class AgentService:
                             loop_compaction_record = carried_record
                         elif carried_archive is not None and loop_history.archived_call_ids:
                             loop_compaction_record = carried_archive
+                    elif is_tool_archive_compaction(loop_compaction_record) and carried_archive is not None:
+                        merged_call_ids = list(
+                            dict.fromkeys(
+                                [
+                                    *carried_archive["archived_call_ids"],
+                                    *(loop_compaction_record.get("archived_call_ids") or []),
+                                ]
+                            )
+                        )
+                        loop_compaction_record = {
+                            **loop_compaction_record,
+                            "archived_call_ids": merged_call_ids,
+                            "archived_count": len(merged_call_ids),
+                        }
                     if (
                         loop_compaction_record is None
                         and loop_compaction_skipped is None
