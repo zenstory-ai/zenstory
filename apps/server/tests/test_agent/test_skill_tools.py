@@ -437,3 +437,59 @@ async def test_load_skill_caps_distinct_skills_per_request(db_session: Session, 
     # 新的一轮请求重新计数
     fresh_ctx = AgentRequestContext(session=db_session, user_id=owner.id, project_id=None, session_id=None)
     assert _payload(await load_skill({"name": names[-1]}, request_context=fresh_ctx))["status"] == "success"
+
+
+@pytest.mark.unit
+def test_skill_content_budget_constants_and_distinct_skill_cap():
+    from agent.skills.content_budget import (
+        MAX_LOADED_SKILLS_PER_REQUEST,
+        SELECTED_SKILLS_TOKEN_BUDGET,
+        SKILL_CONTENT_TOKEN_BUDGET,
+    )
+
+    assert SKILL_CONTENT_TOKEN_BUDGET == 24_000
+    assert SELECTED_SKILLS_TOKEN_BUDGET == 16_000
+    # 关键安全不变量：每轮最多加载 3 个不同技能不得放宽
+    assert MAX_LOADED_SKILLS_PER_REQUEST == 3
+
+
+@pytest.mark.integration
+async def test_load_skill_fits_15k_token_skill_without_premature_fragmentation(
+    db_session: Session, owner: User, tool_context
+):
+    """放宽单轮内容预算到 24k 后，约 15k tokens 的常规长技能一次即可完整加载。"""
+    instructions = _long_text(15_000)
+    tokens = estimate_text_tokens(instructions)
+    assert 12_000 < tokens < SKILL_CONTENT_TOKEN_BUDGET
+    skill = UserSkill(user_id=owner.id, name="常规长技能", instructions=instructions)
+    db_session.add(skill)
+    db_session.commit()
+
+    loaded = _payload(await load_skill({"name": "常规长技能"}, request_context=tool_context))["data"]
+
+    assert loaded["truncated"] is False
+    assert loaded["instructions"] == instructions
+
+
+@pytest.mark.integration
+async def test_read_skill_resource_supports_examples_and_templates_directories(
+    db_session: Session, owner: User, tool_context
+):
+    skill = UserSkill(user_id=owner.id, name="模板技能", instructions="按示例和模板写作")
+    db_session.add(skill)
+    db_session.commit()
+    db_session.add(SkillResource(user_skill_id=skill.id, path="examples/scene.md", content="场景范例", size=12))
+    db_session.add(SkillResource(user_skill_id=skill.id, path="templates/chapter.txt", content="章节模板", size=12))
+    db_session.commit()
+
+    example = _payload(await read_skill_resource(
+        {"name": "模板技能", "path": "examples/scene.md"}, request_context=tool_context
+    ))
+    template = _payload(await read_skill_resource(
+        {"name": "模板技能", "path": "templates/chapter.txt"}, request_context=tool_context
+    ))
+
+    assert example["status"] == "success"
+    assert example["data"]["content"] == "场景范例"
+    assert template["status"] == "success"
+    assert template["data"]["content"] == "章节模板"

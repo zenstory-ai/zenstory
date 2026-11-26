@@ -8,14 +8,17 @@
   技能查询有确定顺序（没有 order_by 时目录顺序会漂移，破坏 prompt 缓存）。
 """
 
+import json
 from datetime import datetime
 
 import pytest
 from sqlmodel import Session
 
-from agent.skills.active_skills import load_active_skills
+from agent.skills.active_skills import load_active_skills, parse_skill_triggers
 from agent.skills.context_injector import (
     CATALOG_DESCRIPTION_MAX_CHARS,
+    CATALOG_MAX_CHARS,
+    CATALOG_MAX_TRIGGERS_PER_SKILL,
     SkillContextInjector,
 )
 from agent.skills.package import parse_legacy_skill_md
@@ -217,6 +220,7 @@ class TestSkillCatalogL1:
         assert "需显式调用" not in catalog
 
     def test_long_description_is_truncated(self, db_session: Session, skill_user: User):
+        assert CATALOG_DESCRIPTION_MAX_CHARS == 600
         _add_user_skills(db_session, skill_user.id, count=1, description_chars=900)
 
         catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
@@ -227,19 +231,108 @@ class TestSkillCatalogL1:
         assert description.endswith("…")
         assert len(description) <= CATALOG_DESCRIPTION_MAX_CHARS + 1
 
+    def test_medium_description_under_600_chars_is_preserved_verbatim(
+        self, db_session: Session, skill_user: User
+    ):
+        medium = "在悬疑转折处使用，避免提前泄底。" * 25  # 400 chars: >300, <600
+        db_session.add(UserSkill(
+            user_id=skill_user.id,
+            name="中长描述技能",
+            description=medium,
+            instructions="正文",
+        ))
+        db_session.commit()
+
+        catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
+
+        assert catalog is not None
+        assert f"- **中长描述技能**: {medium}" in catalog
+        assert "…" not in catalog
+
     def test_catalog_cap_omits_overflow_but_says_they_are_loadable(
         self, db_session: Session, skill_user: User
     ):
-        _add_user_skills(db_session, skill_user.id, count=40, description_chars=250)
+        assert CATALOG_MAX_CHARS == 10_000
+        _add_user_skills(db_session, skill_user.id, count=45, description_chars=250)
 
         catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
 
         assert catalog is not None
         listed = _catalog_names(catalog)
-        assert 0 < len(listed) < 40
-        assert len(catalog) <= 8000 + 200  # 溢出说明行本身不计入上限
-        assert f"另有 {40 - len(listed)} 个" in catalog
+        assert 0 < len(listed) < 45
+        assert len(catalog) <= CATALOG_MAX_CHARS + 200  # 溢出说明行本身不计入上限
+        assert f"另有 {45 - len(listed)} 个" in catalog
         assert "load_skill" in catalog.split("另有", 1)[1]
+
+    def test_triggers_are_parsed_and_rendered_without_duplicate_noise(
+        self, db_session: Session, skill_user: User
+    ):
+        db_session.add(UserSkill(
+            user_id=skill_user.id,
+            name="章末钩子",
+            description="在章节结尾埋下悬念，拉高追读欲。",
+            triggers=json.dumps(["悬念", "章末", "收尾", "章末", "  反转  "]),
+            instructions="方法",
+            created_at=datetime(2026, 1, 1),
+        ))
+        db_session.add(UserSkill(
+            user_id=skill_user.id,
+            name="纯触发词技能",
+            description=None,
+            triggers=json.dumps(["对话", "潜台词"]),
+            instructions="方法",
+            created_at=datetime(2026, 1, 2),
+        ))
+        db_session.add(UserSkill(
+            user_id=skill_user.id,
+            name="坏数据技能",
+            description="忽略损坏的触发词 JSON",
+            triggers="{not-valid-json",
+            instructions="方法",
+            created_at=datetime(2026, 1, 3),
+        ))
+        public = PublicSkill(
+            id="pub-trigger-1",
+            name="动作戏节奏",
+            description="控制打斗动作节拍",
+            tags=json.dumps(["打斗", "动作戏", "冲突", "格斗", "追逐", "紧张", "过长额外1", "过长额外2"]),
+            instructions="公共方法",
+            status="approved",
+        )
+        db_session.add(public)
+        db_session.commit()
+        db_session.add(UserAddedSkill(
+            user_id=skill_user.id,
+            public_skill_id=public.id,
+            added_at=datetime(2026, 1, 4),
+        ))
+        db_session.commit()
+
+        active = load_active_skills(db_session, skill_user.id)
+        by_name = {skill.name: skill for skill in active}
+        assert by_name["章末钩子"].triggers == ("悬念", "章末", "收尾", "反转")
+        assert by_name["坏数据技能"].triggers == ()
+        assert by_name["动作戏节奏"].triggers[:4] == ("打斗", "动作戏", "冲突", "格斗")
+
+        catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
+        assert catalog is not None
+        lines = {line.split("**")[1]: line for line in catalog.split("\n") if line.startswith("- **")}
+
+        # 「悬念」已在描述中原样出现，不重复拼接；保留其余未重复触发词
+        assert lines["章末钩子"] == "- **章末钩子**: 在章节结尾埋下悬念，拉高追读欲。（触发场景：章末、收尾、反转）"
+        assert lines["纯触发词技能"] == "- **纯触发词技能**（触发场景：对话、潜台词）"
+        assert lines["坏数据技能"] == "- **坏数据技能**: 忽略损坏的触发词 JSON"
+        # 公共技能过滤掉描述里已出现的「打斗」，并按上限截断触发词条数
+        rendered_pub_triggers = lines["动作戏节奏"].split("（触发场景：", 1)[1].rstrip("）").split("、")
+        assert "打斗" not in rendered_pub_triggers
+        assert len(rendered_pub_triggers) == CATALOG_MAX_TRIGGERS_PER_SKILL
+
+    def test_parse_skill_triggers_handles_malformed_and_non_string_inputs(self):
+        assert parse_skill_triggers(None) == ()
+        assert parse_skill_triggers("") == ()
+        assert parse_skill_triggers("not-json") == ()
+        assert parse_skill_triggers('{"a": 1}') == ()
+        assert parse_skill_triggers('[null, 123, true, "  开篇  ", "开篇", "Plot", "plot"]') == ("开篇", "Plot")
 
     def test_inactive_and_unapproved_skills_are_not_listed(
         self, db_session: Session, skill_user: User

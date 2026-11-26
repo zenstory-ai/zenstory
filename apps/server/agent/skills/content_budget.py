@@ -19,9 +19,9 @@ from agent.context.budget import truncate_text_to_tokens
 from agent.utils.token_utils import estimate_text_tokens
 
 # 一次请求里技能内容的 token 总上限（显式选择区块 + load_skill + read_skill_resource）
-SKILL_CONTENT_TOKEN_BUDGET = 12_000
+SKILL_CONTENT_TOKEN_BUDGET = 24_000
 # 其中显式选择区块（进 system prompt）最多占用的部分，给本轮的 load_skill 留出余量
-SELECTED_SKILLS_TOKEN_BUDGET = 8_000
+SELECTED_SKILLS_TOKEN_BUDGET = 16_000
 
 # 一次请求里 load_skill / read_skill_resource 最多读取的不同技能数。一个任务正常用 1–2 个技能，
 # 一次读十几个是异常；同一技能重复读取（续读、读资源）不另计。

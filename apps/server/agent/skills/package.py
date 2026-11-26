@@ -3,7 +3,7 @@
 
 一个技能 = 一个目录：`SKILL.md`（YAML frontmatter 必填 `name`、`description`，
 可选 `license`、`compatibility`、`metadata`、`allowed-tools`）+ 可选的
-`references/`、`assets/` 文本资源。
+`references/`、`assets/`、`examples/`、`templates/` 文本资源。
 
 zenstory 永不执行技能携带的代码：导入时 `scripts/` 下的文件与非文本文件一律丢弃并
 在 warnings 中说明。`allowed-tools` 只做解析、存储与再导出，没有任何运行时效果。
@@ -58,7 +58,7 @@ MAX_METADATA_DEPTH = 10
 MAX_METADATA_NODES = 1000
 
 ALLOWED_RESOURCE_EXTENSIONS: tuple[str, ...] = (".md", ".txt", ".json", ".yaml", ".yml", ".csv")
-ALLOWED_RESOURCE_ROOTS: tuple[str, ...] = ("references/", "assets/")
+ALLOWED_RESOURCE_ROOTS: tuple[str, ...] = ("references/", "assets/", "examples/", "templates/")
 
 SKILL_MD_FILENAME = "SKILL.md"
 
@@ -504,7 +504,7 @@ def validate_resource_path(path: str) -> str:
     """
     校验技能资源路径（导入与单文件编辑共用同一套规则）。
 
-    必须位于 references/ 或 assets/ 下、扩展名在白名单内、不含穿越成分。
+    必须位于 references/、assets/、examples/ 或 templates/ 下、扩展名在白名单内、不含穿越成分。
 
     Returns:
         规整后的路径（去掉首尾空白并做 NFC 归一化）
@@ -518,7 +518,7 @@ def validate_resource_path(path: str) -> str:
     if len(normalized) > MAX_RESOURCE_PATH_CHARS:
         raise SkillPackageError(f"资源路径不能超过 {MAX_RESOURCE_PATH_CHARS} 个字符")
     if not normalized.startswith(ALLOWED_RESOURCE_ROOTS):
-        raise SkillPackageError("资源路径必须以 references/ 或 assets/ 开头")
+        raise SkillPackageError("资源路径必须以 references/、assets/、examples/ 或 templates/ 开头")
     parts = normalized.split("/")
     if any(not part for part in parts) or len(parts) < 2:
         raise SkillPackageError(f"资源路径不合法：{path!r}")
@@ -582,7 +582,7 @@ def _locate_skill_md(file_infos: list[zipfile.ZipInfo]) -> zipfile.ZipInfo:
     """
     找到包里唯一的技能入口 SKILL.md。
 
-    - 根部有 SKILL.md：以它为准；`references/`、`assets/`、`scripts/` 下同名文件只是资源/脚本。
+    - 根部有 SKILL.md：以它为准；`references/`、`assets/`、`examples/`、`templates/`、`scripts/` 下同名文件只是资源/脚本。
       若同时存在其他一级目录下的 SKILL.md（包里装了第二个技能），视为歧义拒收。
     - 根部没有：取一级目录下的 SKILL.md（`my-skill/SKILL.md`），多于一个视为歧义拒收。
     """
@@ -612,7 +612,7 @@ def read_skill_zip(data: bytes) -> tuple[ParsedSkill, list[tuple[str, str]], lis
 
     - 拒收（抛 SkillPackageError）：路径穿越/绝对路径/反斜杠/盘符、符号链接、条目数或大小超限、
       压缩炸弹、非 UTF-8 文本、找不到或找到多个 SKILL.md。
-    - 丢弃并写入 warnings：`scripts/**`、非白名单扩展名、references/ 与 assets/ 之外的文件。
+    - 丢弃并写入 warnings：`scripts/**`、非白名单扩展名、允许资源目录（references/、assets/、examples/、templates/）之外的文件。
 
     Returns:
         (技能, [(资源路径, 内容)], warnings)
@@ -677,7 +677,9 @@ def read_skill_zip(data: bytes) -> tuple[ParsedSkill, list[tuple[str, str]], lis
                 warnings.append(f"已忽略脚本文件：{rel_path}（ZenStory 不执行技能脚本）")
                 continue
             if not rel_path.startswith(ALLOWED_RESOURCE_ROOTS):
-                warnings.append(f"已忽略 references/ 与 assets/ 之外的文件：{rel_path}")
+                warnings.append(
+                    f"已忽略 references/、assets/、examples/、templates/ 之外的文件：{rel_path}"
+                )
                 continue
             if PurePosixPath(rel_path).suffix.lower() not in ALLOWED_RESOURCE_EXTENSIONS:
                 warnings.append(f"已忽略非文本文件：{rel_path}")

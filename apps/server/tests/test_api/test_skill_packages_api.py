@@ -75,6 +75,8 @@ async def test_import_zip_creates_skill_resources_and_reports_dropped_files(clie
         "suspense/SKILL.md": SKILL_MD,
         "suspense/references/hooks.md": "钩子清单",
         "suspense/assets/template.json": "{}",
+        "suspense/examples/chapter1.md": "第一章范例",
+        "suspense/templates/outline.yaml": "acts: 3",
         "suspense/scripts/check.py": "print('never executed')",
         "suspense/assets/cover.png": b"\x89PNG",
     })
@@ -88,7 +90,7 @@ async def test_import_zip_creates_skill_resources_and_reports_dropped_files(clie
     assert body["skill"]["triggers"] == ["悬念", "钩子"]
     assert body["skill"]["instructions"] == "先强化钩子，再收紧悬念。"
     assert body["skill"]["source"] == "user"
-    assert body["skill"]["resource_count"] == 2
+    assert body["skill"]["resource_count"] == 4
     assert any("scripts/check.py" in warning for warning in body["warnings"])
     assert any("assets/cover.png" in warning for warning in body["warnings"])
 
@@ -98,12 +100,17 @@ async def test_import_zip_creates_skill_resources_and_reports_dropped_files(clie
     paths = sorted(r.path for r in db_session.exec(
         select(SkillResource).where(SkillResource.user_skill_id == db_skill.id)
     ).all())
-    assert paths == ["assets/template.json", "references/hooks.md"]
+    assert paths == [
+        "assets/template.json",
+        "examples/chapter1.md",
+        "references/hooks.md",
+        "templates/outline.yaml",
+    ]
 
     listed = await client.get("/api/v1/skills", headers=headers)
-    assert listed.json()["skills"][0]["resource_count"] == 2
+    assert listed.json()["skills"][0]["resource_count"] == 4
     my_skills = await client.get("/api/v1/skills/my-skills", headers=headers)
-    assert my_skills.json()["user_skills"][0]["resource_count"] == 2
+    assert my_skills.json()["user_skills"][0]["resource_count"] == 4
 
 
 @pytest.mark.integration
@@ -285,6 +292,16 @@ async def test_resource_crud_on_own_skill(client: AsyncClient, db_session):
     assert (await client.get(base, headers=headers)).json()["resources"] == []
     missing = await client.get(f"{base}/content", params={"path": "references/style.md"}, headers=headers)
     assert missing.status_code == 404
+
+    # examples/ 与 templates/ 同样允许单文件编辑
+    example_put = await client.put(base, json={"path": "examples/scene.md", "content": "范例"}, headers=headers)
+    template_put = await client.put(base, json={"path": "templates/outline.txt", "content": "模板"}, headers=headers)
+    assert example_put.status_code == 200, example_put.text
+    assert template_put.status_code == 200, template_put.text
+    assert [item["path"] for item in (await client.get(base, headers=headers)).json()["resources"]] == [
+        "examples/scene.md",
+        "templates/outline.txt",
+    ]
 
 
 @pytest.mark.integration

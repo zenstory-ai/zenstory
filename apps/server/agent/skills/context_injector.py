@@ -15,9 +15,12 @@ from .active_skills import ActiveSkill, duplicate_name_keys, load_active_skills,
 logger = get_logger(__name__)
 
 # 目录中单个技能描述的最大字符数（超出截断）
-CATALOG_DESCRIPTION_MAX_CHARS = 300
+CATALOG_DESCRIPTION_MAX_CHARS = 600
 # 整个目录的字符上限；超出的技能不列出，但仍可按名称 load_skill
-CATALOG_MAX_CHARS = 8000
+CATALOG_MAX_CHARS = 10_000
+# 单条目录最多展示的触发场景数量及总字符预算（保持每行紧凑、顺序确定）
+CATALOG_MAX_TRIGGERS_PER_SKILL = 6
+CATALOG_TRIGGERS_MAX_CHARS = 120
 
 CATALOG_HEADER_LINES: tuple[str, ...] = (
     "## 可用写作技能",
@@ -28,6 +31,37 @@ CATALOG_HEADER_LINES: tuple[str, ...] = (
 )
 
 
+def _format_triggers_hint(triggers: tuple[str, ...], rendered_description: str) -> str:
+    """将技能触发词压缩成紧凑的触发场景提示，跳过已在描述里原样出现的词。"""
+    if not triggers:
+        return ""
+    desc_folded = rendered_description.casefold()
+    kept: list[str] = []
+    seen: set[str] = set()
+    used_chars = 0
+    for raw in triggers:
+        text = " ".join((raw or "").split())
+        if not text:
+            continue
+        folded = text.casefold()
+        if folded in seen or (desc_folded and folded in desc_folded):
+            continue
+        sep_len = 1 if kept else 0
+        if used_chars + sep_len + len(text) > CATALOG_TRIGGERS_MAX_CHARS:
+            if not kept:
+                clipped = text[: max(CATALOG_TRIGGERS_MAX_CHARS - 1, 1)].rstrip() + "…"
+                kept.append(clipped)
+            break
+        seen.add(folded)
+        kept.append(text)
+        used_chars += sep_len + len(text)
+        if len(kept) >= CATALOG_MAX_TRIGGERS_PER_SKILL:
+            break
+    if not kept:
+        return ""
+    return f"（触发场景：{'、'.join(kept)}）"
+
+
 def _catalog_line(skill: ActiveSkill, *, with_id: bool = False) -> str:
     name = " ".join(skill.name.split())
     # 同名技能只靠名称区分不了：标上 id，load_skill / read_skill_resource 传 id 才能取到指定的那个
@@ -35,7 +69,12 @@ def _catalog_line(skill: ActiveSkill, *, with_id: bool = False) -> str:
     description = " ".join((skill.description or "").split())
     if len(description) > CATALOG_DESCRIPTION_MAX_CHARS:
         description = description[:CATALOG_DESCRIPTION_MAX_CHARS].rstrip() + "…"
-    return f"- {label}: {description}" if description else f"- {label}"
+    trigger_hint = _format_triggers_hint(skill.triggers, description)
+    if description:
+        return f"- {label}: {description}{trigger_hint}"
+    if trigger_hint:
+        return f"- {label}{trigger_hint}"
+    return f"- {label}"
 
 
 class SkillContextInjector:
