@@ -14,7 +14,7 @@
 | Prefect Server | `apps/server/docker/Dockerfile.prefect-server` | `start-prefect-server.sh` |
 | Prefect Worker | `apps/server/docker/Dockerfile.prefect-worker` | `start-prefect-worker.sh` |
 
-Server 镜像固定 Prefect `3.6.29` 和 FastAPI `0.123.7`，Worker 从 `apps/server/requirements.txt` 一次安装依赖。版本兼容由 CI 的 `Prefect compatibility` 检查验证，更新时同步核对镜像与依赖。
+Server 镜像固定 Prefect `3.7.2` 和 FastAPI `0.123.7`，Worker 从 `apps/server/requirements.txt` 一次安装依赖。版本兼容由 CI 的 `Prefect compatibility` 检查验证，更新时同步核对镜像与依赖。
 
 在已核实的 Railway 项目、服务和环境中设置 Dockerfile 路径。仓库中的 Dockerfile 路径相对构建上下文；不要依赖本地目录猜测云服务归属。
 
