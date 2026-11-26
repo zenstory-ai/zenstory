@@ -38,7 +38,9 @@ from agent.tools.file_ops.edit import (
     PreWriteHistoryUnavailableError,
     StaleContentError,
     edit_error_user_message,
+    extract_batch_replace_ui_payload,
     extract_edit_file_ui_payload,
+    slim_batch_replace_result_for_llm,
     slim_edit_file_result_for_llm,
 )
 from agent.tools.file_ops.serialization import (
@@ -77,6 +79,7 @@ from agent.tools.tool_inputs import (
     validate_tool_input,
 )
 from config.project_notes import merge_project_notes
+from services.features.file_version_service import content_sha256
 from services.file_tree_rules import has_sibling_title_conflict
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import (
@@ -256,6 +259,10 @@ _BOUND_PROTECTED_KEYS: frozenset[str] = frozenset({
     "note",
     "warning",
     "truncation_note",
+    "expected_after_updated_at",
+    "expected_after_content_sha256",
+    "raw_content_sha256",
+    "content_sha256",
 })
 # 截断后每个长字符串至少保留的开头字符数（第一轮）；放不下时第二轮降到 0。
 _BOUND_MIN_KEEP_CHARS = 200
@@ -2014,6 +2021,7 @@ def _read_files_sync(
                         annotated, _ = format_paragraph_stats(raw_body)
                         row["content"] = annotated
                         row["paragraph_stats_annotated"] = True
+                        row["raw_content_sha256"] = content_sha256(raw_body)
 
             returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
             missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
@@ -2471,6 +2479,7 @@ def _query_files_sync(
                         annotated, _ = format_paragraph_stats(raw_body)
                         row["content"] = annotated
                         row["paragraph_stats_annotated"] = True
+                        row["raw_content_sha256"] = content_sha256(raw_body)
 
             missing_ids: list[str] = []
             is_query_filter = (not wants_full or list_full_query_downgraded) and bool(normalized_keyword)
@@ -2686,16 +2695,18 @@ async def batch_replace_files(
     args: dict[str, Any],
     *,
     request_context: AgentRequestContext | None = None,
+    tool_call_id: str | None = None,
 ) -> dict[str, Any]:
     """跨文件确定性逐字批量替换。"""
     return await _offload_write_tool(
-        "batch_replace_files", _batch_replace_files_sync, args, request_context
+        "batch_replace_files", _batch_replace_files_sync, args, request_context, tool_call_id
     )
 
 
 def _batch_replace_files_sync(
     args: dict[str, Any],
     req_ctx: AgentRequestContext | None,
+    tool_call_id: str | None = None,
 ) -> dict[str, Any]:
     """Synchronous batch_replace_files implementation."""
     tool_name = "batch_replace_files"
@@ -2756,17 +2767,38 @@ def _batch_replace_files_sync(
                 status = "success"
                 mutation_applied = result.get("mutation_applied") is True
 
+            if isinstance(result, dict):
+                ui_overlay = extract_batch_replace_ui_payload(result)
+                if ui_overlay:
+                    effective_call_id = tool_call_id or req_ctx.current_tool_call_id()
+                    req_ctx.record_tool_ui_payload(
+                        effective_call_id,
+                        ui_overlay,
+                        fallback_key=(tool_name, project_id),
+                    )
+                llm_data: Any = slim_batch_replace_result_for_llm(result)
+            else:
+                llm_data = result
+
             payload: dict[str, Any] = {
                 "status": status,
                 "mutation_applied": mutation_applied,
-                "data": result,
+                "data": llm_data,
             }
             if result.get("truncated"):
                 remaining_count = int(result.get("remaining_count") or 0)
-                payload["note"] = (
-                    f"单次最多修改 {BATCH_REPLACE_MAX_FILES} 个文件，已处理前 {BATCH_REPLACE_MAX_FILES} 个；"
-                    f"还有 {remaining_count} 个匹配文件列在 remaining_files 中，继续处理时请将这些 ID 传给 file_ids（避免重复替换已处理文件）。"
-                )
+                listed_count = len(result.get("remaining_files") or [])
+                if remaining_count > listed_count:
+                    payload["note"] = (
+                        f"单次最多修改 {BATCH_REPLACE_MAX_FILES} 个文件，已处理前 {BATCH_REPLACE_MAX_FILES} 个；"
+                        f"还有 {remaining_count} 个匹配文件（remaining_files 列出接下来 {listed_count} 个），"
+                        "继续处理时请将这些 ID 传给 file_ids（避免重复替换已处理文件）。"
+                    )
+                else:
+                    payload["note"] = (
+                        f"单次最多修改 {BATCH_REPLACE_MAX_FILES} 个文件，已处理前 {BATCH_REPLACE_MAX_FILES} 个；"
+                        f"还有 {remaining_count} 个匹配文件列在 remaining_files 中，继续处理时请将这些 ID 传给 file_ids（避免重复替换已处理文件）。"
+                    )
             return _make_result(payload, tool_name=tool_name)
         except EditFileError as exc:
             return _make_structured_error(

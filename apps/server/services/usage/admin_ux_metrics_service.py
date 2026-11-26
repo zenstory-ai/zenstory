@@ -73,7 +73,7 @@ CHAT_VOTE_FILTERS = ("all", "up", "down")
 SLOW_TAIL_THRESHOLD_MS = 10_000
 TOP_DISLIKE_PRESET_LIMIT = 5
 
-_TOOL_CARD_MARKERS = ('"edit_file"', '"write_chapter"', '"delete_file"')
+_TOOL_CARD_MARKERS = ('"edit_file"', '"write_chapter"', '"batch_replace_files"', '"delete_file"')
 _STREAM_CHAT_BATCH_SIZE = 50
 _STREAM_PG_PROJECTED_BATCH_SIZE = 100
 _STREAM_SCALAR_BATCH_SIZE = 500
@@ -479,6 +479,7 @@ def _query_tool_card_metrics_postgres_for_ids(
                           AND (
                               strpos(cm.tool_calls, '"edit_file"') > 0
                               OR strpos(cm.tool_calls, '"write_chapter"') > 0
+                              OR strpos(cm.tool_calls, '"batch_replace_files"') > 0
                               OR strpos(cm.tool_calls, '"delete_file"') > 0
                           )
                     ),
@@ -511,20 +512,8 @@ def _query_tool_card_metrics_postgres_for_ids(
                     SELECT
                         period_key,
                         CASE WHEN period_key = 'current' THEN bj_day ELSE NULL END AS bj_day,
-                        COUNT(*) FILTER (
-                            WHERE json_typeof(elem->'name') = 'string'
-                              AND (elem->>'name') IN ('edit_file', 'write_chapter')
-                              AND json_typeof(data) = 'object'
-                              AND json_typeof(data->'undo') = 'object'
-                        ) AS edit_cards,
-                        COUNT(*) FILTER (
-                            WHERE json_typeof(elem->'name') = 'string'
-                              AND (elem->>'name') IN ('edit_file', 'write_chapter')
-                              AND json_typeof(data) = 'object'
-                              AND json_typeof(data->'undo') = 'object'
-                              AND json_typeof(data->'undo'->'undone') = 'boolean'
-                              AND (data->'undo'->>'undone') = 'true'
-                        ) AS edit_undone,
+                        COALESCE(SUM(ec.edit_cards), 0) AS edit_cards,
+                        COALESCE(SUM(ec.edit_undone), 0) AS edit_undone,
                         COUNT(*) FILTER (
                             WHERE json_typeof(elem->'name') = 'string'
                               AND (elem->>'name') = 'delete_file'
@@ -550,6 +539,53 @@ def _query_tool_card_metrics_postgres_for_ids(
                               AND (data->>'restored') = 'true'
                         ) AS delete_restored
                     FROM expanded
+                    CROSS JOIN LATERAL (
+                        SELECT
+                            CASE
+                                WHEN json_typeof(elem->'name') = 'string'
+                                     AND (elem->>'name') IN ('edit_file', 'write_chapter')
+                                     AND json_typeof(data) = 'object'
+                                     AND json_typeof(data->'undo') = 'object'
+                                THEN 1
+                                WHEN json_typeof(elem->'name') = 'string'
+                                     AND (elem->>'name') = 'batch_replace_files'
+                                     AND json_typeof(data) = 'object'
+                                     AND NOT (json_typeof(data->'dry_run') = 'boolean' AND (data->>'dry_run') = 'true')
+                                     AND NOT (json_typeof(data->'modified_files') = 'number' AND (data->>'modified_files')::numeric = 0)
+                                     AND json_typeof(data->'files') = 'array'
+                                THEN (
+                                    SELECT COUNT(*)::int
+                                    FROM json_array_elements(data->'files') AS f
+                                    WHERE json_typeof(f) = 'object'
+                                      AND json_typeof(f->'undo') = 'object'
+                                )
+                                ELSE 0
+                            END AS edit_cards,
+                            CASE
+                                WHEN json_typeof(elem->'name') = 'string'
+                                     AND (elem->>'name') IN ('edit_file', 'write_chapter')
+                                     AND json_typeof(data) = 'object'
+                                     AND json_typeof(data->'undo') = 'object'
+                                     AND json_typeof(data->'undo'->'undone') = 'boolean'
+                                     AND (data->'undo'->>'undone') = 'true'
+                                THEN 1
+                                WHEN json_typeof(elem->'name') = 'string'
+                                     AND (elem->>'name') = 'batch_replace_files'
+                                     AND json_typeof(data) = 'object'
+                                     AND NOT (json_typeof(data->'dry_run') = 'boolean' AND (data->>'dry_run') = 'true')
+                                     AND NOT (json_typeof(data->'modified_files') = 'number' AND (data->>'modified_files')::numeric = 0)
+                                     AND json_typeof(data->'files') = 'array'
+                                THEN (
+                                    SELECT COUNT(*)::int
+                                    FROM json_array_elements(data->'files') AS f
+                                    WHERE json_typeof(f) = 'object'
+                                      AND json_typeof(f->'undo') = 'object'
+                                      AND json_typeof(f->'undo'->'undone') = 'boolean'
+                                      AND (f->'undo'->>'undone') = 'true'
+                                )
+                                ELSE 0
+                            END AS edit_undone
+                    ) ec
                     GROUP BY 1, 2
                     """
                 ),

@@ -397,8 +397,9 @@ def test_replace_ambiguity_message_recommends_occurrence(editor):
     assert "多个位置" in message
     assert "occurrence=N" in message
     assert "[occurrence=1]" in message
-    # replace_all 只能作为「确实要全改」的次选出现在 occurrence 之后
-    assert message.index("occurrence=N") < message.index("replace_all")
+    # 确实要全改的次选指向 batch_replace_files（不再引导隐藏的 replace_all=true），且排在 occurrence 之后
+    assert "replace_all" not in message
+    assert message.index("occurrence=N") < message.index("batch_replace_files")
 
 
 def test_delete_ambiguity_message_recommends_occurrence(editor):

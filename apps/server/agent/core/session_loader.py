@@ -680,19 +680,24 @@ class SessionLoader:
                                     else None
                                 )
                                 content = item.get("content")
-                                raw_sha = item.get("content_sha256")
-                                if isinstance(content, str):
+                                raw_sha = item.get("raw_content_sha256")
+                                if not (isinstance(raw_sha, str) and raw_sha.strip()):
+                                    raw_sha = item.get("content_sha256")
+                                has_raw_sha = isinstance(raw_sha, str) and bool(raw_sha.strip())
+                                if has_raw_sha and (
+                                    item.get("paragraph_stats_annotated") is True or not isinstance(content, str)
+                                ):
                                     candidates[fid] = {
-                                        "kind": "read",
-                                        "content": content,
+                                        "kind": "read_sha256",
+                                        "sha256": raw_sha.strip(),
                                         "updated_at": norm_ts,
                                     }
                                     if len(candidates) >= limit:
                                         break
-                                elif isinstance(raw_sha, str) and raw_sha.strip():
+                                elif isinstance(content, str):
                                     candidates[fid] = {
-                                        "kind": "read_sha256",
-                                        "sha256": raw_sha.strip(),
+                                        "kind": "read",
+                                        "content": content,
                                         "updated_at": norm_ts,
                                     }
                                     if len(candidates) >= limit:

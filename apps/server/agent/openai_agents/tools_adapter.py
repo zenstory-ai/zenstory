@@ -628,10 +628,16 @@ def build_agent_function_tools(
             ):
                 # P1-5: Cap non-conflicting tool insertions while a <file> body is overdue so the
                 # model cannot keep interleaving reads/metadata forever without outputting <file>.
-                if wall_clock_wrapping or req_ctx.consume_overdue_non_conflicting(
-                    overdue[0]["id"], max_uses=_MAX_OVERDUE_NON_CONFLICTING_CALLS
+                # Do not burn quota when JSON arguments failed to parse (invoke_allowed will return parse_error_text).
+                if (
+                    parsed_args is None
+                    or wall_clock_wrapping
+                    or req_ctx.consume_overdue_non_conflicting(
+                        overdue[0]["id"], max_uses=_MAX_OVERDUE_NON_CONFLICTING_CALLS
+                    )
                 ):
-                    overdue_reminder_title = overdue[0]["title"]
+                    if parsed_args is not None:
+                        overdue_reminder_title = overdue[0]["title"]
                     overdue = []
             elif overdue and req_ctx is not None and parsed_args is not None:
                 matched_repeat_id = _match_same_target_pending_writer_repeat(

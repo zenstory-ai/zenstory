@@ -1157,3 +1157,114 @@ def test_ux_health_dashboard_and_fallback_classify_iteration_exhausted_as_abnorm
     fallback_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
     assert fallback_payload["current"]["metrics"] == fast_payload["current"]["metrics"]
 
+
+@pytest.mark.integration
+def test_ux_health_and_summary_count_batch_replace_files_undo_cards(db_session: Session):
+    """P1-1: batch_replace_files per-file undo anchors count in UX summary, dashboard, fallback, and PG backfill SQL."""
+    from sqlalchemy import delete as sa_delete
+
+    from models import ChatMessageUxSummary
+    from models.chat_message_ux_summary import build_chat_message_ux_summary_row, count_tool_cards
+    from services.usage.admin_ux_metrics_service import _TOOL_CARD_MARKERS
+    from services.usage.chat_message_ux_summary_backfill import _PG_INSERT_BATCH_SQL
+
+    assert '"batch_replace_files"' in _TOOL_CARD_MARKERS
+    assert '"batch_replace_files"' in str(_PG_INSERT_BATCH_SQL)
+
+    # Unit check: normal (2 files, 1 undone) + partial (1 file, not undone) + dry_run (excluded) + modified_files=0 (excluded)
+    calls = [
+        {
+            "id": "tc-batch-live",
+            "name": "batch_replace_files",
+            "status": "success",
+            "result": {
+                "data": {
+                    "dry_run": False,
+                    "modified_files": 2,
+                    "files": [
+                        {"id": "f1", "undo": {"before_version_number": 1, "undone": True}},
+                        {"id": "f2", "undo": {"before_version_number": 2, "undone": False}},
+                    ],
+                }
+            },
+        },
+        {
+            "id": "tc-batch-partial",
+            "name": "batch_replace_files",
+            "status": "partial",
+            "result": {
+                "dry_run": False,
+                "modified_files": 1,
+                "files": [{"id": "f3", "undo": {"before_version_number": 3, "undone": False}}],
+            },
+        },
+        {
+            "id": "tc-batch-dry",
+            "name": "batch_replace_files",
+            "status": "success",
+            "result": {
+                "dry_run": True,
+                "modified_files": 0,
+                "files": [{"id": "f4", "undo": {"before_version_number": 4, "undone": False}}],
+            },
+        },
+        {
+            "id": "tc-batch-zero",
+            "name": "batch_replace_files",
+            "status": "success",
+            "result": {
+                "dry_run": False,
+                "modified_files": 0,
+                "files": [{"id": "f5", "undo": {"before_version_number": 5, "undone": False}}],
+            },
+        },
+        {
+            "id": "tc-batch-err",
+            "name": "batch_replace_files",
+            "status": "error",
+            "result": {
+                "dry_run": False,
+                "modified_files": 1,
+                "files": [{"id": "f6", "undo": {"before_version_number": 6, "undone": False}}],
+            },
+        },
+    ]
+    assert count_tool_cards(calls) == (3, 1, 0, 0)
+
+    row = build_chat_message_ux_summary_row(
+        message_id="m-batch-1",
+        session_id="s-batch-1",
+        created_at=_naive(NOW),
+        raw_metadata=json.dumps({"stop_reason": "end_turn"}),
+        raw_tool_calls=json.dumps(calls),
+    )
+    assert row["ai_edit_cards"] == 3
+    assert row["ai_edit_undone"] == 1
+
+    # End-to-end DB trigger + fast path + un-backfilled fallback parity
+    writer = _user(db_session, "ux_batch_writer", NOW - timedelta(days=5))
+    _, chat_sess = _project_and_session(db_session, writer, "Batch UX Novel", NOW - timedelta(days=2))
+    msg = _assistant_message(
+        db_session,
+        chat_sess,
+        NOW - timedelta(hours=1),
+        metadata={"stop_reason": "end_turn"},
+        tool_calls=calls,
+    )
+    summary = db_session.get(ChatMessageUxSummary, msg.id)
+    assert summary is not None
+    assert summary.ai_edit_cards == 3
+    assert summary.ai_edit_undone == 1
+
+    fast = get_ux_health_dashboard(db_session, days=7, now=NOW)["current"]["metrics"]
+    assert fast["ai_edit_cards"] == 3
+    assert fast["ai_edit_undone"] == 1
+    assert fast["ai_edit_undo_rate"] == round(1 / 3, 4)
+
+    db_session.exec(sa_delete(ChatMessageUxSummary))
+    db_session.commit()
+    fallback = get_ux_health_dashboard(db_session, days=7, now=NOW)["current"]["metrics"]
+    assert fallback["ai_edit_cards"] == 3
+    assert fallback["ai_edit_undone"] == 1
+    assert fallback["ai_edit_undo_rate"] == round(1 / 3, 4)
+

@@ -325,9 +325,18 @@ async def test_batch_replace_files_dry_run_and_real_commit_with_backup_version_a
     assert db_session.get(File, f2.id).content == "　　茶楼里，陈砚放下茶盏。"
     assert db_session.get(File, f3.id).content == "　　城外下起了雪。"
 
+    for item in live_data["files"]:
+        # P0-2: LLM-bound output strips UI-only undo anchors to save context and survive truncation.
+        assert "undo" not in item
+
+    ui_overlay = req_ctx.pop_tool_ui_payload(None, fallback_key=("batch_replace_files", project.id))
+    assert isinstance(ui_overlay, dict)
+    ui_files = ui_overlay["files"]
+    assert [item["id"] for item in ui_files] == [f1.id, f2.id]
+
     for item, original in (
-        (live_data["files"][0], "　　沈砚站在雨里，沈砚没有回头。"),
-        (live_data["files"][1], "　　茶楼里，沈砚放下茶盏。"),
+        (ui_files[0], "　　沈砚站在雨里，沈砚没有回头。"),
+        (ui_files[1], "　　茶楼里，沈砚放下茶盏。"),
     ):
         undo = item.get("undo")
         assert isinstance(undo, dict)
@@ -567,6 +576,11 @@ async def test_batch_replace_adapter_guards_breaker_reset_read_guard_and_stream_
         )
 
     emitted = [evt async for evt in adapter.process_workflow_events(_workflow_events())]
+    tool_results = [e for e in emitted if e.type == "tool_result"]
+    assert len(tool_results) == 1
+    restored_files = tool_results[0].data["data"]["files"]
+    assert [f["id"] for f in restored_files] == [f1.id, f2.id]
+    assert all(isinstance(f.get("undo"), dict) and len(f["undo"]["expected_after_content_sha256"]) == 64 for f in restored_files)
     edit_starts = [e for e in emitted if e.type == "file_edit_start"]
     edit_applied = [e for e in emitted if e.type == "file_edit_applied"]
     edit_ends = [e for e in emitted if e.type == "file_edit_end"]
@@ -978,3 +992,233 @@ async def test_same_turn_query_then_batch_replace_then_edit_file_keeps_fresh_sna
     db_session.expire_all()
     assert db_session.get(File, ch.id).content == "　　陈砚推开门。\n\n　　窗外雨势渐歇。"
 
+
+@pytest.mark.asyncio
+async def test_batch_replace_files_unexpected_error_mid_batch_preserves_committed_files_and_undo(
+    db_session, monkeypatch
+):
+    """P0-1: An unexpected DB error on file #2 after file #1 committed returns partial with file #1's undo intact."""
+    from agent.core.workflow_events import StreamEvent as WorkflowStreamEvent
+    from agent.core.workflow_events import StreamEventType
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+
+    user, project = _make_user_project(db_session, "batch-p0-1")
+    f1 = _add_file(db_session, project.id, title="第1章", order=1, content="旧词出现在第一章。")
+    f2 = _add_file(db_session, project.id, title="第2章", order=2, content="旧词出现在第二章。")
+    f3 = _add_file(db_session, project.id, title="第3章", order=3, content="旧词出现在第三章。")
+
+    original_one = FileEditor._batch_replace_one_file
+
+    def _flaky_one(self, *, file_id: str, **kwargs):
+        if file_id == f2.id:
+            raise RuntimeError("simulated database connection hiccup")
+        return original_one(self, file_id=file_id, **kwargs)
+
+    monkeypatch.setattr(FileEditor, "_batch_replace_one_file", _flaky_one)
+
+    req_ctx = _make_req_ctx(db_session, user, project)
+    raw_mcp = await mcp_tools.batch_replace_files(
+        {"old_text": "旧词", "new_text": "新词"},
+        request_context=req_ctx,
+        tool_call_id="call-p0-1",
+    )
+    res = _parse_mcp(raw_mcp)
+
+    assert res["status"] == "partial"
+    assert res["mutation_applied"] is True
+    data = res["data"]
+    assert data["modified_files"] == 2
+    assert [item["id"] for item in data["files"]] == [f1.id, f3.id]
+    assert len(data["skipped_files"]) == 1
+    assert data["skipped_files"][0]["id"] == f2.id
+    assert data["skipped_files"][0]["reason"] == "unexpected_error"
+    assert "hiccup" in data["skipped_files"][0]["error"]
+
+    # File #1 and #3 committed; file #2 rolled back cleanly.
+    db_session.expire_all()
+    assert db_session.get(File, f1.id).content == "新词出现在第一章。"
+    assert db_session.get(File, f2.id).content == "旧词出现在第二章。"
+    assert db_session.get(File, f3.id).content == "新词出现在第三章。"
+
+    # StreamAdapter restores undo anchors and emits file_edit_* events for both committed files.
+    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id, request_context=req_ctx))
+
+    async def _events():
+        yield WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "batch_replace_files", "tool_use_id": "call-p0-1", "result": raw_mcp},
+        )
+
+    emitted = [evt async for evt in adapter.process_workflow_events(_events())]
+    tool_evt = next(e for e in emitted if e.type == "tool_result")
+    assert tool_evt.data["status"] == "success"
+    restored = tool_evt.data["data"]["files"]
+    assert [item["id"] for item in restored] == [f1.id, f3.id]
+    for item in restored:
+        assert isinstance(item.get("undo"), dict)
+        assert isinstance(item["undo"]["before_version_number"], int)
+        assert len(item["undo"]["expected_after_content_sha256"]) == 64
+    assert [e.data["file_id"] for e in emitted if e.type == "file_edit_end"] == [f1.id, f3.id]
+    assert adapter._file_mutated is True
+
+
+@pytest.mark.asyncio
+async def test_batch_replace_files_200_overflow_and_oversized_payload_preserves_all_undo_anchors(
+    db_session, monkeypatch
+):
+    """P0-2: 200+ overflow files + long old_text/new_text + tight TOOL_RESULT_MAX_CHARS never drops undo anchors."""
+    from agent.core.workflow_events import StreamEvent as WorkflowStreamEvent
+    from agent.core.workflow_events import StreamEventType
+    from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+    from agent.tools.file_ops.edit import BATCH_REPLACE_MAX_REMAINING_FILES
+
+    user, project = _make_user_project(db_session, "batch-p0-2")
+    long_old = "旧长词" * 400  # 1,200 chars
+    long_new = "新长词" * 400  # 1,200 chars
+
+    created_ids: list[str] = []
+    for idx in range(1, 236):  # 30 modified + 205 overflow
+        f = File(
+            project_id=project.id,
+            title=f"第{idx}章 超长章节标题测试",
+            file_type="draft",
+            order=idx,
+            content=f"开头{long_old}结尾。",
+        )
+        db_session.add(f)
+        created_ids.append(f.id)
+    db_session.commit()
+
+    # 1) Verify _BOUND_PROTECTED_KEYS protects undo tokens even under min_keep=0 compaction.
+    assert "expected_after_updated_at" in mcp_tools._BOUND_PROTECTED_KEYS
+    assert "expected_after_content_sha256" in mcp_tools._BOUND_PROTECTED_KEYS
+    sample_sha = "a" * 64
+    sample_ts = "2026-11-26T12:00:00.123456+00:00"
+    bounded, was_cut = mcp_tools.bound_payload_strings(
+        {
+            "old_text": "x" * 2000,
+            "files": [
+                {
+                    "id": "f1",
+                    "undo": {
+                        "before_version_number": 1,
+                        "expected_after_updated_at": sample_ts,
+                        "expected_after_content_sha256": sample_sha,
+                    },
+                }
+            ],
+        },
+        max_chars=500,
+        min_keep=0,
+    )
+    assert was_cut is True
+    assert bounded["files"][0]["undo"]["expected_after_updated_at"] == sample_ts
+    assert bounded["files"][0]["undo"]["expected_after_content_sha256"] == sample_sha
+
+    # 2) Run batch_replace_files under an artificially tight TOOL_RESULT_MAX_CHARS so LLM output hits truncation.
+    monkeypatch.setattr(mcp_tools, "TOOL_RESULT_MAX_CHARS", 1024)
+    req_ctx = _make_req_ctx(db_session, user, project)
+    raw_mcp = await mcp_tools.batch_replace_files(
+        {"old_text": long_old, "new_text": long_new},
+        request_context=req_ctx,
+        tool_call_id="call-p0-2",
+    )
+    llm_payload = _parse_mcp(raw_mcp)
+    assert llm_payload["status"] == "success"
+    assert llm_payload["mutation_applied"] is True
+    assert len(raw_mcp["content"][0]["text"]) <= 1024
+
+    # 3) StreamAdapter restores all 30 modified files, their intact undo anchors, capped remaining_files, & exact count.
+    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id, request_context=req_ctx))
+
+    async def _events():
+        yield WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "batch_replace_files", "tool_use_id": "call-p0-2", "result": raw_mcp},
+        )
+
+    emitted = [evt async for evt in adapter.process_workflow_events(_events())]
+    tool_evt = next(e for e in emitted if e.type == "tool_result")
+    ui_data = tool_evt.data["data"]
+    assert ui_data["matched_files"] == 235
+    assert ui_data["modified_files"] == 30
+    assert ui_data["remaining_count"] == 205
+    assert len(ui_data["remaining_files"]) == BATCH_REPLACE_MAX_REMAINING_FILES
+    assert ui_data["truncated"] is True
+    assert len(ui_data["files"]) == 30
+    for item in ui_data["files"]:
+        undo = item.get("undo")
+        assert isinstance(undo, dict)
+        assert isinstance(undo["before_version_number"], int)
+        assert isinstance(undo["expected_after_updated_at"], str) and undo["expected_after_updated_at"]
+        assert isinstance(undo["expected_after_content_sha256"], str) and len(undo["expected_after_content_sha256"]) == 64
+
+
+@pytest.mark.asyncio
+async def test_read_files_show_paragraph_stats_preserves_cross_turn_session_read_snapshots(db_session):
+    """P1-3: read_files(show_paragraph_stats=True) carries over session_read_snapshots for both <=4k and >4k files."""
+    from agent.core.chat_storage import slim_query_files_result_for_persistence
+    from agent.core.session_loader import SessionLoader
+    from agent.loop.history import LOOP_ENGINE_METADATA_VALUE
+    from models import ChatMessage, ChatSession
+
+    user, project = _make_user_project(db_session, "pstats-cross-turn")
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="段落统计跨轮")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    short_body = "　　第一段短正文。\n\n　　第二段短正文。"
+    long_body = "\n\n".join(f"　　第{i}段长正文内容用于触发落库瘦身阈值校验。" for i in range(1, 220))
+    assert len(long_body) > 4000
+
+    short_file = _add_file(db_session, project.id, title="第1章 短章", order=1, content=short_body)
+    long_file = _add_file(db_session, project.id, title="第2章 长章", order=2, content=long_body)
+
+    req_ctx = _make_req_ctx(db_session, user, project)
+    short_res = _parse_mcp(
+        await mcp_tools.read_files({"ids": [short_file.id], "show_paragraph_stats": True}, request_context=req_ctx)
+    )
+    long_res = _parse_mcp(
+        await mcp_tools.read_files({"ids": [long_file.id], "show_paragraph_stats": True}, request_context=req_ctx)
+    )
+    assert short_res["data"][0]["paragraph_stats_annotated"] is True
+    assert long_res["data"][0]["paragraph_stats_annotated"] is True
+    assert isinstance(short_res["data"][0].get("raw_content_sha256"), str)
+    assert isinstance(long_res["data"][0].get("raw_content_sha256"), str)
+
+    # Simulate StreamAdapter persistence slimming: short stays un-slimmed, long gets slimmed to content_sha256.
+    persisted_short = slim_query_files_result_for_persistence(short_res["data"])
+    persisted_long = slim_query_files_result_for_persistence(long_res["data"])
+    assert "content" in persisted_short[0]
+    assert "content" not in persisted_long[0]
+    assert persisted_long[0]["content_sha256"] == long_res["data"][0]["raw_content_sha256"]
+
+    msg = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="已读取两章段落统计。",
+        tool_calls=json.dumps(
+            [
+                {"id": "tc-short", "name": "read_files", "status": "success", "result": persisted_short},
+                {"id": "tc-long", "name": "read_files", "status": "success", "result": persisted_long},
+            ],
+            ensure_ascii=False,
+        ),
+        message_metadata=json.dumps({"engine": LOOP_ENGINE_METADATA_VALUE}, ensure_ascii=False),
+    )
+    db_session.add(msg)
+    db_session.commit()
+
+    loader = SessionLoader(project_id=project.id, user_id=user.id)
+    snapshots = loader.session_read_snapshots(db_session, chat_session_id=chat.id)
+    assert snapshots.get(short_file.id) == short_body
+    assert snapshots.get(long_file.id) == long_body
+
+    # If the author edits short_file before next turn, carryover MUST reject stale snapshot.
+    short_file.content = short_body + "\n\n　　作者手动新增一段。"
+    db_session.add(short_file)
+    db_session.commit()
+    snapshots_after_edit = loader.session_read_snapshots(db_session, chat_session_id=chat.id)
+    assert short_file.id not in snapshots_after_edit
+    assert snapshots_after_edit.get(long_file.id) == long_body

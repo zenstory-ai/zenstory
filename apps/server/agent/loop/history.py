@@ -622,6 +622,10 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         from agent.tools.file_ops.edit import slim_edit_file_result_for_llm
 
         result = slim_edit_file_result_for_llm(result)
+    elif name == "batch_replace_files" and isinstance(result, dict):
+        from agent.tools.file_ops.edit import slim_batch_replace_result_for_llm
+
+        result = slim_batch_replace_result_for_llm(result)
     elif name in ("create_file", "write_chapter") and status == "success" and isinstance(result, dict):
         replaced = name == "write_chapter" and result.get("action") == "replaced"
         streamed = result.get("awaiting_body") is True or result.get("body_in_reply") is True

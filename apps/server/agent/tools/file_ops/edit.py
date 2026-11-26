@@ -8,6 +8,7 @@ Supports fuzzy and approximate text matching for robust editing even when
 the LLM provides slightly different text.
 """
 
+import copy
 import re
 from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
@@ -84,6 +85,7 @@ REPLACE_ALL_MAX_FUZZY_MATCHES = 1000
 
 # Cross-file deterministic batch replace caps.
 BATCH_REPLACE_MAX_FILES = 30
+BATCH_REPLACE_MAX_REMAINING_FILES = 30
 BATCH_REPLACE_PREVIEW_SNIPPETS = 3
 BATCH_REPLACE_SNIPPET_CONTEXT_CHARS = 35
 
@@ -735,6 +737,55 @@ def extract_edit_file_ui_payload(result: dict[str, Any]) -> dict[str, Any]:
     return overlay
 
 
+def slim_batch_replace_result_for_llm(result: dict[str, Any]) -> dict[str, Any]:
+    """为 LLM function_call_output 瘦身 batch_replace_files 的结果字典（不修改原字典）。
+
+    省略仅供前端卡片撤销使用的 ``files[].undo`` 锚点；前端卡片与落库经
+    ``AgentRequestContext`` UI 侧通道还原完整 ``files``（含每文件 ``undo``）。
+    """
+    slimmed = dict(result)
+    files = result.get("files")
+    if isinstance(files, list):
+        slim_files: list[Any] = []
+        for item in files:
+            if isinstance(item, dict) and "undo" in item:
+                slim_files.append({k: v for k, v in item.items() if k != "undo"})
+            else:
+                slim_files.append(item)
+        slimmed["files"] = slim_files
+    return slimmed
+
+
+def extract_batch_replace_ui_payload(result: dict[str, Any]) -> dict[str, Any]:
+    """提取 batch_replace_files 真实修改结果中仅供 SSE/UI 卡片与撤销使用的完整数据。
+
+    即使 LLM 侧载荷触发超限截断甚至最小占位降级，StreamAdapter 仍可通过侧通道完整还原
+    每个已修改文件的 ``undo`` 锚点与核心汇总字段。
+    """
+    files = result.get("files")
+    if result.get("dry_run") is True or not isinstance(files, list) or not files:
+        return {}
+    overlay: dict[str, Any] = {
+        "dry_run": False,
+        "mutation_applied": bool(result.get("mutation_applied")),
+        "matched_files": result.get("matched_files", len(files)),
+        "modified_files": result.get("modified_files", len(files)),
+        "total_replacements": result.get("total_replacements", 0),
+        "files": copy.deepcopy(files),
+        "skipped_files": copy.deepcopy(result.get("skipped_files") or []),
+        "remaining_files": copy.deepcopy(result.get("remaining_files") or []),
+        "remaining_count": result.get("remaining_count", 0),
+        "truncated": bool(result.get("truncated")),
+    }
+    old_text = result.get("old_text")
+    new_text = result.get("new_text")
+    if isinstance(old_text, str):
+        overlay["old_text"] = _preview(old_text)
+    if isinstance(new_text, str):
+        overlay["new_text"] = _preview(new_text)
+    return overlay
+
+
 def _span_within_seen(start: int, end: int, seen_spans: Sequence[tuple[int, int]]) -> bool:
     return any(seen_start <= start and end <= seen_end for seen_start, seen_end in seen_spans)
 
@@ -1058,7 +1109,7 @@ class FileEditor:
                         warnings.append(f"Edit {i}: op omitted; old+new applied as op=replace")
                     else:
                         raise ValueError(
-                            f"Edit {i}: missing op. Each edit must include op=replace/insert_after/insert_before/append/prepend/delete"
+                            f"Edit {i}: missing op. Each edit must include op=replace/append/insert_after/insert_before"
                         )
 
                 # 剥离模型偶发夹带的 NUL 字节（\x00），避免 PostgreSQL DataError。
@@ -1578,9 +1629,10 @@ class FileEditor:
         effective_max = max(1, int(max_files))
         batch_targets = matching_candidates[:effective_max]
         overflow_targets = matching_candidates[effective_max:]
+        remaining_count = len(overflow_targets)
         remaining_files = [
             {"id": f.id, "title": f.title, "file_type": f.file_type}
-            for f in overflow_targets
+            for f in overflow_targets[:BATCH_REPLACE_MAX_REMAINING_FILES]
         ]
 
         if dry_run:
@@ -1614,8 +1666,8 @@ class FileEditor:
                 "files": preview_files,
                 "skipped_files": skipped_files,
                 "remaining_files": remaining_files,
-                "remaining_count": len(remaining_files),
-                "truncated": bool(remaining_files),
+                "remaining_count": remaining_count,
+                "truncated": remaining_count > 0,
             }
 
         pending_set = set(pending_file_ids) if pending_file_ids else set()
@@ -1671,6 +1723,33 @@ class FileEditor:
                         "error": str(exc),
                     }
                 )
+            except Exception as exc:
+                try:
+                    self.session.rollback()
+                except Exception:
+                    logger.warning(
+                        "Failed to roll back session after batch_replace_files per-file error",
+                        exc_info=True,
+                        extra={"project_id": project_id, "file_id": target_id},
+                    )
+                logger.error(
+                    "Unexpected error during batch_replace_files per-file commit",
+                    exc_info=True,
+                    extra={
+                        "project_id": project_id,
+                        "file_id": target_id,
+                        "error_type": type(exc).__name__,
+                        "already_committed_count": len(modified_files),
+                    },
+                )
+                skipped_files.append(
+                    {
+                        "id": target_id,
+                        "title": target_title,
+                        "reason": "unexpected_error",
+                        "error": str(exc) or type(exc).__name__,
+                    }
+                )
 
         return {
             "dry_run": False,
@@ -1683,8 +1762,8 @@ class FileEditor:
             "files": modified_files,
             "skipped_files": skipped_files,
             "remaining_files": remaining_files,
-            "remaining_count": len(remaining_files),
-            "truncated": bool(remaining_files),
+            "remaining_count": remaining_count,
+            "truncated": remaining_count > 0,
         }
 
     def _batch_replace_one_file(
@@ -2005,7 +2084,7 @@ class FileEditor:
                 False,
             )
         raise ValueError(
-            f"Edit {edit_index}: unknown operation '{op}'. Valid ops: replace, insert_after, insert_before, append, prepend, delete"
+            f"Edit {edit_index}: unknown operation '{op}'. Valid ops: replace, append, insert_after, insert_before"
         )
 
     @classmethod
@@ -2355,7 +2434,7 @@ class FileEditor:
                     match_count,
                     edit_index,
                     label="原文片段",
-                    extra_hint="（确实要把这几处全部替换时，才使用 replace_all=true）",
+                    extra_hint="（确实要把多处相同原文全部替换时，请改用 batch_replace_files）",
                     preview_content=content,
                 )
                 if already_matched is not None and content[start : start + len(old_text)] == new_text:
@@ -2447,7 +2526,7 @@ class FileEditor:
                         f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
                         f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                         f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
-                        f"（确实要把这几处全部替换时，才使用 replace_all=true）候选片段: {previews}"
+                        f"（确实要把多处相同原文全部替换时，请改用 batch_replace_files）候选片段: {previews}"
                     ),
                 )
                 placed_text, indent_changed = _format_replacement_for_span(
@@ -2667,7 +2746,7 @@ class FileEditor:
                         f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
                         f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                         f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
-                        f"（确实要把这几处全部替换时，才使用 replace_all=true）候选片段: {previews}"
+                        f"（确实要把多处相同原文全部替换时，请改用 batch_replace_files）候选片段: {previews}"
                     ),
                 )
                 if ignore_punct_whitespace:
@@ -3196,6 +3275,7 @@ class FileEditor:
 
 __all__ = [
     "BATCH_REPLACE_MAX_FILES",
+    "BATCH_REPLACE_MAX_REMAINING_FILES",
     "EDIT_ERROR_ANCHOR_AMBIGUOUS",
     "EDIT_ERROR_ANCHOR_NOT_FOUND",
     "EDIT_ERROR_FILE_BUSY",
@@ -3211,7 +3291,9 @@ __all__ = [
     "FileWriteBusyError",
     "PreWriteHistoryUnavailableError",
     "edit_error_user_message",
+    "extract_batch_replace_ui_payload",
     "extract_edit_file_ui_payload",
+    "slim_batch_replace_result_for_llm",
     "slim_edit_file_result_for_llm",
     "acquire_file_write_lock",
     "file_write_lock",

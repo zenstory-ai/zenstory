@@ -95,7 +95,11 @@ def _slim_query_file_dict(item: dict[str, Any], *, keep_content_sha256: bool = F
         ):
             from services.features.file_version_service import content_sha256
 
-            slimmed["content_sha256"] = content_sha256(content)
+            raw_sha = item.get("raw_content_sha256")
+            if isinstance(raw_sha, str) and raw_sha.strip():
+                slimmed["content_sha256"] = raw_sha.strip()
+            else:
+                slimmed["content_sha256"] = content_sha256(content)
             slimmed.setdefault("content_length", len(content))
     slimmed["archived_note"] = ARCHIVED_QUERY_CONTENT_NOTE
     return slimmed, True

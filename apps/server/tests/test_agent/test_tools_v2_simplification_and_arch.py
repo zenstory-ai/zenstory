@@ -689,3 +689,125 @@ def test_batch_replace_files_chat_tool_cards_undo_and_session_loader(db_session:
         chat_session_id=chat.id,
     )
     assert snapshots_after[f2.id] == "新名字再现。"
+
+
+@pytest.mark.unit
+def test_p1_2_repeat_read_guard_partial_block_strips_file_id_and_fileId_aliases():
+    """P1-2: read_files(file_id=blocked, ids=[ok]) and fileId=blocked cannot bypass RepeatReadGuard."""
+    from agent.tools.tool_inputs import ReadFilesInput
+
+    guard = RepeatReadGuard()
+    for _ in range(3):
+        p = guard.plan("read_files", json.dumps({"ids": ["f-blocked"]}))
+        assert p.blocked_output is None
+        guard.observe(
+            "read_files",
+            p,
+            json.dumps({"status": "success", "data": [{"id": "f-blocked", "title": "第一章", "content": "正文"}]}),
+        )
+
+    for alias_key in ("file_id", "fileId"):
+        raw = json.dumps({alias_key: "f-blocked", "ids": ["f-ok"]})
+        plan = guard.plan("read_files", raw)
+        assert plan.blocked_output is None
+        assert plan.parsed_arguments is not None
+        assert "id" not in plan.parsed_arguments
+        assert "file_id" not in plan.parsed_arguments
+        assert "fileId" not in plan.parsed_arguments
+        assert plan.parsed_arguments["ids"] == ["f-ok"]
+        assert json.loads(plan.arguments)["ids"] == ["f-ok"]
+        assert alias_key not in json.loads(plan.arguments)
+        # Passing rewritten args through ReadFilesInput must NOT re-inject f-blocked.
+        validated, err = validate_tool_input(ReadFilesInput, plan.parsed_arguments, tool_name="read_files")
+        assert err is None and validated is not None
+        assert validated.ids == ["f-ok"]
+
+
+@pytest.mark.unit
+def test_p1_4_edit_file_error_messages_omit_retired_ops_and_replace_all(db_session: Session, workspace):
+    """P1-4: edit_file errors point to the 4 core ops / batch_replace_files, never replace_all=true or delete/prepend."""
+    user, project = workspace
+    chapter = _make_file(
+        db_session,
+        project,
+        title="第一章",
+        content="林深缓缓推开了那扇铁门。\n\n林深缓缓推开了那扇铁门。\n\n另一段。",
+    )
+    editor = FileEditor(session=db_session, user_id=user.id)
+
+    # 1) Missing op
+    with pytest.raises(Exception) as missing_exc:
+        editor.edit_file(id=chapter.id, edits=[{"old": "林深缓缓推开了那扇铁门。"}])
+    missing_msg = str(missing_exc.value)
+    assert "replace/append/insert_after/insert_before" in missing_msg
+    assert "prepend" not in missing_msg and "delete" not in missing_msg
+
+    # 2) Unknown op
+    with pytest.raises(Exception) as unknown_exc:
+        editor.edit_file(
+            id=chapter.id,
+            edits=[{"op": "bogus", "old": "林深缓缓推开了那扇铁门。", "new": "新词。"}],
+        )
+    unknown_msg = str(unknown_exc.value)
+    assert "replace, append, insert_after, insert_before" in unknown_msg
+    assert "prepend" not in unknown_msg and "delete" not in unknown_msg
+
+    # 3) Ambiguous exact replace
+    with pytest.raises(Exception) as exact_exc:
+        editor.edit_file(
+            id=chapter.id,
+            edits=[{"op": "replace", "old": "林深缓缓推开了那扇铁门。", "new": "新词。"}],
+        )
+    exact_msg = str(exact_exc.value)
+    assert "replace_all=true" not in exact_msg
+    assert "batch_replace_files" in exact_msg
+
+    # 4) Ambiguous normalized_exact replace (extra spaces)
+    with pytest.raises(Exception) as norm_exc:
+        editor.edit_file(
+            id=chapter.id,
+            edits=[{"op": "replace", "old": "  林深缓缓推开了那扇铁门。", "new": "新词。"}],
+        )
+    norm_msg = str(norm_exc.value)
+    assert "replace_all=true" not in norm_msg
+    assert "batch_replace_files" in norm_msg
+
+    # 5) Ambiguous fuzzy replace (punctuation difference)
+    with pytest.raises(Exception) as fuzzy_exc:
+        editor.edit_file(
+            id=chapter.id,
+            edits=[{"op": "replace", "old": "林深缓缓推开了那扇铁门！", "new": "新词。"}],
+        )
+    fuzzy_msg = str(fuzzy_exc.value)
+    assert "replace_all=true" not in fuzzy_msg
+    assert "batch_replace_files" in fuzzy_msg
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_p2_4_overdue_malformed_json_does_not_burn_non_conflicting_quota(monkeypatch):
+    """P2-4: Malformed JSON arguments on an overdue non-conflicting tool must not consume its 2-call quota."""
+    req_ctx = AgentRequestContext(session=None, user_id="u1", project_id="p1", session_id="s1")
+    req_ctx.begin_model_reply()
+    req_ctx.set_pending_empty_file("ch-overdue", "第1章 待写")
+    req_ctx.begin_model_reply()
+
+    async def fake_read_files(_args, **_kwargs):
+        return {"content": [{"type": "text", "text": json.dumps({"status": "success", "data": []})}]}
+
+    monkeypatch.setitem(tools_adapter.TOOL_FUNCTIONS, "read_files", fake_read_files)
+    tools = {t.name: t for t in tools_adapter.build_agent_function_tools()}
+    ctx = SimpleNamespace(context=req_ctx, tool_call_id="tc-overdue-json")
+
+    # Malformed JSON returns invalid_tool_input_json and consumes 0 quota.
+    bad_out = json.loads(await tools["read_files"].on_invoke_tool(ctx, "{not-valid-json"))
+    assert bad_out["status"] == "error"
+    assert bad_out["error_type"] == "invalid_tool_input_json"
+
+    # Both legitimate non-conflicting calls still succeed; only the 3rd hits file_body_pending.
+    ok1 = json.loads(await tools["read_files"].on_invoke_tool(ctx, '{"ids":["f1"]}'))
+    ok2 = json.loads(await tools["read_files"].on_invoke_tool(ctx, '{"ids":["f2"]}'))
+    blocked3 = json.loads(await tools["read_files"].on_invoke_tool(ctx, '{"ids":["f3"]}'))
+    assert ok1["status"] == "success" and "pending_file_reminder" in ok1
+    assert ok2["status"] == "success" and "pending_file_reminder" in ok2
+    assert blocked3["status"] == "error" and blocked3["error_type"] == "file_body_pending"

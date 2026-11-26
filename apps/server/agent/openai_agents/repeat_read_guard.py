@@ -381,6 +381,8 @@ class RepeatReadGuard:
             self._register_blocked(blocked[0], display_label="、".join(labels))
             rewritten = dict(args)
             rewritten.pop("id", None)
+            rewritten.pop("file_id", None)
+            rewritten.pop("fileId", None)
             rewritten["ids"] = [key[1] for key in allowed]
             return ReadPlan(
                 arguments=json.dumps(rewritten, ensure_ascii=False),
