@@ -1,0 +1,331 @@
+/* ========================================
+   Component Classes
+   ======================================== */
+
+@layer components {
+    .dashboard-shell {
+        color: hsl(var(--text-primary));
+    }
+
+    .dashboard-shell nav a {
+        border: 0;
+    }
+
+    .dashboard-start {
+        padding-top: 12px;
+    }
+
+    .dashboard-composer {
+        background: hsl(var(--bg-secondary));
+        border: 1px solid hsl(var(--border-color));
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 2px 8px hsl(0 0% 0% / 0.025);
+        transition:
+            border-color var(--duration-fast) var(--ease-standard),
+            box-shadow var(--duration-fast) var(--ease-standard);
+    }
+
+    .dashboard-composer:focus-within {
+        border-color: hsl(var(--accent-primary) / 0.6);
+        box-shadow: 0 0 0 3px hsl(var(--accent-primary) / 0.12);
+    }
+
+    .dashboard-idea {
+        display: block;
+        min-height: 136px;
+        padding: 4px;
+        border: 0;
+    }
+
+    .dashboard-idea:focus {
+        outline: none;
+    }
+
+    .dashboard-composer-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-top: 12px;
+        border-top: 1px solid hsl(var(--separator-color));
+    }
+
+    @media (max-width: 767px) {
+        .dashboard-start { padding-top: 0; }
+        .dashboard-composer { padding: 16px; border-radius: 16px; }
+        .dashboard-idea { min-height: 168px; }
+        .dashboard-composer-footer { flex-wrap: wrap; }
+        .dashboard-create-action { width: 100%; }
+    }
+
+    /* Button base */
+    .btn,
+    .btn-primary,
+    .btn-secondary {
+        @apply px-3 py-1.5 rounded-md text-sm cursor-pointer inline-flex items-center justify-center gap-1.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed;
+        transition:
+            transform var(--duration-instant) var(--ease-standard),
+            background-color var(--duration-instant) var(--ease-standard),
+            border-color var(--duration-instant) var(--ease-standard),
+            color var(--duration-instant) var(--ease-standard),
+            box-shadow var(--duration-instant) var(--ease-standard),
+            opacity var(--duration-instant) var(--ease-standard);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        .btn:active:not(:disabled),
+        .btn-primary:active:not(:disabled),
+        .btn-secondary:active:not(:disabled) {
+            transform: scale(var(--motion-scale-press));
+        }
+    }
+
+    .btn-primary {
+        background-color: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+    }
+    .btn-primary:hover:not(:disabled) {
+        background-color: hsl(var(--primary-hover));
+    }
+
+    .btn-secondary {
+        background-color: hsl(var(--bg-secondary));
+        border: 1px solid hsl(var(--border-color));
+        color: hsl(var(--text-primary));
+    }
+    .btn-secondary:hover:not(:disabled) {
+        background-color: hsl(var(--bg-tertiary));
+    }
+
+    /* Button focus-visible styles */
+    .btn:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px hsl(var(--bg-primary)), 0 0 0 4px hsl(var(--accent-primary));
+    }
+
+    .btn-primary:focus-visible {
+        box-shadow: 0 0 0 2px hsl(var(--bg-primary)), 0 0 0 4px hsl(var(--accent-light));
+    }
+
+    .btn-secondary:focus-visible {
+        box-shadow: 0 0 0 2px hsl(var(--bg-primary)), 0 0 0 4px hsl(var(--accent-primary) / 0.6);
+    }
+
+    /* Input */
+    .input {
+        background-color: hsl(var(--bg-secondary));
+        border: 1px solid hsl(var(--border-color));
+        @apply rounded-xl px-3 py-2 text-sm outline-none w-full;
+        color: hsl(var(--foreground));
+        box-shadow: none;
+        transition:
+            border-color var(--duration-fast) var(--ease-standard),
+            box-shadow var(--duration-fast) var(--ease-standard),
+            background-color var(--duration-fast) var(--ease-standard);
+    }
+    .input::placeholder {
+        color: hsl(var(--foreground-muted));
+    }
+    .input:hover:not(:focus):not(:disabled) {
+        border-color: hsl(var(--border-hover));
+    }
+    .input:focus {
+        border-color: hsl(var(--accent-primary) / 0.5);
+        box-shadow: 0 0 0 3px hsl(var(--accent-primary) / 0.12);
+    }
+
+    /* Textarea */
+    .textarea {
+        background-color: hsl(var(--bg-secondary));
+        border: 1px solid hsl(var(--border-color));
+        @apply rounded-xl px-3 py-2 text-sm outline-none w-full resize-none;
+        color: hsl(var(--foreground));
+        box-shadow: none;
+        transition:
+            border-color var(--duration-fast) var(--ease-standard),
+            box-shadow var(--duration-fast) var(--ease-standard),
+            background-color var(--duration-fast) var(--ease-standard);
+    }
+    .textarea::placeholder {
+        color: hsl(var(--foreground-muted));
+    }
+    .textarea:focus {
+        border-color: hsl(var(--accent-primary) / 0.5);
+        box-shadow: 0 0 0 3px hsl(var(--accent-primary) / 0.12);
+    }
+
+    /* Admin primitives */
+    .admin-shell {
+        --text-secondary: 0 0% 65%;
+        --text-tertiary: var(--text-secondary);
+        --admin-accent-text: hsl(var(--accent-light));
+    }
+
+    .light .admin-shell {
+        --text-secondary: 215 20% 40%;
+        --admin-accent-text: color-mix(in srgb, hsl(var(--accent-dark)) 85%, #000);
+    }
+
+    .admin-shell :is(button.btn-primary, button[class*="bg-[hsl(var(--accent-primary))]"]) {
+        background-color: hsl(var(--primary)) !important;
+    }
+
+    .admin-shell button[class*="bg-[hsl(var(--error))]"] {
+        background-color: hsl(var(--danger-solid)) !important;
+    }
+
+    .admin-shell button[class~="p-2.5"] {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .admin-page {
+        @apply mx-auto w-full space-y-6;
+        max-width: 1280px;
+    }
+
+    .admin-page-fluid {
+        max-width: none;
+    }
+
+    .admin-page-title {
+        @apply text-xl font-semibold tracking-tight sm:text-2xl;
+        font-family: var(--font-sans);
+        color: hsl(var(--text-primary));
+    }
+
+    .admin-page-subtitle {
+        @apply mt-1 text-sm;
+        color: hsl(var(--text-secondary));
+    }
+
+    .admin-surface,
+    .admin-table-shell {
+        @apply rounded-2xl border;
+        border-color: hsl(var(--border-color));
+        background-color: hsl(var(--bg-secondary));
+        box-shadow: 0 1px 2px hsl(0 0% 0% / 0.05);
+    }
+
+    .admin-surface {
+        overflow: visible;
+    }
+
+    .admin-table-shell {
+        overflow: hidden;
+    }
+
+    .admin-table-shell th {
+        white-space: nowrap;
+    }
+
+    .admin-table-shell td > span[class*="rounded"] {
+        display: inline-flex;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 767px) {
+        .admin-shell input:not([type="checkbox"]):not([type="radio"]),
+        .admin-shell select,
+        .admin-shell textarea {
+            font-size: 16px !important;
+        }
+    }
+
+    /* Range Input */
+    input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        height: 6px;
+        border-radius: 3px;
+        background: hsl(var(--bg-tertiary));
+        cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: hsl(var(--accent-primary));
+        cursor: pointer;
+        border: 2px solid hsl(var(--bg-card));
+        box-shadow: 0 1px 3px hsl(0 0% 0% / 0.2);
+        transition: transform var(--duration-instant) var(--ease-spring-snappy);
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+    }
+    input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: hsl(var(--accent-primary));
+        cursor: pointer;
+        border: 2px solid hsl(var(--bg-card));
+        box-shadow: 0 1px 3px hsl(0 0% 0% / 0.2);
+        transition: transform var(--duration-instant) var(--ease-spring-snappy);
+    }
+    input[type="range"]::-moz-range-track {
+        height: 6px;
+        border-radius: 3px;
+        background: hsl(var(--bg-tertiary));
+    }
+
+    /* Card */
+    .card {
+        background-color: hsl(var(--bg-secondary));
+        @apply rounded-xl p-4;
+        box-shadow: 0 1px 3px hsl(0 0% 0% / 0.12), 0 1px 2px hsl(0 0% 0% / 0.08);
+        transition:
+            box-shadow var(--duration-fast) var(--ease-standard),
+            border-color var(--duration-fast) var(--ease-standard),
+            background-color var(--duration-fast) var(--ease-standard);
+    }
+    .card:hover {
+        box-shadow: 0 4px 12px hsl(0 0% 0% / 0.15), 0 2px 4px hsl(0 0% 0% / 0.1);
+    }
+    .card:focus-visible {
+        outline: none;
+        box-shadow: 0 4px 12px hsl(0 0% 0% / 0.15), 0 2px 4px hsl(0 0% 0% / 0.1), 0 0 0 2px hsl(var(--bg-secondary)), 0 0 0 4px hsl(var(--accent-primary) / 0.6);
+    }
+
+    /* Modal */
+    /* Confirmation layer: above Modal (z-[1000]) so a ConfirmDialog opened from
+       inside a Modal stays on top and clickable, below Toast (z-[1100]). */
+    .modal-overlay {
+        @apply fixed inset-0 z-[1050];
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+    }
+
+    .modal {
+        background-color: hsl(var(--bg-secondary));
+        @apply rounded-2xl p-6;
+        box-shadow: 0 25px 50px -12px hsl(0 0% 0% / 0.4), 0 0 0 1px hsl(var(--border-color));
+    }
+
+    /* Diff styles */
+    .diff-add {
+        background-color: hsl(var(--diff-add-bg));
+        color: hsl(var(--diff-add-text));
+    }
+    .diff-remove {
+        background-color: hsl(var(--diff-remove-bg));
+        color: hsl(var(--diff-remove-text));
+        @apply line-through;
+    }
+}
+
+/* Review-only ink and pale semantic fills; history/chat diffs keep their palette. */
+.diff-review .diff-add {
+    background-color: hsl(var(--success) / 0.06);
+    color: hsl(var(--text-primary));
+    border-color: hsl(var(--success) / 0.3);
+}
+.diff-review .diff-remove {
+    background-color: hsl(var(--error) / 0.05);
+    color: hsl(var(--text-secondary));
+    border-color: hsl(var(--error) / 0.3);
+}
