@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PRODUCTION_API_ORIGIN, resolveApiPreconnectOrigin } from "../../vite.config";
+import {
+  DEFAULT_PRODUCTION_API_ORIGIN,
+  resolveApiPreconnectOrigin,
+  transformApiPreconnectHtml,
+} from "../../vite.config";
 
 describe("resolveApiPreconnectOrigin", () => {
   it("omits preconnect during local dev serve", () => {
@@ -67,5 +71,39 @@ describe("resolveApiPreconnectOrigin", () => {
         vercelEnv: "production",
       }),
     ).toBe(DEFAULT_PRODUCTION_API_ORIGIN);
+  });
+});
+
+describe("transformApiPreconnectHtml", () => {
+  const baseHtml = `<!doctype html>
+<html>
+    <head>
+        <link rel="preconnect" href="https://api.zenstory.ai" crossorigin />
+        <link rel="dns-prefetch" href="https://api.zenstory.ai" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    </head>
+</html>`;
+
+  it("keeps static production preconnect and dns-prefetch without duplication", () => {
+    const output = transformApiPreconnectHtml(baseHtml, DEFAULT_PRODUCTION_API_ORIGIN);
+    expect(output.match(/rel="preconnect"/g)).toHaveLength(1);
+    expect(output.match(/rel="dns-prefetch"/g)).toHaveLength(1);
+    expect(output).toContain('<link rel="preconnect" href="https://api.zenstory.ai" crossorigin />');
+    expect(output).toContain('<link rel="dns-prefetch" href="https://api.zenstory.ai" />');
+  });
+
+  it("rewrites static production hints to explicit staging API origin", () => {
+    const stagingOrigin = "https://staging-api-staging-a289.up.railway.app";
+    const output = transformApiPreconnectHtml(baseHtml, stagingOrigin);
+    expect(output).not.toContain("https://api.zenstory.ai");
+    expect(output).toContain(`<link rel="preconnect" href="${stagingOrigin}" crossorigin />`);
+    expect(output).toContain(`<link rel="dns-prefetch" href="${stagingOrigin}" />`);
+  });
+
+  it("strips static production hints when preconnect is disabled for dev or isolated preview", () => {
+    const output = transformApiPreconnectHtml(baseHtml, null);
+    expect(output).not.toContain('rel="preconnect"');
+    expect(output).not.toContain('rel="dns-prefetch"');
+    expect(output).toContain('<link rel="icon"');
   });
 });

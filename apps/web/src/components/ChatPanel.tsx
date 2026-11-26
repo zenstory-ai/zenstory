@@ -77,6 +77,11 @@ import {
   type MessageFeedbackVote,
 } from "../lib/chatApi";
 import { fileApi, fileVersionApi, projectApi } from "../lib/api";
+import {
+  BOOTSTRAP_DEFAULT_CHAT_LIMIT,
+  markBootstrappedChatConsumed,
+  peekBootstrappedChat,
+} from "../lib/workbenchBootstrap";
 import { NextStepCard } from "./NextStepCard";
 import { StarterCards, type ManuscriptStarterKind } from "./StarterCards";
 import { hasPendingInspiration } from "../lib/pendingInspiration";
@@ -437,6 +442,67 @@ const findUnassignedAssistantMessage = (
  * // The ChatPanel is typically rendered in the main layout:
  * <ChatPanel />
  */
+// eslint-disable-next-line react-refresh/only-export-components
+export function mergeEarlierHistoryMessages(
+  fetchedHistory: Message[],
+  currentMessages: Message[],
+): Message[] {
+  if (currentMessages.length === 0) return fetchedHistory;
+  if (fetchedHistory.length === 0) return currentMessages;
+
+  const currentKeys = new Set<string>();
+  for (const msg of currentMessages) {
+    currentKeys.add(msg.id);
+    if (msg.backendMessageId) {
+      currentKeys.add(msg.backendMessageId);
+    }
+  }
+
+  const anchor = currentMessages[0];
+  const anchorKeys = new Set<string>([anchor.id]);
+  if (anchor.backendMessageId) {
+    anchorKeys.add(anchor.backendMessageId);
+  }
+
+  const anchorIndex = fetchedHistory.findIndex(
+    (msg) =>
+      anchorKeys.has(msg.id) ||
+      (msg.backendMessageId ? anchorKeys.has(msg.backendMessageId) : false),
+  );
+
+  let earlierCandidates: Message[];
+  if (anchorIndex !== -1) {
+    earlierCandidates = fetchedHistory.slice(0, anchorIndex);
+  } else {
+    // currentMessages[0] is absent from the fetched window (e.g. >35 new messages or
+    // un-synced optimistic IDs). Only prepend if every fetched message is strictly
+    // older than currentMessages[0] and does not overlap any existing message.
+    const anchorMs = anchor.timestamp instanceof Date ? anchor.timestamp.getTime() : NaN;
+    const allStrictlyOlder =
+      Number.isFinite(anchorMs) &&
+      fetchedHistory.every((msg) => {
+        const msgMs = msg.timestamp instanceof Date ? msg.timestamp.getTime() : NaN;
+        const overlapsCurrent =
+          currentKeys.has(msg.id) ||
+          (msg.backendMessageId ? currentKeys.has(msg.backendMessageId) : false);
+        return Number.isFinite(msgMs) && msgMs < anchorMs && !overlapsCurrent;
+      });
+    if (!allStrictlyOlder) {
+      return currentMessages;
+    }
+    earlierCandidates = fetchedHistory;
+  }
+
+  const earlierMessages = earlierCandidates.filter(
+    (msg) =>
+      !currentKeys.has(msg.id) &&
+      !(msg.backendMessageId && currentKeys.has(msg.backendMessageId)),
+  );
+
+  if (earlierMessages.length === 0) return currentMessages;
+  return [...earlierMessages, ...currentMessages];
+}
+
 const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const { t, i18n } = useTranslation(['chat', 'common', 'dashboard', 'home', 'editor', 'versions']);
   const chatQuotaUpgradePrompt = getUpgradePromptDefinition("chat_quota_blocked");
@@ -623,6 +689,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const aiSuggestionsRef = useRef<string[]>([]);
 
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false);
+  const historyLimitRef = useRef(50);
   const [showAIMemory, setShowAIMemory] = useState(false);
   const [aiMemoryInitialSection, setAIMemoryInitialSection] = useState<'writing-agreements' | undefined>();
   const openAIMemory = useCallback((initialSection?: 'writing-agreements') => {
@@ -1616,6 +1685,30 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
    *
    * @param projectId - The ID of the project to load chat history for
    */
+  const mapBackendHistoryMessages = useCallback((historyMessages: ChatMessage[]): Message[] => (
+    historyMessages.map((msg) => {
+      const parsedMetadata = parseMessageMetadataObject(msg.metadata);
+      const createdAt = parseUTCDate(msg.created_at);
+      const feedback = parseMessageFeedbackFromMetadata(parsedMetadata);
+      const statusCards = parseMessageStatusCardsFromMetadata(parsedMetadata);
+      const { toolCalls, toolResults, orderedToolCalls } = parseToolCallsFromHistory(msg.tool_calls);
+
+      return {
+        id: msg.id,
+        backendMessageId: msg.id,
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        timestamp: createdAt,
+        feedback,
+        statusCards,
+        toolCalls,
+        toolResults,
+        displayItems: parseChatDisplayEvents(parsedMetadata, orderedToolCalls ?? [], createdAt, t),
+        stopOutcome: msg.role === "assistant" ? parseRoundStopOutcome(parsedMetadata) ?? undefined : undefined,
+      };
+    })
+  ), [t]);
+
   // Load chat history when project changes
   const loadChatHistory = useCallback(async (projectId: string, recoverSession = false): Promise<Message[] | null> => {
     sessionRecoveryBlockedRef.current = projectId;
@@ -1623,7 +1716,33 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const requestId = ++historyRequestSeqRef.current;
     setIsLoadingHistory(true);
     try {
-      const historyMessages = await getRecentMessages(projectId, 50);
+      let historyMessages: ChatMessage[] | null = null;
+      let hasMore = false;
+      let hydratedSessionId: string | null = null;
+      let loadedLimit = 50;
+
+      if (!recoverSession) {
+        const pendingBootstrap = peekBootstrappedChat(queryClient, userId, projectId);
+        if (pendingBootstrap) {
+          const bootstrapped = await pendingBootstrap.promise;
+          if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
+            return null;
+          }
+          markBootstrappedChatConsumed(queryClient, userId, projectId, pendingBootstrap);
+          if (bootstrapped?.chatReady) {
+            historyMessages = bootstrapped.data.recent_messages || [];
+            hasMore = Boolean(bootstrapped.data.has_more_messages);
+            hydratedSessionId = bootstrapped.data.chat_session?.id ?? null;
+            loadedLimit = Math.max(BOOTSTRAP_DEFAULT_CHAT_LIMIT, historyMessages.length);
+          }
+        }
+      }
+
+      if (historyMessages === null) {
+        historyMessages = await getRecentMessages(projectId, 50);
+        hasMore = historyMessages.length >= 50;
+        loadedLimit = 50;
+      }
 
       // A newer history load or new session supersedes this response, even
       // when the active project ID has returned to the same value.
@@ -1632,33 +1751,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
 
       // Convert to Message format
-      const loadedMessages: Message[] = historyMessages.map((msg) => {
-        const parsedMetadata = parseMessageMetadataObject(msg.metadata);
-        const createdAt = parseUTCDate(msg.created_at);
-        const feedback = parseMessageFeedbackFromMetadata(parsedMetadata);
-        const statusCards = parseMessageStatusCardsFromMetadata(parsedMetadata);
-        const { toolCalls, toolResults, orderedToolCalls } = parseToolCallsFromHistory(msg.tool_calls);
-
-        return {
-          id: msg.id,
-          backendMessageId: msg.id,
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-          timestamp: createdAt,
-          feedback,
-          statusCards,
-          toolCalls,
-          toolResults,
-          displayItems: parseChatDisplayEvents(parsedMetadata, orderedToolCalls ?? [], createdAt, t),
-          stopOutcome: msg.role === "assistant" ? parseRoundStopOutcome(parsedMetadata) ?? undefined : undefined,
-        };
-      });
+      const loadedMessages = mapBackendHistoryMessages(historyMessages);
 
       setMessages(loadedMessages);
+      historyLimitRef.current = loadedLimit;
+      setHasMoreHistory(hasMore);
       sessionRecoveryBlockedRef.current = null;
       setSessionRecoveryError(null);
       if (recoverSession) {
         currentAgentSessionIdRef.current = historyMessages.at(-1)?.session_id ?? null;
+      } else {
+        currentAgentSessionIdRef.current =
+          hydratedSessionId ?? historyMessages.at(-1)?.session_id ?? null;
       }
       return loadedMessages;
     } catch (err) {
@@ -1668,6 +1772,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         return null;
       }
       setMessages([]);
+      setHasMoreHistory(false);
       shouldAutoScrollRef.current = true;
       setShowJumpToLatest(false);
       setFeedbackPendingMessageId(null);
@@ -1679,7 +1784,71 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         setIsLoadingHistory(false);
       }
     }
-  }, [t]);
+  }, [mapBackendHistoryMessages, queryClient, userId]);
+
+  const isHistoryLoadBlocked =
+    isStreaming || isThinking || isCreatingSession || newChatPending;
+  const isHistoryLoadBlockedRef = useRef(isHistoryLoadBlocked);
+  isHistoryLoadBlockedRef.current = isHistoryLoadBlocked;
+
+  const handleLoadEarlierMessages = useCallback(async () => {
+    const projectId = currentProjectIdRef.current;
+    if (
+      !projectId ||
+      isLoadingMoreHistory ||
+      isLoadingHistory ||
+      isHistoryLoadBlockedRef.current ||
+      sendLockRef.current ||
+      creatingSessionRef.current !== null ||
+      newChatAfterStopRef.current
+    ) {
+      return;
+    }
+    const targetLimit = historyLimitRef.current < 50 ? 50 : 100;
+    const fetchLimit = targetLimit < 100 ? targetLimit + 1 : 100;
+    const requestId = ++historyRequestSeqRef.current;
+    const container = messagesScrollContainerRef.current;
+    const prevScrollHeight = container?.scrollHeight ?? 0;
+    const prevScrollTop = container?.scrollTop ?? 0;
+
+    setIsLoadingMoreHistory(true);
+    try {
+      const olderMessages = await getRecentMessages(projectId, fetchLimit);
+      if (
+        currentProjectIdRef.current !== projectId ||
+        requestId !== historyRequestSeqRef.current ||
+        isHistoryLoadBlockedRef.current ||
+        sendLockRef.current ||
+        creatingSessionRef.current !== null ||
+        newChatAfterStopRef.current
+      ) {
+        return;
+      }
+      const hasMore = targetLimit < 100 && olderMessages.length > targetLimit;
+      const displayedMessages = hasMore
+        ? olderMessages.slice(olderMessages.length - targetLimit)
+        : olderMessages;
+      shouldAutoScrollRef.current = false;
+      const mappedEarlier = mapBackendHistoryMessages(displayedMessages);
+      setMessages((prev) => mergeEarlierHistoryMessages(mappedEarlier, prev));
+      historyLimitRef.current = targetLimit;
+      setHasMoreHistory(hasMore);
+      if (container) {
+        requestAnimationFrame(() => {
+          const delta = container.scrollHeight - prevScrollHeight;
+          if (delta > 0) {
+            container.scrollTop = prevScrollTop + delta;
+          }
+        });
+      }
+    } catch (err) {
+      logger.error("Failed to load earlier chat history:", err);
+    } finally {
+      if (currentProjectIdRef.current === projectId && requestId === historyRequestSeqRef.current) {
+        setIsLoadingMoreHistory(false);
+      }
+    }
+  }, [isLoadingHistory, isLoadingMoreHistory, mapBackendHistoryMessages]);
 
   const handleSubmitFeedback = useCallback(async (message: Message, vote: MessageFeedbackVote) => {
     const backendMessageId = message.backendMessageId ?? null;
@@ -1727,7 +1896,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     lastLoadedProjectRef.current = currentProjectId;
 
     // Reset chat UI state
+    currentAgentSessionIdRef.current = null;
     setMessages([]);
+    setHasMoreHistory(false);
+    setIsLoadingMoreHistory(false);
     shouldAutoScrollRef.current = true;
     setShowJumpToLatest(false);
     setFeedbackPendingMessageId(null);
@@ -1900,6 +2072,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setTimeout(() => {
       sendLockRef.current = false;
     }, 0);
+
+    // Invalidate any in-flight history / "Load earlier messages" request so it cannot
+    // race with or clobber this newly started round.
+    historyRequestSeqRef.current += 1;
+    setIsLoadingMoreHistory(false);
 
     // Clear AI suggestions when user sends a message (and drop any still in flight)
     suggestionRequestSeqRef.current += 1;
@@ -2421,6 +2598,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setSessionRecoveryError(null);
       historyRequestSeqRef.current += 1;
       setIsLoadingHistory(false);
+      setHasMoreHistory(false);
+      setIsLoadingMoreHistory(false);
       setMessages([]);
       shouldAutoScrollRef.current = true;
       setShowJumpToLatest(false);
@@ -2948,6 +3127,26 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             )
           ) : (
             <div className="motion-content-reveal">
+              {hasMoreHistory && !isLoadingHistory && messages.length > 0 && (
+                <div className="mb-3 flex justify-center">
+                  <button
+                    type="button"
+                    data-testid="chat-load-earlier-messages"
+                    disabled={isLoadingMoreHistory || isHistoryLoadBlocked}
+                    onClick={() => void handleLoadEarlierMessages()}
+                    className={`inline-flex min-h-11 md:min-h-0 items-center gap-1.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3.5 py-2 md:px-3 md:py-1 text-xs text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]`}
+                  >
+                    {isLoadingMoreHistory ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                        {t("chat:panel.loadingEarlierMessages")}
+                      </>
+                    ) : (
+                      t("chat:panel.loadEarlierMessages")
+                    )}
+                  </button>
+                </div>
+              )}
               {/* Chat messages */}
               <UndoneEditsContext.Provider value={undoneEdits}>
               <UndoBlockedContext.Provider value={undoBlocked}>

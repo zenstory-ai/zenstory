@@ -252,10 +252,10 @@ def load_active_session_recent_messages(
 ) -> tuple[SessionResponse | None, list[MessageResponse], bool]:
     """Read active session metadata and latest slimmed messages across hot + cold tables.
 
-    Fetches up to ``limit + 1`` rows (probing ``chat_message_archive`` whenever hot
-    rows do not fill ``limit + 1``) so callers know accurately whether older messages
-    exist — including the exact boundary where ``len(hot) == limit`` and older rows
-    live in ``chat_message_archive``.
+    Fetches up to ``limit + 1`` rows (probing ``chat_message_archive`` via an index-only
+    watermark whenever needed) so callers know accurately whether older messages exist —
+    including the exact boundary where ``len(hot) == limit`` and older rows live in
+    ``chat_message_archive`` as well as interleaved hot/cold windows.
     """
     active_sessions = _list_active_sessions(session, project_id, user_id)
     chat_session = active_sessions[0] if active_sessions else None
@@ -379,7 +379,6 @@ def load_active_session_recent_messages(
                         merged_asc = sorted(by_id.values(), key=lambda msg: (msg.created_at, msg.id))
                         has_more = len(merged_asc) > limit
                         messages = merged_asc[-limit:]
-
     serialized = [
         MessageResponse(
             id=msg.id,

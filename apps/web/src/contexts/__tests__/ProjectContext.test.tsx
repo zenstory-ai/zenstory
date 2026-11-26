@@ -1,4 +1,5 @@
-import { renderHook, act, waitFor } from '@testing-library/react'
+import { render, renderHook, act, waitFor, screen } from '@testing-library/react'
+import { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ProjectProvider, useProject } from '../ProjectContext'
 import type { ReactNode } from 'react'
@@ -1508,6 +1509,65 @@ describe('ProjectContext', () => {
 
       expect(result.current.projects.map((p) => p.name)).toEqual(['Project B'])
       expect(result.current.currentProjectId).toBe('project-b')
+    })
+
+    it('preserves SWR-hydrated selection when child mount effects run before ProjectProvider mount effects', async () => {
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      vi.mocked(useAuth).mockReturnValue({
+        user: mockUser,
+        loading: false,
+        login: vi.fn(),
+        register: vi.fn(),
+        logout: vi.fn(),
+        handleOAuthCallback: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        googleLogin: vi.fn(),
+      })
+
+      function SwrRouteChild() {
+        const {
+          projects,
+          currentProjectId,
+          selectedItem,
+          setCurrentProjectId,
+          hydrateProject,
+          setSelectedItem,
+        } = useProject()
+
+        // Mirrors ProjectEditor's SWR/bootstrap effect (runs before parent ProjectProvider mount effects)
+        useEffect(() => {
+          setCurrentProjectId('project-1')
+          hydrateProject(mockProjects[0]!)
+          setSelectedItem({ id: 'file-a', title: 'Chapter A', type: 'draft' })
+        }, [hydrateProject, setCurrentProjectId, setSelectedItem])
+
+        // Mirrors ProjectEditor's ensureProject effect re-invoking setCurrentProjectId when projects updates
+        useEffect(() => {
+          setCurrentProjectId('project-1')
+        }, [projects, setCurrentProjectId])
+
+        return (
+          <div
+            data-testid="swr-child"
+            data-project={currentProjectId ?? ''}
+            data-selected={selectedItem?.id ?? ''}
+          />
+        )
+      }
+
+      render(
+        <ProjectProvider>
+          <SwrRouteChild />
+        </ProjectProvider>
+      )
+
+      await waitFor(() => {
+        expect(projectApi.getAll).toHaveBeenCalledTimes(1)
+        const probe = screen.getByTestId('swr-child')
+        expect(probe).toHaveAttribute('data-project', 'project-1')
+        expect(probe).toHaveAttribute('data-selected', 'file-a')
+      })
     })
   })
 })

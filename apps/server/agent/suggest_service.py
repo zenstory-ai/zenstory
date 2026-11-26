@@ -356,43 +356,32 @@ class SuggestService:
         hot_rows = list(session.exec(stmt).all())
         messages = list(reversed(hot_rows))
 
-        if has_chat_message_archive_table(session.connection()):
-            watermark_row = session.exec(
-                select(ChatMessageArchive.created_at, ChatMessageArchive.id)
-                .where(ChatMessageArchive.session_id == chat_session.id)
-                .order_by(ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id))  # type: ignore[attr-defined]
-                .limit(1)
-            ).first()
-            if watermark_row is not None:
-                cold_watermark = (watermark_row[0], watermark_row[1])
-                oldest_hot_key = (hot_rows[-1].created_at, hot_rows[-1].id) if hot_rows else None
-                need_cold = len(hot_rows) < CHAT_HISTORY_LIMIT or (
-                    oldest_hot_key is not None and cold_watermark > oldest_hot_key
-                )
-                if need_cold:
-                    cold_stmt = select(
-                        ChatMessageArchive.id,
-                        ChatMessageArchive.role,
-                        ChatMessageArchive.content,
-                        ChatMessageArchive.created_at,
-                    ).where(ChatMessageArchive.session_id == chat_session.id)
-                    hot_ids = [row.id for row in hot_rows]
-                    if hot_ids:
-                        cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
-                    cold_rows = list(
-                        session.exec(
-                            cold_stmt.order_by(
-                                ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)  # type: ignore[attr-defined]
-                            ).limit(CHAT_HISTORY_LIMIT)
-                        ).all()
-                    )
-                    if cold_rows:
-                        by_id = {row.id: row for row in cold_rows}
-                        for row in hot_rows:
-                            by_id[row.id] = row
-                        messages = sorted(
-                            by_id.values(), key=lambda row: (row.created_at, row.id)
-                        )[-CHAT_HISTORY_LIMIT:]
+        if len(hot_rows) < CHAT_HISTORY_LIMIT and has_chat_message_archive_table(
+            session.connection()
+        ):
+            cold_stmt = select(
+                ChatMessageArchive.id,
+                ChatMessageArchive.role,
+                ChatMessageArchive.content,
+                ChatMessageArchive.created_at,
+            ).where(ChatMessageArchive.session_id == chat_session.id)
+            hot_ids = [row.id for row in hot_rows]
+            if hot_ids:
+                cold_stmt = cold_stmt.where(col(ChatMessageArchive.id).notin_(hot_ids))
+            cold_rows = list(
+                session.exec(
+                    cold_stmt.order_by(
+                        ChatMessageArchive.created_at.desc(), desc(ChatMessageArchive.id)  # type: ignore[attr-defined]
+                    ).limit(CHAT_HISTORY_LIMIT)
+                ).all()
+            )
+            if cold_rows:
+                by_id = {row.id: row for row in cold_rows}
+                for row in hot_rows:
+                    by_id[row.id] = row
+                messages = sorted(
+                    by_id.values(), key=lambda row: (row.created_at, row.id)
+                )[-CHAT_HISTORY_LIMIT:]
 
         return [
             {"role": msg.role, "content": msg.content}

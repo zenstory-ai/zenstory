@@ -110,6 +110,7 @@ async function fixture(page: Page, content = '你好 world\n\n第二段 story', 
     if (method === 'GET' && url.pathname === '/api/v1/projects') return fulfill(responsiveProjects);
     if (method === 'GET' && url.pathname === '/api/v1/project-templates') return fulfill({});
     if (method === 'GET' && /^\/api\/v1\/projects\/[^/]+$/.test(url.pathname)) return fulfill(responsiveProjects.find(p => p.id === url.pathname.split('/').at(-1)));
+    if (method === 'GET' && /^\/api\/v1\/projects\/[^/]+\/bootstrap$/.test(url.pathname)) return fulfill({ detail: 'Not Found' }, 404);
     // Reuse only auxiliary GET fakes from the existing safe responsive fixture.
     if (method === 'GET' && url.pathname === '/api/v1/workspace/first-work') return route.fallback();
     if (method === 'GET' && /auth\/me|subscription\/|persona|skills|points|\/recent$|\/agent\/suggest$|materials|attachments/.test(url.pathname)) return route.fallback();

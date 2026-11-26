@@ -59,7 +59,9 @@
     "newSessionFailed": "没能创建新对话，请重试",
     "sessionRecoveryFailed": "对话暂时没能加载，请重试。",
     "readWrittenFiles": "看正文",
-    "openWrittenFile": "打开《{{title}}》"
+    "openWrittenFile": "打开《{{title}}》",
+    "loadEarlierMessages": "加载更早的对话",
+    "loadingEarlierMessages": "正在加载更早的对话…"
   },
   "input": {
     "placeholder": "聊聊接下来怎么写，或让 AI 帮你改稿…",

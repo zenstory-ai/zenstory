@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useContext } from "react";
 import type React from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useOptionalAuth } from "../contexts/AuthContext";
 import { useProject } from "../contexts/ProjectContext";
 import { fileApi } from "../lib/api";
 import { isFileTitleTooLong } from "../lib/fileTitle";
@@ -9,6 +11,11 @@ import { findAncestorFolderIds } from "../lib/lastOpenedFile";
 import { clearLiveTreeRemoved, notifyFileRemoved } from "../lib/fileRemovalEvents";
 import { logger } from "../lib/logger";
 import { toast } from "../lib/toast";
+import { readWorkbenchSwr } from "../lib/workbenchSwrCache";
+import {
+  markBootstrappedFileTreeConsumed,
+  peekBootstrappedFileTree,
+} from "../lib/workbenchBootstrap";
 import type { FileTreeNode, TreeNodeType } from "../types";
 
 const FILE_TYPE_TO_NODE_TYPE: Record<string, TreeNodeType> = {
@@ -50,6 +57,9 @@ export interface UseFileTreeOptions {
 export function useFileTree(options: UseFileTreeOptions = {}) {
   const { uploadErrorMode = "toast" } = options;
   const { t } = useTranslation(["editor", "common"]);
+  const queryClient = useContext(QueryClientContext);
+  const auth = useOptionalAuth();
+  const userId = auth?.user?.id ?? null;
   const {
     currentProjectId,
     selectedItem,
@@ -90,7 +100,7 @@ export function useFileTree(options: UseFileTreeOptions = {}) {
   onSelectItemRef.current = options.onSelectItem;
 
   const loadData = useCallback(
-    async (showLoading = false) => {
+    async (showLoading = false, allowBootstrapHandoff = false) => {
       // A mutation started in a previous project may finish after navigation.
       if (!currentProjectId || currentProjectId !== activeProjectIdRef.current) return;
       const selectedAtRequest = selectedItemRef.current;
@@ -102,13 +112,30 @@ export function useFileTree(options: UseFileTreeOptions = {}) {
 
       setLoading(showLoading);
       try {
-        const response = await fileApi.getTree(currentProjectId, {
-          signal: abortController.signal,
-        });
-        if (abortController.signal.aborted || requestId !== loadRequestIdRef.current) {
-          return;
+        let nextTree: FileTreeNode[] | null = null;
+        if (allowBootstrapHandoff) {
+          const pendingBootstrap = peekBootstrappedFileTree(queryClient, userId, currentProjectId);
+          if (pendingBootstrap) {
+            const bootstrapped = await pendingBootstrap.promise;
+            if (abortController.signal.aborted || requestId !== loadRequestIdRef.current) {
+              return;
+            }
+            markBootstrappedFileTreeConsumed(queryClient, userId, currentProjectId, pendingBootstrap);
+            if (bootstrapped?.fileTreeReady) {
+              nextTree = bootstrapped.data.files || [];
+            }
+          }
         }
-        const nextTree = response.tree || [];
+
+        if (nextTree === null) {
+          const response = await fileApi.getTree(currentProjectId, {
+            signal: abortController.signal,
+          });
+          if (abortController.signal.aborted || requestId !== loadRequestIdRef.current) {
+            return;
+          }
+          nextTree = response.tree || [];
+        }
         clearLiveTreeRemoved(currentProjectId, nextTree);
         setTree(nextTree);
         setLoadError(false);
@@ -146,7 +173,7 @@ export function useFileTree(options: UseFileTreeOptions = {}) {
         }
       }
     },
-    [currentProjectId, setSelectedItem],
+    [currentProjectId, queryClient, setSelectedItem, userId],
   );
 
   // Track mount lifetime and abort any in-flight request / pending upload error timer on unmount.
@@ -187,12 +214,25 @@ export function useFileTree(options: UseFileTreeOptions = {}) {
   useEffect(() => {
     // Files from the previous project must not remain selectable while loading.
     activeProjectIdRef.current = currentProjectId;
-    setTree([]);
     setLoadError(false);
     if (currentProjectId) {
-      setIsInitialLoad(true);
-      loadData(true);
+      const swrEntry = readWorkbenchSwr(userId, currentProjectId);
+      if (swrEntry) {
+        const cachedTree = swrEntry.files || [];
+        setTree(cachedTree);
+        const rootFolderIds = cachedTree
+          .filter((node) => node.file_type === "folder")
+          .map((node) => node.id);
+        setExpandedFolders((prev) => new Set([...prev, ...rootFolderIds]));
+        setIsInitialLoad(false);
+        void loadData(false, true);
+      } else {
+        setTree([]);
+        setIsInitialLoad(true);
+        void loadData(true, true);
+      }
     } else {
+      setTree([]);
       setLoading(false);
       setIsInitialLoad(false);
     }
@@ -202,7 +242,7 @@ export function useFileTree(options: UseFileTreeOptions = {}) {
       activeProjectIdRef.current = null;
       loadAbortControllerRef.current?.abort();
     };
-  }, [currentProjectId, loadData]);
+  }, [currentProjectId, loadData, userId]);
 
   const toggleFolder = useCallback((folderId: string) => {
     setExpandedFolders((prev) => {

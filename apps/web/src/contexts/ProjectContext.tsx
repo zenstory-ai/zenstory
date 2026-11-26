@@ -111,6 +111,11 @@ export interface ProjectContextType {
    * renamed the project. Failures are logged and leave the list unchanged.
    */
   refreshProject: (projectId: string) => Promise<void>;
+  /**
+   * Upsert a project obtained from `/bootstrap` or user-scoped SWR cache into
+   * `projects` without flipping `loading` or clobbering unrelated projects.
+   */
+  hydrateProject: (project: Project) => void;
   fileTreeVersion: number;
   triggerFileTreeRefresh: () => void;
   // Editor refresh state (for edit_file updates)
@@ -209,11 +214,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     streamingFileIdRef.current = streamingFileId;
   }, [streamingFileId]);
 
-  // 兜住那些绕过 setCurrentProjectId 直接调 setCurrentProjectIdState 的路径
-  // （登出清理、loadProjects 的无用户分支），保证 ref 不会漂移。
-  useEffect(() => {
-    currentProjectIdRef.current = currentProjectId;
-  }, [currentProjectId]);
+  // All state transitions that mutate currentProjectId update currentProjectIdRef.current
+  // synchronously. Avoid syncing currentProjectIdRef in a parent useEffect: child effects
+  // (e.g. ProjectEditor SWR/bootstrap mount) run before parent effects and would otherwise
+  // have their synchronous ref update clobbered back to the stale initial render value.
 
   useEffect(() => {
     return () => {
@@ -487,6 +491,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setProjectsOwnerId(null);
       setProjects([]);
       setCurrentProjectIdState(null);
+      currentProjectIdRef.current = null;
       setLoading(false);
       return;
     }
@@ -498,13 +503,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       authUserIdRef.current === requestedUserId
     );
 
-    if (projectsOwnerIdRef.current !== requestedUserId) {
+    const previousOwnerId = projectsOwnerIdRef.current;
+    if (previousOwnerId !== requestedUserId) {
       projectsOwnerIdRef.current = requestedUserId;
       setProjectsOwnerId(requestedUserId);
-      setProjects([]);
-      setCurrentProjectIdState(null);
-      currentProjectIdRef.current = null;
-      setSelectedItem(null);
+      // Only wipe project/selection state when transitioning from a different user;
+      // on initial mount (previousOwnerId === null), child route effects may already
+      // have selected the route project and SWR-hydrated initial file.
+      if (previousOwnerId !== null) {
+        setProjects([]);
+        setCurrentProjectIdState(null);
+        currentProjectIdRef.current = null;
+        setSelectedItem(null);
+      }
     }
 
     setLoading(true);
@@ -719,6 +730,36 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, []);
 
+  const hydrateProject = useCallback((project: Project) => {
+    const activeUserId = authUserIdRef.current;
+    if (!activeUserId || !project?.id || typeof project.name !== 'string') return;
+    if (projectsOwnerIdRef.current !== activeUserId) {
+      projectsOwnerIdRef.current = activeUserId;
+      setProjectsOwnerId(activeUserId);
+    }
+    setProjects((prev) => {
+      const idx = prev.findIndex((p) => p.id === project.id);
+      if (idx === -1) return [...prev, project];
+      const existing = prev[idx];
+      if (
+        existing.name === project.name &&
+        existing.updated_at === project.updated_at &&
+        existing.summary === project.summary &&
+        existing.current_phase === project.current_phase &&
+        existing.writing_style === project.writing_style &&
+        existing.notes === project.notes &&
+        existing.project_type === project.project_type &&
+        existing.description === project.description
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      next[idx] = { ...existing, ...project };
+      return next;
+    });
+    setError(null);
+  }, []);
+
   const contextValue = useMemo<ProjectContextType>(() => ({
     projects: visibleProjects,
     currentProject,
@@ -734,6 +775,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     deleteProject,
     refreshProjects,
     refreshProject,
+    hydrateProject,
     fileTreeVersion,
     triggerFileTreeRefresh,
     editorRefreshVersion,
@@ -777,6 +819,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     deleteProject,
     refreshProjects,
     refreshProject,
+    hydrateProject,
     fileTreeVersion,
     triggerFileTreeRefresh,
     editorRefreshVersion,
