@@ -25,6 +25,11 @@
 import i18next from 'i18next';
 import { resolveApiErrorMessage, toUserErrorMessage } from './errorHandler';
 import { logger } from './logger';
+import {
+  clearAuthSessionUserSnapshot,
+  clearWorkbenchSwrCache,
+  writeAuthSessionUserSnapshot,
+} from './workbenchSwrCache';
 
 /**
  * Resolve the active UI language for request headers (`Accept-Language`) and
@@ -195,6 +200,8 @@ export function clearAuthStorage(reason?: string): void {
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user');
   localStorage.removeItem('auth_validated_at'); // Clear cache timestamp
+  clearAuthSessionUserSnapshot();
+  clearWorkbenchSwrCache();
 
   // Notify AuthContext to update state (same-tab)
   window.dispatchEvent(
@@ -278,6 +285,7 @@ export async function tryRefreshToken(): Promise<boolean> {
           localStorage.setItem('refresh_token', data.refresh_token);
           localStorage.setItem('user', JSON.stringify(data.user));
           localStorage.setItem('auth_validated_at', Date.now().toString()); // Update cache timestamp
+          writeAuthSessionUserSnapshot(data.user);
           lastFailedRefreshToken = null;
           rememberRefreshDescendant(refreshToken, {
             accessToken: data.access_token,

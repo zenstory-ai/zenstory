@@ -3,12 +3,14 @@ Project management API endpoints
 """
 import json
 import logging
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlmodel import Session, col, func, select
 
+from api.chat import MessageResponse, SessionResponse, load_active_session_recent_messages
+from api.files import FileResponse, build_project_file_tree, serialize_file_tree_array_json
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from config.project_notes import without_legacy_proposals
 from config.project_status import (
@@ -241,6 +243,55 @@ def list_projects_progress(
     ]
 
 
+class ProjectBootstrapResponse(BaseModel):
+    """Aggregated initial workbench state for a single project."""
+
+    project: Project
+    files: list[dict[str, Any]]
+    initial_file: FileResponse | None = None
+    chat_session: SessionResponse | None = None
+    recent_messages: list[MessageResponse] = Field(default_factory=list)
+    has_more_messages: bool = False
+
+
+def _resolve_bootstrap_initial_file(
+    session: Session,
+    project_id: str,
+    file_id: str | None,
+) -> FileResponse | None:
+    """Resolve the requested editable file in this project, or fall back to the most recently updated editable file."""
+    target: File | None = None
+    if file_id:
+        candidate = session.exec(
+            select(File).where(
+                File.id == file_id,
+                File.project_id == project_id,
+                File.is_deleted.is_(False),
+                File.file_type != "folder",
+            )
+        ).first()
+        if candidate is not None:
+            target = candidate
+
+    if target is None:
+        target = session.exec(
+            select(File)
+            .where(
+                File.project_id == project_id,
+                File.is_deleted.is_(False),
+                File.file_type != "folder",
+            )
+            .order_by(
+                col(File.updated_at).desc(),
+                col(File.created_at).desc(),
+                col(File.id).desc(),
+            )
+            .limit(1)
+        ).first()
+
+    return FileResponse.model_validate(target) if target is not None else None
+
+
 @router.get("/projects/{project_id}", response_model=Project)
 def get_project(
     project_id: str,
@@ -250,6 +301,78 @@ def get_project(
     """Get a specific project."""
     project = verify_project_ownership(project_id, current_user, session)
     return project
+
+
+def _serialize_project_bootstrap_json(
+    *,
+    project: Project,
+    files: list[dict[str, Any]],
+    initial_file: FileResponse | None,
+    chat_session: SessionResponse | None,
+    recent_messages: list[MessageResponse],
+    has_more_messages: bool,
+) -> str:
+    """Encode ProjectBootstrapResponse without recursing through nested file-tree children."""
+    shell = ProjectBootstrapResponse(
+        project=project,
+        files=[],
+        initial_file=initial_file,
+        chat_session=chat_session,
+        recent_messages=recent_messages,
+        has_more_messages=has_more_messages,
+    )
+    payload = shell.model_dump(mode="json")
+    files_json = serialize_file_tree_array_json(files)
+
+    def _dumps_compact(value: Any) -> str:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        )
+
+    return (
+        f'{{"project":{_dumps_compact(payload["project"])},'
+        f'"files":{files_json},'
+        f'"initial_file":{_dumps_compact(payload["initial_file"])},'
+        f'"chat_session":{_dumps_compact(payload["chat_session"])},'
+        f'"recent_messages":{_dumps_compact(payload["recent_messages"])},'
+        f'"has_more_messages":{_dumps_compact(payload["has_more_messages"])}}}'
+    )
+
+
+@router.get("/projects/{project_id}/bootstrap", response_model=ProjectBootstrapResponse)
+def get_project_bootstrap(
+    project_id: str,
+    file_id: str | None = Query(None, description="Optional preferred editable file ID"),
+    chat_limit: int = Query(15, ge=1, le=50, description="Number of recent chat messages to include"),
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session),
+):
+    """Return initial project metadata, file tree (without file bodies), active file, and recent chat in one round-trip."""
+    project = verify_project_ownership(project_id, current_user, session)
+    files = build_project_file_tree(session, project_id, include_content=False)
+    initial_file = _resolve_bootstrap_initial_file(session, project_id, file_id)
+    chat_session, recent_messages, has_more_messages = load_active_session_recent_messages(
+        session,
+        project_id=project_id,
+        user_id=current_user.id,
+        limit=chat_limit,
+    )
+
+    return Response(
+        content=_serialize_project_bootstrap_json(
+            project=project,
+            files=files,
+            initial_file=initial_file,
+            chat_session=chat_session,
+            recent_messages=recent_messages,
+            has_more_messages=has_more_messages,
+        ),
+        media_type="application/json",
+    )
 
 
 @router.put("/projects/{project_id}", response_model=Project)
