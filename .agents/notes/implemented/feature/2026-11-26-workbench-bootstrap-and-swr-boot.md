@@ -24,8 +24,8 @@
    - `apiPreconnectPlugin` 在生产构建保留静态标签不重复注入；显式 HTTPS staging 构建自动改写为 staging 域名；本地开发、HTTP E2E 与隔离 Preview 构建则剥离，避免误连生产域名。
 3. **非阻塞会话态认证启动（`AuthContext.tsx` + `apiClient.ts` + `workbenchSwrCache.ts`）**：
    - 除既有 5 分钟 `localStorage` 缓存外，在 `sessionStorage` 写入不含任何 token/密钥的轻量用户信息快照（`zenstory:auth-session-user:v1`）。
-   - 当 `access_token` 存在且命中有效缓存或同标签页快照（并与 `localStorage.user` 的 `id` 交叉核对一致）时，首帧直接以 `loading = false` 放行，使 `/bootstrap` 与后台 `/api/auth/me` 并行执行。
-   - 若后台 `/api/auth/me` 返回 401（刷新失败或无 `refresh_token`）或 403，或触发登出/切换账号，`clearAuthStorage` 与 `AuthContext` 立即清除 `sessionStorage` 用户快照与全部工作台 SWR 缓存，受保护路由立刻回退到登录页。
+   - 当 `access_token` 存在且命中有效缓存或同标签页快照（并与 `localStorage.user` 的 `id` 交叉核对一致）时，首帧直接以 `loading = false` 放行。冷刷新时 `App.tsx` 的 `ProtectedRoute` 仍需等待 `GET /api/v1/onboarding/persona` 确认引导状态，因此认证校验 `/api/auth/me` 与 `/api/v1/onboarding/persona` 在第 1 跳并行完成，随后挂载 `<ProjectEditor />` 发起第 2 跳 `/bootstrap`；同标签页内再次切换回工作台（React Query 已缓存 onboarding 状态）时则直接发起 `/bootstrap`。
+   - 若后台 `/api/auth/me` 返回 401（刷新失败或无 `refresh_token`）、403 或 400 `ERR_AUTH_INACTIVE_USER`，或触发登出/切换账号，`clearAuthStorage` 与 `AuthContext` 立即清除 `sessionStorage` 用户快照与全部工作台 SWR 缓存，受保护路由立刻回退到登录页。
 4. **前端单次 `/bootstrap` 消费、404/405 回退与安全 SWR 缓存（`workbenchBootstrap.ts`、`ProjectContext.tsx`、`ProjectEditor.tsx`、`useFileTree.ts`、`Editor.tsx`、`ChatPanel.tsx`）**：
    - `ProjectEditor` 挂载即通过 `QueryClient` 作用域启动单次 `startProjectBootstrap`（`StrictMode` 下自动去重），把结果一次性分发给 `ProjectContext.hydrateProject`、`useFileTree`、`preloadedFileCache`（供 `Editor`）和 `ChatPanel`，消除首屏重复请求。
    - 当 `/bootstrap` 返回旧后端 `404`（非 `ERR_PROJECT_NOT_FOUND`）或 `405` 时，自动并行回退到既有 `projectApi.get` + `fileApi.getTree` + `getRecentMessages` + `fileApi.get`，确保 Vercel 先于 Railway 发布期间零故障。
@@ -49,7 +49,7 @@
 ## Consequences
 
 - **Benefits**：
-  - 跨洋刷新 `/project/:projectId` 时，TCP/TLS 预热提前到 HTML 解析阶段，认证不再阻塞受保护路由，首屏项目/文件树/当前文件/最近 15 条对话合并为 1 次 `/bootstrap` 往返；重复加载通过用户隔离 SWR 缓存即时绘制。
+  - 跨洋刷新 `/project/:projectId` 时，TCP/TLS 预热提前到 HTML 解析阶段，认证不再串行阻塞 `/api/v1/onboarding/persona`（两者在 RTT 1 并行完成），随后首屏项目/文件树/当前文件/最近 15 条对话合并为 1 次 `/bootstrap` 往返（RTT 2）；重复加载通过用户隔离 SWR 缓存即时绘制。
   - 首屏聊天水合量从 50 条降到 15 条，并保留完整的「加载更早的对话」能力。
   - 对 Vercel 先于 Railway 部署完全兼容，且 100% 保留既有认证安全边界与未保存草稿/版本冲突保护。
 - **Costs**：

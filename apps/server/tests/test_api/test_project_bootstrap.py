@@ -59,6 +59,31 @@ async def test_bootstrap_requires_authentication(client: AsyncClient):
 
 
 @pytest.mark.integration
+async def test_bootstrap_rejects_deactivated_user(
+    client: AsyncClient,
+    db_session: Session,
+):
+    owner, owner_token = await _create_and_login(
+        client, db_session, username="boot_deactivated"
+    )
+    project = Project(name="Deactivated Owner Novel", owner_id=owner.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+
+    owner.is_active = False
+    db_session.add(owner)
+    db_session.commit()
+
+    response = await client.get(
+        f"/api/v1/projects/{project.id}/bootstrap",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "ERR_AUTH_INACTIVE_USER"
+
+
+@pytest.mark.integration
 async def test_bootstrap_enforces_ownership_and_not_found(
     client: AsyncClient,
     db_session: Session,

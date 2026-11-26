@@ -827,6 +827,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     setFile(null);
     setLoading(false);
     setServerSyncIssue(null);
+    consumePreloadedFile(queryClient, currentUserId, currentProjectId, fileId);
     if (currentUserId) {
       clearLastOpenedFile(currentUserId, currentProjectId);
       invalidateWorkbenchSwrInitialFile(currentUserId, currentProjectId, fileId);
@@ -905,6 +906,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     // Every external write now refreshes the editor directly. A slower read from an
     // earlier write must never arrive after a newer read and roll the body/token back.
     if (syncSeq !== serverSyncSeqRef.current) return;
+    consumePreloadedFile(queryClient, currentUserId, data.project_id, fileId);
     setServerSyncIssue((prev) => (prev?.fileId === fileId ? null : prev));
     const serverContent = data.content || "";
     const savedContent = current.content || "";
@@ -951,7 +953,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       reason: "external_edit",
     });
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [adoptServerCopy, currentUserId, keepLocalOnServerCopy, openConflictReview]);
+  }, [adoptServerCopy, currentUserId, keepLocalOnServerCopy, openConflictReview, queryClient]);
 
   const syncOpenFileFromServer = useCallback(async () => {
     const opened = currentFileRef.current;
@@ -1001,6 +1003,11 @@ const EditorComponent: React.FC<EditorProps> = () => {
       if (!current || current.id !== detail.file.id || selectedIdRef.current !== detail.file.id) {
         return;
       }
+      // ProjectEditor re-seeds preloadedFileCache before dispatching this event for
+      // late-mounting Editors. This mounted Editor already owns the file, so clear
+      // the one-shot cache entry unconditionally (even when this snapshot is ignored
+      // below) to prevent stale rollbacks on file-1 -> file-2 -> file-1 switches.
+      consumePreloadedFile(queryClient, currentUserId, detail.projectId, detail.file.id);
       // If a local save or syncOpenFileFromServer already advanced this file after its initial load,
       // ignore a slower /bootstrap snapshot so newer commits are never rolled back.
       const loadedAt = initialLoadSyncSeqRef.current;
@@ -1210,6 +1217,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
           if (openedFile?.id === targetFileId) {
             const refreshedServerCopy = nextFile(openedFile);
             currentFileRef.current = refreshedServerCopy;
+            consumePreloadedFile(queryClient, currentUserId, refreshedServerCopy.project_id, targetFileId);
             updateWorkbenchSwrInitialFile(currentUserId, refreshedServerCopy.project_id, refreshedServerCopy);
           }
           setFile((prev) => (prev?.id === targetFileId ? nextFile(prev) : prev));
@@ -1284,6 +1292,9 @@ const EditorComponent: React.FC<EditorProps> = () => {
       currentFileRef.current = savedSnapshot;
     }
     const savedProjectId = updated?.project_id ?? savedSnapshot?.project_id ?? currentProjectId;
+    if (savedProjectId) {
+      consumePreloadedFile(queryClient, currentUserId, savedProjectId, targetFileId);
+    }
     if (currentUserId && savedProjectId) {
       if (savedSnapshot) {
         updateWorkbenchSwrInitialFile(currentUserId, savedProjectId, savedSnapshot);
@@ -1475,6 +1486,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
       setFile(saved);
       setEditContent(content);
       markServerBaseline(saved);
+      consumePreloadedFile(queryClient, currentUserId, projectId, fileId);
       updateWorkbenchSwrInitialFile(currentUserId, projectId, saved);
       if (titleChanged && selectedItem?.id === fileId) {
         setSelectedItem({ ...selectedItem, title: reviewedTitle });
@@ -1533,6 +1545,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
         const latest: File = { ...current, content: serverContent, updated_at: serverUpdatedAt };
         currentFileRef.current = latest;
         setFile(latest);
+        consumePreloadedFile(queryClient, currentUserId, projectId, fileId);
         const outcome = openConflictReview(fileId, conflictBase, serverContent, content);
         onStaleWrite?.(latest, outcome);
         if (outcome === "server") {
@@ -1568,6 +1581,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     exitDiffReview,
     markServerBaseline,
     openConflictReview,
+    queryClient,
     selectedItem,
     setSelectedItem,
     t,

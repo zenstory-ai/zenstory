@@ -277,6 +277,7 @@ export function startProjectBootstrap(
   const settledPromise = fetchProjectBootstrapWithFallback(projectId, { fileId, chatLimit })
     .then((result) => {
       if (entry) entry.settled = true;
+      let effectiveResult = result;
       // Persist user-scoped SWR cache only when the entry still belongs to the active query key.
       if (!queryClient || !entry || queryClient.getQueryData<BootstrapHandoffEntry>(key) === entry) {
         const existingSwr = readWorkbenchSwr(userId, projectId);
@@ -297,8 +298,17 @@ export function startProjectBootstrap(
           files: result.data.files,
           initial_file: nextInitialFile,
         });
+        if (nextInitialFile !== result.data.initial_file) {
+          effectiveResult = {
+            ...result,
+            data: {
+              ...result.data,
+              initial_file: nextInitialFile,
+            },
+          };
+        }
       }
-      return result;
+      return effectiveResult;
     })
     .catch((err) => {
       if (entry) entry.settled = true;

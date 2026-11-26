@@ -442,6 +442,67 @@ const findUnassignedAssistantMessage = (
  * // The ChatPanel is typically rendered in the main layout:
  * <ChatPanel />
  */
+// eslint-disable-next-line react-refresh/only-export-components
+export function mergeEarlierHistoryMessages(
+  fetchedHistory: Message[],
+  currentMessages: Message[],
+): Message[] {
+  if (currentMessages.length === 0) return fetchedHistory;
+  if (fetchedHistory.length === 0) return currentMessages;
+
+  const currentKeys = new Set<string>();
+  for (const msg of currentMessages) {
+    currentKeys.add(msg.id);
+    if (msg.backendMessageId) {
+      currentKeys.add(msg.backendMessageId);
+    }
+  }
+
+  const anchor = currentMessages[0];
+  const anchorKeys = new Set<string>([anchor.id]);
+  if (anchor.backendMessageId) {
+    anchorKeys.add(anchor.backendMessageId);
+  }
+
+  const anchorIndex = fetchedHistory.findIndex(
+    (msg) =>
+      anchorKeys.has(msg.id) ||
+      (msg.backendMessageId ? anchorKeys.has(msg.backendMessageId) : false),
+  );
+
+  let earlierCandidates: Message[];
+  if (anchorIndex !== -1) {
+    earlierCandidates = fetchedHistory.slice(0, anchorIndex);
+  } else {
+    // currentMessages[0] is absent from the fetched window (e.g. >35 new messages or
+    // un-synced optimistic IDs). Only prepend if every fetched message is strictly
+    // older than currentMessages[0] and does not overlap any existing message.
+    const anchorMs = anchor.timestamp instanceof Date ? anchor.timestamp.getTime() : NaN;
+    const allStrictlyOlder =
+      Number.isFinite(anchorMs) &&
+      fetchedHistory.every((msg) => {
+        const msgMs = msg.timestamp instanceof Date ? msg.timestamp.getTime() : NaN;
+        const overlapsCurrent =
+          currentKeys.has(msg.id) ||
+          (msg.backendMessageId ? currentKeys.has(msg.backendMessageId) : false);
+        return Number.isFinite(msgMs) && msgMs < anchorMs && !overlapsCurrent;
+      });
+    if (!allStrictlyOlder) {
+      return currentMessages;
+    }
+    earlierCandidates = fetchedHistory;
+  }
+
+  const earlierMessages = earlierCandidates.filter(
+    (msg) =>
+      !currentKeys.has(msg.id) &&
+      !(msg.backendMessageId && currentKeys.has(msg.backendMessageId)),
+  );
+
+  if (earlierMessages.length === 0) return currentMessages;
+  return [...earlierMessages, ...currentMessages];
+}
+
 const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const { t, i18n } = useTranslation(['chat', 'common', 'dashboard', 'home', 'editor', 'versions']);
   const chatQuotaUpgradePrompt = getUpgradePromptDefinition("chat_quota_blocked");
@@ -1699,8 +1760,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       setSessionRecoveryError(null);
       if (recoverSession) {
         currentAgentSessionIdRef.current = historyMessages.at(-1)?.session_id ?? null;
-      } else if (hydratedSessionId) {
-        currentAgentSessionIdRef.current = hydratedSessionId;
+      } else {
+        currentAgentSessionIdRef.current =
+          hydratedSessionId ?? historyMessages.at(-1)?.session_id ?? null;
       }
       return loadedMessages;
     } catch (err) {
@@ -1728,42 +1790,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     isStreaming || isThinking || isCreatingSession || newChatPending;
   const isHistoryLoadBlockedRef = useRef(isHistoryLoadBlocked);
   isHistoryLoadBlockedRef.current = isHistoryLoadBlocked;
-
-function mergeEarlierHistoryMessages(
-  fetchedHistory: Message[],
-  currentMessages: Message[],
-): Message[] {
-  if (currentMessages.length === 0) return fetchedHistory;
-  if (fetchedHistory.length === 0) return currentMessages;
-
-  const currentKeys = new Set<string>();
-  for (const msg of currentMessages) {
-    currentKeys.add(msg.id);
-    if (msg.backendMessageId) {
-      currentKeys.add(msg.backendMessageId);
-    }
-  }
-
-  const firstOverlapIndex = fetchedHistory.findIndex(
-    (msg) =>
-      currentKeys.has(msg.id) ||
-      (msg.backendMessageId ? currentKeys.has(msg.backendMessageId) : false),
-  );
-
-  const earlierCandidates =
-    firstOverlapIndex === -1
-      ? fetchedHistory
-      : fetchedHistory.slice(0, firstOverlapIndex);
-
-  const earlierMessages = earlierCandidates.filter(
-    (msg) =>
-      !currentKeys.has(msg.id) &&
-      !(msg.backendMessageId && currentKeys.has(msg.backendMessageId)),
-  );
-
-  if (earlierMessages.length === 0) return currentMessages;
-  return [...earlierMessages, ...currentMessages];
-}
 
   const handleLoadEarlierMessages = useCallback(async () => {
     const projectId = currentProjectIdRef.current;
@@ -1870,6 +1896,7 @@ function mergeEarlierHistoryMessages(
     lastLoadedProjectRef.current = currentProjectId;
 
     // Reset chat UI state
+    currentAgentSessionIdRef.current = null;
     setMessages([]);
     setHasMoreHistory(false);
     setIsLoadingMoreHistory(false);

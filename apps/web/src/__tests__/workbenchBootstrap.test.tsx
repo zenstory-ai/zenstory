@@ -8,9 +8,17 @@ import { setLastOpenedFile } from "../lib/lastOpenedFile";
 import { createEditorDraftSnapshot, writeEditorDraftSnapshot } from "../lib/editorDraftRecovery";
 import {
   AUTH_SESSION_USER_KEY,
+  MAX_WORKBENCH_SWR_ENTRY_CHARS,
+  MAX_WORKBENCH_SWR_PROJECTS,
+  WORKBENCH_SWR_TTL_MS,
+  clearAuthSessionUserSnapshot,
   clearWorkbenchSwrCache,
+  getWorkbenchSwrKey,
+  invalidateWorkbenchSwrInitialFile,
   readAuthSessionUserSnapshot,
   readWorkbenchSwr,
+  removeWorkbenchSwr,
+  updateWorkbenchSwrInitialFile,
   writeAuthSessionUserSnapshot,
   writeWorkbenchSwr,
 } from "../lib/workbenchSwrCache";
@@ -225,8 +233,19 @@ import { QueryClientContext } from "@tanstack/react-query";
 import ProjectEditor from "../pages/ProjectEditor";
 import { useFileTree } from "../hooks/useFileTree";
 import {
+  BOOTSTRAP_HANDOFF_MAX_AGE_MS,
+  clearWorkbenchSwrSyncRequired,
+  consumeWorkbenchSwrSyncRequired,
+  evictProjectBootstrapHandoff,
+  fetchProjectBootstrapWithFallback,
+  isBootstrapEndpointMissingError,
+  isValidProjectBootstrapResponse,
   markBootstrappedChatConsumed,
+  markBootstrappedFileTreeConsumed,
+  markWorkbenchSwrSyncRequired,
   peekBootstrappedChat,
+  peekBootstrappedFileTree,
+  startProjectBootstrap,
 } from "../lib/workbenchBootstrap";
 
 const sampleProject: Project = {
@@ -595,9 +614,20 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
     expect(sessionStorage.getItem(AUTH_SESSION_USER_KEY)).toBeNull();
 
     // Storage quota error degrades cleanly without throwing
-    const setItemSpy = vi.spyOn(window.sessionStorage, "setItem").mockImplementation(() => {
-      throw new DOMException("QuotaExceededError", "QuotaExceededError");
-    });
+    const originalSessionStorage = window.sessionStorage;
+    const quotaFailingStorage: Storage = {
+      get length() {
+        return 0;
+      },
+      clear: vi.fn(),
+      getItem: vi.fn(() => null),
+      key: vi.fn(() => null),
+      removeItem: vi.fn(),
+      setItem: vi.fn(() => {
+        throw new DOMException("QuotaExceededError", "QuotaExceededError");
+      }),
+    };
+    vi.stubGlobal("sessionStorage", quotaFailingStorage);
     try {
       expect(
         writeWorkbenchSwr("user-a", "project-1", {
@@ -607,7 +637,7 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
         }),
       ).toBe(false);
     } finally {
-      setItemSpy.mockRestore();
+      vi.stubGlobal("sessionStorage", originalSessionStorage);
       clearWorkbenchSwrCache();
     }
   });
@@ -1067,6 +1097,183 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
     expect(mocks.getRecentMessages).not.toHaveBeenCalled();
     expect(mocks.fileGet).not.toHaveBeenCalled();
   });
+
+  it("consumes preloadedFileCache on fresh-file reconciliation and save so file-1 -> file-2 -> file-1 within 10s never rolls back T3", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const file1T1: File = {
+      ...sampleFile,
+      id: "file-1",
+      title: "第一章",
+      content: "SWR 缓存里的旧正文 T1。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    const file1T2: File = {
+      ...file1T1,
+      content: "Bootstrap 返回的权威正文 T2。",
+      updated_at: "2026-11-26T08:00:00Z",
+    };
+    const file1T3: File = {
+      ...file1T1,
+      content: "作者新保存的最新正文 T3。",
+      updated_at: "2026-11-26T09:00:00Z",
+    };
+    const file2: File = {
+      ...sampleFile,
+      id: "file-2",
+      title: "第二章",
+      content: "第二章正文。",
+      updated_at: "2026-11-26T08:30:00Z",
+    };
+
+    setLastOpenedFile("user-1", "project-1", file1T1.id);
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: file1T1,
+    });
+
+    const pendingBootstrap = deferred<ProjectBootstrapResponse>();
+    mocks.getBootstrap.mockReturnValueOnce(pendingBootstrap.promise);
+    mocks.fileUpdate.mockResolvedValueOnce(file1T3);
+    mocks.fileGet.mockImplementation(async (id: string) => {
+      if (id === file2.id) return file2;
+      if (id === file1T1.id) return file1T3;
+      throw new ApiError(404, "ERR_FILE_NOT_FOUND");
+    });
+
+    mountEditor(queryClient);
+
+    // 1) SWR paints T1 immediately
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        file1T1.content,
+      );
+    });
+
+    // 2) /bootstrap resolves with T2 -> Editor reconciles to T2 via WORKBENCH_FRESH_FILE_EVENT
+    await act(async () => {
+      pendingBootstrap.resolve({
+        ...sampleBootstrap,
+        initial_file: file1T2,
+      });
+      await pendingBootstrap.promise;
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        file1T2.content,
+      );
+    });
+
+    // 3) Author edits and saves T3
+    const editorInput = screen.getByPlaceholderText("editor:placeholder.contentPlaceholder");
+    fireEvent.change(editorInput, { target: { value: file1T3.content } });
+    fireEvent.click(screen.getByRole("button", { name: "editor:save" }));
+    await waitFor(() => {
+      expect(mocks.fileUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // 4) Switch file-1 -> file-2 -> file-1 within 10s TTL
+    act(() => {
+      mocks.setSelectedItem({ id: file2.id, title: file2.title, type: "draft" });
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        file2.content,
+      );
+    });
+
+    act(() => {
+      mocks.setSelectedItem({ id: file1T1.id, title: file1T1.title, type: "draft" });
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        file1T3.content,
+      );
+    });
+
+    // Must fetch live T3 from server rather than rolling back to dangling preloadedFileCache T2!
+    expect(mocks.fileGet).toHaveBeenCalledWith(file1T1.id);
+  });
+
+  it("propagates fresher SWR initial_file from startProjectBootstrap and clears preloaded cache when slow /bootstrap returns T1 after T3 save", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const file1T1: File = {
+      ...sampleFile,
+      id: "file-1",
+      title: "第一章",
+      content: "旧正文 T1。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    const file1T3: File = {
+      ...file1T1,
+      content: "慢速 bootstrap 返回前已保存的正文 T3。",
+      updated_at: "2026-11-26T09:00:00Z",
+    };
+    const file2: File = {
+      ...sampleFile,
+      id: "file-2",
+      title: "第二章",
+      content: "第二章正文。",
+      updated_at: "2026-11-26T08:30:00Z",
+    };
+
+    setLastOpenedFile("user-1", "project-1", file1T1.id);
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: file1T1,
+    });
+
+    const slowBootstrap = deferred<ProjectBootstrapResponse>();
+    mocks.getBootstrap.mockReturnValueOnce(slowBootstrap.promise);
+    mocks.fileUpdate.mockResolvedValueOnce(file1T3);
+    mocks.fileGet.mockImplementation(async (id: string) => {
+      if (id === file2.id) return file2;
+      if (id === file1T1.id) return file1T3;
+      throw new ApiError(404, "ERR_FILE_NOT_FOUND");
+    });
+
+    mountEditor(queryClient);
+
+    const editorInput = await screen.findByPlaceholderText("editor:placeholder.contentPlaceholder");
+    expect(editorInput).toHaveValue(file1T1.content);
+
+    // Save T3 while /bootstrap is still in flight
+    fireEvent.change(editorInput, { target: { value: file1T3.content } });
+    fireEvent.click(screen.getByRole("button", { name: "editor:save" }));
+    await waitFor(() => {
+      expect(mocks.fileUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // Slow /bootstrap resolves with older T1
+    await act(async () => {
+      slowBootstrap.resolve({
+        ...sampleBootstrap,
+        initial_file: file1T1,
+      });
+      await slowBootstrap.promise;
+    });
+    await act(async () => Promise.resolve());
+
+    // Switch file-1 -> file-2 -> file-1 within 10s TTL: must NEVER roll back to T1!
+    act(() => {
+      mocks.setSelectedItem({ id: file2.id, title: file2.title, type: "draft" });
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        file2.content,
+      );
+    });
+
+    act(() => {
+      mocks.setSelectedItem({ id: file1T1.id, title: file1T1.title, type: "draft" });
+    });
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        file1T3.content,
+      );
+    });
+  });
 });
 
 describe("AuthContext non-blocking session snapshot boot and 401 eviction", () => {
@@ -1269,5 +1476,261 @@ describe("AuthContext non-blocking session snapshot boot and 401 eviction", () =
     expect(localStorage.getItem("access_token")).toBeNull();
     expect(localStorage.getItem("refresh_token")).toBeNull();
     coldInit.unmount();
+  });
+});
+
+describe("workbenchBootstrap and workbenchSwrCache edge branches", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+    mocks.getBootstrap.mockReset();
+    mocks.projectGet.mockReset();
+    mocks.fileGet.mockReset();
+    mocks.fileGetTree.mockReset();
+    mocks.getRecentMessages.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it("classifies bootstrap missing errors and validates bootstrap payload shapes", () => {
+    expect(isBootstrapEndpointMissingError(new Error("plain"))).toBe(false);
+    expect(isBootstrapEndpointMissingError(new ApiError(405, "Method Not Allowed"))).toBe(true);
+    expect(isBootstrapEndpointMissingError(new ApiError(404, "Not Found"))).toBe(true);
+    expect(isBootstrapEndpointMissingError(new ApiError(404, "ERR_PROJECT_NOT_FOUND"))).toBe(false);
+    expect(isBootstrapEndpointMissingError(new ApiError(500, "Internal"))).toBe(false);
+
+    expect(isValidProjectBootstrapResponse(null)).toBe(false);
+    expect(isValidProjectBootstrapResponse({ project: { id: "" }, files: [], recent_messages: [] })).toBe(false);
+    expect(isValidProjectBootstrapResponse({ project: { id: "p-1" }, files: [], recent_messages: [] }, "p-2")).toBe(false);
+    expect(isValidProjectBootstrapResponse({ project: { id: "p-1" }, files: "nope", recent_messages: [] })).toBe(false);
+    expect(isValidProjectBootstrapResponse({ project: { id: "p-1" }, files: [], recent_messages: "nope" })).toBe(false);
+    expect(
+      isValidProjectBootstrapResponse({
+        project: { id: "p-1" },
+        files: [],
+        recent_messages: [],
+        initial_file: "invalid" as unknown as File,
+      }),
+    ).toBe(false);
+    expect(isValidProjectBootstrapResponse(sampleBootstrap, "project-1")).toBe(true);
+  });
+
+  it("handles legacy fallback partial failures, pagination trim, invalid file types, and 5xx rethrow", async () => {
+    // 5xx from /bootstrap must rethrow rather than falling back
+    mocks.getBootstrap.mockRejectedValueOnce(new ApiError(502, "Bad Gateway"));
+    await expect(fetchProjectBootstrapWithFallback("project-1")).rejects.toThrow("Bad Gateway");
+
+    // 405 triggers fallback; test tree/chat failures, deleted/folder/cross-project/404/503 file cases, and chatLimit+1 trim
+    mocks.getBootstrap.mockRejectedValueOnce(new ApiError(405, "Method Not Allowed"));
+    mocks.projectGet.mockResolvedValueOnce(sampleProject);
+    mocks.fileGetTree.mockRejectedValueOnce(new Error("tree down"));
+    mocks.getRecentMessages.mockRejectedValueOnce(new Error("chat down"));
+    mocks.fileGet.mockResolvedValueOnce({ ...sampleFile, file_type: "folder" });
+
+    const res1 = await fetchProjectBootstrapWithFallback("project-1", { fileId: sampleFile.id, chatLimit: 2 });
+    expect(res1.usedFallback).toBe(true);
+    expect(res1.fileTreeReady).toBe(false);
+    expect(res1.chatReady).toBe(false);
+    expect(res1.initialFileStatus).toBe("missing");
+    expect(res1.data.initial_file).toBeNull();
+
+    // 404 file -> missing; 3 messages for chatLimit=2 -> trimmed to last 2 with has_more_messages=true
+    mocks.getBootstrap.mockRejectedValueOnce(new ApiError(404, "Not Found"));
+    mocks.projectGet.mockResolvedValueOnce(sampleProject);
+    mocks.fileGetTree.mockResolvedValueOnce({ tree: sampleTree });
+    mocks.getRecentMessages.mockResolvedValueOnce([
+      { ...sampleBootstrap.recent_messages[0], id: "m1", content: "1" },
+      { ...sampleBootstrap.recent_messages[0], id: "m2", content: "2" },
+      { ...sampleBootstrap.recent_messages[0], id: "m3", content: "3" },
+    ]);
+    mocks.fileGet.mockRejectedValueOnce(new ApiError(404, "ERR_FILE_NOT_FOUND"));
+
+    const res2 = await fetchProjectBootstrapWithFallback("project-1", { fileId: "gone-file", chatLimit: 2 });
+    expect(res2.data.has_more_messages).toBe(true);
+    expect(res2.data.recent_messages.map((m) => m.id)).toEqual(["m2", "m3"]);
+    expect(res2.initialFileStatus).toBe("missing");
+
+    // 503 file -> transient_error; omitted fileId -> missing without calling fileApi.get
+    mocks.getBootstrap.mockRejectedValueOnce(new ApiError(404, "Not Found"));
+    mocks.projectGet.mockResolvedValueOnce(sampleProject);
+    mocks.fileGetTree.mockResolvedValueOnce({ tree: sampleTree });
+    mocks.getRecentMessages.mockResolvedValueOnce([]);
+    mocks.fileGet.mockRejectedValueOnce(new ApiError(503, "Unavailable"));
+
+    const res3 = await fetchProjectBootstrapWithFallback("project-1", { fileId: "flaky-file" });
+    expect(res3.initialFileStatus).toBe("transient_error");
+
+    mocks.getBootstrap.mockRejectedValueOnce(new ApiError(404, "Not Found"));
+    mocks.projectGet.mockResolvedValueOnce(sampleProject);
+    mocks.fileGetTree.mockResolvedValueOnce({ tree: sampleTree });
+    mocks.getRecentMessages.mockResolvedValueOnce([]);
+
+    const res4 = await fetchProjectBootstrapWithFallback("project-1");
+    expect(res4.initialFileStatus).toBe("missing");
+    expect(res4.data.initial_file).toBeNull();
+  });
+
+  it("handles handoff expiry, sync-required flags, consumption guards, and fresher SWR propagation", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    // Null/missing guards are safe no-ops
+    expect(consumeWorkbenchSwrSyncRequired(undefined, "u", "p", "f")).toBe(false);
+    expect(consumeWorkbenchSwrSyncRequired(queryClient, null, "p", "f")).toBe(false);
+    markWorkbenchSwrSyncRequired(undefined, "u", "p", "f");
+    clearWorkbenchSwrSyncRequired(undefined, "u", "p", "f");
+    evictProjectBootstrapHandoff(undefined, "u", "p");
+    expect(peekBootstrappedFileTree(undefined, "u", "p")).toBeNull();
+    expect(peekBootstrappedChat(queryClient, "u", "p")).toBeNull();
+
+    // Sync-required mark -> consume -> empty
+    markWorkbenchSwrSyncRequired(queryClient, "user-1", "project-1", "file-1");
+    expect(consumeWorkbenchSwrSyncRequired(queryClient, "user-1", "project-1", "file-1")).toBe(true);
+    expect(consumeWorkbenchSwrSyncRequired(queryClient, "user-1", "project-1", "file-1")).toBe(false);
+
+    // Expired handoff is automatically evicted by peek
+    mocks.getBootstrap.mockResolvedValueOnce(sampleBootstrap);
+    const oldStart = Date.now() - BOOTSTRAP_HANDOFF_MAX_AGE_MS - 1_000;
+    await startProjectBootstrap(queryClient, {
+      userId: "user-1",
+      projectId: "project-1",
+      now: oldStart,
+    });
+    expect(peekBootstrappedFileTree(queryClient, "user-1", "project-1")).toBeNull();
+
+    // Active handoff can be peeked and marked consumed; fresher SWR wins in returned result.data.initial_file
+    const newerSwrFile: File = {
+      ...sampleFile,
+      content: "更晚保存的 SWR 内容",
+      updated_at: "2026-11-26T12:00:00Z",
+    };
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: newerSwrFile,
+    });
+    mocks.getBootstrap.mockResolvedValueOnce(sampleBootstrap);
+    const bootPromise = startProjectBootstrap(queryClient, {
+      userId: "user-1",
+      projectId: "project-1",
+      fileId: sampleFile.id,
+    });
+    const entry = peekBootstrappedFileTree(queryClient, "user-1", "project-1");
+    expect(entry).not.toBeNull();
+    markBootstrappedFileTreeConsumed(queryClient, "user-1", "project-1", entry!);
+    expect(peekBootstrappedFileTree(queryClient, "user-1", "project-1")).toBeNull();
+    markBootstrappedChatConsumed(queryClient, "user-1", "project-1", entry!);
+    expect(peekBootstrappedChat(queryClient, "user-1", "project-1")).toBeNull();
+
+    const result = await bootPromise;
+    expect(result?.data.initial_file?.content).toBe("更晚保存的 SWR 内容");
+    expect(result?.data.initial_file?.updated_at).toBe(newerSwrFile.updated_at);
+  });
+
+  it("handles workbenchSwrCache corruption, expiry, oversized bodies, LRU pruning, title updates, invalidation, and auth snapshot edge cases", () => {
+    // Missing args
+    expect(readWorkbenchSwr(null, "project-1")).toBeNull();
+    expect(writeWorkbenchSwr(null, "project-1", { project: sampleProject, files: sampleTree, initial_file: null })).toBe(false);
+    expect(writeWorkbenchSwr("user-1", "other-project", { project: sampleProject, files: sampleTree, initial_file: null })).toBe(false);
+    removeWorkbenchSwr(null, "project-1");
+    updateWorkbenchSwrInitialFile(null, "project-1", sampleFile);
+    invalidateWorkbenchSwrInitialFile(null, "project-1");
+
+    // Corrupted JSON and expired/invalid schema entries are removed on read
+    const key = getWorkbenchSwrKey("user-1", "project-1");
+    sessionStorage.setItem(key, "{not-json");
+    expect(readWorkbenchSwr("user-1", "project-1")).toBeNull();
+    expect(sessionStorage.getItem(key)).toBeNull();
+
+    const baseNow = Date.now();
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: sampleFile,
+    }, baseNow);
+    expect(readWorkbenchSwr("user-1", "project-1", baseNow + WORKBENCH_SWR_TTL_MS + 1)).toBeNull();
+    expect(sessionStorage.getItem(key)).toBeNull();
+
+    // Oversized initial_file is dropped while keeping project + tree; oversized tree returns false
+    const hugeFile: File = {
+      ...sampleFile,
+      content: "x".repeat(MAX_WORKBENCH_SWR_ENTRY_CHARS + 100),
+    };
+    expect(
+      writeWorkbenchSwr("user-1", "project-1", {
+        project: sampleProject,
+        files: sampleTree,
+        initial_file: hugeFile,
+      }, baseNow),
+    ).toBe(true);
+    expect(readWorkbenchSwr("user-1", "project-1", baseNow)?.initial_file).toBeNull();
+
+    const hugeTree: FileTreeNode[] = [
+      {
+        ...sampleTree[0],
+        title: "t".repeat(MAX_WORKBENCH_SWR_ENTRY_CHARS + 100),
+      },
+    ];
+    expect(
+      writeWorkbenchSwr("user-1", "project-1", {
+        project: sampleProject,
+        files: hugeTree,
+        initial_file: null,
+      }, baseNow),
+    ).toBe(false);
+
+    // updateWorkbenchSwrInitialFile updates nested tree node title iteratively and invalidate respects fileId filter
+    writeWorkbenchSwr("user-1", "project-1", {
+      project: sampleProject,
+      files: sampleTree,
+      initial_file: sampleFile,
+    }, baseNow);
+    updateWorkbenchSwrInitialFile("user-1", "project-1", { ...sampleFile, title: "第七章（修订）" });
+    const renamed = readWorkbenchSwr("user-1", "project-1", baseNow);
+    expect(renamed?.files[0]?.children?.[0]?.title).toBe("第七章（修订）");
+
+    invalidateWorkbenchSwrInitialFile("user-1", "project-1", "other-file");
+    expect(readWorkbenchSwr("user-1", "project-1", baseNow)?.initial_file?.id).toBe(sampleFile.id);
+    invalidateWorkbenchSwrInitialFile("user-1", "project-1", sampleFile.id);
+    expect(readWorkbenchSwr("user-1", "project-1", baseNow)?.initial_file).toBeNull();
+
+    // LRU pruning evicts oldest entries beyond MAX_WORKBENCH_SWR_PROJECTS (including corrupted entries)
+    clearWorkbenchSwrCache();
+    sessionStorage.setItem(getWorkbenchSwrKey("user-1", "corrupt-proj"), "{bad");
+    for (let i = 0; i < MAX_WORKBENCH_SWR_PROJECTS + 1; i += 1) {
+      const pid = `project-lru-${i}`;
+      writeWorkbenchSwr(
+        "user-1",
+        pid,
+        {
+          project: { ...sampleProject, id: pid },
+          files: [],
+          initial_file: null,
+        },
+        baseNow + i * 1000,
+      );
+    }
+    expect(sessionStorage.getItem(getWorkbenchSwrKey("user-1", "corrupt-proj"))).toBeNull();
+    expect(readWorkbenchSwr("user-1", "project-lru-0", baseNow + 10_000)).toBeNull();
+    expect(readWorkbenchSwr("user-1", `project-lru-${MAX_WORKBENCH_SWR_PROJECTS}`, baseNow + 10_000)?.project.id).toBe(
+      `project-lru-${MAX_WORKBENCH_SWR_PROJECTS}`,
+    );
+
+    // Auth session user snapshot edge cases: invalid user, corrupted/expired JSON, explicit clear
+    expect(writeAuthSessionUserSnapshot(null)).toBe(false);
+    expect(writeAuthSessionUserSnapshot({ id: "" })).toBe(false);
+    sessionStorage.setItem(AUTH_SESSION_USER_KEY, "{bad-json");
+    expect(readAuthSessionUserSnapshot()).toBeNull();
+    expect(sessionStorage.getItem(AUTH_SESSION_USER_KEY)).toBeNull();
+
+    writeAuthSessionUserSnapshot(mocks.user, baseNow);
+    expect(readAuthSessionUserSnapshot(baseNow + 25 * 60 * 60 * 1000)).toBeNull();
+    writeAuthSessionUserSnapshot(mocks.user, baseNow);
+    clearAuthSessionUserSnapshot();
+    expect(readAuthSessionUserSnapshot(baseNow)).toBeNull();
   });
 });
