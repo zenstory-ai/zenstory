@@ -13,9 +13,7 @@ from sqlmodel import Session
 from agent.core.session_loader import SESSION_SNAPSHOT_MAX_FILES, SessionLoader
 from agent.loop.engine import (
     _BODY_SAVED_CONTEXT,
-    _BODY_SAVED_CONTEXT_EN,
     _BODY_SAVED_REPLIED_CONTEXT,
-    _BODY_SAVED_REPLIED_CONTEXT_EN,
 )
 from agent.loop.turn_context import build_loop_turn_context
 from agent.openai_agents.repeat_read_guard import RepeatReadGuard
@@ -23,7 +21,7 @@ from agent.openai_agents.tool_failure_breaker import _with_recovery_hint
 from agent.prompts.base import LOOP_TOOL_USAGE_PROTOCOL, UNIFIED_EXECUTION_PROTOCOL
 from agent.tools import mcp_tools
 from agent.tools.file_ops.edit import _approximate_not_found_advice
-from agent.tools.tool_schemas import EDIT_FILE_TOOL, QUERY_FILES_TOOL
+from agent.tools.tool_schemas import EDIT_FILE_TOOL
 from config.datetime_utils import normalize_datetime_to_utc
 from models import ChatMessage, ChatSession, File, Project, User
 from services.features.activation_event_service import activation_event_service
@@ -294,7 +292,7 @@ async def test_session_carryover_author_edit_between_turns_never_bypasses_safety
         payload = json.loads(raw["content"][0]["text"])
         assert payload["status"] == "error"
         assert payload["error_type"] == "anchor_not_found"
-        assert "query_files" in payload["error"]
+        assert "read_files" in payload["error"]
     finally:
         req_ctx.clear()
 
@@ -764,30 +762,25 @@ def test_batch_edit_and_start_char_guidance_and_ids_schema():
         assert "改动多时拆成几次" not in text
         assert "不要在一次调用里堆很多条" not in text
         assert "不在一次调用里堆很多条" not in text
-        assert "continue_on_error=true" in text
-
-    for text in (_BODY_SAVED_CONTEXT_EN, _BODY_SAVED_REPLIED_CONTEXT_EN):
-        assert "continue_on_error=true" in text
 
     # start_char 仅用于超长文件 (>25000 字)
-    q_props = QUERY_FILES_TOOL["input_schema"]["properties"]
-    assert "25000" in QUERY_FILES_TOOL["description"]
-    assert "25000" in q_props["start_char"]["description"]
-    assert "25000" in q_props["max_chars"]["description"]
+    from agent.tools.tool_schemas import READ_FILES_TOOL
+
+    rf_props = READ_FILES_TOOL["input_schema"]["properties"]
+    assert "25000" in READ_FILES_TOOL["description"]
+    assert "25000" in rf_props["start_char"]["description"]
     assert "25000" in LOOP_TOOL_USAGE_PROTOCOL
     assert "25000" in approx_advice
     assert "30 处" in LOOP_TOOL_USAGE_PROTOCOL
-    assert "30 处" in edits_desc
-    assert "30 处" in continue_desc
+    assert "30" in edits_desc
 
-    # query_files batch ids schema
-    assert "ids" in q_props
-    assert q_props["ids"]["type"] == "array"
-    assert q_props["ids"]["items"]["type"] == "string"
-    assert q_props["ids"]["maxItems"] == 5
-    assert "id" in q_props
-    assert "query_files(ids=[...])" in UNIFIED_EXECUTION_PROTOCOL
-    assert "query_files(ids=[...])" in LOOP_TOOL_USAGE_PROTOCOL
+    # read_files batch ids schema
+    assert "ids" in rf_props
+    assert rf_props["ids"]["type"] == "array"
+    assert rf_props["ids"]["items"]["type"] == "string"
+    assert rf_props["ids"]["maxItems"] == 5
+    assert "read_files(ids=[...])" in UNIFIED_EXECUTION_PROTOCOL
+    assert "read_files(ids=[...])" in LOOP_TOOL_USAGE_PROTOCOL
 
 
 # =====================================================================

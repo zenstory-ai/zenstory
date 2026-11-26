@@ -152,10 +152,6 @@ async def _run_loop(
         patch("agent.openai_agents.runner.build_failover_chat_model", return_value="synthetic-model"),
         patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="synthetic-model")),
         patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
-        patch(
-            "agent.core.task_board_completion.auto_finalize_task_board_on_completion",
-            AsyncMock(return_value=([], False)),
-        ),
     ):
         frames = [frame async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state))]
     return Outcome(frames=frames, adapter=adapter, state=state)

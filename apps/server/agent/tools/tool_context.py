@@ -62,7 +62,8 @@ class _PendingEmptyFileState:
     """
 
     __slots__ = (
-        "_lock", "_entries", "_file_types", "_repeat_absorptions", "_reservations", "_streamed",
+        "_lock", "_entries", "_file_types", "_repeat_absorptions", "_overdue_non_conflicting_uses",
+        "_reservations", "_streamed",
         "_reply_seq", "_created_in", "_versions", "_prebody_reply", "_waiting_at_reply_start",
         "_replacements", "_closed", "_replacement_saved", "_chapter_bodies_saved",
         "_saved_body_types", "_cut_bodies_saved",
@@ -76,6 +77,8 @@ class _PendingEmptyFileState:
         self._file_types: dict[str, str] = {}
         # file_id -> 本待写周期内已吸收的同目标重复 write_chapter / create_file 次数（上限 1）
         self._repeat_absorptions: dict[str, int] = {}
+        # file_id -> 本待写周期 overdue 后放行的非冲突辅助工具插队次数（P1-5 上限 2）
+        self._overdue_non_conflicting_uses: dict[str, int] = {}
         # ticket -> title，正在建库途中（还没拿到真实 file_id）的占坑
         self._reservations: dict[str, str] = {}
         # 正文已以闭合 <file> 块出现在模型回复里、只差 adapter 落库的条目
@@ -197,6 +200,19 @@ class _PendingEmptyFileState:
             self._repeat_absorptions[file_id] = used + 1
             return True
 
+    def consume_overdue_non_conflicting(self, file_id: str, *, max_uses: int = 2) -> bool:
+        """P1-5：为当前 overdue 待写 file_id 消耗一次非冲突辅助工具插队额度；超限时返回 False。"""
+        if not file_id or max_uses <= 0:
+            return False
+        with self._lock:
+            if file_id not in self._entries:
+                return False
+            used = self._overdue_non_conflicting_uses.get(file_id, 0)
+            if used >= max_uses:
+                return False
+            self._overdue_non_conflicting_uses[file_id] = used + 1
+            return True
+
     def add(
         self,
         file_id: str,
@@ -211,6 +227,7 @@ class _PendingEmptyFileState:
             self._set_version(file_id, version)
             self._set_file_type_locked(file_id, file_type)
             self._repeat_absorptions.pop(file_id, None)
+            self._overdue_non_conflicting_uses.pop(file_id, None)
             self._replacements.pop(file_id, None)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
@@ -265,6 +282,7 @@ class _PendingEmptyFileState:
                 self._entries.clear()
                 self._file_types.clear()
                 self._repeat_absorptions.clear()
+                self._overdue_non_conflicting_uses.clear()
                 self._created_in.clear()
                 self._streamed.clear()
                 self._versions.clear()
@@ -273,6 +291,7 @@ class _PendingEmptyFileState:
                 self._entries.pop(file_id, None)
                 self._file_types.pop(file_id, None)
                 self._repeat_absorptions.pop(file_id, None)
+                self._overdue_non_conflicting_uses.pop(file_id, None)
                 self._created_in.pop(file_id, None)
                 self._streamed.discard(file_id)
                 self._versions.pop(file_id, None)
@@ -283,6 +302,7 @@ class _PendingEmptyFileState:
             self._entries.clear()
             self._file_types.clear()
             self._repeat_absorptions.clear()
+            self._overdue_non_conflicting_uses.clear()
             self._created_in.clear()
             self._reservations.clear()
             self._streamed.clear()
@@ -1191,6 +1211,11 @@ class AgentRequestContext:
     def consume_pending_writer_repeat(self, file_id: str, *, max_repeats: int = 1) -> bool:
         return self.pending_empty_file_state.consume_repeat_absorption(
             file_id, max_repeats=max_repeats
+        )
+
+    def consume_overdue_non_conflicting(self, file_id: str, *, max_uses: int = 2) -> bool:
+        return self.pending_empty_file_state.consume_overdue_non_conflicting(
+            file_id, max_uses=max_uses
         )
 
     def clear_pending_empty_file(self, file_id: str | None = None) -> None:

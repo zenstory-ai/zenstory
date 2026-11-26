@@ -10,7 +10,7 @@ import copy
 import json
 import os
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any
 from uuid import uuid4
 
@@ -53,6 +53,7 @@ from agent.tools.file_ops.serialization import (
     normalize_query_file_ids,
     resolve_summary_preview_chars_for_listing,
     serialize_file,
+    serialize_query_file,
 )
 from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
 from agent.tools.tool_context import (  # noqa: F401 - re-exported for callers
@@ -67,8 +68,10 @@ from agent.tools.tool_inputs import (
     EditFileInput,
     LoadSkillInput,
     QueryFilesInput,
+    ReadFilesInput,
     ReadSkillResourceInput,
     RenameFileInput,
+    SearchFilesInput,
     UpdateProjectInput,
     WriteChapterInput,
     validate_tool_input,
@@ -261,7 +264,7 @@ _BOUND_LIST_TRUNCATED_SUFFIX = "…[已截断]"
 TOOL_RESULT_OVERSIZE_NOTE = (
     "结果超过单次工具返回上限，各条目的 id/title/file_type/status 均已保留，"
     "content 等长文本字段已截断（content_truncated=true，content_length 为原长）。"
-    '需要某个文件的完整正文时，用 query_files(id=…, response_mode="full") 单独读取该文件，'
+    "需要某个文件的完整正文时，用 read_files(ids=[…]) 单独读取该文件，"
     "不要重复整批读取。"
 )
 
@@ -564,7 +567,7 @@ def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
         "next_step": (
             f"「{title}」已建好，正文还是空的。构思已在调用前完成，这一次思考只留一两行或直接开始，"
             "不要在思考里重新推演全盘方案或预写全文；回复第一行直接输出 <file> 写完整正文，写完用 </file> 结束；"
-            "写完之前不要调用任何工具（query_files / write_chapter / edit_file / update_project 都会被拒绝）。"
+            "写完之前不要调用任何工具（read_files / search_files / write_chapter / edit_file / update_project 都会被拒绝）。"
         ),
     }
 
@@ -1341,7 +1344,7 @@ def _write_chapter_replace(
             "next_step": (
                 "构思已在调用前完成，这一次思考只留一两行或直接开始，不要在思考里重新推演或预写全文；"
                 "回复第一行直接输出 <file> 写这一章完整的新正文（不是改动片段），写完用 </file> 结束；"
-                "写完之前不要调用任何工具（query_files / write_chapter / edit_file / update_project 都会被拒绝）。"
+                "写完之前不要调用任何工具（read_files / search_files / write_chapter / edit_file / update_project 都会被拒绝）。"
                 "保存后原稿可在历史版本里找回（也可在聊天修改卡撤销）。"
             ),
         }
@@ -1911,6 +1914,344 @@ def _rename_file_sync(
             )
         except Exception as e:
             return _make_error(str(e), tool_name=tool_name)
+
+
+async def read_files(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
+    """按文件 ID 读取 1-5 个文件全文（或单个超长文件的局部范围）。"""
+    return await asyncio.to_thread(_read_files_sync, args, request_context)
+
+
+def _read_files_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
+    """Synchronous read_files implementation."""
+    tool_name = "read_files"
+    project_id = req_ctx.project_id if req_ctx is not None else None
+
+    if req_ctx is None or project_id is None:
+        return _make_error("project_id not set", tool_name=tool_name)
+
+    parsed, validation_error = validate_tool_input(ReadFilesInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
+    with req_ctx.session_scope() as session:
+        executor = req_ctx.executor(session)
+        try:
+            requested_ids, truncated_ids = normalize_query_file_ids(
+                file_ids=parsed.ids,
+                max_ids=QUERY_FILES_MAX_BATCH_IDS,
+            )
+            range_args: dict[str, Any] = {
+                "section": parsed.section,
+                "tail_chars": parsed.tail_chars,
+                "start_char": parsed.start_char,
+                "max_chars": parsed.max_chars,
+            }
+            if len(requested_ids) > 1 and wants_range(range_args):
+                return _make_error(
+                    "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
+                    "需要按范围读取某个超长文件时请只传单个文件 ID。",
+                    tool_name=tool_name,
+                )
+
+            range_read = len(requested_ids) == 1 and wants_range(range_args)
+            read_ticket = req_ctx.read_ticket()
+            result = executor.query_files(
+                project_id=project_id,
+                ids=requested_ids,
+                response_mode=QUERY_FILES_RESPONSE_MODE_FULL,
+            )
+
+            if range_read:
+                rows = result if isinstance(result, list) else []
+                if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
+                    full_row = rows[0]
+                    raw_full_content = full_row["content"]
+                    sliced = apply_content_range(full_row, range_args)
+                    result = [sliced]
+                    if sliced.get("content_partial"):
+                        content_range = sliced.get("content_range")
+                        span = (
+                            (int(content_range["start"]), int(content_range["end"]))
+                            if isinstance(content_range, dict)
+                            and isinstance(content_range.get("start"), int)
+                            and isinstance(content_range.get("end"), int)
+                            else None
+                        )
+                        req_ctx.record_range_read_snapshot(
+                            str(full_row.get("id") or ""),
+                            raw_full_content,
+                            span=span,
+                            ticket=read_ticket,
+                        )
+                        sliced["paragraph_count"] = count_paragraphs(raw_full_content)
+                        if parsed.show_paragraph_stats and isinstance(sliced.get("content"), str):
+                            start_offset = span[0] if span is not None else 0
+                            start_p = paragraph_index_at_offset(raw_full_content, start_offset)
+                            annotated, _ = format_paragraph_stats(
+                                sliced["content"], start_paragraph=start_p
+                            )
+                            sliced["content"] = annotated
+                            sliced["paragraph_stats_annotated"] = True
+                        return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+
+            rows = result if isinstance(result, list) else []
+            raw_contents: dict[str, str] = {}
+            for row in rows:
+                if isinstance(row, dict) and isinstance(row.get("content"), str):
+                    fid = str(row.get("id") or "")
+                    raw_body = row["content"]
+                    if fid:
+                        raw_contents[fid] = raw_body
+                    row["paragraph_count"] = count_paragraphs(raw_body)
+                    if parsed.show_paragraph_stats:
+                        annotated, _ = format_paragraph_stats(raw_body)
+                        row["content"] = annotated
+                        row["paragraph_stats_annotated"] = True
+
+            returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
+            missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
+            if not rows:
+                extra: dict[str, Any] = {"missing_ids": missing_ids}
+                if truncated_ids:
+                    extra["truncated_ids"] = truncated_ids
+                return _make_structured_error(
+                    "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
+                    error_type="files_not_found",
+                    tool_name=tool_name,
+                    **extra,
+                )
+
+            payload: dict[str, Any] = {"status": "success", "data": result}
+            if missing_ids:
+                payload["missing_ids"] = missing_ids
+            if truncated_ids:
+                payload["truncated_ids"] = truncated_ids
+                payload["note"] = (
+                    f"ids 单次最多读取 {QUERY_FILES_MAX_BATCH_IDS} 个文件，已返回前 {QUERY_FILES_MAX_BATCH_IDS} 个；"
+                    f"其余 {len(truncated_ids)} 个请另起调用读取。"
+                )
+            if len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
+                _note_file_read(result, req_ctx, ticket=read_ticket, raw_contents=raw_contents)
+            return _make_result(payload, tool_name=tool_name)
+        except Exception as exc:
+            return _make_error(str(exc), tool_name=tool_name)
+
+
+async def search_files(
+    args: dict[str, Any],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> dict[str, Any]:
+    """按字面关键词跨文件检索命中位置，或按类型/目录列出文件摘要（从不返回全文）。"""
+    return await asyncio.to_thread(_search_files_sync, args, request_context)
+
+
+def _search_files_sync(
+    args: dict[str, Any],
+    req_ctx: AgentRequestContext | None,
+) -> dict[str, Any]:
+    """Synchronous search_files implementation."""
+    from models import File
+
+    tool_name = "search_files"
+    project_id = req_ctx.project_id if req_ctx is not None else None
+
+    if req_ctx is None or project_id is None:
+        return _make_error("project_id not set", tool_name=tool_name)
+
+    parsed, validation_error = validate_tool_input(SearchFilesInput, args, tool_name=tool_name)
+    if validation_error is not None or parsed is None:
+        return _make_mcp_payload(validation_error, tool_name=tool_name)
+
+    needle = parsed.query.strip() if isinstance(parsed.query, str) else ""
+
+    with req_ctx.session_scope() as session:
+        if needle:
+            return _search_files_matches_sync(
+                session,
+                req_ctx,
+                project_id,
+                parsed,
+                needle=needle,
+                tool_name=tool_name,
+            )
+
+        executor = req_ctx.executor(session)
+        try:
+            check_project_ownership(session, project_id, req_ctx.user_id)
+            effective_limit = parsed.limit if parsed.limit is not None else QUERY_MATCHES_MAX_FILES
+            effective_offset = parsed.offset if parsed.offset is not None else 0
+
+            if parsed.ids:
+                requested_ids, truncated_ids = normalize_query_file_ids(
+                    file_ids=parsed.ids,
+                    max_ids=QUERY_MATCHES_MAX_FILES,
+                )
+                stmt = select(File).where(
+                    File.id.in_(requested_ids),  # type: ignore[attr-defined]
+                    File.project_id == project_id,
+                    File.is_deleted.is_(False),
+                )
+                if parsed.file_types:
+                    stmt = stmt.where(File.file_type.in_(parsed.file_types))  # type: ignore[attr-defined]
+                if parsed.parent_id is not None:
+                    stmt = stmt.where(File.parent_id == parsed.parent_id)
+                rows = session.exec(stmt).all()
+                order_index = {fid: idx for idx, fid in enumerate(requested_ids)}
+                rows.sort(key=lambda row: order_index.get(str(row.id), len(requested_ids)))
+                if effective_offset:
+                    rows = rows[effective_offset:]
+                rows = rows[:effective_limit]
+                row_count = len(rows)
+                result = [
+                    serialize_query_file(
+                        file,
+                        response_mode=QUERY_FILES_RESPONSE_MODE_SUMMARY,
+                        content_preview_chars=resolve_summary_preview_chars_for_listing(
+                            file.file_type,
+                            row_count=row_count,
+                            has_query=False,
+                            has_exact_ids=True,
+                            explicit_preview_chars=None,
+                        ),
+                    )
+                    for file in rows
+                ]
+                payload: dict[str, Any] = {"status": "success", "data": result}
+                if truncated_ids:
+                    payload["truncated_ids"] = truncated_ids
+                return _make_result(payload, tool_name=tool_name)
+
+            result = executor.query_files(
+                project_id=project_id,
+                file_types=parsed.file_types,
+                parent_id=parsed.parent_id,
+                limit=effective_limit,
+                offset=effective_offset,
+                response_mode=QUERY_FILES_RESPONSE_MODE_SUMMARY,
+            )
+            return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+        except Exception as exc:
+            return _make_error(str(exc), tool_name=tool_name)
+
+
+def _search_files_matches_sync(
+    session: Session,
+    req_ctx: AgentRequestContext,
+    project_id: str,
+    parsed: SearchFilesInput,
+    *,
+    needle: str,
+    tool_name: str = "search_files",
+) -> dict[str, Any]:
+    """Literal substring search across file titles and bodies without returning full bodies."""
+    from models import File
+
+    try:
+        check_project_ownership(session, project_id, req_ctx.user_id)
+        requested_ids, _ = normalize_query_file_ids(
+            file_ids=parsed.ids,
+            max_ids=QUERY_MATCHES_MAX_FILES,
+        )
+        stmt = (
+            select(File.id, File.title, File.file_type, File.content)
+            .where(
+                File.project_id == project_id,
+                File.is_deleted.is_(False),
+                File.file_type != "folder",
+                (
+                    File.title.contains(needle, autoescape=True)  # type: ignore[attr-defined]
+                    | File.content.contains(needle, autoescape=True)  # type: ignore[attr-defined]
+                ),
+            )
+            .order_by(
+                File.order.asc(),  # type: ignore[attr-defined]
+                col(File.created_at).asc(),
+                col(File.id).asc(),
+            )
+        )
+        if requested_ids:
+            stmt = stmt.where(File.id.in_(requested_ids))  # type: ignore[attr-defined]
+        if parsed.file_types:
+            stmt = stmt.where(File.file_type.in_(parsed.file_types))  # type: ignore[attr-defined]
+        if parsed.parent_id is not None:
+            stmt = stmt.where(File.parent_id == parsed.parent_id)
+
+        rows = session.exec(stmt).all()
+    except Exception as exc:
+        return _make_error(str(exc), tool_name=tool_name)
+
+    max_files = QUERY_MATCHES_MAX_FILES
+    if isinstance(parsed.limit, int) and parsed.limit > 0:
+        max_files = min(parsed.limit, QUERY_MATCHES_MAX_FILES)
+    skip_files = parsed.offset if isinstance(parsed.offset, int) and parsed.offset > 0 else 0
+
+    total_matches = 0
+    matched_files = 0
+    collected_matches = 0
+    truncated = False
+    file_entries: list[dict[str, Any]] = []
+
+    for row in rows:
+        title = row.title or ""
+        content = row.content or ""
+        title_matched = needle in title
+        body_match_count = 0
+        all_capped: list[dict[str, Any]] = []
+        if needle in content:
+            body_match_count, all_capped = find_literal_matches(
+                content,
+                needle,
+                max_matches=QUERY_MATCHES_PER_FILE,
+                context_chars=QUERY_MATCHES_SNIPPET_CONTEXT_CHARS,
+            )
+        if body_match_count <= 0 and not title_matched:
+            continue
+        matched_files += 1
+        total_matches += body_match_count if body_match_count > 0 else 1
+        if matched_files <= skip_files:
+            continue
+        if len(file_entries) >= max_files or (
+            body_match_count > 0 and collected_matches >= QUERY_MATCHES_MAX_TOTAL
+        ):
+            truncated = True
+            continue
+        remaining_budget = max(0, QUERY_MATCHES_MAX_TOTAL - collected_matches)
+        file_matches = all_capped[:remaining_budget]
+        if body_match_count > len(file_matches):
+            truncated = True
+        collected_matches += len(file_matches)
+        entry: dict[str, Any] = {
+            "id": row.id,
+            "title": row.title,
+            "file_type": row.file_type,
+            "match_count": body_match_count,
+            "matches": file_matches,
+        }
+        if title_matched:
+            entry["title_matched"] = True
+        file_entries.append(entry)
+
+    return _make_result(
+        {
+            "status": "success",
+            "data": {
+                "query": needle,
+                "total_matches": total_matches,
+                "matched_files": matched_files,
+                "truncated": truncated,
+                "files": file_entries,
+            },
+        },
+        tool_name=tool_name,
+    )
 
 
 async def query_files(
@@ -2516,18 +2857,10 @@ def _suggest_auto_current_phase_from_drafts(session: Session, project_id: str) -
 async def update_project(
     args: dict[str, Any],
     *,
-    written_artifact_ids: Sequence[str] | None = None,
     request_context: AgentRequestContext | None = None,
 ) -> dict[str, Any]:
-    """更新项目信息和任务计划。"""
-    if written_artifact_ids is None:
-        return await _offload_write_tool("update_project", _update_project_sync, args, request_context)
-    return await asyncio.to_thread(
-        _update_project_sync,
-        args,
-        request_context,
-        written_artifact_ids,
-    )
+    """更新项目 AI 记忆（简介、阶段、风格、写作约定、作品名）。"""
+    return await _offload_write_tool("update_project", _update_project_sync, args, request_context)
 
 
 NOTES_FULL_NOTE = "写作约定已接近 4000 字上限，这次没有记入；请作者在 AI 记忆里精简后再记。"
@@ -2536,13 +2869,10 @@ NOTES_FULL_NOTE = "写作约定已接近 4000 字上限，这次没有记入；�
 def _update_project_sync(
     args: dict[str, Any],
     req_ctx: AgentRequestContext | None,
-    written_artifact_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Synchronous update_project implementation."""
     tool_name = "update_project"
     project_id = req_ctx.project_id if req_ctx is not None else None
-    session_id = req_ctx.session_id if req_ctx is not None else None
-    user_id = req_ctx.user_id if req_ctx is not None else None
 
     if req_ctx is None or project_id is None:
         return _make_error("project_id not set", tool_name=tool_name)
@@ -2633,7 +2963,6 @@ def _update_project_sync(
                 # current_status already lives inside project_status and is not duplicated.
                 result["project_id"] = status_result.get("project_id")
                 result["updated_fields"] = status_result.get("updated_fields", [])
-                # Also on a partial plan rejection: the other fields were still saved.
                 if notes_added and "notes" in result["updated_fields"]:
                     result["notes_added"] = notes_added
                 if notes_over_limit:
@@ -2647,93 +2976,6 @@ def _update_project_sync(
                 ):
                     if key in status_result:
                         result[key] = status_result[key]
-
-            # 更新任务计划（允许传空数组以清空任务板）
-            plan_rejected = False
-            if "tasks" in normalized_args and session_id:
-                plan_kwargs: dict[str, Any] = {
-                    "session_id": session_id,
-                    "tasks": normalized_args.get("tasks", []),
-                    "user_id": user_id,
-                    "project_id": project_id,
-                }
-                if written_artifact_ids is not None:
-                    plan_kwargs["written_artifact_ids"] = written_artifact_ids
-                plan_result = executor.execute_update_plan(
-                    **plan_kwargs,
-                )
-                result["plan"] = plan_result
-                plan_rejected = (
-                    isinstance(plan_result, dict)
-                    and str(plan_result.get("status") or "").lower() in {"ignored", "error"}
-                )
-
-            # 任务板-only 更新是正常路径（prompt 和 workflow completion hook 都会这样调用）。
-            # 这里仅做信息性记录，并尝试自动前推 current_phase（单调不回退）。
-            if "tasks" in normalized_args and not has_status_update_args and not plan_rejected:
-                tasks_arg = normalized_args.get("tasks", [])
-                task_count = len(tasks_arg) if isinstance(tasks_arg, list) else None
-                log_with_context(
-                    logger,
-                    20,  # INFO
-                    "update_project received task-board-only payload",
-                    project_id=project_id,
-                    session_id=session_id,
-                    task_count=task_count,
-                    arg_keys=sorted(normalized_args.keys()),
-                )
-
-                try:
-                    suggested_phase = _suggest_auto_current_phase_from_drafts(session, project_id)
-                    if suggested_phase:
-                        status_result = executor.update_project_status(
-                            project_id=project_id,
-                            summary=None,
-                            current_phase=suggested_phase,
-                            writing_style=None,
-                            notes=None,
-                        )
-                        result["project_status"] = status_result
-                        result["project_id"] = status_result.get("project_id")
-                        result["updated_fields"] = status_result.get("updated_fields", [])
-                        log_with_context(
-                            logger,
-                            20,  # INFO
-                            "Auto-synced project current_phase from draft progress",
-                            project_id=project_id,
-                            current_phase=suggested_phase,
-                        )
-                except Exception as exc:
-                    if hasattr(executor.session, "rollback"):
-                        executor.session.rollback()
-                    log_with_context(
-                        logger,
-                        40,  # ERROR
-                        "Failed to auto-sync current_phase from drafts",
-                        project_id=project_id,
-                        session_id=session_id,
-                        error=str(exc),
-                    )
-
-            if plan_rejected:
-                project_mutated = bool(result.get("updated_fields")) or coerce_bool(
-                    result.get("project_name_updated")
-                )
-                plan = result.get("plan") if isinstance(result.get("plan"), dict) else {}
-                return _make_result(
-                    {
-                        "status": "partial" if project_mutated else "error",
-                        "error_type": "update_plan_rejected",
-                        "error": str(
-                            plan.get("error")
-                            or plan.get("message")
-                            or "任务计划板未更新"
-                        ),
-                        "mutation_applied": project_mutated,
-                        "data": result,
-                    },
-                    tool_name=tool_name,
-                )
 
             return _make_result({"status": "success", "data": result}, tool_name=tool_name)
         except Exception as e:
@@ -2997,6 +3239,8 @@ MCP_TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Any]] = {
     "delete_file": delete_file,
     "rename_file": rename_file,
     "query_files": query_files,
+    "read_files": read_files,
+    "search_files": search_files,
     "update_project": update_project,
     "load_skill": load_skill,
     "read_skill_resource": read_skill_resource,

@@ -149,7 +149,7 @@ def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -
 
 
 _FINGERPRINT_MUTATION_TOOLS = frozenset(
-    {"edit_file", "write_chapter", "create_file", "delete_file", "rename_file"}
+    {"edit_file", "batch_replace_files", "write_chapter", "create_file", "delete_file", "rename_file"}
 )
 
 
@@ -180,6 +180,25 @@ def _applied_file_mutations_for_fingerprints(
                 res = json.loads(res)
         res_data = res.get("data") if isinstance(res, dict) and isinstance(res.get("data"), dict) else res
         if res is False or res_data is False:
+            continue
+        if name == "batch_replace_files":
+            if not isinstance(res_data, dict):
+                continue
+            if res_data.get("dry_run") is True or res_data.get("mutation_applied") is False:
+                continue
+            batch_entries = res_data.get("files") if isinstance(res_data.get("files"), list) else []
+            modified_count = res_data.get("modified_files")
+            has_batch_writes = bool(batch_entries) or (
+                isinstance(modified_count, int) and not isinstance(modified_count, bool) and modified_count > 0
+            )
+            if not has_batch_writes:
+                continue
+            for entry in batch_entries:
+                if isinstance(entry, dict):
+                    fid = entry.get("id")
+                    if isinstance(fid, str) and fid.strip():
+                        mutated_ids.add(fid.strip())
+            any_mutation = True
             continue
         if isinstance(res_data, dict):
             if res_data.get("mutation_applied") is False or res_data.get("all_failed") is True:
@@ -2015,7 +2034,10 @@ class AgentService:
                                 from agent.loop.history import query_result_full_file_ids
 
                                 for tc in all_tool_calls:
-                                    if tc.get("name") == "query_files" and str(tc.get("status") or "").lower() == "success":
+                                    if (
+                                        tc.get("name") in ("query_files", "read_files")
+                                        and str(tc.get("status") or "").lower() == "success"
+                                    ):
                                         for fid in query_result_full_file_ids(
                                             tc.get("result"), include_slimmed_sha256=True
                                         ):

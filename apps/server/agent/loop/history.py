@@ -52,7 +52,7 @@ _REPLACE_NOT_SAVED_NOTE = (
     "下一次回复再用 <file>…</file> 写入，不先把整章发到聊天，"
     "也不用未保存的新稿作 edit_file 锚点。若本轮改为只读或其他任务，不要自动恢复旧写入。"
 )
-_CREATE_NOT_SAVED_NOTE = "这次新建的正文没有确认保存；需要时先用 query_files 查这个 id 的现状。"
+_CREATE_NOT_SAVED_NOTE = "这次新建的正文没有确认保存；需要时先用 read_files 查这个 id 的现状。"
 # 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
 # 回放时如实说明，模型不会以为自己手里还有这些内容。
 _SKILL_CONTENT_NOT_KEPT = {
@@ -64,13 +64,23 @@ _FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的�
 # Stage 1 零 LLM 确定性归档压缩（tool_archive）的共享常量与收据构造。
 # compaction.py 与 history.py 共用同一纯函数，确保实时压缩与冷库回放逐字节一致。
 COMPACTION_MODE_TOOL_ARCHIVE = "tool_archive"
+_FILE_READ_TOOL_NAMES: frozenset[str] = frozenset({"query_files", "read_files"})
+_FILE_QUERY_TOOL_NAMES: frozenset[str] = frozenset({"query_files", "read_files", "search_files"})
 ARCHIVABLE_READ_TOOLS: frozenset[str] = frozenset(
-    {"query_files", "read_skill_resource", "load_skill"}
+    {"query_files", "read_files", "search_files", "read_skill_resource", "load_skill"}
 )
 _TOOL_ARCHIVE_NOTES: dict[str, str] = {
     "query_files": (
         "该只读查询结果已在历史归档中折叠以节省上下文；"
-        "如需原文细节，请按文件 id 重新调用 query_files(id=...) 读取。"
+        "如需原文细节，请按文件 id 重新调用 read_files(ids=[...]) 读取。"
+    ),
+    "read_files": (
+        "该文件读取结果已在历史归档中折叠以节省上下文；"
+        "如需原文细节，请按文件 id 重新调用 read_files(ids=[...]) 读取。"
+    ),
+    "search_files": (
+        "该文件检索结果已在历史归档中折叠以节省上下文；"
+        "如需匹配明细请重新调用 search_files，需读全文请调用 read_files(ids=[...])。"
     ),
     "load_skill": (
         "该技能正文已在历史归档中折叠以节省上下文；"
@@ -334,11 +344,12 @@ def build_tool_archive_receipt(
         "tool_name": tool_name,
     }
     file_ids: list[str] = []
-    if tool_name == "query_files":
+    if tool_name in _FILE_QUERY_TOOL_NAMES:
         refs = extract_archived_file_refs(payload_obj)
         if refs:
             receipt["files"] = refs
-            file_ids = [ref["id"] for ref in refs if ref.get("id")]
+            if tool_name in _FILE_READ_TOOL_NAMES:
+                file_ids = [ref["id"] for ref in refs if ref.get("id")]
     elif tool_name in ("load_skill", "read_skill_resource"):
         data = payload_obj.get("data") if isinstance(payload_obj, dict) else None
         if isinstance(data, dict):
@@ -514,12 +525,12 @@ def _slim_parallel_execute_payload(data: Any) -> tuple[Any, bool]:
 
 
 def slim_client_tool_result(tool_name: str, data: Any) -> Any:
-    """发给浏览器的工具结果瘦身：去掉 query_files / parallel_execute 的大段正文与预览。
+    """发给浏览器的工具结果瘦身：去掉 read_files / search_files / query_files / parallel_execute 的大段正文与预览。
 
     只影响发往前端的 SSE 帧与聊天历史 HTTP 响应，不改动落库内容与模型历史回放；
     edit_file / write_chapter / delete_file / create_file / update_project 等其余工具原样保留。
     """
-    if tool_name == "query_files":
+    if tool_name in _FILE_QUERY_TOOL_NAMES:
         slimmed, changed = _slim_query_files_payload(data)
         return slimmed if changed else data
     if tool_name == "parallel_execute":
@@ -529,11 +540,16 @@ def slim_client_tool_result(tool_name: str, data: Any) -> Any:
 
 
 def client_tool_calls(raw: str | None) -> str | None:
-    """发给浏览器的 tool_calls：去掉 query_files 与 parallel_execute 中前端不展示的正文载荷。
+    """发给浏览器的 tool_calls：去掉 read_files / search_files / query_files 与 parallel_execute 中前端不展示的正文载荷。
 
     未命中目标工具或无需瘦身时原样返回同一个字符串，不改写数据库记录。
     """
-    if not raw or ('"query_files"' not in raw and '"parallel_execute"' not in raw):
+    if not raw or (
+        '"read_files"' not in raw
+        and '"search_files"' not in raw
+        and '"query_files"' not in raw
+        and '"parallel_execute"' not in raw
+    ):
         return raw
     calls = _parse_json(raw)
     if not isinstance(calls, list):
@@ -544,7 +560,7 @@ def client_tool_calls(raw: str | None) -> str | None:
     for call in calls:
         if (
             isinstance(call, dict)
-            and call.get("name") in ("query_files", "parallel_execute")
+            and call.get("name") in (*_FILE_QUERY_TOOL_NAMES, "parallel_execute")
             and "result" in call
         ):
             original_result = call["result"]
@@ -724,9 +740,9 @@ def _loop_row_items(
                     was_archived = True
                     if archived_file_ids is not None:
                         archived_file_ids.update(fids)
-        if not was_archived and archived_file_ids is not None and tool_name == "query_files":
-            # 只有后续非归档的 query_files 再次返回了完整、未截断、非范围读取的正文，该文件才重新进入模型视野；
-            # edit_file / summary / partial / truncated 查询不提供全文，不能清除已归档标记。
+        if not was_archived and archived_file_ids is not None and tool_name in _FILE_READ_TOOL_NAMES:
+            # 只有后续非归档的 read_files / query_files 再次返回了完整、未截断、非范围读取的正文，该文件才重新进入模型视野；
+            # edit_file / search_files / summary / partial / truncated 查询不提供全文，不能清除已归档标记。
             status = str(call.get("status") or "").strip().lower()
             if status == "success":
                 for fid in query_result_full_file_ids(call.get("result")):

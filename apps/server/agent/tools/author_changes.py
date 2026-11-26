@@ -23,18 +23,18 @@ _REVIEWED_AI_EDIT_SUMMARY = "AI edit (reviewed)"
 
 AUTHOR_EDITS_HEADER = (
     "以下本会话此前写过的文件自你上次写入后已被作者手动修改（未在本轮上下文给出全文）。"
-    "引用、续写或修改前请先用 query_files(id=...) 读取最新版，以作者的写法为准。"
+    "引用、续写或修改前请先用 read_files(ids=[...]) 读取最新版，以作者的写法为准。"
 )
 AUTHOR_EDITS_HEADER_EN = (
     "The following files you wrote earlier in this session were manually edited by the author "
-    "(their full text is not attached in this turn). Read the latest version with query_files(id=...) "
+    "(their full text is not attached in this turn). Read the latest version with read_files(ids=[...]) "
     "before quoting, continuing, or editing, and preserve the author's changes."
 )
 
-FAILED_LINE = "- 本会话部分文件的作者手改状态未能核对（不完整）：引用或修改前请用 query_files 读取最新版。"
+FAILED_LINE = "- 本会话部分文件的作者手改状态未能核对（不完整）：引用或修改前请用 read_files 读取最新版。"
 FAILED_LINE_EN = (
     "- Could not verify manual author edits for some session files (incomplete): "
-    "read the latest version with query_files before quoting or editing."
+    "read the latest version with read_files before quoting or editing."
 )
 
 
@@ -84,12 +84,12 @@ def render_manual_edit_alerts(
         if force_en:
             out.append(
                 f"- {len(unchecked_titles)} additional file(s) were not checked for manual edits "
-                f"({', '.join(shown)}); read with query_files before editing."
+                f"({', '.join(shown)}); read with read_files before editing."
             )
         else:
             out.append(
                 f"- 另有 {len(unchecked_titles)} 个文件没有核对手改（不完整）：{'、'.join(shown)}；"
-                "改它们之前用 query_files 按 id 读一次。"
+                "改它们之前用 read_files 按 id 读一次。"
             )
     out.append("</author_edits>")
     return "\n".join(out)

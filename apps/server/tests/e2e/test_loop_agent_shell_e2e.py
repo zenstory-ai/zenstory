@@ -262,7 +262,7 @@ async def test_loop_edit_file_round_persists_undo_metadata(
     _user, token, project = await _login(client, db_session)
     chapter = _ai_chapter(db_session, project, "第1章 雨夜", "雨下了一夜。\n灯一直亮着。")
     model = ScriptedModel(runs=[[
-        Reply(text="", tools=(("query_files", {"id": chapter.id}),)),
+        Reply(text="", tools=(("read_files", {"ids": [chapter.id]}),)),
         Reply(text="", tools=(("edit_file", {"id": chapter.id, "edits": [{"op": "replace", "old": "灯一直亮着。", "new": "灯熄了。"}]}),)),
         Reply(text="改好了第二句。"),
     ]])
@@ -390,7 +390,7 @@ async def test_loop_tool_turn_exhaustion_without_writes_is_charged_after_model_s
     _user, token, project = await _login(client, db_session)
     chapter = _ai_chapter(db_session, project, "第1章 雨夜", "合成第一章原文。")
     model = ScriptedModel(runs=[[
-        Reply(text="", tools=(("query_files", {"id": chapter.id}),), exceeds_max_turns=True),
+        Reply(text="", tools=(("read_files", {"ids": [chapter.id]}),), exceeds_max_turns=True),
     ]])
 
     real_release = quota_service.release_ai_conversation

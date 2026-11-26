@@ -233,7 +233,7 @@ def archive_old_tool_results(
             continue
         new_items[idx] = {**item, "output": receipt_json}
         archived_call_ids.append(call_id)
-        if tool_name == "query_files":
+        if tool_name in ("query_files", "read_files"):
             if file_ids:
                 archived_file_ids.update(file_ids)
             else:
@@ -258,7 +258,7 @@ def archive_old_tool_results(
             if not isinstance(call_id, str) or not call_id:
                 continue
             info = call_info_by_id.get(call_id)
-            if info is None or info[1] != "query_files":
+            if info is None or info[1] not in ("query_files", "read_files"):
                 continue
             output = item.get("output")
             if not isinstance(output, str) or not output:

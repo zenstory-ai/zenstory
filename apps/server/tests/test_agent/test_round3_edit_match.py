@@ -138,7 +138,7 @@ def test_replace_not_found_in_long_content_requests_short_snippets_in_separate_c
     message = str(exc.value)
     assert "工作量保护" not in message  # long content is searched, not skipped
     assert "较短、逐字、唯一" in message
-    assert "continue_on_error=true" in message
+    assert "read_files" in message
     assert "拆成几次 edit_file 调用" not in message
     assert "更长" not in message
 
@@ -440,31 +440,27 @@ def test_replace_all_and_occurrence_are_mutually_exclusive(editor):
 
 
 def test_edit_file_schema_declares_occurrence_and_match_options():
-    """模型看不见的参数等于不存在：occurrence 等必须出现在 schema 里。"""
+    """B3 精简后：occurrence 暴露在 schema 里，低价值匹配开关隐藏但后端运行时仍兼容。"""
     item_props = EDIT_FILE_TOOL["input_schema"]["properties"]["edits"]["items"]["properties"]
+    assert item_props["op"]["enum"] == ["replace", "append", "insert_after", "insert_before"]
     assert item_props["occurrence"]["type"] == "integer"
     assert item_props["occurrence"]["minimum"] == 1
-    assert item_props["match_mode"]["type"] == "string"
-    assert item_props["ignore_punct_whitespace"]["type"] == "boolean"
-    # 所有布尔参数都必须声明为 boolean（strict_json_schema=False 时这是模型的唯一提示）
-    assert item_props["replace_all"]["type"] == "boolean"
     assert EDIT_FILE_TOOL["input_schema"]["properties"]["continue_on_error"]["type"] == "boolean"
-    # occurrence 是首选出路，描述里必须点名它优先于 replace_all
-    assert "occurrence" in item_props["replace_all"]["description"]
+    for hidden_key in ("match_mode", "ignore_punct_whitespace", "replace_all"):
+        assert hidden_key not in item_props
 
 
 def test_edit_file_schema_shows_explicit_op_and_atomic_batch_recovery():
     edits_schema = EDIT_FILE_TOOL["input_schema"]["properties"]["edits"]
     description = edits_schema["description"]
     continue_description = EDIT_FILE_TOOL["input_schema"]["properties"]["continue_on_error"]["description"]
+    item_props = edits_schema["items"]["properties"]
 
-    assert '"op": "replace"' in description
-    assert '"old"' in description and '"new"' in description
+    assert "replace" in EDIT_FILE_TOOL["description"]
+    assert "old" in item_props and "new" in item_props
     assert "failed_edits" in continue_description
-    assert "整体回滚" in continue_description
-    assert "整批都仍待修改" in continue_description
-    assert "continue_on_error=true" in continue_description
-    assert "30" in continue_description
+    assert "整批回滚" in continue_description
+    assert "30" in description
 
 
 # ---------------------------------------------------------------------------

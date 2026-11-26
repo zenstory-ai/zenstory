@@ -5,7 +5,7 @@ File operations for agent tools.
 - text_matching.py: fuzzy and approximate text matching
 - crud.py: create, update, delete, query
 - edit.py: precise content editing
-- project.py: project status and task board
+- project.py: project status
 """
 
 from .crud import FileCRUD

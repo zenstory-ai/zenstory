@@ -697,13 +697,13 @@ class StreamAdapter:
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
-            # query_files 对发往浏览器的 SSE 帧做全量线缆瘦身；落库侧在超阈值时剥离整章正文
-            # （保留 content_sha256 + updated_at 供跨轮快照核验），防止 chat_message TOAST 膨胀。
+            # read_files / search_files / query_files 对发往浏览器的 SSE 帧做全量线缆瘦身；
+            # 落库侧在超阈值时剥离整章正文（保留 content_sha256 + updated_at 供跨轮快照核验），防止 chat_message TOAST 膨胀。
             wire_data = slim_client_tool_result(tool_name, emit_data)
             if wire_data is not emit_data:
                 persisted_data = (
                     slim_query_files_result_for_persistence(emit_data)
-                    if tool_name == "query_files"
+                    if tool_name in ("query_files", "read_files", "search_files")
                     else emit_data
                 )
                 if tool_use_id:

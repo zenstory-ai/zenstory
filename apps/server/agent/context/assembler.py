@@ -1590,8 +1590,8 @@ class ContextAssembler:
             "项目文件清单 [请勿重复创建已存在的文件]",
             separator,
             "",
-            "注：清单可能会被截断；当需要确认是否存在某文件时，请先调用 query_files 搜索。",
-            "未标注 id 的条目需要 id 时，同样通过 query_files 获取。",
+            "注：清单可能会被截断；当需要确认是否存在某文件时，请先调用 search_files 搜索。",
+            "未标注 id 的条目需要 id 时，同样通过 search_files 获取。",
             "",
         ]
 
@@ -1700,22 +1700,22 @@ class ContextAssembler:
             else:
                 out = [f"{prefix}{section['label']} ({total} 个):"]
             if not display:
-                out.append(f"  ...（{total} 个全部省略；请调用 query_files 查询）")
+                out.append(f"  ...（{total} 个全部省略；请调用 search_files 查询）")
                 return out
             if omitted > 0 and len(display) > 1:
                 out.extend(display[:head])
-                out.append(f"  ...（中间省略 {omitted} 个；需要时请先调用 query_files 搜索）")
+                out.append(f"  ...（中间省略 {omitted} 个；需要时请先调用 search_files 搜索）")
                 out.extend(display[head:])
             else:
                 out.extend(display)
                 if omitted > 0:
-                    out.append(f"  ...（已省略 {omitted} 个；需要时请先调用 query_files 搜索）")
+                    out.append(f"  ...（已省略 {omitted} 个；需要时请先调用 search_files 搜索）")
             return out
 
         # inline layout：角色 / 设定 / 其他文件
-        suffix = f" ...（省略 {omitted} 个，可用 query_files 查询）" if omitted > 0 else ""
+        suffix = f" ...（省略 {omitted} 个，可用 search_files 查询）" if omitted > 0 else ""
         if not display:
-            return [f"\n{section['label']} ({total} 个): （全部省略，可用 query_files 查询）"]
+            return [f"\n{section['label']} ({total} 个): （全部省略，可用 search_files 查询）"]
         return [f"\n{section['label']} ({total} 个): {', '.join(display)}{suffix}"]
 
     def _render_chapter_gap_hints(
@@ -1797,7 +1797,7 @@ class ContextAssembler:
         file_id = cls.item_file_id(item)
         if metadata.get("retrieved"):
             if file_id:
-                return f'[检索片段，非全文；全文用 query_files(id="{file_id}")]'
+                return f'[检索片段，非全文；全文用 read_files(ids=["{file_id}"])]'
             return "[检索片段，非全文]"
         if item.type == "quote":
             return ""
@@ -1810,7 +1810,7 @@ class ContextAssembler:
                 else "仅显示开头部分"
             )
             if file_id:
-                return f'[已截断：{size}；全文用 query_files(id="{file_id}")]'
+                return f'[已截断：{size}；全文用 read_files(ids=["{file_id}"])]'
             return f"[已截断：{size}]"
         return "[全文]"
 
@@ -1820,7 +1820,7 @@ class ContextAssembler:
         n = max(len(item.content or ""), int((item.metadata or {}).get("original_chars") or 0))
         return estimate_text_tokens(
             f' (id={item.id}) ← 当前焦点 [已截断：显示 {n}/{n} 个字符；'
-            f'全文用 query_files(id="{item.id}")]'
+            f'全文用 read_files(ids=["{item.id}"])]'
         )
 
     @classmethod

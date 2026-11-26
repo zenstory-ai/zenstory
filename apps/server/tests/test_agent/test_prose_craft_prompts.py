@@ -98,7 +98,7 @@ def test_single_loop_working_rules_cover_directory_layout_and_prose_craft_withou
     from agent.loop.engine import _BODY_SAVED_CONTEXT, _BODY_SAVED_REPLIED_CONTEXT
 
     for text in (LOOP_WORKING_RULES, _BODY_SAVED_CONTEXT, _BODY_SAVED_REPLIED_CONTEXT):
-        assert "query_files" in text and "edit_file" in text
+        assert "read_files" in text and "edit_file" in text
     assert "不要和需要后续写 `<file>` 正文的 create_file 或 write_chapter" in LOOP_TOOL_USAGE_PROTOCOL
 
     # 不设固定对话比例或括号配额

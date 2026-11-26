@@ -526,9 +526,9 @@ async def test_batch_replace_adapter_guards_breaker_reset_read_guard_and_stream_
     req_ctx.clear_pending_empty_file("pending-ch")
 
     # 2) Pre-read f1 twice so RepeatReadGuard has read counts; simulate prior consecutive failures in breaker.
-    read_args = json.dumps({"id": f1.id})
-    await tools["query_files"].on_invoke_tool(_RunCtx(), read_args)
-    await tools["query_files"].on_invoke_tool(_RunCtx(), read_args)
+    read_args = json.dumps({"ids": [f1.id]})
+    await tools["read_files"].on_invoke_tool(_RunCtx(), read_args)
+    await tools["read_files"].on_invoke_tool(_RunCtx(), read_args)
     assert read_guard._read_counts[("query_files", f1.id, "full")] == 2
     breaker.consecutive_failures = 4
 

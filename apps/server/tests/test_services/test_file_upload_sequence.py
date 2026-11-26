@@ -7,7 +7,6 @@ import pytest
 from fastapi import UploadFile
 from sqlmodel import select
 
-from agent.tools.task_progress import ArtifactEvidence, artifact_units
 from api import files as files_api
 from core.error_codes import ErrorCode
 from models import File, Project, User
@@ -132,16 +131,7 @@ def test_split_upload_keeps_heading_sequence_as_typed_metadata(db_session):
         .order_by(File.order)
     ).all()
     assert [json.loads(row.file_metadata)["chapter_number"] for row in stored] == [1, 12]
-    evidence = [
-        ArtifactEvidence(
-            id=row.id,
-            title=row.title,
-            file_type=row.file_type,
-            metadata=row.get_metadata(),
-        )
-        for row in stored
-    ]
-    assert artifact_units(evidence, "章", "draft") == {1, 12}
+    assert [row.get_metadata()["chapter_number"] for row in stored] == [1, 12]
 
 
 @pytest.mark.parametrize(
@@ -175,14 +165,4 @@ def test_nonchapter_ordinals_sort_without_claiming_chapter_evidence(
     stored = db_session.exec(
         select(File).where(File.project_id == project.id, File.file_type == "draft")
     ).all()
-    evidence = [
-        ArtifactEvidence(
-            id=row.id,
-            title=row.title,
-            file_type=row.file_type,
-            metadata=row.get_metadata(),
-        )
-        for row in stored
-    ]
     assert all("chapter_number" not in row.get_metadata() for row in stored)
-    assert artifact_units(evidence, "章", "draft") == set()

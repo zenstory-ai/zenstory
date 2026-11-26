@@ -265,10 +265,10 @@ async def test_function_tool_does_not_execute_blocked_reads():
         return {"content": [{"type": "text", "text": _read_ok()}]}
 
     guard = RepeatReadGuard()
-    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
+    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"read_files": fake_query}):
         tools = {tool.name: tool for tool in build_agent_function_tools(read_guard=guard)}
         outputs = [
-            await tools["query_files"].on_invoke_tool(None, FULL_READ)
+            await tools["read_files"].on_invoke_tool(None, FULL_READ)
             for _ in range(READ_BLOCK_AT - 1 + MAX_BLOCKED_READS_PER_REQUEST)
         ]
         # 判定无进展后，同一轮里剩下的调用（包括写工具）都不执行
@@ -376,10 +376,10 @@ async def test_sdk_run_stops_as_no_progress_when_model_keeps_rereading(monkeypat
         return {"content": [{"type": "text", "text": _read_ok()}]}
 
     def script(index: int) -> list[dict]:
-        return _tool_call_chunks(f"call-{index}", "query_files", FULL_READ)
+        return _tool_call_chunks(f"call-{index}", "read_files", FULL_READ)
 
     events, requests, _state = await _run_against_local_model(
-        monkeypatch, script, _unused_edit, tool_impls={"query_files": fake_query}
+        monkeypatch, script, _unused_edit, tool_impls={"read_files": fake_query}
     )
 
     total_calls = READ_BLOCK_AT - 1 + MAX_BLOCKED_READS_PER_REQUEST
@@ -406,14 +406,15 @@ async def test_sdk_run_hard_cap_reports_actual_turns_and_stop_reason(monkeypatch
     monkeypatch.setattr("agent.openai_agents.runner.AGENT_TOOL_CALL_MAX_ITERATIONS", 5)
 
     async def fake_query(args):
-        return {"content": [{"type": "text", "text": _read_ok(args.get("id"), f"文件{args.get('id')}")}]}
+        fid = (args.get("ids") or [args.get("id")])[0]
+        return {"content": [{"type": "text", "text": _read_ok(fid, f"文件{fid}")}]}
 
     def script(index: int) -> list[dict]:
         # 每次读不同的文件：守卫不拦，模型无视收尾提醒一直调用工具
-        return _tool_call_chunks(f"call-{index}", "query_files", json.dumps({"id": f"f{index}"}))
+        return _tool_call_chunks(f"call-{index}", "read_files", json.dumps({"ids": [f"f{index}"]}))
 
     events, requests, _state = await _run_against_local_model(
-        monkeypatch, script, _unused_edit, tool_impls={"query_files": fake_query}
+        monkeypatch, script, _unused_edit, tool_impls={"read_files": fake_query}
     )
 
     assert len(requests) == 5
@@ -548,7 +549,7 @@ async def test_sdk_run_resets_read_counts_left_by_the_previous_agent(monkeypatch
 
     def script(index: int) -> list[dict]:
         if index == 0:
-            return _tool_call_chunks("call-0", "query_files", FULL_READ)
+            return _tool_call_chunks("call-0", "read_files", FULL_READ)
         return _text_chunks("审查完成。")
 
     events, requests, _state = await _run_against_local_model(
@@ -556,7 +557,7 @@ async def test_sdk_run_resets_read_counts_left_by_the_previous_agent(monkeypatch
         script,
         _unused_edit,
         state_extra={"repeat_read_guard": guard},
-        tool_impls={"query_files": fake_query},
+        tool_impls={"read_files": fake_query},
     )
 
     assert len(executed) == 1, "新 run 的第一次读取照常执行"
@@ -709,12 +710,12 @@ async def test_distinct_range_windows_all_execute_and_are_not_recorded_as_full_t
         executed.append(dict(args))
         return {"content": [{"type": "text", "text": _range_read_ok(args, body=long_body)}]}
 
-    windows = [{"id": "f1", "start_char": start, "max_chars": 100} for start in (0, 100, 200, 300)]
+    windows = [{"ids": ["f1"], "start_char": start, "max_chars": 100} for start in (0, 100, 200, 300)]
     guard = RepeatReadGuard()
-    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
+    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"read_files": fake_query}):
         tools = {tool.name: tool for tool in build_agent_function_tools(read_guard=guard)}
         outputs = [
-            json.loads(await tools["query_files"].on_invoke_tool(None, json.dumps(args))) for args in windows
+            json.loads(await tools["read_files"].on_invoke_tool(None, json.dumps(args))) for args in windows
         ]
 
     assert executed == windows

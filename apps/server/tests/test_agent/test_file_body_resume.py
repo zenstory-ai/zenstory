@@ -263,10 +263,6 @@ async def _run(
             patch("agent.openai_agents.runner.build_failover_chat_model", return_value="synthetic-model"),
             patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="synthetic-model")),
             patch("agent.openai_agents.usage_hooks.schedule_llm_usage_record"),
-            patch(
-                "agent.core.task_board_completion.auto_finalize_task_board_on_completion",
-                AsyncMock(return_value=([], False)),
-            ),
         ):
             frames = [
                 frame async for frame in adapter.process_workflow_events(run_loop_agent_streaming(state))
@@ -931,8 +927,8 @@ def test_reused_blank_episode_is_writable_but_never_a_rollback_target(workspace)
 
 
 def _rejected_lookup(before: Callable[[], None] | None = None) -> Reply:
-    """建文件后的下一次回复没写正文就去查资料（被待写守卫拒绝），随后撞上 max_turns。"""
-    return Reply(text="我先查一下前文。", tools=(("query_files", {"query": "前文"}),), before=before,
+    """建文件后的下一次回复没写正文就去查资料，随后撞上 max_turns。"""
+    return Reply(text="我先查一下前文。", tools=(("search_files", {"query": "前文"}),), before=before,
                  exceeds_max_turns=True)
 
 
@@ -1179,8 +1175,8 @@ async def test_refusals_in_every_correction_round_end_unfinished_and_roll_back(w
 
 
 async def test_non_conflicting_query_files_during_pending_body_stays_in_same_run(workspace):
-    """待写正文期间调用只读 query_files 正常执行并附带 pending_file_reminder，不触发 file_body_pending 拆轮。"""
-    lookup = Reply(tools=(("query_files", {"query": "前文"}),))
+    """待写正文期间调用只读 search_files 正常执行并附带 pending_file_reminder，不触发 file_body_pending 拆轮。"""
+    lookup = Reply(tools=(("search_files", {"query": "前文"}),))
     model = ScriptedModel(runs=[[CREATE, lookup, WRITE_BODY]])
 
     outcome = await _run(workspace, model)
@@ -1188,7 +1184,7 @@ async def test_non_conflicting_query_files_during_pending_body_stays_in_same_run
     _assert_body_saved_once(workspace, outcome, model)
     assert len(model.run_inputs) == 1, "不因只读查询触发 FILE_BODY_RESUME 拆轮"
     assert model.errors("file_body_pending") == []
-    query_calls = [call for call in model.tool_calls if call.name == "query_files"]
+    query_calls = [call for call in model.tool_calls if call.name == "search_files"]
     assert len(query_calls) == 1
     assert query_calls[0].output["status"] == "success"
     assert CHAPTER in query_calls[0].output["pending_file_reminder"]
@@ -1373,7 +1369,7 @@ async def test_leaked_tool_call_in_waiting_start_stops_early_and_recovers_via_fi
     next_step = wc_call.output["data"]["next_step"]
     assert "构思已在调用前完成" in next_step
     assert "<file>" in next_step
-    assert "query_files" in next_step
+    assert "read_files" in next_step
 
     workspace.session.expire_all()
     row = workspace.session.get(File, file_id)
@@ -1462,7 +1458,7 @@ async def test_write_chapter_replace_next_step_includes_short_thinking_guidance_
     assert wc_call.output["data"]["action"] == "replaced"
     next_step = wc_call.output["data"]["next_step"]
     assert "构思已在调用前完成" in next_step
-    assert "query_files" in next_step
+    assert "read_files" in next_step
     assert "<file>" in next_step
 
     workspace.session.expire_all()

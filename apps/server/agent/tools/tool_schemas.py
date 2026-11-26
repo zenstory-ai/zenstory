@@ -17,14 +17,16 @@ from agent.tools.tool_inputs import (
     EditFileInput,
     LoadSkillInput,
     QueryFilesInput,
+    ReadFilesInput,
     ReadSkillResourceInput,
     RenameFileInput,
+    SearchFilesInput,
     UpdateProjectInput,
     WriteChapterInput,
     build_tool_schema,
 )
 
-# 字数口径说明（create_file / edit_file / query_files 共用）。
+# 字数口径说明（保留常量供单测/外部引用；实际口径在系统提示词 LOOP_AUTHOR_REPLY_PROTOCOL 单源维护，不再在 4 个工具描述里重复）。
 WORD_COUNT_CONTRACT = (
     "字数口径：结果里的 word_count / new_word_count 就是编辑器显示的字数，作者说的「字数」都指它；"
     "content_length / new_length 是含标点、空白的字符数，不能当字数报给作者。"
@@ -34,11 +36,9 @@ WORD_COUNT_CONTRACT = (
 CREATE_FILE_TOOL: dict[str, Any] = build_tool_schema(
     "create_file",
     description=(
-        "创建大纲、角色、设定、素材等资料文件或文件夹。正文章节（draft / script）不用这个工具，用 write_chapter。"
-        "通常只创建空文件，文件内容在工具调用后的下一次回复里用 <file>内容</file> 写入"
-        "（一次只能流式写入一个文件：要生成多份资料文件时逐个创建，写完一份的 <file>…</file> 后再调用下一个 create_file，不要在同一条回复里并列发出多个待写 <file> 的 create_file）；"
-        "仅 source_text 通过作者原文校验时会在这次调用里直接保存该原文。"
-        f"{WORD_COUNT_CONTRACT}"
+        "创建大纲、角色、设定、素材等资料文件或文件夹（正文章节用 write_chapter）。"
+        "生成新资料先建空文件，下一次回复用 <file>内容</file> 写入（一次只流式写一个文件，勿同条回复并列多个待写 create_file）；"
+        "录入作者本轮原文时传 source_text 直接校验并保存。"
     ),
     model_cls=CreateFileInput,
 )
@@ -47,12 +47,9 @@ CREATE_FILE_TOOL: dict[str, Any] = build_tool_schema(
 WRITE_CHAPTER_TOOL: dict[str, Any] = build_tool_schema(
     "write_chapter",
     description=(
-        "写正文的某一章（剧本是某一集）：按 chapter 编号定位这一章，不存在就新建，已存在就整章替换这一章，"
-        "不会写到别的章。结果的 action 说明是新建（created）还是替换（replaced，附原来的字数）。"
-        "调用前先读完所需大纲、前一章和角色卡；调用后的下一次回复第一行直接输出 <file> 写完整正文，最后 </file>，"
-        "写完前禁止再调用 query_files 或其他工具；替换时写的是整章新正文。"
-        "只改一章里的几处用 edit_file。"
-        f"{WORD_COUNT_CONTRACT}"
+        "写正文的某一章（剧本是某一集）：按 chapter 定位，不存在就新建（action=created），已存在就整章替换（action=replaced）。"
+        "调用前先用 read_files 读完所需资料；调用后的下一次回复第一行直接输出 <file> 写完整正文、</file> 结束，"
+        "写完前禁止再调用其他工具。只改局部用 edit_file。"
     ),
     model_cls=WriteChapterInput,
 )
@@ -61,9 +58,9 @@ WRITE_CHAPTER_TOOL: dict[str, Any] = build_tool_schema(
 EDIT_FILE_TOOL: dict[str, Any] = build_tool_schema(
     "edit_file",
     description=(
-        "精确编辑文件内容（diff风格）。支持replace/insert_after/insert_before/append/prepend/delete操作。"
-        "适合对文件进行局部修改而非全量替换。old/anchor 里双引号的半角、全角、「」写法差异视为一致。"
-        f"{WORD_COUNT_CONTRACT}"
+        '对单个文件做精确局部编辑。优先用 replace（删文传 new=""，插文在 old 基础上增写）；'
+        "文末续写用 append；仅纯位置插入用 insert_after/insert_before。多处独立修改合并进一次 edits。"
+        "old/anchor 里双引号的半角、全角、「」写法差异视为一致。整章重写用 write_chapter。"
     ),
     model_cls=EditFileInput,
 )
@@ -80,41 +77,48 @@ RENAME_FILE_TOOL: dict[str, Any] = build_tool_schema(
     "rename_file",
     description=(
         "只修改文件标题（文件名），文件 id、正文、位置和版本历史都不变。"
-        "作者只要求改名时用它；不要为改名新建文件、复制或重写正文、再删除旧文件。"
-        "同一文件夹里已有同名文件时会被拒绝。结果只返回新旧标题，不返回正文。"
+        "作者只要求改名时用它；同一文件夹重名会被拒绝，结果不返回正文。"
     ),
     model_cls=RenameFileInput,
 )
 
-# Tool: query_files
+# Tool: read_files（按 ID 精确读取全文或超长文件局部）
+READ_FILES_TOOL: dict[str, Any] = build_tool_schema(
+    "read_files",
+    description=(
+        "按 ID 读取 1-5 个文件全文；>25000字超长单文件可用 section/tail_chars/start_char 读局部。"
+        "本轮已读勿重读。"
+    ),
+    model_cls=ReadFilesInput,
+)
+
+# Tool: search_files（跨文件字面关键词检索或过滤列出摘要）
+SEARCH_FILES_TOOL: dict[str, Any] = build_tool_schema(
+    "search_files",
+    description=(
+        "按关键词跨文件检索命中位置（返回紧凑匹配片段与段落号），或按类型/目录列出超出索引的文件摘要；"
+        "需看全文时再调 read_files。"
+    ),
+    model_cls=SearchFilesInput,
+)
+
+# Tool: query_files（旧版兼容 schema，不在 LOOP_TOOL_NAMES 对外暴露）
 QUERY_FILES_TOOL: dict[str, Any] = build_tool_schema(
     "query_files",
     description=(
-        "查询和搜索项目中的文件。按 id 读取单个文件或按 ids 一次批量读取 2–5 个已知文件，默认返回全文（content）；"
-        "列表/关键词查询默认返回 summary（content_preview + content_length + content_truncated，不含全文）。"
-        "仅在超过 25000 字的超长文件只需要其中一段时按范围读：section（章节/分集标题，如「第3章」）、"
-        "tail_chars（结尾若干字，续写只需前文结尾时用）或 start_char + max_chars（仅用于超过 25000 字的超长文件，常规长度文件直接读全文，不要分段翻页）；"
-        "结果的 content_range / content_partial 说明读到了哪一段，范围外的正文没有读到。作者要求通篇检查或改动牵涉全文时仍读全文。"
-        "本轮已经读过的文件仍在上下文里，不要重复读取。"
-        f"{WORD_COUNT_CONTRACT}"
+        "兼容旧工具：查询和读取项目文件。按 id/ids 读全文，列表/关键词返回 summary 或 matches；本轮已读勿重读。"
     ),
     model_cls=QueryFilesInput,
 )
 
-# Tool: update_project (合并 update_project_status + update_plan)
+# Tool: update_project（项目 AI 记忆；已退役 Redis 任务板）
 UPDATE_PROJECT_TOOL: dict[str, Any] = build_tool_schema(
     "update_project",
     description=(
-        "更新项目信息和任务计划。可同时更新项目状态（摘要、阶段、风格）和任务列表。"
-        "同一时刻最多一个任务为 in_progress，其余未开始的任务标 pending。"
-        "summary/current_phase/writing_style 传值即整体替换；新增内容时先合并现有内容。"
-        "notes 只在作者明确让你记住时传，只追加作者原话（已有写作约定由系统保留，不能删改）；"
-        "结果的 notes_added 是实际记下的条目，没有它不要说已记住；作者要删改已有写作约定时不记删改指令，只可记作者给的新说法，并请作者在 AI 记忆里删改旧条目。"
-        "summary 只描述作品，不标「已确认」，不写你自己选定或建议的内容；writing_style 只写作者原话或作者明确确认的风格要求，自己的风格设想写进大纲或在回复里建议；其他建议也写在回复里。"
-        "新的非文件完成任务须明确 task_kind=conversation；文件任务必须有对应类型的实际产物证据。"
-        "进度和已完成文件引用由系统维护，不要提交或推断这些字段。"
-        "给作品定了名字时传 title：项目还叫默认名（如「我的小说」）或之前由 AI 起的名字时会改名，"
-        "作者自己起的名字不会由 Agent 改，作者可通过项目设置中的改名入口操作。"
+        "更新项目 AI 记忆（仅写作者定下的事实，不写AI建议）。"
+        "summary/current_phase 覆写前先合并现有内容；writing_style 只记作者明确确认的长期风格；"
+        "notes 仅在作者明确要求记住时追加原话（结果里的 notes_added 是实际记下的条目）；"
+        "title 仅在默认名或AI起名时生效。"
     ),
     model_cls=UpdateProjectInput,
 )
@@ -167,6 +171,8 @@ TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     "delete_file": DELETE_FILE_TOOL,
     "rename_file": RENAME_FILE_TOOL,
     "query_files": QUERY_FILES_TOOL,
+    "read_files": READ_FILES_TOOL,
+    "search_files": SEARCH_FILES_TOOL,
     "update_project": UPDATE_PROJECT_TOOL,
     "load_skill": LOAD_SKILL_TOOL,
     "read_skill_resource": READ_SKILL_RESOURCE_TOOL,

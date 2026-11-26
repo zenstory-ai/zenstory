@@ -21,7 +21,7 @@ import asyncio
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
-from agent.core import empty_files, task_board_completion
+from agent.core import empty_files
 from agent.core.author_facing_text import (
     AgentTextShaper,
     body_cut_at_output_cap_notice,
@@ -110,18 +110,18 @@ _BODY_CUT_CONTEXT_EN = (
 )
 # 正文写完后自查的精简 3 项高信号清单（由四种续跑模板共用，避免长清单诱发冗余深度思考和反复微调）。
 _BODY_SAVED_SELF_CHECK = (
-    "现在直接对照上方刚写完的正文做一次快速自查（只写资料文件时跳过；不要调 query_files 重读刚写完的章节）：\n"
+    "现在直接对照上方刚写完的正文做一次快速自查（只写资料文件时跳过；不要调 read_files 重读刚写完的章节）：\n"
     "- 事实与连贯：核对关键人名字形、称谓设定、时间线与大纲要点是否一致，有无提前剧透后续情节；\n"
     "- 完整性与字面硬伤：检查是否完整收束无截断、有无明显错别字或误混外文词；\n"
-    "- 仅在确凿硬伤时改一次：合并进单次 edit_file（continue_on_error=true）修正后即停，"
+    "- 仅在确凿硬伤时改一次：合并进单次 edit_file 修正后即停，"
     "切勿为凑近似字数、润色措辞或顺手改大纲调用 edit_file，也不能再调 write_chapter 重写本章。"
 )
 _BODY_SAVED_SELF_CHECK_EN = (
     "Do one quick self-check directly against the newly written text above "
-    "(skip if only notes files were written; do not call query_files to re-read it):\n"
+    "(skip if only notes files were written; do not call read_files to re-read it):\n"
     "- Facts & continuity: verify key names, timeline, outline beats, and no premature spoilers;\n"
     "- Completeness & clear errors: check for a clean ending (no truncation), typos, or stray foreign words;\n"
-    "- Fix hard errors at most once: batch concrete fixes into one edit_file (continue_on_error=true) then stop; "
+    "- Fix hard errors at most once: batch concrete fixes into one edit_file then stop; "
     "never call edit_file for approximate word-count churn, micro-polishing, or outline tweaks, and do not re-call write_chapter on this chapter."
 )
 # 正文写完、回复停在 </file> 上时的续跑说明（相当于工具结果）：保存的文件与真实字数由调用方附在后面。
@@ -527,35 +527,27 @@ async def run_loop_agent_streaming(
         while runs < max_runs:
             if runs > 0 and run_meter.past_wrap_up:
                 if pending_self_check:
-                    task_events, has_incomplete = await task_board_completion.auto_finalize_task_board_on_completion(
-                        read_guard, request_context=req_ctx
+                    # 正文已确认落库、无待写空文件/截断残稿/未保存替换/未执行工具与插话：
+                    # 待办仅剩常规写后自查，直接按正常完成收尾，不发「可能未完成 / 继续」暂停卡。
+                    log_with_context(
+                        logger,
+                        20,  # INFO
+                        "Loop agent finishing cleanly instead of starting post-save self-check near wrap-up",
+                        runs=runs,
+                        ended_on_file=followup_ended_on_file,
+                        saved_count=len(followup_saved_titles),
                     )
-                    if not has_incomplete:
-                        # 正文已确认落库、任务板无未完待办、无待写空文件/截断残稿/未保存替换/未执行工具与插话：
-                        # 待办仅剩常规写后自查，直接按正常完成收尾，不发「可能未完成 / 继续」暂停卡。
-                        log_with_context(
-                            logger,
-                            20,  # INFO
-                            "Loop agent finishing cleanly instead of starting post-save self-check near wrap-up",
-                            runs=runs,
-                            ended_on_file=followup_ended_on_file,
-                            saved_count=len(followup_saved_titles),
+                    if followup_ended_on_file:
+                        yield StreamEvent(
+                            type=StreamEventType.TEXT,
+                            data={
+                                "text": run_support.wrap_up_self_check_skipped_text(
+                                    english, followup_saved_titles
+                                )
+                            },
                         )
-                        if followup_ended_on_file:
-                            yield StreamEvent(
-                                type=StreamEventType.TEXT,
-                                data={
-                                    "text": run_support.wrap_up_self_check_skipped_text(
-                                        english, followup_saved_titles
-                                    )
-                                },
-                            )
-                        for task_event in task_events:
-                            yield task_event
-                        terminated = True
-                        break
-                    for task_event in task_events:
-                        yield task_event
+                    terminated = True
+                    break
                 # 请求时间快用完：不再开新的 run，停在已经完成的部分（同图层收尾的暂停卡）。
                 yield StreamEvent(
                     type=StreamEventType.TEXT,
@@ -673,23 +665,15 @@ async def run_loop_agent_streaming(
                     textual_calls=textual_calls_after_self_check,
                     has_steering=bool(mid_run_steering or boundary_steering),
                 ):
-                    task_events, has_incomplete = await task_board_completion.auto_finalize_task_board_on_completion(
-                        read_guard, request_context=req_ctx
+                    log_with_context(
+                        logger,
+                        20,  # INFO
+                        "Loop agent finishing cleanly after self-check soft-landed near wrap-up",
+                        runs=runs,
+                        saved_count=len(run_saved_titles),
                     )
-                    if not has_incomplete:
-                        log_with_context(
-                            logger,
-                            20,  # INFO
-                            "Loop agent finishing cleanly after self-check soft-landed near wrap-up",
-                            runs=runs,
-                            saved_count=len(run_saved_titles),
-                        )
-                        for task_event in task_events:
-                            yield task_event
-                        terminated = True
-                        break
-                    for task_event in task_events:
-                        yield task_event
+                    terminated = True
+                    break
                 tool_call_exhausted = True
                 deferred_exhausted = StreamEvent(
                     type=StreamEventType.ITERATION_EXHAUSTED,
@@ -879,12 +863,6 @@ async def run_loop_agent_streaming(
                     else run_support.STEERING_FOLLOWUP_CONTEXT
                 )
             if followup is None:
-                # 正常结束：与图相同，按本请求实际写出的文件把任务板上对应的任务收尾（什么都没写时不补）。
-                task_events, _ = await task_board_completion.auto_finalize_task_board_on_completion(
-                    read_guard, request_context=req_ctx
-                )
-                for task_event in task_events:
-                    yield task_event
                 terminated = True
                 break
             log_with_context(

@@ -108,8 +108,11 @@ TOOL_ARG_PROGRESS_INTERVAL_S = 2.0
 TOOL_ARG_PROGRESS_BYTES = 1_500
 _TOOL_PREPARING_LABELS_ZH: dict[str, str] = {
     "edit_file": "正在准备编辑文件…",
+    "batch_replace_files": "正在准备批量替换…",
     "write_chapter": "正在准备写入章节…",
     "create_file": "正在准备创建文件…",
+    "read_files": "正在准备读取文件…",
+    "search_files": "正在准备检索文件…",
     "query_files": "正在准备检索文件…",
     "update_project": "正在准备更新项目…",
     "delete_file": "正在准备删除文件…",
@@ -119,8 +122,11 @@ _TOOL_PREPARING_LABELS_ZH: dict[str, str] = {
 }
 _TOOL_PREPARING_LABELS_EN: dict[str, str] = {
     "edit_file": "Preparing file edits…",
+    "batch_replace_files": "Preparing batch replace…",
     "write_chapter": "Preparing chapter write…",
     "create_file": "Preparing new file…",
+    "read_files": "Preparing file read…",
+    "search_files": "Preparing file search…",
     "query_files": "Preparing file lookup…",
     "update_project": "Preparing project update…",
     "delete_file": "Preparing file deletion…",
@@ -130,12 +136,14 @@ _TOOL_PREPARING_LABELS_EN: dict[str, str] = {
 }
 _TOOL_ARG_PROGRESS_LABELS_ZH: dict[str, str] = {
     "edit_file": "正在生成文件修改内容（约 {chars} 字符）…",
+    "batch_replace_files": "正在准备批量替换参数（约 {chars} 字符）…",
     "write_chapter": "正在准备写入章节（约 {chars} 字符）…",
     "create_file": "正在准备创建文件（约 {chars} 字符）…",
     "update_project": "正在准备更新项目（约 {chars} 字符）…",
 }
 _TOOL_ARG_PROGRESS_LABELS_EN: dict[str, str] = {
     "edit_file": "Generating file edits (~{chars} chars)…",
+    "batch_replace_files": "Preparing batch replace (~{chars} chars)…",
     "write_chapter": "Preparing chapter write (~{chars} chars)…",
     "create_file": "Preparing new file (~{chars} chars)…",
     "update_project": "Preparing project update (~{chars} chars)…",
@@ -196,7 +204,7 @@ LANDING_LIMIT_WALL_CLOCK = WALL_CLOCK_LIMIT
 # 收尾提醒：正文用 write_chapter（资料文件用 create_file）建好后等 <file>。
 LOOP_SOFT_LANDING_PROMPT = (
     "[系统提醒] 本轮工具调用即将达到上限（本次之后最多还能调用模型 {remaining} 次）。"
-    "请立即停止调用任何工具（包括 query_files / edit_file）。"
+    "请立即停止调用任何工具（包括 read_files / search_files / edit_file）。"
     "如果刚调用 write_chapter（或 create_file）还没写 <file> 正文，先在本次回复里写完它的"
     " <file> 正文，再做总结。"
     "然后直接用文字给出阶段总结：\n"
@@ -206,7 +214,7 @@ LOOP_SOFT_LANDING_PROMPT = (
     "用户回复「继续」后会从这里接着完成剩余部分。"
 )
 LOOP_TIME_LANDING_PROMPT = (
-    "[系统提醒] 这次请求的时间快用完了。请立即停止调用任何工具（包括 query_files / edit_file / "
+    "[系统提醒] 这次请求的时间快用完了。请立即停止调用任何工具（包括 read_files / search_files / edit_file / "
     "write_chapter / create_file / update_project），思考尽量简短。"
     "正在写的 <file> 正文先写完并用 </file> 结束；刚调用 write_chapter（或 create_file）还没写正文的，"
     "在本次回复里写完它的 <file> 正文并用 </file> 结束。然后直接用文字给作者收尾：\n"

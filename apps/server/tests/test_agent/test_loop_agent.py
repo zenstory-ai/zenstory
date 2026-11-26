@@ -51,8 +51,9 @@ def test_loop_toolset_excludes_multi_agent_control_flow():
 
     # 顺序就是请求里的工具清单顺序（前缀缓存依赖它）。
     assert exposed == built == LOOP_TOOL_NAMES == [
-        "create_file", "write_chapter", "edit_file", "delete_file", "rename_file", "query_files",
-        "update_project", "load_skill", "read_skill_resource",
+        "create_file", "write_chapter", "edit_file", "delete_file", "rename_file",
+        "read_files", "search_files", "update_project", "load_skill", "read_skill_resource",
+        "batch_replace_files",
     ]
     assert not excluded & set(TOOL_SCHEMAS)
     # 单循环 agent 看到的 create_file 不建正文。
@@ -992,25 +993,6 @@ def test_compaction_backs_off_after_a_skipped_attempt():
     assert should_compact(grown, threshold=600_000, retry_growth=100_000) is True
     record = skipped_record(_history(last_prompt_tokens=700_000), "provider_error")
     assert record["reason"] == "provider_error" and record["at_prompt_tokens"] == 700_000
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_loop_finalizes_the_task_board_on_normal_completion(loop_tool_context):
-    seen: list[dict] = []
-    state = {"user_message": "写第1章", "messages": [], "system_prompt": "系统"}
-    board_event = StreamEvent(type=StreamEventType.TOOL_RESULT, data={"tool_use_id": "workflow_auto_completion"})
-    finalize = AsyncMock(return_value=([board_event], False))
-    with (
-        patch(
-            "agent.loop.engine.run_openai_agents_streaming_agent",
-            _fake_runner([[StreamEvent(type=StreamEventType.TEXT, data={"text": "好了。"})]], seen),
-        ),
-        patch("agent.core.task_board_completion.auto_finalize_task_board_on_completion", finalize),
-    ):
-        events = await _collect(state)
-    finalize.assert_awaited_once()
-    assert board_event in events
 
 
 @pytest.mark.asyncio

@@ -1919,7 +1919,7 @@ async def test_wall_clock_wrap_up_blocks_disobedient_tool_calls_and_preserves_wi
                         "index": 0,
                         "id": "call_pre_wrap_1",
                         "type": "function",
-                        "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                        "function": {"name": "read_files", "arguments": json.dumps({"ids": [chapter.id]})},
                     }
                 ]
             ),
@@ -1954,7 +1954,7 @@ async def test_wall_clock_wrap_up_blocks_disobedient_tool_calls_and_preserves_wi
                         "index": 2,
                         "id": "call_post_wrap_3",
                         "type": "function",
-                        "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                        "function": {"name": "read_files", "arguments": json.dumps({"ids": [chapter.id]})},
                     },
                 ]
             ),
@@ -2127,7 +2127,7 @@ async def test_wall_clock_wrap_up_hard_stops_stubborn_tool_loop_and_skips_malfor
                             "index": 0,
                             "id": f"call_stubborn_{idx}",
                             "type": "function",
-                            "function": {"name": "query_files", "arguments": json.dumps({"id": chapter.id})},
+                            "function": {"name": "read_files", "arguments": json.dumps({"ids": [chapter.id]})},
                         }
                     ]
                 ),
@@ -2224,7 +2224,7 @@ async def test_wall_clock_wrap_up_preserves_file_body_pending_and_overdue_delete
 
     # 3. No overdue file + wall_clock_landing_injected -> blocked by wall_clock_wrap_up, never invokes tool or trips breaker.
     for _ in range(5):
-        out_blocked = json.loads(await tools["query_files"].on_invoke_tool(ctx, '{"id":"f1"}'))
+        out_blocked = json.loads(await tools["read_files"].on_invoke_tool(ctx, '{"ids":["f1"]}'))
         assert out_blocked["status"] == "error"
         assert out_blocked["error_type"] == tools_adapter.WALL_CLOCK_WRAP_UP_ERROR_TYPE
         assert out_blocked["user_message"]

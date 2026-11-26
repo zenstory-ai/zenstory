@@ -353,7 +353,7 @@ async def test_stage1_tool_archive_admits_skips_llm_and_preserves_protected_item
     assert q0_receipt["tool_name"] == "query_files"
     assert q0_receipt["files"] == [{"id": "ch-1", "title": "第一章 雾港"}]
     assert q0_receipt["original_chars"] == len(old_query_0)
-    assert "query_files" in q0_receipt["note"]
+    assert "read_files" in q0_receipt["note"]
 
     sk_receipt = json.loads(outputs_by_call["c_sk"])
     assert sk_receipt["archived"] is True

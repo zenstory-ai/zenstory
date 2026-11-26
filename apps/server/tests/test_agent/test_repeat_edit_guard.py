@@ -317,7 +317,7 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
 
         with patch.dict(
             "agent.openai_agents.tools_adapter.TOOL_FUNCTIONS",
-            {"query_files": fake_query, "edit_file": fake_edit},
+            {"read_files": fake_query, "search_files": fake_query, "edit_file": fake_edit},
         ):
             tools = {
                 t.name: t
@@ -328,7 +328,7 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
                 )
             }
             # 1) Full self-read guarded (never hits DB/tool)
-            res_full = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "ch1"})))
+            res_full = json.loads(await tools["read_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1"]})))
             assert res_full["status"] == "success"
             assert res_full["self_read_guarded"] is True
             assert res_full["data"][0]["content_omitted"] is True
@@ -338,8 +338,8 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
 
             # 2) start_char=0 self-read also guarded
             res_zero = json.loads(
-                await tools["query_files"].on_invoke_tool(
-                    req_ctx, json.dumps({"id": "ch1", "start_char": 0, "max_chars": 6000})
+                await tools["read_files"].on_invoke_tool(
+                    req_ctx, json.dumps({"ids": ["ch1"], "start_char": 0, "max_chars": 6000})
                 )
             )
             assert res_zero["self_read_guarded"] is True
@@ -348,10 +348,10 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
 
             # 3) Existing file & keyword search execute normally; mixed multi-file ids executes
             # for outline-1 while stripping the just-written ch1 body (closing the multi-ID bypass).
-            await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "outline-1"}))
-            await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "ch1", "query": "长安"}))
+            await tools["read_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["outline-1"]}))
+            await tools["search_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1"], "query": "长安"}))
             mixed = json.loads(
-                await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1", "outline-1"]}))
+                await tools["read_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1", "outline-1"]}))
             )
             assert len(query_calls) == 3
             assert mixed["self_read_guarded_ids"] == ["ch1"]
@@ -368,12 +368,12 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
             )
             assert err_out["error_type"] == "anchor_not_found"
 
-            rec_read = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "ch1"})))
+            rec_read = json.loads(await tools["read_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1"]})))
             assert rec_read.get("self_read_guarded") is not True
             assert len(query_calls) == 4
 
             # Subsequent redundant self-read is blocked (hits per-file cap=4 and escalates, 0 DB query)
-            after_rec = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "ch1"})))
+            after_rec = json.loads(await tools["read_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1"]})))
             assert after_rec["status"] == "error"
             assert after_rec["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
             assert after_rec["guard_escalated"] is True
@@ -567,7 +567,7 @@ async def test_self_read_multi_id_all_written_blocked_and_consecutive_cap_trips_
             executed += 1
             return {"content": [{"type": "text", "text": json.dumps({"status": "success", "data": []})}]}
 
-        with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
+        with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"read_files": fake_query}):
             tools = {
                 t.name: t
                 for t in build_agent_function_tools(
@@ -579,8 +579,8 @@ async def test_self_read_multi_id_all_written_blocked_and_consecutive_cap_trips_
             raw_batch = json.dumps({"ids": ["ch1", "ch2"]})
 
             # Intercept 1 & 2: soft self_read_guarded with metadata for both chapters, 0 DB calls
-            r1 = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, raw_batch))
-            r2 = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, raw_batch))
+            r1 = json.loads(await tools["read_files"].on_invoke_tool(req_ctx, raw_batch))
+            r2 = json.loads(await tools["read_files"].on_invoke_tool(req_ctx, raw_batch))
             assert r1["status"] == "success" and r1["self_read_guarded"] is True
             assert [row["id"] for row in r1["data"]] == ["ch1", "ch2"]
             assert all(row["content_omitted"] is True for row in r1["data"])
@@ -589,7 +589,7 @@ async def test_self_read_multi_id_all_written_blocked_and_consecutive_cap_trips_
             assert breaker.total_failures == 0
 
             # Intercept 3 (hits MAX_CONSECUTIVE_GUARD_INTERCEPTS=3): escalates to error counted by breaker
-            r3 = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, raw_batch))
+            r3 = json.loads(await tools["read_files"].on_invoke_tool(req_ctx, raw_batch))
             assert r3["status"] == "error"
             assert r3["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
             assert r3["guard_escalated"] is True
@@ -597,8 +597,8 @@ async def test_self_read_multi_id_all_written_blocked_and_consecutive_cap_trips_
             assert breaker.total_failures == 1
 
             # Hammering 2 more times trips ToolFailureBreaker immediately!
-            await tools["query_files"].on_invoke_tool(req_ctx, raw_batch)
-            await tools["query_files"].on_invoke_tool(req_ctx, raw_batch)
+            await tools["read_files"].on_invoke_tool(req_ctx, raw_batch)
+            await tools["read_files"].on_invoke_tool(req_ctx, raw_batch)
             assert executed == 0
             assert breaker.is_open is True
     finally:

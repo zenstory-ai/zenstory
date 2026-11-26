@@ -55,8 +55,8 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # 只读检索工具：结果体积大，且原文仍可按 id 重新读取，超预算时可安全折叠。
-DEFAULT_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"query_files"})
-DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file"})
+DEFAULT_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"query_files", "read_files", "search_files"})
+DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file", "batch_replace_files"})
 MAX_TRACE_VALUES = 40
 
 # 安全阀阈值：1.5M 字符（约 70~75 万真实中文 token，远高于 300k 轮间压缩阈值，同时离 1M 硬顶留足约 25 万 token 缓冲）。
@@ -71,11 +71,11 @@ DEFAULT_PREVIEW_CHARS = 400
 COMPACTION_REASON = "context_budget_compaction"
 READ_COMPACTION_NOTE = (
     "该结果已在本轮更早时完整返回，因上下文接近上限被折叠。不要整篇重读；"
-    '只在确实需要原文细节时，用 query_files(id=…, response_mode="full") 读取该文件一次。'
+    "只在确实需要原文细节时，用 read_files(ids=[…]) 读取该文件一次。"
 )
 WRITE_RECEIPT_COMPACTION_NOTE = (
     "该写入已成功落库，回执因上下文接近上限被折叠。不要重复写入；"
-    '需要核对当前正文时，用 query_files(id=…, response_mode="full") 读取该文件一次。'
+    "需要核对当前正文时，用 read_files(ids=[…]) 读取该文件一次。"
 )
 WRITE_ARGUMENTS_COMPACTION_NOTE = "该写入参数已执行成功并落库，因上下文接近上限被折叠；不要重复执行。"
 

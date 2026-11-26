@@ -30,9 +30,10 @@ from agent.tools.tool_inputs import (
     EditOperationInput,
     LoadSkillInput,
     QueryFilesInput,
+    ReadFilesInput,
     ReadSkillResourceInput,
     RenameFileInput,
-    UnitSpecInput,
+    SearchFilesInput,
     UpdateProjectInput,
     WriteChapterInput,
     export_tool_schema,
@@ -40,8 +41,8 @@ from agent.tools.tool_inputs import (
 )
 from agent.tools.tool_schemas import TOOL_SCHEMAS
 
-# Compact JSON char count budget for TOOL_SCHEMAS (11,530 baseline + tools v2: matches mode, show_paragraph_stats, batch_replace_files).
-BASELINE_TOOL_SCHEMAS_COMPACT_CHARS = 12_600
+# Compact JSON char count budget for exposed LOOP_TOOL_NAMES schemas (significantly leaner after B1/B2/B3/Option A).
+BASELINE_EXPOSED_TOOL_SCHEMAS_COMPACT_CHARS = 10_500
 
 
 def _parse_mcp(result: dict[str, Any]) -> dict[str, Any]:
@@ -73,14 +74,22 @@ def _walk_schema_objects(node: Any):
 
 @pytest.mark.unit
 def test_tool_input_models_cover_every_loop_tool_in_order():
-    assert list(TOOL_INPUT_MODELS.keys()) == LOOP_TOOL_NAMES
-    assert list(TOOL_SCHEMAS.keys()) == LOOP_TOOL_NAMES
+    for name in LOOP_TOOL_NAMES:
+        assert name in TOOL_INPUT_MODELS
+        assert name in TOOL_SCHEMAS
+    # Legacy query_files stays registered for backend/replay compatibility, excluded from exposed LOOP_TOOL_NAMES
+    assert "query_files" in TOOL_INPUT_MODELS
+    assert "query_files" in TOOL_SCHEMAS
+    assert "query_files" not in LOOP_TOOL_NAMES
+    assert "read_files" in LOOP_TOOL_NAMES
+    assert "search_files" in LOOP_TOOL_NAMES
 
 
 @pytest.mark.unit
 def test_exported_schemas_have_zero_pydantic_bloat_and_stay_within_baseline_budget():
-    compact = json.dumps(TOOL_SCHEMAS, ensure_ascii=False, separators=(",", ":"))
-    assert len(compact) <= BASELINE_TOOL_SCHEMAS_COMPACT_CHARS
+    exposed = [TOOL_SCHEMAS[name] for name in LOOP_TOOL_NAMES]
+    compact = json.dumps(exposed, ensure_ascii=False, separators=(",", ":"))
+    assert len(compact) <= BASELINE_EXPOSED_TOOL_SCHEMAS_COMPACT_CHARS
 
     for tool_name, entry in TOOL_SCHEMAS.items():
         schema = entry["input_schema"]
@@ -118,23 +127,23 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert wc_schema["properties"]["chapter"]["minimum"] == 1
     assert "<file>" in wc_schema["properties"]["chapter"]["description"]
     assert "大纲" in wc_schema["properties"]["chapter"]["description"]
-    assert "query_files" in TOOL_SCHEMAS["write_chapter"]["description"]
+    assert "read_files" in TOOL_SCHEMAS["write_chapter"]["description"]
     assert "<file>" in TOOL_SCHEMAS["write_chapter"]["description"]
     assert wc_schema["properties"]["title"]["maxLength"] == 255
     assert wc_schema["properties"]["file_type"]["enum"] == ["draft", "script"]
     assert "metadata" not in wc_schema["properties"]
 
-    # edit_file: edits item schema inlined, continue_on_error omits conflicting static default, occurrence minimum=1
+    # edit_file (B3): 4 core ops, hidden match_mode / ignore_punct_whitespace / replace_all
     edit_schema = TOOL_SCHEMAS["edit_file"]["input_schema"]
     assert edit_schema["required"] == ["id", "edits"]
     assert edit_schema["properties"]["continue_on_error"]["type"] == "boolean"
     assert "default" not in edit_schema["properties"]["continue_on_error"]
     edit_item = edit_schema["properties"]["edits"]["items"]
     assert edit_item["required"] == ["op"]
+    assert edit_item["properties"]["op"]["enum"] == ["replace", "append", "insert_after", "insert_before"]
     assert edit_item["properties"]["occurrence"]["minimum"] == 1
-    assert edit_item["properties"]["replace_all"]["default"] is False
-    assert edit_item["properties"]["match_mode"]["default"] == "auto"
-    assert edit_item["properties"]["ignore_punct_whitespace"]["default"] is True
+    for hidden_key in ("replace_all", "match_mode", "ignore_punct_whitespace"):
+        assert hidden_key not in edit_item["properties"]
 
     # delete_file & rename_file
     assert TOOL_SCHEMAS["delete_file"]["input_schema"]["required"] == ["id"]
@@ -142,38 +151,44 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert TOOL_SCHEMAS["rename_file"]["input_schema"]["required"] == ["id", "title"]
     assert TOOL_SCHEMAS["rename_file"]["input_schema"]["properties"]["title"]["maxLength"] == 255
 
-    # query_files: Batch B ids maxItems=5, >25000 guidance, range constraints, defaults
+    # read_files (B2): required ids maxItems=5, range constraints, show_paragraph_stats
+    rf_schema = TOOL_SCHEMAS["read_files"]["input_schema"]
+    assert rf_schema["required"] == ["ids"]
+    rf_props = rf_schema["properties"]
+    assert rf_props["ids"]["maxItems"] == 5
+    assert rf_props["tail_chars"]["minimum"] == 1
+    assert rf_props["start_char"]["minimum"] == 0
+    assert rf_props["max_chars"]["minimum"] == 1
+    assert rf_props["show_paragraph_stats"]["default"] is False
+
+    # search_files (B2): query + filters, no response_mode/include_content
+    sf_schema = TOOL_SCHEMAS["search_files"]["input_schema"]
+    assert sf_schema["required"] == []
+    sf_props = sf_schema["properties"]
+    assert sf_props["limit"]["default"] == 30
+    assert "query" in sf_props and "file_types" in sf_props and "parent_id" in sf_props and "ids" in sf_props
+    assert "response_mode" not in sf_props and "include_content" not in sf_props
+
+    # query_files (legacy compat): still valid schema with hidden include_content/content_preview_chars
     qf_schema = TOOL_SCHEMAS["query_files"]["input_schema"]
     assert qf_schema["required"] == []
     qf_props = qf_schema["properties"]
     assert qf_props["ids"]["maxItems"] == 5
     assert qf_props["limit"]["default"] == 50
     assert qf_props["offset"]["default"] == 0
-    assert qf_props["content_preview_chars"]["default"] == 200
-    assert qf_props["content_preview_chars"]["minimum"] == 0
     assert qf_props["tail_chars"]["minimum"] == 1
     assert qf_props["start_char"]["minimum"] == 0
     assert qf_props["max_chars"]["minimum"] == 1
-    assert qf_props["include_content"]["default"] is False
-    assert "25000" in qf_props["start_char"]["description"]
-    assert "25000" in qf_props["max_chars"]["description"]
+    assert qf_props["response_mode"]["enum"] == ["summary", "full", "matches"]
+    assert qf_props["show_paragraph_stats"]["default"] is False
 
-    # update_project: tasks.items & unit_spec keep additionalProperties=False, uniqueItems, minItems/maxItems
+    # update_project (B1): tasks removed, memory fields kept
     up_schema = TOOL_SCHEMAS["update_project"]["input_schema"]
     assert up_schema["required"] == []
     assert up_schema["properties"]["title"]["maxLength"] == 30
-    task_item = up_schema["properties"]["tasks"]["items"]
-    assert task_item["additionalProperties"] is False
-    assert task_item["required"] == ["task", "status"]
-    assert task_item["properties"]["artifact_refs"]["uniqueItems"] is True
-    assert task_item["properties"]["artifact_refs"]["items"]["minLength"] == 1
-    unit_spec = task_item["properties"]["unit_spec"]
-    assert unit_spec["additionalProperties"] is False
-    assert unit_spec["required"] == ["unit", "numbers"]
-    assert unit_spec["properties"]["numbers"]["items"] == {"type": "integer", "minimum": 1}
-    assert unit_spec["properties"]["numbers"]["minItems"] == 1
-    assert unit_spec["properties"]["numbers"]["maxItems"] == 2001
-    assert unit_spec["properties"]["numbers"]["uniqueItems"] is True
+    assert "tasks" not in up_schema["properties"]
+    for key in ("title", "summary", "writing_style", "current_phase", "notes"):
+        assert key in up_schema["properties"]
 
     # load_skill & read_skill_resource
     assert TOOL_SCHEMAS["load_skill"]["input_schema"]["required"] == ["name"]
@@ -186,8 +201,6 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert br_schema["required"] == ["old_text", "new_text"]
     assert list(br_schema["properties"].keys()) == ["old_text", "new_text", "file_ids", "file_type", "dry_run"]
     assert br_schema["properties"]["dry_run"]["default"] is False
-    assert qf_props["response_mode"]["enum"] == ["summary", "full", "matches"]
-    assert qf_props["show_paragraph_stats"]["default"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -285,7 +298,7 @@ def test_bool_is_strictly_rejected_for_integer_fields(bad_bool):
     )
     assert parsed is None and err is not None and "布尔值" in err["message"]
 
-    # EditOperationInput.occurrence & UnitSpecInput.numbers
+    # EditOperationInput.occurrence
     parsed, err = validate_tool_input(
         EditOperationInput,
         {"op": "replace", "old": "a", "new": "b", "occurrence": bad_bool},
@@ -293,11 +306,11 @@ def test_bool_is_strictly_rejected_for_integer_fields(bad_bool):
     )
     assert parsed is None and err is not None and "布尔值" in err["message"]
 
-    parsed, err = validate_tool_input(
-        UnitSpecInput,
-        {"unit": "章", "numbers": [bad_bool]},
-        tool_name="update_project",
-    )
+    # ReadFilesInput & SearchFilesInput integer fields
+    for field in ("start_char", "max_chars", "tail_chars"):
+        parsed, err = validate_tool_input(ReadFilesInput, {"ids": ["f-1"], field: bad_bool}, tool_name="read_files")
+        assert parsed is None and err is not None and "布尔值" in err["message"]
+    parsed, err = validate_tool_input(SearchFilesInput, {"limit": bad_bool}, tool_name="search_files")
     assert parsed is None and err is not None and "布尔值" in err["message"]
 
 
@@ -574,7 +587,14 @@ def test_write_chapter_restores_fallback_defaults_for_omitted_file_type_and_titl
 
 @pytest.mark.unit
 def test_chinese_error_formatting_covers_all_pydantic_error_types_without_english_leakage():
-    from agent.tools.tool_inputs import UpdateProjectTaskInput, _format_single_error
+    from pydantic import BaseModel, ConfigDict, Field
+
+    from agent.tools.tool_inputs import _format_single_error
+
+    class _StrictSample(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        items: list[str] = Field(min_length=1, max_length=2)
+        tag: str = Field(min_length=1)
 
     # Non-mapping raw_args & None raw_args
     parsed, err = validate_tool_input(QueryFilesInput, ["not-a-dict"], tool_name="query_files")
@@ -589,28 +609,20 @@ def test_chinese_error_formatting_covers_all_pydantic_error_types_without_englis
 
     # extra_forbidden on strict sub-model
     parsed, err = validate_tool_input(
-        UpdateProjectTaskInput,
-        {"task": "写第一章", "status": "pending", "unknown_field": 1},
-        tool_name="update_project",
+        _StrictSample,
+        {"items": ["a"], "tag": "x", "unknown_field": 1},
+        tool_name="sample",
     )
     assert parsed is None and err is not None and "多余字段" in err["message"]
 
-    # too_short / too_long / string_too_short on UnitSpecInput & UpdateProjectTaskInput
-    parsed, err = validate_tool_input(UnitSpecInput, {"unit": "章", "numbers": []}, tool_name="update_project")
+    # too_short / too_long / string_too_short
+    parsed, err = validate_tool_input(_StrictSample, {"items": [], "tag": "x"}, tool_name="sample")
     assert parsed is None and err is not None and "不能少于 1 个" in err["message"]
 
-    parsed, err = validate_tool_input(
-        UnitSpecInput,
-        {"unit": "章", "numbers": list(range(1, 2003))},
-        tool_name="update_project",
-    )
-    assert parsed is None and err is not None and "不能超过 2001 个" in err["message"]
+    parsed, err = validate_tool_input(_StrictSample, {"items": ["a", "b", "c"], "tag": "x"}, tool_name="sample")
+    assert parsed is None and err is not None and "不能超过 2 个" in err["message"]
 
-    parsed, err = validate_tool_input(
-        UpdateProjectTaskInput,
-        {"task": "写第一章", "status": "done", "artifact_refs": [""]},
-        tool_name="update_project",
-    )
+    parsed, err = validate_tool_input(_StrictSample, {"items": ["a"], "tag": ""}, tool_name="sample")
     assert parsed is None and err is not None and "不能少于 1 个字符" in err["message"]
 
     # dict_type, list_type, string_type, non-int string/empty, non-string ids items, non-list edits

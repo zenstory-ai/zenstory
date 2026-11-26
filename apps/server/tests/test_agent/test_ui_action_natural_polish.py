@@ -220,7 +220,7 @@ def test_turn_context_injects_official_skill_without_user_added_skill(db_session
     assert "只允许修改选区内的文字" in turn_sel.text
     assert "edit_file" in turn_sel.text
     assert "禁止调用 `write_chapter`" in turn_sel.text
-    assert "不要做非必要的 `query_files`" in turn_sel.text
+    assert "不要做非必要的 `read_files`" in turn_sel.text
     assert "△" in turn_sel.text
 
     # Without selected_text: full-chapter guidance

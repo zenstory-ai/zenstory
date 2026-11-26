@@ -200,7 +200,7 @@ class Store:
             self.calls.append(observation)
             assert observation["pool_checked_out"] == 0
 
-    def expected(self, rows, *, full=False, preview=200, omit_preview=False, large_listing=False):
+    def expected(self, rows, *, full=False, preview=200, omit_preview=False, large_listing=False, include_paragraph_count=True):
         from agent.tools.file_ops.serialization import (
             QUERY_FILES_LARGE_LISTING_CONTENT_PREVIEW_CHARS,
             QUERY_FILES_LARGE_LISTING_REFERENCE_PREVIEW_CHARS,
@@ -227,8 +227,12 @@ class Store:
                     else:
                         item["file_metadata"] = json.dumps(cleaned, ensure_ascii=False, separators=(",", ":"))
             if full:
-                # word_count 与编辑器同口径（count_words），full 模式总是给出。
+                from agent.tools.file_ops.content_range import count_paragraphs
+
+                # word_count 与编辑器同口径（count_words），full 模式总是给出（mcp_tools 附 paragraph_count）。
                 item["word_count"] = count_words(item["content"])
+                if include_paragraph_count:
+                    item["paragraph_count"] = count_paragraphs(item["content"])
             else:
                 effective_preview = preview
                 if large_listing and row_count > QUERY_FILES_LARGE_LISTING_ROW_THRESHOLD:
@@ -582,7 +586,7 @@ def test_warm_summary_does_not_pollute_persistent_content(store):
         assert {"status": "success", "data": summary} == store.expected([row], preview=7)
         assert file.content == original and not session.is_modified(file)
         full = executor.query_files(store.project, id=row["id"], response_mode="full")
-        assert {"status": "success", "data": full} == store.expected([row], full=True)
+        assert {"status": "success", "data": full} == store.expected([row], full=True, include_paragraph_count=False)
         file.title = "Updated title after summary"
         session.commit()
     with Session(store.engine) as reader:

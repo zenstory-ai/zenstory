@@ -99,215 +99,21 @@ async def test_update_project_accepts_current_phase_camel_case_alias():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_update_project_passes_empty_tasks_array_when_present():
-    mock_executor = MagicMock()
-    mock_executor.execute_update_plan.return_value = {
-        "tasks": [],
-    }
-
-    req_ctx = _mock_req_ctx(mock_executor)
-    with patch("agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts", return_value=None):
-        result = await update_project({"tasks": []}, request_context=req_ctx)
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["data"]["plan"] == {"tasks": []}
-
-    mock_executor.execute_update_plan.assert_called_once_with(
-        session_id="sess-1",
-        tasks=[],
-        user_id=None,
-        project_id="proj-1",
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_forwards_trusted_written_artifact_ids_outside_model_args():
-    mock_executor = MagicMock()
-    mock_executor.execute_update_plan.return_value = {"status": "success", "tasks": []}
-
-    req_ctx = _mock_req_ctx(mock_executor)
-    with patch("agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts", return_value=None):
-        result = await update_project(
-            {"tasks": []},
-            request_context=req_ctx,
-            written_artifact_ids=["file-1"],
-        )
-
-    assert _parse_payload(result)["status"] == "success"
-    mock_executor.execute_update_plan.assert_called_once_with(
-        session_id="sess-1",
-        tasks=[],
-        user_id=None,
-        project_id="proj-1",
-        written_artifact_ids=["file-1"],
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_tasks_only_can_auto_sync_current_phase():
-    mock_executor = MagicMock()
-    mock_executor.execute_update_plan.return_value = {
-        "tasks": [{"task": "写第5章", "status": "done"}],
-    }
-    mock_executor.update_project_status.return_value = {
-        "project_id": "proj-1",
-        "updated_fields": ["current_phase"],
-        "current_status": {"current_phase": "已写至第5章"},
-    }
-
-    req_ctx = _mock_req_ctx(mock_executor)
-    with patch(
-        "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
-        return_value="已写至第5章",
-    ):
-        result = await update_project(
-            {"tasks": [{"task": "写第5章", "status": "done"}]},
-            request_context=req_ctx,
-        )
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["data"]["plan"]["tasks"] == [{"task": "写第5章", "status": "done"}]
-    assert payload["data"]["updated_fields"] == ["current_phase"]
-    assert "current_status" not in payload["data"]
-    assert payload["data"]["project_status"]["current_status"]["current_phase"] == "已写至第5章"
-
-    mock_executor.execute_update_plan.assert_called_once_with(
-        session_id="sess-1",
-        tasks=[{"task": "写第5章", "status": "done"}],
-        user_id=None,
-        project_id="proj-1",
-    )
-    mock_executor.update_project_status.assert_called_once_with(
-        project_id="proj-1",
-        summary=None,
-        current_phase="已写至第5章",
-        writing_style=None,
-        notes=None,
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_tasks_only_logs_info_not_warning():
-    mock_executor = MagicMock()
-    mock_executor.execute_update_plan.return_value = {
-        "tasks": [{"task": "写第5章", "status": "done"}],
-    }
-
-    req_ctx = _mock_req_ctx(mock_executor)
-    with patch(
-        "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
-        return_value=None,
-    ), patch("agent.tools.mcp_tools.log_with_context") as mock_log:
-        result = await update_project(
-            {"tasks": [{"task": "写第5章", "status": "done"}]},
-            request_context=req_ctx,
-        )
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["data"]["plan"]["tasks"] == [{"task": "写第5章", "status": "done"}]
-    mock_executor.update_project_status.assert_not_called()
-
-    mock_log.assert_called_once()
-    assert mock_log.call_args.args[1] == 20
-    assert mock_log.call_args.args[2] == "update_project received task-board-only payload"
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_tasks_only_auto_sync_failure_is_non_blocking():
-    mock_executor = MagicMock()
-    mock_executor.execute_update_plan.return_value = {
-        "tasks": [{"task": "写第5章", "status": "done"}],
-    }
-
-    req_ctx = _mock_req_ctx(mock_executor)
-    with patch(
-        "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
-        side_effect=RuntimeError("boom"),
-    ), patch("agent.tools.mcp_tools.log_with_context") as mock_log:
-        result = await update_project(
-            {"tasks": [{"task": "写第5章", "status": "done"}]},
-            request_context=req_ctx,
-        )
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "success"
-    assert payload["data"]["plan"]["tasks"] == [{"task": "写第5章", "status": "done"}]
-    assert "project_status" not in payload["data"]
-
-    mock_executor.execute_update_plan.assert_called_once_with(
-        session_id="sess-1",
-        tasks=[{"task": "写第5章", "status": "done"}],
-        user_id=None,
-        project_id="proj-1",
-    )
-    mock_executor.update_project_status.assert_not_called()
-
-    assert mock_log.call_count >= 2
-    error_calls = [call for call in mock_log.call_args_list if call.args[1] == 40]
-    assert error_calls
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-@pytest.mark.parametrize("plan_status", ["ignored", "error"])
-async def test_update_project_propagates_rejected_plan_without_phase_sync(
-    plan_status,
-):
-    mock_executor = MagicMock()
-    mock_executor.execute_update_plan.return_value = {
-        "status": plan_status,
-        "reason": "validation_rejected",
-        "error": "invalid transition",
-        "tasks": [],
-    }
-
-    req_ctx = _mock_req_ctx(mock_executor)
-    with patch(
-        "agent.tools.mcp_tools._suggest_auto_current_phase_from_drafts",
-    ) as suggest_phase:
-        result = await update_project(
-            {"tasks": [{"task": "写第5章", "status": "done"}]},
-            request_context=req_ctx,
-        )
-
-    payload = _parse_payload(result)
-    assert payload["status"] == "error"
-    assert payload["error_type"] == "update_plan_rejected"
-    assert payload["mutation_applied"] is False
-    assert payload["data"]["plan"]["status"] == plan_status
-    suggest_phase.assert_not_called()
-    mock_executor.update_project_status.assert_not_called()
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_reports_partial_when_fields_update_but_plan_is_rejected():
+async def test_update_project_ignores_legacy_tasks_field_gracefully():
     mock_executor = MagicMock()
     mock_executor.update_project_status.return_value = {
         "project_id": "proj-1",
         "updated_fields": ["summary"],
         "current_status": {"summary": "new"},
     }
-    mock_executor.execute_update_plan.return_value = {
-        "status": "ignored",
-        "reason": "unverified_done",
-        "tasks": [],
-    }
 
     req_ctx = _mock_req_ctx(mock_executor)
-    result = await update_project({"summary": "new", "tasks": []}, request_context=req_ctx)
+    result = await update_project({"summary": "new", "tasks": [{"task": "写第1章", "status": "done"}]}, request_context=req_ctx)
 
     payload = _parse_payload(result)
-    assert payload["status"] == "partial"
-    assert payload["mutation_applied"] is True
+    assert payload["status"] == "success"
     assert payload["data"]["updated_fields"] == ["summary"]
+    assert "plan" not in payload["data"]
 
 
 @pytest.mark.asyncio
@@ -1104,7 +910,7 @@ async def test_oversized_query_result_keeps_every_file_identity_and_truncates_co
     payload = json.loads(text)
     assert payload["status"] == "success"
     assert payload["truncated"] is True
-    assert 'query_files(id=…, response_mode="full")' in payload["note"]
+    assert "read_files(ids=[…])" in payload["note"]
     assert [item["id"] for item in payload["data"]] == [file["id"] for file in files]
     for item, original in zip(payload["data"], files, strict=True):
         assert item["title"] == original["title"]
@@ -1436,28 +1242,6 @@ async def test_update_project_notes_over_limit_save_nothing_and_say_so(db_sessio
     assert payload["data"]["notes_note"] == NOTES_FULL_NOTE
     assert payload["data"]["updated_fields"] == ["summary"]
     assert _stored_notes(db_session, project) == existing
-
-
-@pytest.mark.asyncio
-@pytest.mark.unit
-async def test_update_project_partial_plan_rejection_still_reports_added_notes(db_session, monkeypatch):
-    from agent.tools.file_ops import FileToolExecutor
-
-    user, project = _make_user_and_project(db_session, f"notes-partial-{uuid4().hex[:5]}")
-    monkeypatch.setattr(
-        FileToolExecutor,
-        "execute_update_plan",
-        lambda self, **kwargs: {"status": "error", "error": "任务计划板未更新"},
-    )
-    req_ctx = _set_author_round(db_session, user, project, "记住：主角怕水", notes_append_allowed=True)
-    payload = _parse_payload(
-        await update_project({"summary": "新摘要", "notes": "主角怕水", "tasks": []}, request_context=req_ctx)
-    )
-
-    assert payload["status"] == "partial"
-    assert payload["data"]["notes_added"] == ["主角怕水"]
-    assert payload["data"]["updated_fields"] == ["summary", "notes"]
-    assert _stored_notes(db_session, project) == "主角怕水"
 
 
 @pytest.mark.asyncio

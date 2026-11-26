@@ -227,8 +227,7 @@ def test_changed_missing_anchors_for_same_file_hint_but_do_not_trip_early():
         )
         if attempt >= 1:
             hint = json.loads(output)["retry_hint"]
-            assert "按准确 id 重读当前文件" in hint
-            assert "continue_on_error=true" in hint
+            assert "read_files(ids=[...]) 重读当前文件" in hint
             assert "拆成几次 edit_file 调用" not in hint
             assert "不要放宽匹配或整篇覆盖" in hint
             assert "自动终止" not in hint
@@ -1086,13 +1085,13 @@ async def test_next_run_continues_the_previous_run_append_only_via_run_items(mon
 
     def script(index: int) -> list[dict]:
         if index == 0:
-            return _tool_call_chunks("call-0", "query_files", '{"id": "f1"}')
+            return _tool_call_chunks("call-0", "read_files", '{"ids": ["f1"]}')
         return _text_chunks("<file>\n第二章。\n</file>" if index == 1 else "第二章写好了。")
 
     run_starts: list[int] = []
     _events, requests, state = await _run_against_local_model(
         monkeypatch, script, None,
-        tool_impls={"query_files": fake_query},
+        tool_impls={"read_files": fake_query},
         followups=[{"agent_type": "loop", "state": {"user_message": "[系统提醒] 请自查并总结"}}],
         run_starts=run_starts,
     )

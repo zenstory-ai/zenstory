@@ -326,7 +326,7 @@ class TestInventoryHeaderBudget:
         assert total == len(focus.content) and shown < total
         focus_heading = next(line for line in lines if f"(id={focus.id}) ← 当前焦点" in line)
         assert (
-            f'[已截断：显示 {shown}/{total} 个字符；全文用 query_files(id="{focus.id}")]'
+            f'[已截断：显示 {shown}/{total} 个字符；全文用 read_files(ids=["{focus.id}"])]'
             in focus_heading
         )
 

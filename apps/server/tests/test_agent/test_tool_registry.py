@@ -41,5 +41,7 @@ def test_retired_search_is_absent_even_with_legacy_flag(monkeypatch, legacy_flag
     names = [tool["name"] for tool in tools]
 
     assert "hybrid_search" not in names
-    assert "query_files" in names
+    assert "read_files" in names
+    assert "search_files" in names
+    assert "query_files" not in names
     assert "hybrid_search" not in json.dumps(tools, ensure_ascii=False)

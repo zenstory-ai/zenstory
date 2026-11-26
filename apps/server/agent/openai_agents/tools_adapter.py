@@ -71,15 +71,24 @@ def _parse_tool_arguments(raw_arguments: str, *, tool_name: str) -> tuple[dict[s
     )
 
 
-def _is_partial_result(text: str) -> bool:
-    """status=partial: some edits applied, others failed (edit_file with continue_on_error)."""
-    if '"partial"' not in text:  # cheap pre-check before parsing a possibly long result
-        return False
+def _parse_json_dict(text: str) -> dict[str, Any] | None:
+    if not text:
+        return None
     try:
         payload = json.loads(text)
     except (json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _is_partial_result(text: str, *, parsed_output: dict[str, Any] | None = None) -> bool:
+    """status=partial: some edits applied, others failed (edit_file with continue_on_error)."""
+    if parsed_output is not None:
+        return parsed_output.get("status") == "partial"
+    if '"partial"' not in text:  # cheap pre-check before parsing a possibly long result
         return False
-    return isinstance(payload, dict) and payload.get("status") == "partial"
+    payload = _parse_json_dict(text)
+    return payload is not None and payload.get("status") == "partial"
 
 
 def _is_rolled_back_edit_batch(tool_name: str, args: dict[str, Any]) -> bool:
@@ -108,14 +117,13 @@ def _record_pending_empty_file_type(
     tool_name: str,
     text: str,
     args: dict[str, Any],
+    *,
+    parsed_output: dict[str, Any] | None = None,
 ) -> None:
     """Stamp file_type onto a newly bound pending empty-file entry from create_file / write_chapter output."""
     if tool_name not in {"create_file", "write_chapter"} or not request_context.has_pending_empty_file():
         return
-    try:
-        payload = json.loads(text)
-    except (json.JSONDecodeError, TypeError):
-        return
+    payload = parsed_output if parsed_output is not None else _parse_json_dict(text)
     if not isinstance(payload, dict) or payload.get("status") != "success":
         return
     data = payload.get("data")
@@ -134,9 +142,29 @@ def _record_pending_empty_file_type(
         request_context.set_pending_empty_file_type(file_id, file_type)
 
 
-def _record_business_failure(run_meter: AgentRunMeter, tool_name: str, args: dict[str, Any], text: str) -> None:
+def _record_business_failure(
+    run_meter: AgentRunMeter,
+    tool_name: str,
+    args: dict[str, Any],
+    text: str,
+    *,
+    parsed_output: dict[str, Any] | None = None,
+) -> None:
     """Count an executed tool's status=error / partial result in the run summary (never affects the result)."""
     try:
+        if parsed_output is not None:
+            status = parsed_output.get("status")
+            if status == "error":
+                run_meter.record_tool_failure(
+                    tool_name,
+                    parsed_output.get("error_type"),
+                    rolled_back_batch=_is_rolled_back_edit_batch(tool_name, args),
+                )
+            elif status == "partial":
+                run_meter.record_tool_failure(tool_name, "partial", rolled_back_batch=False)
+            return
+        if '"error"' not in text and '"partial"' not in text:
+            return
         payload = _parse_error_payload(text)
         if payload is not None:
             run_meter.record_tool_failure(
@@ -179,11 +207,13 @@ async def invoke_project_tool(
     run_meter: AgentRunMeter | None = None,
     tool_call_id: str | None = None,
     request_context: AgentRequestContext | None = None,
+    parsed_args: dict[str, Any] | None = None,
 ) -> str:
     """Invoke a project tool from an SDK FunctionTool callback."""
-    parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
-    if parse_error_text is not None:
-        return parse_error_text
+    if parsed_args is None:
+        parsed_args, parse_error_text = _parse_tool_arguments(raw_arguments, tool_name=tool_name)
+        if parse_error_text is not None:
+            return parse_error_text
 
     tool_func = TOOL_FUNCTIONS.get(tool_name)
     if tool_func is None:
@@ -208,10 +238,23 @@ async def invoke_project_tool(
             if inspect.isawaitable(result):
                 result = await result
         text = _normalize_tool_result_text(result)
-        if request_context is not None:
-            _record_pending_empty_file_type(request_context, tool_name, text, parsed_args or {})
-        if run_meter is not None:
-            _record_business_failure(run_meter, tool_name, parsed_args or {}, text)
+        parsed_out: dict[str, Any] | None = None
+        needs_pending_type = (
+            request_context is not None
+            and tool_name in {"create_file", "write_chapter"}
+            and request_context.has_pending_empty_file()
+        )
+        needs_failure_check = run_meter is not None and ('"error"' in text or '"partial"' in text)
+        if needs_pending_type or needs_failure_check:
+            parsed_out = _parse_json_dict(text)
+        if needs_pending_type and request_context is not None:
+            _record_pending_empty_file_type(
+                request_context, tool_name, text, parsed_args or {}, parsed_output=parsed_out
+            )
+        if needs_failure_check and run_meter is not None:
+            _record_business_failure(
+                run_meter, tool_name, parsed_args or {}, text, parsed_output=parsed_out
+            )
         return text
     except Exception as exc:
         log_with_context(
@@ -227,24 +270,33 @@ async def invoke_project_tool(
 
 # 两次回复协议：上一次回复建好的文件，这一次回复必须先以 <file> 开头写正文。
 # 只读/元数据工具与不占用 <file> 槽位的 create_file（folder / empty=True / source_text）以及
-# 针对同一待写目标的重复 write_chapter / create_file 允许继续执行（附带简洁提醒或走工具既有幂等吸收，
-# 不触发 file_body_pending / runner 提前结束）；真正冲突的写操作（edit_file / delete_file[除精确取消] /
-# rename_file / 另一章 write_chapter / 新的待写 create_file）照旧以 file_body_pending 硬挡回。
+# 针对同一待写目标的重复 write_chapter / create_file 允许有限次数继续执行（附带简洁提醒或走工具既有幂等吸收，
+# 不触发 file_body_pending / runner 提前结束；P1-5 上限 _MAX_OVERDUE_NON_CONFLICTING_CALLS=2，第 3 次起硬挡回）；
+# 真正冲突的写操作（edit_file / delete_file[除精确取消] / rename_file / 另一章 write_chapter /
+# 新的待写 create_file / batch_replace_files）照旧以 file_body_pending 硬挡回。
 _OVERDUE_NON_CONFLICTING_TOOLS: frozenset[str] = frozenset({
     "query_files",
+    "read_files",
+    "search_files",
     "update_project",
     "load_skill",
     "read_skill_resource",
 })
+_MAX_OVERDUE_NON_CONFLICTING_CALLS = 2
 
 
-def _is_non_slotted_create_file(raw_arguments: str) -> bool:
+def _is_non_slotted_create_file(
+    raw_arguments: str, *, parsed_args: dict[str, Any] | None = None
+) -> bool:
     """create_file 不占用 <file> 正文槽位（folder / empty=True / 非空 source_text）时返回 True。"""
     from agent.constants import coerce_bool
 
-    parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="create_file")
-    if parse_error is not None or not isinstance(parsed, dict):
-        return False
+    if parsed_args is not None:
+        parsed = parsed_args
+    else:
+        parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="create_file")
+        if parse_error is not None or not isinstance(parsed, dict):
+            return False
     file_type = parsed.get("file_type")
     if isinstance(file_type, str) and file_type.strip().lower() == "folder":
         return True
@@ -254,12 +306,14 @@ def _is_non_slotted_create_file(raw_arguments: str) -> bool:
     return isinstance(source_text, str) and bool(source_text.strip())
 
 
-def _is_overdue_non_conflicting_tool(tool_name: str, raw_arguments: str) -> bool:
+def _is_overdue_non_conflicting_tool(
+    tool_name: str, raw_arguments: str, *, parsed_args: dict[str, Any] | None = None
+) -> bool:
     """严格不与待写 <file> 槽位冲突的只读/元数据调用。"""
     if tool_name in _OVERDUE_NON_CONFLICTING_TOOLS:
         return True
     if tool_name == "create_file":
-        return _is_non_slotted_create_file(raw_arguments)
+        return _is_non_slotted_create_file(raw_arguments, parsed_args=parsed_args)
     return False
 
 
@@ -271,12 +325,17 @@ def _match_same_target_pending_writer_repeat(
     raw_arguments: str,
     overdue: list[dict[str, Any]],
     req_ctx: AgentRequestContext,
+    *,
+    parsed_args: dict[str, Any] | None = None,
 ) -> str | None:
     """若 write_chapter / create_file 指向已在等待正文的同一目标（且 file_type 兼容），返回其 file_id。"""
     if tool_name == "create_file":
-        parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="create_file")
-        if parse_error is not None or not isinstance(parsed, dict):
-            return None
+        if parsed_args is not None:
+            parsed = parsed_args
+        else:
+            parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="create_file")
+            if parse_error is not None or not isinstance(parsed, dict):
+                return None
         raw_title = parsed.get("title")
         title = raw_title.strip() if isinstance(raw_title, str) else ""
         if not title:
@@ -305,9 +364,12 @@ def _match_same_target_pending_writer_repeat(
         from agent.tools.tool_inputs import WriteChapterInput, validate_tool_input
         from utils.title_sequence import extract_sequence_number, prefixed_chapter_heading
 
-        parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="write_chapter")
-        if parse_error is not None or not isinstance(parsed, dict):
-            return None
+        if parsed_args is not None:
+            parsed = parsed_args
+        else:
+            parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="write_chapter")
+            if parse_error is not None or not isinstance(parsed, dict):
+                return None
         validated, validation_error = validate_tool_input(
             WriteChapterInput, parsed, tool_name="write_chapter"
         )
@@ -350,17 +412,23 @@ def _is_same_target_pending_writer_repeat(
     raw_arguments: str,
     overdue: list[dict[str, Any]],
     req_ctx: AgentRequestContext,
+    *,
+    parsed_args: dict[str, Any] | None = None,
 ) -> bool:
     """判断 write_chapter / create_file 是否指向当前已在等待正文的同一个目标，交由工具层既有吸收逻辑处理。"""
-    return _match_same_target_pending_writer_repeat(tool_name, raw_arguments, overdue, req_ctx) is not None
+    return (
+        _match_same_target_pending_writer_repeat(
+            tool_name, raw_arguments, overdue, req_ctx, parsed_args=parsed_args
+        )
+        is not None
+    )
 
 
-def _attach_pending_file_reminder(output: str, title: str) -> str:
+def _attach_pending_file_reminder(
+    output: str, title: str, *, parsed_output: dict[str, Any] | None = None
+) -> str:
     """在放行的非冲突工具结果上附带一行待写 <file> 提醒，不改变 status，不触发 runner 提前结束。"""
-    try:
-        payload = json.loads(output)
-    except (json.JSONDecodeError, TypeError):
-        return output
+    payload = parsed_output if parsed_output is not None else _parse_json_dict(output)
     if not isinstance(payload, dict):
         return output
     if "pending_file_reminder" in payload:
@@ -376,7 +444,12 @@ def _attach_pending_file_reminder(output: str, title: str) -> str:
     return json.dumps(reminded, ensure_ascii=False, separators=(",", ":"))
 
 
-def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | None:
+def _cancels_overdue_file(
+    raw_arguments: str,
+    overdue_ids: set[str],
+    *,
+    parsed_args: dict[str, Any] | None = None,
+) -> str | None:
     """delete_file 的参数正好是「取消一份待写文件」（精确 id、非递归）时返回这个 id，否则 None。
 
     与执行路径共用 ``DeleteFileInput`` 校验（含 ``id`` 别名与 ``recursive`` 布尔归一），
@@ -384,9 +457,12 @@ def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | No
     """
     from agent.tools.tool_inputs import DeleteFileInput, validate_tool_input
 
-    parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="delete_file")
-    if parse_error is not None or not isinstance(parsed, dict):
-        return None
+    if parsed_args is not None:
+        parsed = parsed_args
+    else:
+        parsed, parse_error = _parse_tool_arguments(raw_arguments, tool_name="delete_file")
+        if parse_error is not None or not isinstance(parsed, dict):
+            return None
     validated, validation_error = validate_tool_input(DeleteFileInput, parsed, tool_name="delete_file")
     if validation_error is not None or validated is None:
         return None
@@ -395,11 +471,8 @@ def _cancels_overdue_file(raw_arguments: str, overdue_ids: set[str]) -> str | No
     return None
 
 
-def _deleted(output: str) -> bool:
-    try:
-        payload = json.loads(output)
-    except (json.JSONDecodeError, TypeError):
-        return False
+def _deleted(output: str, *, parsed_output: dict[str, Any] | None = None) -> bool:
+    payload = parsed_output if parsed_output is not None else _parse_json_dict(output)
     return isinstance(payload, dict) and payload.get("status") == "success" and payload.get("mutation_applied") is True
 
 
@@ -427,7 +500,10 @@ def wall_clock_wrap_up_text(tool_name: str) -> str:
 
 
 def _maybe_reset_breaker_for_batch_replace(
-    failure_breaker: ToolFailureBreaker, output: str
+    failure_breaker: ToolFailureBreaker,
+    output: str,
+    *,
+    parsed_output: dict[str, Any] | None = None,
 ) -> None:
     """Reset consecutive failures when ``batch_replace_files`` commits cross-file writes.
 
@@ -437,10 +513,7 @@ def _maybe_reset_breaker_for_batch_replace(
     """
     if failure_breaker.is_open:
         return
-    try:
-        payload = json.loads(output)
-    except (json.JSONDecodeError, TypeError):
-        return
+    payload = parsed_output if parsed_output is not None else _parse_json_dict(output)
     if not isinstance(payload, dict):
         return
     status = str(payload.get("status") or "").strip().lower()
@@ -472,10 +545,10 @@ def build_agent_function_tools(
 
     failure_breaker：本次请求的工具失败熔断器。每个工具结果都经它记账；
     熔断后同一轮里剩下的调用不再执行（尤其是写工具），直接返回熔断说明。
-    read_guard：本次请求的重复读取守卫。query_files(id) 执行前经它判定（同一文件第 4 次起不执行），执行后经它记账、附提示；
+    read_guard：本次请求的重复读取守卫。read_files / query_files(id) 执行前经它判定（同一文件第 4 次起不执行），执行后经它记账、附提示；
     写工具成功会清零对应文件的读取计数。守卫判定无进展后，同一轮里剩下的调用
     同样不再执行。
-    edit_guard：本次请求的串行微调收敛守卫（兼刚写章节自读拦截）。在 edit_file / query_files
+    edit_guard：本次请求的串行微调收敛守卫（兼刚写章节自读拦截）。在 edit_file / read_files / query_files
     执行前按结构化计数与增量判定，不触发致命熔断。
     run_meter：请求级耗时记录器。只有熔断、待补正文与重复读取守卫都放行后，
     才记录首次工具开始并计量实际工具调用耗时；返回成功只表示调用结束，不代表业务写入成功。
@@ -501,7 +574,22 @@ def build_agent_function_tools(
             raw_call_id = getattr(ctx, "tool_call_id", None)
             call_id = raw_call_id if isinstance(raw_call_id, str) and raw_call_id else None
 
-            async def invoke_allowed(arguments: str) -> str:
+            if failure_breaker is not None and failure_breaker.is_open:
+                return failure_breaker.short_circuit_text(_tool_name)
+            if read_guard is not None and read_guard.is_open:
+                return read_guard.short_circuit_text(_tool_name)
+
+            # P1-4: Parse raw_arguments JSON ONCE per tool call and thread parsed_args across all guards.
+            parsed_args, parse_error_text = _parse_tool_arguments(
+                raw_arguments, tool_name=_tool_name
+            )
+
+            async def invoke_allowed(
+                arguments: str,
+                resolved_parsed_args: dict[str, Any] | None,
+            ) -> str:
+                if resolved_parsed_args is None and parse_error_text is not None:
+                    return parse_error_text
                 kwargs: dict[str, Any] = {}
                 if run_meter is not None:
                     kwargs["run_meter"] = run_meter
@@ -509,17 +597,19 @@ def build_agent_function_tools(
                     kwargs["tool_call_id"] = call_id
                 if req_ctx is not None:
                     kwargs["request_context"] = req_ctx
+                if resolved_parsed_args is not None:
+                    kwargs["parsed_args"] = resolved_parsed_args
                 return await invoke_project_tool(_tool_name, arguments, **kwargs)
 
-            if failure_breaker is not None and failure_breaker.is_open:
-                return failure_breaker.short_circuit_text(_tool_name)
-            if read_guard is not None and read_guard.is_open:
-                return read_guard.short_circuit_text(_tool_name)
             overdue = req_ctx.overdue_file_bodies() if req_ctx is not None else []
             cancelled_id = (
                 # 复用的已有剧集可能已有正文，不算「取消本请求建的空文件」。
-                _cancels_overdue_file(raw_arguments, {entry["id"] for entry in overdue if entry["created_here"]})
-                if overdue and _tool_name == "delete_file"
+                _cancels_overdue_file(
+                    raw_arguments,
+                    {entry["id"] for entry in overdue if entry["created_here"]},
+                    parsed_args=parsed_args,
+                )
+                if overdue and _tool_name == "delete_file" and parsed_args is not None
                 else None
             )
             overdue_reminder_title: str | None = None
@@ -529,12 +619,23 @@ def build_agent_function_tools(
             )
             if cancelled_id is not None:
                 overdue = []
-            elif overdue and req_ctx is not None and _is_overdue_non_conflicting_tool(_tool_name, raw_arguments):
-                overdue_reminder_title = overdue[0]["title"]
-                overdue = []
-            elif overdue and req_ctx is not None:
+            elif (
+                overdue
+                and req_ctx is not None
+                and _is_overdue_non_conflicting_tool(
+                    _tool_name, raw_arguments, parsed_args=parsed_args
+                )
+            ):
+                # P1-5: Cap non-conflicting tool insertions while a <file> body is overdue so the
+                # model cannot keep interleaving reads/metadata forever without outputting <file>.
+                if wall_clock_wrapping or req_ctx.consume_overdue_non_conflicting(
+                    overdue[0]["id"], max_uses=_MAX_OVERDUE_NON_CONFLICTING_CALLS
+                ):
+                    overdue_reminder_title = overdue[0]["title"]
+                    overdue = []
+            elif overdue and req_ctx is not None and parsed_args is not None:
                 matched_repeat_id = _match_same_target_pending_writer_repeat(
-                    _tool_name, raw_arguments, overdue, req_ctx
+                    _tool_name, raw_arguments, overdue, req_ctx, parsed_args=parsed_args
                 )
                 if matched_repeat_id is not None and (
                     wall_clock_wrapping
@@ -544,6 +645,8 @@ def build_agent_function_tools(
                 ):
                     overdue_reminder_title = overdue[0]["title"]
                     overdue = []
+
+            parsed_output: dict[str, Any] | None = None
             if overdue:
                 output = file_body_pending_text(_tool_name, overdue[0]["title"])
                 # 工具没有执行：只在运行摘要里记一次固定分类，不记首个工具开始、不算回滚批次。
@@ -561,30 +664,81 @@ def build_agent_function_tools(
                     _tool_name, WALL_CLOCK_WRAP_UP_ERROR_TYPE, rolled_back_batch=False
                 )
             else:
-                edit_plan = edit_guard.plan(_tool_name, raw_arguments) if edit_guard is not None else None
+                edit_plan = (
+                    edit_guard.plan(_tool_name, raw_arguments, parsed_args=parsed_args)
+                    if edit_guard is not None
+                    else None
+                )
                 if edit_plan is not None and edit_plan.blocked_output is not None:
                     output = edit_plan.blocked_output
-                elif read_guard is not None:
-                    plan = read_guard.plan(_tool_name, raw_arguments)
-                    if plan.blocked_output is not None:
-                        output = plan.blocked_output
-                    else:
-                        output = await invoke_allowed(plan.arguments)
-                        output = read_guard.observe(_tool_name, plan, output)
                 else:
-                    output = await invoke_allowed(raw_arguments)
+                    # Thread rewritten edit_plan.arguments / parsed_arguments (e.g. mixed batch
+                    # self-read guard stripping just-written IDs) cleanly without re-parsing.
+                    effective_raw = (
+                        edit_plan.arguments
+                        if edit_plan is not None and edit_plan.arguments is not None
+                        else raw_arguments
+                    )
+                    effective_parsed = (
+                        edit_plan.parsed_arguments
+                        if edit_plan is not None and edit_plan.arguments is not None
+                        else parsed_args
+                    )
+                    if read_guard is not None:
+                        plan = read_guard.plan(
+                            _tool_name, effective_raw, parsed_args=effective_parsed
+                        )
+                        if plan.blocked_output is not None:
+                            output = plan.blocked_output
+                        else:
+                            output = await invoke_allowed(plan.arguments, plan.parsed_arguments)
+                            parsed_output = _parse_json_dict(output)
+                            observed = read_guard.observe(
+                                _tool_name, plan, output, parsed_output=parsed_output
+                            )
+                            if observed != output:
+                                output = observed
+                                parsed_output = _parse_json_dict(output)
+                    else:
+                        output = await invoke_allowed(effective_raw, effective_parsed)
+                        parsed_output = _parse_json_dict(output)
                 if edit_guard is not None and edit_plan is not None and edit_plan.blocked_output is None:
-                    output = edit_guard.observe(_tool_name, edit_plan, output)
+                    if parsed_output is None:
+                        parsed_output = _parse_json_dict(output)
+                    observed = edit_guard.observe(
+                        _tool_name, edit_plan, output, parsed_output=parsed_output
+                    )
+                    if observed != output:
+                        output = observed
+                        parsed_output = _parse_json_dict(output)
                 if overdue_reminder_title is not None and req_ctx is not None and req_ctx.overdue_file_bodies():
-                    output = _attach_pending_file_reminder(output, overdue_reminder_title)
-            if cancelled_id is not None and _deleted(output) and req_ctx is not None:
+                    if parsed_output is None:
+                        parsed_output = _parse_json_dict(output)
+                    reminded = _attach_pending_file_reminder(
+                        output, overdue_reminder_title, parsed_output=parsed_output
+                    )
+                    if reminded != output:
+                        output = reminded
+                        parsed_output = _parse_json_dict(output)
+
+            if parsed_output is None:
+                parsed_output = _parse_json_dict(output)
+            if cancelled_id is not None and _deleted(output, parsed_output=parsed_output) and req_ctx is not None:
                 # 待写文件确实删掉了：守卫随这次删除结果收敛（StreamAdapter 按同一结果解除捕获），
                 # 模型在本 run 里接着做别的不会再被它拒绝；run 边界的「已删除」核验照旧兜底。
                 req_ctx.clear_pending_empty_file(cancelled_id)
             if failure_breaker is not None:
-                output = failure_breaker.observe(_tool_name, raw_arguments, output)
+                output = failure_breaker.observe(
+                    _tool_name,
+                    raw_arguments,
+                    output,
+                    parsed_args=parsed_args,
+                    parsed_output=parsed_output,
+                )
                 if _tool_name == "batch_replace_files":
-                    _maybe_reset_breaker_for_batch_replace(failure_breaker, output)
+                    _maybe_reset_breaker_for_batch_replace(
+                        failure_breaker, output, parsed_output=parsed_output
+                    )
             return output
 
         function_tools.append(

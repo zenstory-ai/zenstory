@@ -202,7 +202,7 @@ class StaleContentError(EditFileError):
             tail = "请基于现在的正文重新给出修改，新改的地方保留，不要改回去。"
         else:
             tail = (
-                "改动没有全部列出（不完整）。先用 query_files 按 id 读一次全文，"
+                "改动没有全部列出（不完整）。先用 read_files(ids=[...]) 读一次全文，"
                 "再基于现在的正文给出修改，新改的地方保留。"
             )
         super().__init__(
@@ -259,7 +259,7 @@ class EditBatchError(EditFileError):
                 "\n注意：本批所有 new 都没有保存，正文仍是这次调用之前的样子，不能把它们当作下一次的 old / anchor。"
                 "失败项的候选片段是在本批前面几处编辑生效后的中间文本里找的，可能含已回滚的 new，"
                 "不一定是已保存的原文。重建完整 edits 列表时只用确认是已保存原文的片段；"
-                "确认不了就先用 query_files 按 id 读取相关段落。"
+                "确认不了就先用 read_files(ids=[...]) 读取相关段落。"
             )
         first_type = failed_edits[0].get("error_type") if failed_edits else None
         super().__init__(message, error_type=str(first_type or EDIT_ERROR_GENERIC))
@@ -297,9 +297,9 @@ def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
     else:
         reason = "精确、引号等价、模糊和近似匹配都没有找到唯一位置。"
     return (
-        f"{reason}请先用 query_files 按准确 id 重读当前文件"
-        f"（仅超过 25000 字的超长文件才传 query=关键词 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
-        f"唯一的{label}；同一文件的多处独立修改合并进一次 edit_file(..., continue_on_error=true) 批量提交（超过 30 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
+        f"{reason}请先用 read_files(ids=[...]) 重读当前文件"
+        f"（仅超过 25000 字的超长文件才用 search_files(query=关键词, ids=[...]) 取逐字命中片段，或传 start_char + max_chars 分段读取），再从结果复制较短、逐字、"
+        f"唯一的{label}；同一文件的多处独立修改合并进一次 edit_file 批量提交（超过 30 处或相互依赖时再拆分）；不要放宽匹配或整篇覆盖。"
     )
 
 
@@ -666,7 +666,7 @@ def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> No
         if paragraph not in before:
             raise EditFileError(
                 f"这次修改会让下面这段在正文里出现 {count} 次（逐字重复），没有改动：「{_preview(paragraph)}」。"
-                "先用 query_files 读一次这一章现在的正文，确认这段已经在哪里，再只改需要改的地方，"
+                "先用 read_files(ids=[...]) 读一次这一章现在的正文，确认这段已经在哪里，再只改需要改的地方，"
                 "不要把已有的段落再插入或追加一遍。",
                 error_type=EDIT_ERROR_DUPLICATED_PARAGRAPH,
             )
@@ -971,7 +971,7 @@ class FileEditor:
             )
             raise EditFileError(
                 "文件不存在或已删除。不要猜测、枚举或改写相似 id；"
-                "先用 query_files 不带 id 查询当前文件列表，再从结果逐字复制目标 id。"
+                "先用 search_files 不带关键词查询当前文件列表，再从结果逐字复制目标 id。"
                 "确认前不要继续写，也不能把失败解释成权限问题。",
                 error_type=EDIT_ERROR_FILE_NOT_FOUND,
             )
@@ -1184,9 +1184,9 @@ class FileEditor:
                     )
                 if exact_only and failed_op in ("replace", "delete", "insert_after", "insert_before"):
                     if active_spans is None:
-                        error_text += "（本请求还没读过这个文件，只按逐字匹配：先用 query_files 按 id 读一次，再照现在的正文改）"
+                        error_text += "（本请求还没读过这个文件，只按逐字匹配：先用 read_files(ids=[...]) 读一次，再照现在的正文改）"
                     elif error_type == EDIT_ERROR_ANCHOR_NOT_FOUND:
-                        error_text += "（本请求只按范围读过该文件部分内容，未读区域只按逐字匹配：请先用 query_files 读取目标区域或全文后再改）"
+                        error_text += "（本请求只按范围读过该文件部分内容，未读区域只按逐字匹配：请先用 read_files(ids=[...]) 读取目标区域或全文后再改）"
                 failed_edit = {
                     "index": i,
                     "error": error_text,
@@ -2103,7 +2103,7 @@ class FileEditor:
                     return value
             raise EditFileError(
                 f"Edit {edit_index}: replace 缺少 new 字段（替换后的新文本）。"
-                f"只想删除这段原文请改用 op=delete。"
+                '只想删除这段原文请显式传 new=""。'
             )
         if not isinstance(new_text, str):
             raise EditFileError(f"Edit {edit_index}: replace 的 new 必须是字符串")
