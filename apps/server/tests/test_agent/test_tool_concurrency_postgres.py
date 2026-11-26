@@ -23,7 +23,7 @@ when N tool calls run concurrently each must obtain a DISTINCT Session object,
 and the connection pool must return to its baseline depth after all calls
 complete.
 
-Skipped unless RUN_PG_CONCURRENCY_GATE=1 and TEST_DATABASE_URL are set.
+Skipped unless ZENSTORY_TEST_POSTGRES_URL is set.
 
 See: .omc/plans/agent-layer-improvements.md Phase 1, items 1.1 and 1.5.
 """
@@ -107,10 +107,11 @@ class TestToolConcurrencySessionIsolation:
                 # Hold briefly to maximise overlap with sibling coroutines.
                 await asyncio.sleep(0.01)
 
+        async def _run() -> None:
+            await asyncio.gather(*[simulate_tool_call(i) for i in range(CONCURRENCY)])
+
         try:
-            asyncio.run(
-                asyncio.gather(*[simulate_tool_call(i) for i in range(CONCURRENCY)])
-            )
+            asyncio.run(_run())
         finally:
             engine.dispose()
 
@@ -147,12 +148,13 @@ class TestToolConcurrencySessionIsolation:
                 # Execute a cheap read to actually check out a connection.
                 session.execute(text("SELECT 1"))
 
-        try:
-            asyncio.run(
-                asyncio.gather(
-                    *[simulate_tool_call_with_query(i) for i in range(CONCURRENCY)]
-                )
+        async def _run() -> None:
+            await asyncio.gather(
+                *[simulate_tool_call_with_query(i) for i in range(CONCURRENCY)]
             )
+
+        try:
+            asyncio.run(_run())
             after = _pool_checkedout(engine)
         finally:
             engine.dispose()
@@ -224,8 +226,11 @@ class TestToolConcurrencySessionIsolation:
                 observations[1] = int(row) == 0  # True = no cross-contamination
                 session.rollback()
 
+        async def _run() -> None:
+            await asyncio.gather(writer_a(), writer_b())
+
         try:
-            asyncio.run(asyncio.gather(writer_a(), writer_b()))
+            asyncio.run(_run())
         finally:
             engine.dispose()
 
