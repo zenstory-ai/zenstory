@@ -9,9 +9,7 @@ from httpx import AsyncClient
 from sqlmodel import Session
 
 from config.datetime_utils import utcnow
-from models import Inspiration, Project, User
-from models.points import CheckInRecord, PointsTransaction
-from models.referral import InviteCode, Referral
+from models import Project, User
 from models.subscription import SubscriptionPlan, UserSubscription
 from services.core.auth_service import hash_password
 
@@ -118,9 +116,7 @@ async def test_admin_list_plans_and_update_plan_success(client: AsyncClient, db_
 async def test_admin_dashboard_stats_aggregates_core_metrics(
     client: AsyncClient,
     db_session: Session,
-    monkeypatch,
 ):
-    monkeypatch.setenv("INSPIRATIONS_ENABLED", "true")
     now = utcnow().replace(tzinfo=None)
     yesterday = now - timedelta(days=1)
 
@@ -149,30 +145,6 @@ async def test_admin_dashboard_stats_aggregates_core_metrics(
         Project(
             name="Dashboard Project",
             owner_id=active_user.id,
-            created_at=now,
-            updated_at=now,
-        )
-    )
-
-    db_session.add(
-        Inspiration(
-            name="Pending inspiration",
-            description="pending",
-            snapshot_data="{}",
-            source="community",
-            status="pending",
-            author_id=active_user.id,
-            created_at=now,
-            updated_at=now,
-        )
-    )
-    db_session.add(
-        Inspiration(
-            name="Approved inspiration",
-            description="approved",
-            snapshot_data="{}",
-            source="official",
-            status="approved",
             created_at=now,
             updated_at=now,
         )
@@ -223,79 +195,6 @@ async def test_admin_dashboard_stats_aggregates_core_metrics(
         )
     )
 
-    db_session.add(
-        PointsTransaction(
-            user_id=active_user.id,
-            amount=100,
-            balance_after=100,
-            transaction_type="check_in",
-            is_expired=False,
-            created_at=now,
-        )
-    )
-    db_session.add(
-        PointsTransaction(
-            user_id=active_user.id,
-            amount=40,
-            balance_after=140,
-            transaction_type="bonus",
-            is_expired=True,
-            created_at=now,
-        )
-    )
-    db_session.add(
-        PointsTransaction(
-            user_id=active_user.id,
-            amount=-25,
-            balance_after=115,
-            transaction_type="redeem",
-            is_expired=False,
-            created_at=now,
-        )
-    )
-
-    today = utcnow().date()
-    db_session.add(
-        CheckInRecord(
-            user_id=active_user.id,
-            check_in_date=today,
-            streak_days=3,
-            points_earned=10,
-        )
-    )
-
-    active_invite = InviteCode(code="ACTIVE-1001", owner_id=active_user.id, is_active=True)
-    inactive_invite = InviteCode(code="INACTIVE-1001", owner_id=active_user.id, is_active=False)
-    db_session.add(active_invite)
-    db_session.add(inactive_invite)
-    db_session.commit()
-    db_session.refresh(active_invite)
-
-    db_session.add(
-        Referral(
-            inviter_id=active_user.id,
-            invitee_id=inactive_user.id,
-            invite_code_id=active_invite.id,
-            status="PENDING",
-            created_at=now - timedelta(days=2),
-        )
-    )
-    old_invitee = await create_user(
-        db_session,
-        "dashboard_user_old_invitee",
-        "dashboard_user_old_invitee@example.com",
-        created_at=yesterday,
-    )
-    db_session.add(
-        Referral(
-            inviter_id=active_user.id,
-            invitee_id=old_invitee.id,
-            invite_code_id=active_invite.id,
-            status="COMPLETED",
-            created_at=now - timedelta(days=10),
-        )
-    )
-
     db_session.commit()
 
     token = await login_user(client, admin.username)
@@ -303,18 +202,12 @@ async def test_admin_dashboard_stats_aggregates_core_metrics(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total_users"] == 4
-    assert payload["active_users"] == 3
+    assert payload["total_users"] == 3
+    assert payload["active_users"] == 2
     assert payload["new_users_today"] == 1
     assert payload["total_projects"] == 1
-    assert payload["total_inspirations"] == 2
-    assert payload["pending_inspirations"] == 1
     assert payload["active_subscriptions"] == 1
     assert payload["pro_users"] == 1
-    assert payload["total_points_in_circulation"] == 75
-    assert payload["today_check_ins"] == 1
-    assert payload["active_invite_codes"] == 1
-    assert payload["week_referrals"] == 1
 
 
 @pytest.mark.integration

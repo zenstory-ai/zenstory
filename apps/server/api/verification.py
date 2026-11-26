@@ -21,7 +21,6 @@ from services.core.auth_service import (
     get_refresh_token_expires_at,
 )
 from services.core.registration_email_policy import ensure_registration_email_allowed
-from services.features.referral_service import complete_pending_referral_for_invitee
 from services.features.user_preference_service import get_ui_language, normalize_ui_language
 from services.features.verification_service import (
     get_code_ttl,
@@ -61,7 +60,6 @@ async def verify_email(
     - Accepts email and verification code
     - Updates user.email_verified to True if code is correct
     - Returns access and refresh tokens on success
-    - Distributes referral rewards if applicable
     """
     normalized_email = normalize_email_identity(str(request.email))
     # Finishing verification is what completes a signup, so an earlier code cannot get past
@@ -142,13 +140,6 @@ async def verify_email(
     user.email_verified = True
     user.updated_at = utcnow()
     session.add(user)
-
-    # Process pending referral rewards in unified service flow.
-    await complete_pending_referral_for_invitee(
-        user.id,
-        session,
-        commit=False,
-    )
 
     # Generate tokens
     access_token = create_access_token(data=access_token_claims(user))

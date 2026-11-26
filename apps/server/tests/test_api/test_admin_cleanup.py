@@ -1,7 +1,7 @@
 """Admin cleanup: Beijing day windows, quota view, error codes, filters, UTC output."""
 
 import sys
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -11,8 +11,6 @@ from sqlmodel import Session, select
 from config.datetime_utils import UTCDateTime
 from models import User
 from models.payment import PaymentOrder
-from models.points import CheckInRecord
-from models.referral import InviteCode, Referral
 from models.skill import UserSkill
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
@@ -88,7 +86,7 @@ def test_utc_datetime_serializes_with_offset():
 
 
 @pytest.mark.integration
-async def test_dashboard_today_and_week_use_beijing_days(
+async def test_dashboard_today_uses_beijing_days(
     client: AsyncClient, db_session: Session, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr("api.admin.dashboard.utcnow", lambda: FIXED_NOW)
@@ -96,30 +94,7 @@ async def test_dashboard_today_and_week_use_beijing_days(
     admin = make_user(db_session, "bj_dash_admin", admin=True, created_at=today_start - timedelta(days=30))
     # 00:10 Beijing today counts; 23:50 Beijing yesterday does not.
     make_user(db_session, "bj_dash_new", created_at=today_start + timedelta(minutes=10))
-    inviter = make_user(db_session, "bj_dash_old", created_at=today_start - timedelta(minutes=10))
-    db_session.add_all([
-        CheckInRecord(
-            user_id=inviter.id, check_in_date=date(2026, 10, 5), points_earned=1,
-            created_at=today_start + timedelta(minutes=5),
-        ),
-        CheckInRecord(
-            user_id=admin.id, check_in_date=date(2026, 10, 5), points_earned=1,
-            created_at=today_start - timedelta(minutes=5),
-        ),
-    ])
-    code = InviteCode(code="BJWK-0001", owner_id=inviter.id, max_uses=10)
-    db_session.add(code)
-    db_session.commit()
-    # Inside the 7 Beijing days (6 days before today, 00:30 Beijing) vs. just outside.
-    for invitee_name, created_at in (
-        ("bj_ref_in", today_start - timedelta(days=6) + timedelta(minutes=30)),
-        ("bj_ref_out", today_start - timedelta(days=6) - timedelta(minutes=30)),
-    ):
-        invitee = make_user(db_session, invitee_name, created_at=today_start - timedelta(days=20))
-        db_session.add(Referral(
-            inviter_id=inviter.id, invitee_id=invitee.id, invite_code_id=code.id,
-            created_at=created_at,
-        ))
+    make_user(db_session, "bj_dash_old", created_at=today_start - timedelta(minutes=10))
     db_session.commit()
 
     response = await client.get("/api/admin/dashboard/stats", headers=await login(client, admin.username))
@@ -127,8 +102,6 @@ async def test_dashboard_today_and_week_use_beijing_days(
     assert response.status_code == 200
     data = response.json()
     assert data["new_users_today"] == 1
-    assert data["today_check_ins"] == 1
-    assert data["week_referrals"] == 1
 
 
 def test_funnel_windows_start_at_beijing_midnight(db_session: Session, monkeypatch: pytest.MonkeyPatch):

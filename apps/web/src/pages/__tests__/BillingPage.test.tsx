@@ -11,7 +11,6 @@ const refetchStatus = vi.fn()
 const refetchCatalog = vi.fn()
 const refetchQuota = vi.fn()
 const assignSpy = vi.fn()
-const inspirationFeature = vi.hoisted(() => ({ enabled: true }))
 
 let currentSearch = 'source=chat_quota_blocked'
 let currentLanguage = 'en-US'
@@ -207,15 +206,10 @@ vi.mock('../../lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }))
 
-vi.mock('../../config/inspirations', () => ({
-  inspirationsConfig: inspirationFeature,
-}))
-
 describe('BillingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionStorage.clear()
-    inspirationFeature.enabled = true
     currentSearch = 'source=chat_quota_blocked'
     currentLanguage = 'en-US'
     statusResponse = {
@@ -346,15 +340,15 @@ describe('BillingPage', () => {
       data: {
         ...(quotaResponse.data as Record<string, unknown>),
         ai_conversations: { used: 10, limit: 3 },
-        inspiration_copies: { used: 4, limit: 5 },
+        skill_creates: { used: 4, limit: 5 },
       },
     }
     render(<BillingPage />)
 
     expect(screen.getByTestId('billing-usage-ai_conversations').className).toContain('text-[hsl(var(--error-text))]')
     expect(screen.getByTestId('billing-usage-bar-ai_conversations').className).toContain('bg-[hsl(var(--error))]')
-    expect(screen.getByTestId('billing-usage-inspiration_copies').className).toContain('text-[hsl(var(--warning-text))]')
-    expect(screen.getByTestId('billing-usage-bar-inspiration_copies').className).toContain('bg-[hsl(var(--warning))]')
+    expect(screen.getByTestId('billing-usage-skill_creates').className).toContain('text-[hsl(var(--warning-text))]')
+    expect(screen.getByTestId('billing-usage-bar-skill_creates').className).toContain('bg-[hsl(var(--warning))]')
   })
 
   it('tells Pro users there is no daily limit instead of a reset time', () => {
@@ -513,8 +507,7 @@ describe('BillingPage', () => {
     expect(screen.queryByText('Redeem modal')).not.toBeInTheDocument()
   })
 
-  it('hides inspiration quota usage when inspirations are disabled', () => {
-    inspirationFeature.enabled = false
+  it('omits retired inspiration quota usage', () => {
     render(<BillingPage />)
 
     expect(screen.queryByText('Inspiration copies')).not.toBeInTheDocument()

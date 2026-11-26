@@ -30,7 +30,6 @@ import {
 import { clearAuthStorage, resolveOwnedAuthSession } from "./lib/apiClient";
 import { onboardingPersonaApi, personaOnboardingQueryKey } from "./lib/onboardingPersonaApi";
 import { lazyRoute } from "./lib/chunkRecovery";
-import { inspirationsConfig } from "./config/inspirations";
 import { useVisualViewport } from "./hooks/useVisualViewport";
 
 // 懒加载路由组件 - 按需加载，减少首屏 bundle 大小
@@ -54,10 +53,6 @@ const DashboardProjects = lazyRoute(() => import("./pages/DashboardProjects"), "
 const BillingPage = lazyRoute(() => import("./pages/BillingPage"), "BillingPage");
 const PaymentReturnPage = lazyRoute(() => import("./pages/PaymentReturnPage"), "PaymentReturnPage");
 const OnboardingPersonaPage = lazyRoute(() => import("./pages/OnboardingPersonaPage"), "OnboardingPersonaPage");
-
-// Inspiration pages
-const InspirationsPage = lazyRoute(() => import("./pages/InspirationsPage"), "InspirationsPage");
-const InspirationDetailPage = lazyRoute(() => import("./pages/InspirationDetailPage"), "InspirationDetailPage");
 
 // Admin pages
 const AdminLayout = lazyRoute(() => import("./components/admin/AdminLayout"), "AdminLayout");
@@ -364,8 +359,8 @@ function App() {
                       <Route path="skills" element={<SkillsPage />} />
                       <Route path="billing" element={<BillingPage />} />
                       <Route path="billing/payment-return" element={<PaymentReturnPage />} />
-                      <Route path="inspirations" element={inspirationsConfig.enabled ? <InspirationsPage /> : <Navigate to="/dashboard" replace />} />
-                      <Route path="inspirations/:inspirationId" element={inspirationsConfig.enabled ? <InspirationDetailPage /> : <Navigate to="/dashboard" replace />} />
+                      <Route path="inspirations" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="inspirations/:inspirationId" element={<Navigate to="/dashboard" replace />} />
                     </Route>
                     <Route
                       path="/project/:projectId"

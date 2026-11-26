@@ -28,7 +28,6 @@ import type { QuotaResponse, SubscriptionCatalogTier } from "../types/subscripti
 import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackUpgradeClick, trackUpgradeConversion, trackUpgradeExpose } from "../lib/upgradeAnalytics";
 import { trackEvent } from "../lib/analytics";
-import { inspirationsConfig } from "../config/inspirations";
 import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import type { PaymentCycle } from "../types/payment";
 import { parsePaymentCycleIntent } from "../lib/paymentCycleIntent";
@@ -38,8 +37,7 @@ type UsageKey =
   | "ai_conversations"
   | "projects"
   | "material_decompositions"
-  | "skill_creates"
-  | "inspiration_copies";
+  | "skill_creates";
 
 /** Attribution source for the paid header button, which renews rather than upgrades. */
 const RENEW_SOURCE = "billing_header_renew";
@@ -164,14 +162,12 @@ export default function BillingPage() {
   const isRedeemCodeModalOpen = isProPlanIntentReady && isCheckoutKnownOff;
 
   const usageItems = useMemo(
-    () =>
-      [
-        { key: "ai_conversations", label: t("dashboard:billing.metricAiConversations", "每日 AI 消息") },
-        { key: "projects", label: t("dashboard:billing.metricProjects", "项目数") },
-        { key: "material_decompositions", label: t("dashboard:billing.metricMaterialDecompositions", "素材拆解") },
-        { key: "skill_creates", label: t("dashboard:billing.metricCustomSkills", "自定义技能") },
-        { key: "inspiration_copies", label: t("dashboard:billing.metricInspirationCopies", "复制灵感") },
-      ].filter((item) => inspirationsConfig.enabled || item.key !== "inspiration_copies") as { key: UsageKey; label: string }[],
+    (): { key: UsageKey; label: string }[] => [
+      { key: "ai_conversations", label: t("dashboard:billing.metricAiConversations", "每日 AI 消息") },
+      { key: "projects", label: t("dashboard:billing.metricProjects", "项目数") },
+      { key: "material_decompositions", label: t("dashboard:billing.metricMaterialDecompositions", "素材拆解") },
+      { key: "skill_creates", label: t("dashboard:billing.metricCustomSkills", "自定义技能") },
+    ],
     [t]
   );
 
@@ -554,7 +550,7 @@ export default function BillingPage() {
                         : t("dashboard:billing.dailyQuotaResetHint", "每天的 AI 消息在北京时间 00:00 恢复。")}
                     </p>
                   )}
-                  {(item.key === "material_decompositions" || item.key === "inspiration_copies") && !notIncluded && (
+                  {item.key === "material_decompositions" && !notIncluded && (
                     <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
                       {t("dashboard:billing.monthlyQuotaResetHint", "每月额度于北京时间每月 1 日 00:00 重置。")}
                     </p>

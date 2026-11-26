@@ -67,7 +67,6 @@ export DEEPSEEK_API_KEY="test-key-for-ci-testing"
 export E2E_TEST_EMAIL="e2e-test@example.com"
 export E2E_TEST_PASSWORD="E2eTestPassword123!"
 export E2E_TEST_USERNAME="e2e_test_user"
-export E2E_TEST_INVITE_CODE="E2E1-TST1"
 
 # Flags for Docker mode
 CLEANUP_ON_EXIT=true
@@ -485,10 +484,6 @@ run_backend_tests() {
 run_e2e_tests_docker() {
     log_step "Running E2E tests (Docker mode)..."
 
-    # Explicitly exercise the optional library in full browser regression.
-    export INSPIRATIONS_ENABLED="${INSPIRATIONS_ENABLED:-true}"
-    export VITE_INSPIRATIONS_ENABLED="${VITE_INSPIRATIONS_ENABLED:-$INSPIRATIONS_ENABLED}"
-
     cd "$SERVER_DIR"
     activate_venv
 
@@ -565,9 +560,6 @@ EOF
 }
 
 run_e2e_tests_lite() {
-    # These servers start before Playwright reads its managed-server settings.
-    export INSPIRATIONS_ENABLED="${INSPIRATIONS_ENABLED:-true}"
-    export VITE_INSPIRATIONS_ENABLED="${VITE_INSPIRATIONS_ENABLED:-$INSPIRATIONS_ENABLED}"
     log_step "Running E2E tests (Lite mode)..."
 
     cd "$SERVER_DIR"

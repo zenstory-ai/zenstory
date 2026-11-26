@@ -9,8 +9,6 @@
  * - Subscription management
  * - Audit log access
  * - Dashboard statistics
- * - Points and check-in systems
- * - Referral and invite code management
  * - Quota usage monitoring
  */
 
@@ -40,21 +38,11 @@ import type {
   UpgradeConversionStats,
   UpgradeFunnelStats,
   PlanUpdateRequest,
-  AdminInspiration,
   AdminFeedbackItem,
   AdminFeedbackListResponse,
   AdminFeedbackStatus,
   ChatVoteFilter,
   ChatVotesListResponse,
-  PointsStats,
-  AdminPointsBalance,
-  PointsAdjustRequest,
-  PointsTransactionsResponse,
-  CheckInStats,
-  CheckInRecordsResponse,
-  ReferralStats,
-  InviteCodesResponse,
-  RewardsResponse,
   QuotaUsageStats,
   UserQuotaDetail,
 } from "../types/admin";
@@ -661,13 +649,9 @@ async function getAcquisitionStats(
 }
 
 async function getDashboardStats(options?: {
-  includeCommercialization?: boolean;
   refresh?: boolean;
 }): Promise<DashboardStats> {
   const params = new URLSearchParams();
-  if (options?.includeCommercialization === false) {
-    params.set("include_commercialization", "false");
-  }
   if (options?.refresh) {
     params.set("refresh", "true");
   }
@@ -718,60 +702,6 @@ async function updatePlan(
   data: PlanUpdateRequest
 ): Promise<SubscriptionPlan> {
   return api.put<SubscriptionPlan>(`${ADMIN_BASE}/plans/${planId}`, data);
-}
-
-// ==================== Inspirations (Admin) API ====================
-
-export interface AdminInspirationsListResponse {
-  items: AdminInspiration[];
-  total: number;
-}
-
-async function getInspirations(params?: {
-  status?: string;
-  source?: string;
-  skip?: number;
-  limit?: number;
-}): Promise<AdminInspirationsListResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.status) searchParams.set("status", params.status);
-  if (params?.source) searchParams.set("source", params.source);
-  if (params?.skip) searchParams.set("skip", String(params.skip));
-  if (params?.limit) searchParams.set("limit", String(params.limit));
-
-  const queryString = searchParams.toString();
-  const url = queryString
-    ? `${ADMIN_BASE}/inspirations?${queryString}`
-    : `${ADMIN_BASE}/inspirations`;
-
-  return api.get<AdminInspirationsListResponse>(url);
-}
-
-async function reviewInspiration(
-  id: string,
-  approve: boolean,
-  reason?: string
-): Promise<{ message: string }> {
-  return api.post<{ message: string }>(`${ADMIN_BASE}/inspirations/${id}/review`, {
-    approve,
-    rejection_reason: reason,
-  });
-}
-
-async function updateInspiration(
-  id: string,
-  data: {
-    name?: string;
-    description?: string;
-    tags?: string[];
-    is_featured?: boolean;
-  }
-): Promise<AdminInspiration> {
-  return api.patch<AdminInspiration>(`${ADMIN_BASE}/inspirations/${id}`, data);
-}
-
-async function deleteInspiration(id: string): Promise<{ message: string }> {
-  return api.delete<{ message: string }>(`${ADMIN_BASE}/inspirations/${id}`);
 }
 
 // ==================== Feedback (Admin) API ====================
@@ -843,100 +773,6 @@ async function getChatVotes(params?: {
   return api.get<ChatVotesListResponse>(url);
 }
 
-// ==================== Points Management API ====================
-
-async function getPointsStats(): Promise<PointsStats> {
-  return api.get<PointsStats>(`${ADMIN_BASE}/points/stats`);
-}
-
-async function getUserPoints(userId: string): Promise<AdminPointsBalance> {
-  return api.get<AdminPointsBalance>(`${ADMIN_BASE}/points/${userId}`);
-}
-
-async function getUserPointsTransactions(
-  userId: string,
-  params?: { page?: number; page_size?: number }
-): Promise<PointsTransactionsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  return api.get<PointsTransactionsResponse>(
-    `${ADMIN_BASE}/points/${userId}/transactions?${searchParams.toString()}`
-  );
-}
-
-export interface AdjustUserPointsResponse {
-  success?: boolean;
-  message?: string;
-  old_balance?: number;
-  new_balance: number;
-  transaction?: PointsTransactionsResponse["items"][number];
-}
-
-async function adjustUserPoints(
-  userId: string,
-  data: PointsAdjustRequest
-): Promise<AdjustUserPointsResponse> {
-  return api.post<AdjustUserPointsResponse>(
-    `${ADMIN_BASE}/points/${userId}/adjust`,
-    data
-  );
-}
-
-// ==================== Check-in Stats API ====================
-
-async function getCheckInStats(): Promise<CheckInStats> {
-  return api.get<CheckInStats>(`${ADMIN_BASE}/check-in/stats`);
-}
-
-async function getCheckInRecords(params?: {
-  page?: number;
-  page_size?: number;
-  user_id?: string;
-}): Promise<CheckInRecordsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  if (params?.user_id) searchParams.set("user_id", params.user_id);
-  return api.get<CheckInRecordsResponse>(
-    `${ADMIN_BASE}/check-in/records?${searchParams.toString()}`
-  );
-}
-
-// ==================== Referral Management API ====================
-
-async function getReferralStats(): Promise<ReferralStats> {
-  return api.get<ReferralStats>(`${ADMIN_BASE}/referrals/stats`);
-}
-
-async function createAdminInviteCode(): Promise<InviteCodesResponse["items"][number]> {
-  return api.post<InviteCodesResponse["items"][number]>(`${ADMIN_BASE}/invites`);
-}
-
-async function getInviteCodes(params?: {
-  page?: number;
-  page_size?: number;
-  is_active?: boolean;
-}): Promise<InviteCodesResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  if (params?.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
-  return api.get<InviteCodesResponse>(`${ADMIN_BASE}/invites?${searchParams.toString()}`);
-}
-
-async function getReferralRewards(params?: {
-  page?: number;
-  page_size?: number;
-}): Promise<RewardsResponse> {
-  const searchParams = new URLSearchParams();
-  if (params?.page) searchParams.set("page", String(params.page));
-  if (params?.page_size) searchParams.set("page_size", String(params.page_size));
-  return api.get<RewardsResponse>(
-    `${ADMIN_BASE}/referrals/rewards?${searchParams.toString()}`
-  );
-}
-
 // ==================== Quota Usage API ====================
 
 async function getQuotaUsageStats(): Promise<QuotaUsageStats> {
@@ -1006,33 +842,11 @@ export const adminApi = {
   getPlans,
   updatePlan,
 
-  // Inspirations (Admin)
-  getInspirations,
-  reviewInspiration,
-  updateInspiration,
-  deleteInspiration,
-
   // Feedback (Admin)
   getFeedbackList,
   updateFeedbackStatus,
   getFeedbackScreenshotBlob,
   getChatVotes,
-
-  // 积分管理
-  getPointsStats,
-  getUserPoints,
-  getUserPointsTransactions,
-  adjustUserPoints,
-
-  // 签到统计
-  getCheckInStats,
-  getCheckInRecords,
-
-  // 邀请系统管理
-  getReferralStats,
-  createAdminInviteCode,
-  getInviteCodes,
-  getReferralRewards,
 
   // 配额使用
   getQuotaUsageStats,

@@ -959,6 +959,5 @@ test('user detail page links to usage and lists active sections', async ({ page 
   for (const section of [/^(账号|Account)$/, /^(会员|Membership)$/, /^(配额|Quota)$/, /^(支付订单|Payment orders)$/]) {
     await expect(page.getByRole('heading', { name: section })).toBeVisible();
   }
-  const pointsEnabled = (process.env.VITE_POINTS_ENABLED ?? 'true') === 'true';
-  await expect(page.getByRole('heading', { name: /^(积分|Points)$/ })).toHaveCount(pointsEnabled ? 1 : 0);
+  await expect(page.getByRole('heading', { name: /^(积分|Points)$/ })).toHaveCount(0);
 });

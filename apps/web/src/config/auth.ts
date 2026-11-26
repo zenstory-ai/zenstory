@@ -26,12 +26,6 @@ export interface AuthConfig {
    * Whether to show "forgot password" link
    */
   forgotPasswordEnabled: boolean;
-
-  /**
-   * Whether invite code is optional during registration.
-   * Defaults to false (invite code required).
-   */
-  inviteCodeOptional: boolean;
 }
 
 /**
@@ -54,9 +48,6 @@ export const authConfig: AuthConfig = {
   
   // Forgot password (self-service email code) - on unless explicitly disabled
   forgotPasswordEnabled: import.meta.env.VITE_FORGOT_PASSWORD_ENABLED !== 'false',
-
-  // Invite code requirement - default required
-  inviteCodeOptional: import.meta.env.VITE_INVITE_CODE_OPTIONAL === 'true',
 };
 
 /**

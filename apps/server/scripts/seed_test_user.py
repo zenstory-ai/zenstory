@@ -17,7 +17,6 @@ from sqlmodel import Session, select  # noqa: E402
 
 from database import sync_engine  # noqa: E402
 from models import SystemPromptConfig, User  # noqa: E402
-from models.referral import InviteCode  # noqa: E402
 from models.subscription import SubscriptionPlan, UsageQuota, UserSubscription  # noqa: E402
 from services.subscription.defaults import DEFAULT_FREE_PLAN_FEATURES  # noqa: E402
 
@@ -71,42 +70,6 @@ def upsert_user(
     print(f"  Superuser: {is_superuser}")
     print(f"  Created at: {user.created_at.isoformat()}")
     return user
-
-
-def upsert_invite_code(
-    session: Session,
-    *,
-    owner_id: str,
-    code: str,
-) -> InviteCode:
-    normalized_code = code.strip().upper()
-    existing = session.exec(select(InviteCode).where(InviteCode.code == normalized_code)).first()
-
-    if existing:
-        existing.owner_id = owner_id
-        existing.max_uses = 9999
-        existing.current_uses = 0
-        existing.is_active = True
-        existing.expires_at = None
-        session.add(existing)
-        session.commit()
-        session.refresh(existing)
-        print(f"Invite code updated: {existing.code}")
-        return existing
-
-    invite_code = InviteCode(
-        code=normalized_code,
-        owner_id=owner_id,
-        max_uses=9999,
-        current_uses=0,
-        is_active=True,
-        expires_at=None,
-    )
-    session.add(invite_code)
-    session.commit()
-    session.refresh(invite_code)
-    print(f"Invite code created: {invite_code.code}")
-    return invite_code
 
 
 def upsert_plan(
@@ -234,7 +197,6 @@ def main():
     skills_email = os.getenv("E2E_TEST_SKILLS_EMAIL", "e2e-skills@example.com")
     skills_password = os.getenv("E2E_TEST_SKILLS_PASSWORD", "E2eSkillsPassword123!")
     skills_username = os.getenv("E2E_TEST_SKILLS_USERNAME", "e2e_skills_user")
-    invite_code = os.getenv("E2E_TEST_INVITE_CODE", "E2E1-TST1")
 
     with Session(sync_engine) as session:
         # E2E-only synthetic fixtures, never an official catalog or runtime fallback.
@@ -284,12 +246,6 @@ def main():
             username=username,
             is_superuser=False,
         )
-        invite = upsert_invite_code(
-            session,
-            owner_id=regular_user.id,
-            code=invite_code,
-        )
-        print(f"  Usable invite code: {invite.code}")
         upsert_subscription(session, user_id=regular_user.id, plan_id=free_plan.id)
         upsert_quota(session, user_id=regular_user.id, skill_creates_used=3)
 
