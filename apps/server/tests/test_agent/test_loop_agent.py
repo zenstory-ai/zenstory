@@ -1025,7 +1025,7 @@ async def test_loop_asks_for_a_self_check_once_per_chapter(loop_tool_context, mo
             self.files_written["ch1"] = "第1章"
 
     monkeypatch.setattr(engine, "RepeatReadGuard", _Guard)
-    monkeypatch.setattr(engine, "_word_count_note", lambda *_args: "")
+    monkeypatch.setattr(engine, "_word_count_note", AsyncMock(return_value=""))
     seen: list[dict] = []
     write = [
         StreamEvent(type=StreamEventType.TOOL_USE, data={"id": "c1", "name": "write_chapter", "status": "complete", "input": {}}),

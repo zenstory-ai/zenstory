@@ -58,6 +58,25 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 MessageList = list[dict[str, Any]]
+_background_aclose_tasks: set[asyncio.Task[Any]] = set()
+
+
+def _schedule_background_aclose(aclose: Callable[[], Any]) -> None:
+    """Schedule async-generator cleanup without awaiting inside a ``GeneratorExit`` finally block."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    async def _run_close() -> None:
+        with contextlib.suppress(BaseException):
+            res = aclose()
+            if inspect.isawaitable(res):
+                await res
+
+    task = loop.create_task(_run_close())
+    _background_aclose_tasks.add(task)
+    task.add_done_callback(_background_aclose_tasks.discard)
 
 # 工具失败熔断后 MESSAGE_END 的 stop_reason（随 assistant 消息元数据落库）。
 TOOL_FAILURE_STOP_REASON = "tool_failure_circuit_open"
@@ -1015,6 +1034,7 @@ async def run_openai_agents_streaming_agent(
             )
 
         sdk_events = result.stream_events()
+        exiting_via_generator_exit = False
         try:
             async for sdk_event in sdk_events:
                 if (
@@ -1249,13 +1269,20 @@ async def run_openai_agents_streaming_agent(
         except MaxTurnsExceeded:
             # 轮数耗尽的对外事件放到熔断/无进展判定之后统一发出（见下方）。
             max_turns_exhausted = True
+        except GeneratorExit:
+            exiting_via_generator_exit = True
+            _safe_cancel(result, "immediate")
+            raise
         except BaseException:
             _safe_cancel(result, "immediate")
             raise
         finally:
             aclose = getattr(sdk_events, "aclose", None)
             if callable(aclose):
-                await aclose()
+                if exiting_via_generator_exit:
+                    _schedule_background_aclose(aclose)
+                else:
+                    await aclose()
 
         if repetition_stopped:
             # 与无进展停止同一个收尾：先让 usage 入账，再以 ERROR 结束整条工作流。StreamAdapter 收到

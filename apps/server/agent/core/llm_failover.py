@@ -15,8 +15,9 @@ or written. With a backup (see ``agent/core/llm_providers.py``):
   After output has started the error propagates as before. Request errors
   (400/413/422, context too long), the free-user cost budget and
   cancellation never fail over.
-- A successful call on a slot other than the session's pin re-pins the session
-  to it, so a session does not bounce between providers (prefix cache).
+- A successful call on a slot other than the session's order pins the session
+  to it, and subsequent successes on a pinned session refresh its sliding TTL
+  so an active chat window does not bounce between providers (prefix cache).
 - With two credentials on a provider, a rate limit or account error is that key's
   problem: only that key cools for ``LLM_KEY_COOLDOWN_S`` and later calls use the
   other key, with no circuit count or session pin. The failing call itself still goes
@@ -48,7 +49,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 300)
+LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 1200)
 LLM_CIRCUIT_FAILURE_THRESHOLD = get_int_env("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
 LLM_CIRCUIT_FAILURE_WINDOW_S = get_int_env("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
 LLM_CIRCUIT_OPEN_S = get_int_env("LLM_CIRCUIT_OPEN_S", 120)
@@ -310,6 +311,14 @@ class _MemoryStore:
                 self._values = {k: v for k, v in self._values.items() if v[1] > now}
             self._values[key] = (value, now + ttl_s)
 
+    def set_if_exists(self, key: str, value: str, ttl_s: int) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            if self._get(key, now) is None:
+                return False
+            self._values[key] = (value, now + ttl_s)
+            return True
+
     def count_failure(self, key: str, window_s: int) -> int:
         now = time.monotonic()
         with self._lock:
@@ -336,6 +345,9 @@ class _RedisStore:
 
     def set(self, key: str, value: str, ttl_s: int) -> None:
         self._client().set(key, value, ex=ttl_s)
+
+    def set_if_exists(self, key: str, value: str, ttl_s: int) -> bool:
+        return bool(self._client().set(key, value, ex=ttl_s, xx=True))
 
     def count_failure(self, key: str, window_s: int) -> int:
         client = self._client()
@@ -519,11 +531,43 @@ def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseExc
     return False
 
 
-def record_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
-    """Pin the session to the slot that served it when that differs from its order."""
-    if not session_id or len(ordered) == 1 or provider.slot == ordered[0].slot:
+def _refresh_existing_pin(store: Any, key: str, slot: str, ttl_s: int) -> bool:
+    set_if_exists = getattr(store, "set_if_exists", None)
+    if callable(set_if_exists):
+        return bool(set_if_exists(key, slot, ttl_s))
+    if store.get_many([key])[0] is None:
+        return False
+    store.set(key, slot, ttl_s)
+    return True
+
+
+def record_success(
+    provider: ModelProvider,
+    session_id: str | None,
+    ordered: list[ModelProvider],
+    *,
+    thinking_enabled: bool = True,
+) -> None:
+    """Pin the session on failover, or refresh an existing pin's sliding TTL.
+
+    Also pins a ``thinking_enabled=True`` session to a non-primary slot when the
+    primary's circuit is open so the conversation does not bounce back to the
+    primary mid-session when the short circuit window expires.
+    """
+    if not session_id or len(ordered) == 1:
         return
-    _with_store(lambda store: store.set(_pin_key(session_id), provider.slot, LLM_SESSION_PIN_TTL_S))
+    key = _pin_key(session_id)
+    if provider.slot != ordered[0].slot:
+        _with_store(lambda store: store.set(key, provider.slot, LLM_SESSION_PIN_TTL_S))
+        return
+
+    def _refresh_or_pin(store: Any) -> None:
+        if _refresh_existing_pin(store, key, provider.slot, LLM_SESSION_PIN_TTL_S):
+            return
+        if thinking_enabled and provider.slot != "primary" and store.get_many([_open_key("primary")])[0]:
+            store.set(key, provider.slot, LLM_SESSION_PIN_TTL_S)
+
+    _with_store(_refresh_or_pin)
 
 
 async def aordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
@@ -562,9 +606,21 @@ async def apin_session_to_other(provider: ModelProvider, session_id: str | None)
         await asyncio.to_thread(pin_session_to_other, provider, session_id)
 
 
-async def arecord_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
-    if session_id and len(ordered) > 1 and provider.slot != ordered[0].slot:
-        await asyncio.to_thread(record_success, provider, session_id, ordered)
+async def arecord_success(
+    provider: ModelProvider,
+    session_id: str | None,
+    ordered: list[ModelProvider],
+    *,
+    thinking_enabled: bool = True,
+) -> None:
+    if session_id and len(ordered) > 1:
+        await asyncio.to_thread(
+            record_success,
+            provider,
+            session_id,
+            ordered,
+            thinking_enabled=thinking_enabled,
+        )
 
 
 def log_failover(
@@ -712,7 +768,7 @@ async def acreate_chat_completion(
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
         if not key_cooled:
-            await arecord_success(provider, session_id, ordered)
+            await arecord_success(provider, session_id, ordered, thinking_enabled=thinking_enabled)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 
@@ -998,7 +1054,7 @@ async def acreate_response(
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
         if not key_cooled:
-            await arecord_success(provider, session_id, ordered)
+            await arecord_success(provider, session_id, ordered, thinking_enabled=thinking_enabled)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 
@@ -1038,7 +1094,7 @@ def create_chat_completion(
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
         if not key_cooled:
-            record_success(provider, session_id, ordered)
+            record_success(provider, session_id, ordered, thinking_enabled=thinking_enabled)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 

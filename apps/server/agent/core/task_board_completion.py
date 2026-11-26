@@ -215,11 +215,15 @@ async def auto_finalize_task_board_on_completion(
 
         from services.infra.task_board_service import task_board_service
 
-        current_tasks = task_board_service.get_tasks(
-            session_id,
-            user_id=user_id,
-            project_id=project_id,
-        ) or []
+        current_tasks = (
+            await asyncio.to_thread(
+                task_board_service.get_tasks,
+                session_id,
+                user_id=user_id,
+                project_id=project_id,
+            )
+            or []
+        )
         if not _has_incomplete_tasks(current_tasks):
             return [], False
         written_artifacts = await asyncio.to_thread(

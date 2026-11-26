@@ -965,8 +965,8 @@ def test_default_session_pin_ttl_and_empty_attribution_budget_fallback(monkeypat
     from services.usage.llm_usage_service import LLMUsageAttribution
 
     monkeypatch.delenv("LLM_SESSION_PIN_TTL_S", raising=False)
-    assert llm_failover.get_int_env("LLM_SESSION_PIN_TTL_S", 300) == 300
-    assert llm_failover.LLM_SESSION_PIN_TTL_S == 300
+    assert llm_failover.get_int_env("LLM_SESSION_PIN_TTL_S", 1200) == 1200
+    assert llm_failover.LLM_SESSION_PIN_TTL_S == 1200
 
     # An empty attribution (user_id=None) must NOT shadow the bound ambient user_id.
     cost_budget.set_context_user_id("free-user-ctx")

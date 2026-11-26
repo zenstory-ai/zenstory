@@ -166,7 +166,7 @@ def _soft_delete_verified_empty_files(
     from sqlalchemy import update
     from sqlmodel import select
 
-    from config.datetime_utils import utcnow
+    from config.datetime_utils import advance_timestamp, utcnow
     from models import File
 
     try:
@@ -196,6 +196,7 @@ def _soft_delete_verified_empty_files(
                 ):
                     continue
 
+                now = utcnow()
                 result = session.exec(
                     update(File)
                     .where(
@@ -205,7 +206,11 @@ def _soft_delete_verified_empty_files(
                         File.content == content,
                         File.updated_at == updated_at,
                     )
-                    .values(is_deleted=True, deleted_at=utcnow())
+                    .values(
+                        is_deleted=True,
+                        deleted_at=now,
+                        updated_at=advance_timestamp(updated_at, now=now),
+                    )
                 )
                 if result.rowcount == 1:
                     rolled_back.add(file_id)

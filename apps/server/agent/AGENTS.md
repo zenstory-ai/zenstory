@@ -42,7 +42,7 @@ agent/
 │   ├── empty_files.py      # 空文件的落库核验、恢复写入目标与回滚
 │   ├── task_board_completion.py # 正常结束时按实际写出的文件补记任务板
 │   ├── sse_pump.py         # SSEStreamPump：心跳、请求墙钟时限、作者停止
-│   ├── account_run_limit.py# 账号任务名额（每账号最多 2 个）：原子获取、续租、失效回收
+│   ├── account_run_limit.py# 账号任务名额（每账号最多 1 个）：原子获取、续租、失效回收
 │   ├── stream_billing.py   # StreamBillingTracker：按结构化执行事实判定计费 / 退还与产出回执标记
 │   ├── stream_errors.py    # 错误码、固定文案、retryable / refundable
 │   ├── round_outcome.py    # 停止 / 断线的一轮怎样收尾（终态落库、空白占位文件）
@@ -193,7 +193,7 @@ agent/
 ## 请求与流
 
 1. `apps/server/api/agent.py` 的 `POST /api/v1/agent/stream`：鉴权、项目权限（`verify_project_access`）、按用户限流、
-   会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 2 个，见下）、
+   会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 1 个，见下）、
    预扣一次 AI 对话额度（免费账号同时占用客户端网络的共享额度，同一事务，运行 id 即预约 id，单轮至多退还一次；网络额度用完时 402 `ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED`）；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
@@ -229,7 +229,7 @@ agent/
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
 - 发布交接：SIGTERM 后 `core/server_drain.py` 让所有运行立即按时限收尾提醒，`api/agent.py` 把进行中的泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒），到点以 `ERR_AGENT_SERVER_RESTARTING` 收尾、计费同墙钟超时（`billing_reason=server_restarting`）；lifespan 关闭前等后台退还与终态任务。[deploy-drain][n-drain]
 - 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。入队与「存在未封口的存活 run」原子判定；工作流结束后、保存历史前的那次 drain 起就封口（本 run 不再把引导喂给模型），释放前的兜底 drain 再封一次；之后的 steer 回 404，前端改为下一条普通消息发送。[steering-busy-409][n-steer]
-- 账号任务名额：同一账号所有写作任务（`/agent/stream`）合计最多 2 个，跨项目、会话、设备和进程共享；内部模型调用（含压缩）、工具和 `/steer` 不另占。超限 409 `ERR_ACCOUNT_RUNS_BUSY`，不排队、不自动重试、不扣额；前端把这句话和技能退回输入框。名额在预扣额度前原子获取，每 20 秒续租，90 秒没心跳即失效；`process_stream` 接管后在真正结束时释放（取消路径在残稿补存和会话释放之后），接管前的失败由路由释放。Redis 故障或 staging / production 没配 Redis 时放行，不用进程内计数拒绝请求；首次初始化和数据丢失没有等待窗口。只续租当前任务，不批量写回其他任务，避免已释放任务被旧快照复活。故障恢复和首次混合版本发布期间可能暂时超出 2 个，这是优先保障写作可用性的取舍。[account-two-tasks][n-account-tasks]
+- 账号任务名额：同一账号所有写作任务（`/agent/stream`）合计最多 1 个，跨项目、会话、设备和进程共享；内部模型调用（含压缩）、工具和 `/steer` 不另占。超限 409 `ERR_ACCOUNT_RUNS_BUSY`，不排队、不自动重试、不扣额；前端把这句话和技能退回输入框。名额在预扣额度前原子获取，每 20 秒续租，90 秒没心跳即失效；`process_stream` 接管后在真正结束时释放（取消路径在残稿补存和会话释放之后），接管前的失败由路由释放。Redis 故障或 staging / production 没配 Redis 时放行，不用进程内计数拒绝请求；首次初始化和数据丢失没有等待窗口。只续租当前任务，不批量写回其他任务，避免已释放任务被旧快照复活。故障恢复和首次混合版本发布期间可能暂时超出 1 个，这是优先保障写作可用性的取舍。[account-two-tasks][n-account-tasks]
 - SSE 事件类型见 `core/events.py` 的 `EventType`。
 
 ## 上下文与跨轮记忆
