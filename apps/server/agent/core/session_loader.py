@@ -7,10 +7,10 @@ import json
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import desc, func
+from sqlalchemy import case, desc, func, or_
 from sqlmodel import Session, and_, select
 
 from config.datetime_utils import normalize_datetime_to_utc
@@ -153,8 +153,19 @@ class SessionLoader:
         查询文件失败时块里明说「没算出来」，第三项为 None；预算用尽或收到 cancel_event 时，
         剩余文件归入 unchecked_titles（明说未核对）。
         """
-        from agent.tools.author_changes import AuthorChanges, author_changes, render_author_edits_block
+        from agent.tools.author_changes import (
+            _REVIEWED_AI_EDIT_SUMMARY,
+            MAX_BLAME_LINES,
+            MAX_VERSION_WINDOW,
+            AuthorChanges,
+            author_changes,
+            render_author_edits_block,
+        )
         from models import File
+        from models.file_version import FileVersion
+
+        if not ordered:
+            return "", set(), {}
 
         try:
             files = session.exec(
@@ -200,6 +211,104 @@ class SessionLoader:
         present = [file_id for file_id in ordered if file_id in by_id]
         checked, unchecked = present[:AUTHOR_EDITS_MAX_FILES], present[AUTHOR_EDITS_MAX_FILES:]
 
+        # Batched FileVersion metadata pre-query (single SQL, no TOAST content reads) to skip
+        # files that have no versions, no AI versions, or no non-AI author edits at all.
+        version_summary: dict[str, tuple[int, int, int, int, datetime | None]] | None = None
+        if checked and not (cancel_event is not None and cancel_event.is_set()):
+            is_ai_expr = or_(
+                FileVersion.change_source == "ai",
+                and_(
+                    FileVersion.change_type == "ai_edit",
+                    or_(
+                        FileVersion.change_summary.is_(None),
+                        ~FileVersion.change_summary.startswith(_REVIEWED_AI_EDIT_SUMMARY),
+                    ),
+                ),
+            )
+            is_original_expr = or_(
+                and_(FileVersion.change_type == "create", FileVersion.change_source != "ai"),
+                and_(FileVersion.change_type == "restore", FileVersion.change_source == "system"),
+            )
+            is_author_expr = and_(~is_ai_expr, ~is_original_expr)
+            try:
+                agg_subq = (
+                    select(
+                        FileVersion.file_id.label("file_id"),
+                        func.max(FileVersion.version_number).label("max_ver"),
+                        func.sum(case((is_ai_expr, 1), else_=0)).label("ai_count"),
+                        func.sum(case((is_author_expr, 1), else_=0)).label("author_count"),
+                    )
+                    .where(FileVersion.file_id.in_(checked))
+                    .group_by(FileVersion.file_id)
+                    .subquery()
+                )
+                summary_rows = session.exec(
+                    select(
+                        agg_subq.c.file_id,
+                        agg_subq.c.max_ver,
+                        agg_subq.c.ai_count,
+                        agg_subq.c.author_count,
+                        FileVersion.char_count,
+                        FileVersion.created_at,
+                    ).join(
+                        FileVersion,
+                        and_(
+                            FileVersion.file_id == agg_subq.c.file_id,
+                            FileVersion.version_number == agg_subq.c.max_ver,
+                        ),
+                    )
+                ).all()
+                version_summary = {
+                    str(fid): (
+                        int(max_ver or 0),
+                        int(ai_count or 0),
+                        int(author_count or 0),
+                        int(char_count or 0),
+                        latest_created_at,
+                    )
+                    for fid, max_ver, ai_count, author_count, char_count, latest_created_at in summary_rows
+                }
+            except Exception as exc:
+                with contextlib.suppress(Exception):
+                    session.rollback()
+                version_summary = None
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Author edits version summary pre-query failed; falling back to per-file check",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+
+        def _can_skip_without_blame(file: Any) -> bool:
+            if version_summary is None:
+                return False
+            summary = version_summary.get(str(file.id))
+            if summary is None:
+                # Zero FileVersion rows: line_blame always returns None.
+                return True
+            max_ver, ai_count, author_count, latest_char_count, latest_created_at = summary
+            if ai_count <= 0:
+                # Author-only / imported files have no AI baseline: author_changes returns None.
+                return True
+            if author_count > 0 or max_ver > MAX_VERSION_WINDOW:
+                return False
+            current_text = file.content or ""
+            if len(current_text.split("\n")) > MAX_BLAME_LINES:
+                return False
+            if len(current_text) != latest_char_count:
+                # Possible unversioned author edit (e.g. version quota exhausted).
+                return False
+            # File modified after the latest AI version without a new version row needs full blame.
+            return not (
+                isinstance(file.updated_at, datetime)
+                and isinstance(latest_created_at, datetime)
+                and normalize_datetime_to_utc(file.updated_at)
+                > normalize_datetime_to_utc(latest_created_at) + timedelta(seconds=2)
+            )
+
         def title_of(file: Any) -> str:
             return str(file.title or "").strip() or "（未命名）"
 
@@ -211,11 +320,15 @@ class SessionLoader:
             if time_budget_s is not None
             else None
         )
+        replayed_count = 0
         for index, file_id in enumerate(checked):
             if cancel_event is not None and cancel_event.is_set():
                 unchecked_ids = [*checked[index:], *unchecked_ids]
                 break
-            if index > 0 and deadline is not None and time.monotonic() >= deadline:
+            file = by_id[file_id]
+            if _can_skip_without_blame(file):
+                continue
+            if replayed_count > 0 and deadline is not None and time.monotonic() >= deadline:
                 unchecked_ids = [*checked[index:], *unchecked_ids]
                 log_with_context(
                     logger,
@@ -228,13 +341,17 @@ class SessionLoader:
                     time_budget_s=time_budget_s,
                 )
                 break
-            file = by_id[file_id]
+            replayed_count += 1
             try:
-                with session.begin_nested() as nested:
-                    changes = author_changes(session, file)
-                    if changes is not None and changes.failed:
-                        nested.rollback()
+                # Read-only path: avoid opening per-file SAVEPOINT/RELEASE round-trips on healthy
+                # paths; only roll back the read transaction when a query/replay failure occurs.
+                changes = author_changes(session, file)
+                if changes is not None and changes.failed:
+                    with contextlib.suppress(Exception):
+                        session.rollback()
             except Exception:
+                with contextlib.suppress(Exception):
+                    session.rollback()
                 changes = AuthorChanges(hunks=[], complete=False, failed=True)
             if changes is not None:
                 entries.append((file_id, title_of(file), changes))
@@ -262,8 +379,11 @@ class SessionLoader:
         """
         from models import ChatMessage, File
 
-        query = (
-            select(ChatMessage.tool_calls)
+        if limit <= 0 or (cancel_event is not None and cancel_event.is_set()):
+            return []
+
+        base_query = (
+            select(ChatMessage.id, ChatMessage.created_at, ChatMessage.tool_calls)
             .where(
                 and_(
                     ChatMessage.session_id == chat_session_id,
@@ -274,38 +394,39 @@ class SessionLoader:
         )
 
         def tool_payloads() -> Any:
-            # 新 → 旧按页读：会话很长时不一次把所有行的 tool_calls 读进来。
-            offset = 0
+            # 新 → 旧按游标分页读（keyset pagination 替代 OFFSET），避免深页线性扫描。
+            cursor_created_at: datetime | None = None
+            cursor_id: str | None = None
             while True:
                 if cancel_event is not None and cancel_event.is_set():
                     return
-                page = session.exec(query.offset(offset).limit(SESSION_WRITTEN_FILES_PAGE_ROWS)).all()
-                yield from page
+                stmt = base_query
+                if cursor_created_at is not None and cursor_id is not None:
+                    stmt = stmt.where(
+                        or_(
+                            ChatMessage.created_at < cursor_created_at,
+                            and_(
+                                ChatMessage.created_at == cursor_created_at,
+                                ChatMessage.id < cursor_id,
+                            ),
+                        )
+                    )
+                page = session.exec(stmt.limit(SESSION_WRITTEN_FILES_PAGE_ROWS)).all()
+                if not page:
+                    return
+                for _row_id, _row_created_at, row_tool_calls in page:
+                    yield row_tool_calls
                 if len(page) < SESSION_WRITTEN_FILES_PAGE_ROWS:
                     return
-                offset += SESSION_WRITTEN_FILES_PAGE_ROWS
+                last_id, last_created_at, _ = page[-1]
+                if last_created_at is None or last_id is None:
+                    return
+                cursor_created_at = last_created_at
+                cursor_id = str(last_id)
 
-        written: list[str] = []
+        candidates: list[str] = []
         seen: set[str] = set()
         deleted: set[str] = set()
-        pending: list[str] = []
-
-        def accept_pending() -> None:
-            if file_types is None:
-                accepted = set(pending)
-            else:
-                accepted = set(
-                    session.exec(
-                        select(File.id).where(
-                            File.id.in_(pending),
-                            File.project_id == self.project_id,
-                            File.is_deleted.is_(False),
-                            File.file_type.in_(file_types),
-                        )
-                    ).all()
-                )
-            written.extend(fid for fid in pending if fid in accepted and fid not in deleted)
-            pending.clear()
 
         for tool_calls in tool_payloads():
             actions = self._extract_file_actions(tool_calls)
@@ -323,12 +444,28 @@ class SessionLoader:
                 ):
                     continue
                 seen.add(file_id)
-                pending.append(file_id)
-            if pending:
-                accept_pending()
-            if len(written) >= limit:
-                return written[:limit]
-        return written
+                candidates.append(file_id)
+                if file_types is None and len(candidates) >= limit:
+                    return candidates[:limit]
+
+        if not candidates:
+            return []
+        if file_types is None:
+            return candidates[:limit]
+        if cancel_event is not None and cancel_event.is_set():
+            return []
+
+        accepted = set(
+            session.exec(
+                select(File.id).where(
+                    File.id.in_(candidates),
+                    File.project_id == self.project_id,
+                    File.is_deleted.is_(False),
+                    File.file_type.in_(file_types),
+                )
+            ).all()
+        )
+        return [fid for fid in candidates if fid in accepted][:limit]
 
     @staticmethod
     def _same_utc_timestamp(db_dt: Any, iso_str: Any) -> bool:
@@ -403,10 +540,11 @@ class SessionLoader:
         unverifiable: set[str] = set()
         candidates: dict[str, dict[str, Any]] = {}
 
-        # 每轮包含 user + assistant 两行：按双倍行宽分页以维持相同轮次覆盖深度。
+        # 每轮包含 user + assistant 两行：按双倍行宽 keyset 分页以维持相同轮次覆盖深度。
         page_rows = SESSION_WRITTEN_FILES_PAGE_ROWS * 2
         query = (
             select(
+                ChatMessage.id,
                 ChatMessage.role,
                 ChatMessage.tool_calls,
                 ChatMessage.created_at,
@@ -422,13 +560,26 @@ class SessionLoader:
         )
 
         hit_compaction = False
-        for page_index in range(SESSION_SNAPSHOT_MAX_PAGES):
+        cursor_created_at: datetime | None = None
+        cursor_id: str | None = None
+        for _page_index in range(SESSION_SNAPSHOT_MAX_PAGES):
             if cancel_event is not None and cancel_event.is_set():
                 return {}
-            rows = session.exec(query.offset(page_index * page_rows).limit(page_rows)).all()
+            stmt = query
+            if cursor_created_at is not None and cursor_id is not None:
+                stmt = stmt.where(
+                    or_(
+                        ChatMessage.created_at < cursor_created_at,
+                        and_(
+                            ChatMessage.created_at == cursor_created_at,
+                            ChatMessage.id < cursor_id,
+                        ),
+                    )
+                )
+            rows = session.exec(stmt.limit(page_rows)).all()
             if not rows:
                 break
-            for role, tool_calls_raw, row_created_at, metadata_raw in rows:
+            for _row_id, role, tool_calls_raw, row_created_at, metadata_raw in rows:
                 meta = self._parse_json_value(metadata_raw)
                 has_compaction = isinstance(meta, dict) and valid_compaction(meta) is not None
                 if role == "user":
@@ -583,6 +734,11 @@ class SessionLoader:
                     break
             if len(candidates) >= limit or hit_compaction or len(rows) < page_rows:
                 break
+            last_row_id, _last_role, _last_tc, last_created_at, _last_meta = rows[-1]
+            if last_created_at is None or last_row_id is None:
+                break
+            cursor_created_at = last_created_at
+            cursor_id = str(last_row_id)
 
         if not candidates or (cancel_event is not None and cancel_event.is_set()):
             return {}

@@ -11,10 +11,13 @@ from agent.core.request_context import AgentRequestContext
 from agent.openai_agents import repeat_edit_guard as guard_mod
 from agent.openai_agents.repeat_edit_guard import (
     BULK_EDIT_MIN_ITEMS,
+    EDIT_GUARD_ESCALATED_ERROR_TYPE,
     EDIT_REPEAT_LIMIT_ERROR_TYPE,
     EXISTING_HARD_BLOCK_AT,
     EXISTING_HINT_AT,
     EXISTING_MICRO_BLOCK_AT,
+    MAX_CONSECUTIVE_GUARD_INTERCEPTS,
+    MAX_PER_FILE_GUARD_INTERCEPTS,
     POST_WRITE_BLOCK_AT,
     POST_WRITE_HINT_AT,
     RepeatEditGuard,
@@ -243,8 +246,8 @@ async def test_edit_repeat_limit_excluded_from_tool_failure_breaker_and_adapter(
             assert r2["status"] == "success" and "edit_hint" in r2
             assert executed == 2
 
-            # Repeated soft-skipped calls (even 12x with identical args) NEVER trip ToolFailureBreaker!
-            for _ in range(12):
+            # First 2 blocked calls are soft-skipped and never trip ToolFailureBreaker.
+            for _ in range(MAX_CONSECUTIVE_GUARD_INTERCEPTS - 1):
                 rb = json.loads(await tools["edit_file"].on_invoke_tool(req_ctx, raw))
                 assert rb["status"] == "skipped"
                 assert rb["guard_skipped"] is True
@@ -255,6 +258,21 @@ async def test_edit_repeat_limit_excluded_from_tool_failure_breaker_and_adapter(
             assert executed == 2, "blocked edits must never invoke underlying tool handler"
             assert breaker.is_open is False
             assert breaker.total_failures == 0
+
+            # 3rd consecutive blocked call hits the hard cap and escalates to a breaker-counted error,
+            # so a stubborn model hammering edit_file trips ToolFailureBreaker instead of spinning 60 turns.
+            escalated_1 = json.loads(await tools["edit_file"].on_invoke_tool(req_ctx, raw))
+            assert escalated_1["status"] == "error"
+            assert escalated_1["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
+            assert escalated_1["guard_escalated"] is True
+            assert escalated_1["stop_calling_tools"] is True
+            assert breaker.total_failures == 1
+
+            await tools["edit_file"].on_invoke_tool(req_ctx, raw)
+            await tools["edit_file"].on_invoke_tool(req_ctx, raw)
+            assert executed == 2, "escalated blocked edits must never invoke underlying tool handler"
+            assert breaker.is_open is True
+            assert edit_guard.escalated_intercepts >= 3
     finally:
         req_ctx.clear()
 
@@ -276,12 +294,19 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
 
         async def fake_query(args, **_kwargs):
             query_calls.append(dict(args))
+            if isinstance(args.get("ids"), list):
+                rows = [
+                    {"id": fid, "title": "第1章 初遇" if fid == "ch1" else "总纲", "content": f"{fid}全文"}
+                    for fid in args["ids"]
+                ]
+            else:
+                rows = [{"id": args.get("id", "ch1"), "title": "第1章 初遇", "content": "全文"}]
             return {
                 "content": [
                     {
                         "type": "text",
                         "text": json.dumps(
-                            {"status": "success", "data": [{"id": args.get("id", "ch1"), "title": "第1章 初遇", "content": "全文"}]},
+                            {"status": "success", "data": rows},
                             ensure_ascii=False,
                         ),
                     }
@@ -322,11 +347,19 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
             assert len(query_calls) == 0
             assert edit_guard.guarded_self_reads == 2
 
-            # 3) Existing file, keyword search, or multi-file ids are NOT guarded
+            # 3) Existing file & keyword search execute normally; mixed multi-file ids executes
+            # for outline-1 while stripping the just-written ch1 body (closing the multi-ID bypass).
             await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "outline-1"}))
             await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "ch1", "query": "长安"}))
-            await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1", "outline-1"]}))
+            mixed = json.loads(
+                await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"ids": ["ch1", "outline-1"]}))
+            )
             assert len(query_calls) == 3
+            assert mixed["self_read_guarded_ids"] == ["ch1"]
+            by_row_id = {row["id"]: row for row in mixed["data"]}
+            assert by_row_id["ch1"]["content_omitted"] is True
+            assert "content" not in by_row_id["ch1"]
+            assert by_row_id["outline-1"]["content"] == "outline-1全文"
 
             # 4) After anchor_not_found on ch1, ONE recovery read is allowed, then guarded again
             err_out = json.loads(
@@ -340,9 +373,11 @@ async def test_self_read_guard_after_write_chapter_and_anchor_recovery():
             assert rec_read.get("self_read_guarded") is not True
             assert len(query_calls) == 4
 
-            # Subsequent redundant self-read is guarded again
+            # Subsequent redundant self-read is blocked (hits per-file cap=4 and escalates, 0 DB query)
             after_rec = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, json.dumps({"id": "ch1"})))
-            assert after_rec["self_read_guarded"] is True
+            assert after_rec["status"] == "error"
+            assert after_rec["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
+            assert after_rec["guard_escalated"] is True
             assert len(query_calls) == 4
     finally:
         req_ctx.clear()
@@ -424,8 +459,8 @@ def test_append_continuation_always_exempt_on_new_and_existing_files():
 
 
 @pytest.mark.unit
-def test_failed_and_partial_edits_not_counted():
-    """anchor_not_found, stale_content, partial, and no-op edits never count toward RepeatEditGuard caps."""
+def test_failed_and_noop_edits_not_counted():
+    """anchor_not_found, stale_content, partial(mutation_applied=False), and no-op edits never count."""
     req_ctx = AgentRequestContext(
         session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
     )
@@ -434,12 +469,12 @@ def test_failed_and_partial_edits_not_counted():
         guard = RepeatEditGuard(request_context=req_ctx)
         raw = _edit_args("ch1", [{"op": "replace", "old": "旧", "new": "新"}])
 
-        # 5 errors/partials/no-ops do NOT exhaust the post-write budget
+        # Errors and no-mutation calls do NOT exhaust the post-write budget
         for err in (
             _edit_err("anchor_not_found"),
             _edit_err("stale_content"),
             _edit_err("anchor_ambiguous"),
-            json.dumps({"status": "partial", "mutation_applied": True, "data": {"id": "ch1", "new_word_count": 2000}}),
+            json.dumps({"status": "partial", "mutation_applied": False, "data": {"id": "ch1", "edits_applied": 0}}),
             _edit_ok("ch1", mutation_applied=False, edits_applied=0),
         ):
             out = _run_edit(guard, raw, err)
@@ -450,6 +485,157 @@ def test_failed_and_partial_edits_not_counted():
         assert out1["status"] == "success"
         assert "edit_hint" not in out1
         assert guard.blocked_edits == 0
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.unit
+def test_partial_applied_edit_counts_and_updates_tracked_length():
+    """P0-8: status='partial' with mutation_applied=True counts as a real edit and updates tracked length/word_count."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        req_ctx.record_written_snapshot("ch1", "甲" * 2200, full=True)
+        guard = RepeatEditGuard(request_context=req_ctx)
+        raw = _edit_args(
+            "ch1",
+            [{"op": "replace", "old": "甲" * 20, "new": "乙" * 10}],
+            continue_on_error=True,
+        )
+
+        # 1st edit: partial with mutation_applied=True -> counts as call #1 and updates length/word_count
+        partial_1 = json.dumps(
+            {
+                "status": "partial",
+                "mutation_applied": True,
+                "data": {"id": "ch1", "title": "第1章", "edits_applied": 1, "new_length": 2190, "new_word_count": 2140},
+            },
+            ensure_ascii=False,
+        )
+        out1 = _run_edit(guard, raw, partial_1)
+        assert out1["status"] == "partial"
+        assert "edit_hint" not in out1
+        assert guard._files["ch1"].last_length == 2190
+        assert guard._files["ch1"].last_word_count == 2140
+
+        # 2nd edit: partial with mutation_applied=True -> counts as call #2 and attaches edit_hint
+        partial_2 = json.dumps(
+            {
+                "status": "partial",
+                "mutation_applied": True,
+                "data": {"id": "ch1", "title": "第1章", "edits_applied": 1, "new_length": 2180, "new_word_count": 2130},
+            },
+            ensure_ascii=False,
+        )
+        out2 = _run_edit(guard, raw, partial_2)
+        assert out2["status"] == "partial"
+        assert "edit_hint" in out2
+        assert guard._files["ch1"].last_length == 2180
+
+        # 3rd edit: blocked by post_write_limit with updated word_count=2130!
+        plan3 = guard.plan("edit_file", raw)
+        assert plan3.blocked_output is not None
+        out3 = json.loads(plan3.blocked_output)
+        assert out3["status"] == "skipped"
+        assert out3["reason"] == "post_write_limit"
+        assert out3["word_count"] == 2130
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_self_read_multi_id_all_written_blocked_and_consecutive_cap_trips_breaker():
+    """P0-8: query_files(ids=[ch1, ch2]) where all IDs were written this turn is blocked synchronously,
+    and 3 consecutive self-read intercepts escalate to ToolFailureBreaker."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        req_ctx.mark_chapter_body_saved("ch2", "第2章", "draft")
+        req_ctx.record_written_snapshot("ch1", "甲" * 1000, full=True)
+        req_ctx.record_written_snapshot("ch2", "乙" * 1200, full=True)
+        breaker = ToolFailureBreaker()
+        read_guard = RepeatReadGuard(request_context=req_ctx)
+        edit_guard = RepeatEditGuard(request_context=req_ctx)
+        executed = 0
+
+        async def fake_query(args, **_kwargs):
+            nonlocal executed
+            executed += 1
+            return {"content": [{"type": "text", "text": json.dumps({"status": "success", "data": []})}]}
+
+        with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"query_files": fake_query}):
+            tools = {
+                t.name: t
+                for t in build_agent_function_tools(
+                    failure_breaker=breaker,
+                    read_guard=read_guard,
+                    edit_guard=edit_guard,
+                )
+            }
+            raw_batch = json.dumps({"ids": ["ch1", "ch2"]})
+
+            # Intercept 1 & 2: soft self_read_guarded with metadata for both chapters, 0 DB calls
+            r1 = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, raw_batch))
+            r2 = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, raw_batch))
+            assert r1["status"] == "success" and r1["self_read_guarded"] is True
+            assert [row["id"] for row in r1["data"]] == ["ch1", "ch2"]
+            assert all(row["content_omitted"] is True for row in r1["data"])
+            assert r2["status"] == "success" and r2["self_read_guarded"] is True
+            assert executed == 0
+            assert breaker.total_failures == 0
+
+            # Intercept 3 (hits MAX_CONSECUTIVE_GUARD_INTERCEPTS=3): escalates to error counted by breaker
+            r3 = json.loads(await tools["query_files"].on_invoke_tool(req_ctx, raw_batch))
+            assert r3["status"] == "error"
+            assert r3["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
+            assert r3["guard_escalated"] is True
+            assert r3["stop_calling_tools"] is True
+            assert breaker.total_failures == 1
+
+            # Hammering 2 more times trips ToolFailureBreaker immediately!
+            await tools["query_files"].on_invoke_tool(req_ctx, raw_batch)
+            await tools["query_files"].on_invoke_tool(req_ctx, raw_batch)
+            assert executed == 0
+            assert breaker.is_open is True
+    finally:
+        req_ctx.clear()
+
+
+@pytest.mark.unit
+def test_per_file_intercept_cap_escalates_even_when_interleaved_with_other_tools():
+    """P0-8: Interleaving other tool calls resets consecutive intercepts, but MAX_PER_FILE_GUARD_INTERCEPTS
+    still escalates on the 4th intercept for the same file."""
+    req_ctx = AgentRequestContext(
+        session=None, user_id="u", project_id="p", session_id="s", read_snapshots=_ReadSnapshots()
+    )
+    try:
+        req_ctx.mark_chapter_body_saved("ch1", "第1章", "draft")
+        guard = RepeatEditGuard(request_context=req_ctx)
+        raw_read = json.dumps({"id": "ch1"})
+
+        for step in range(1, MAX_PER_FILE_GUARD_INTERCEPTS):
+            # Interleave another tool call so consecutive_intercepts stays at 1.
+            guard.plan("update_project", json.dumps({"current_phase": f"step-{step}"}))
+            plan = guard.plan("query_files", raw_read)
+            assert plan.blocked_output is not None
+            payload = json.loads(plan.blocked_output)
+            assert payload["status"] == "success"
+            assert payload["self_read_guarded"] is True
+
+        # 4th intercept on ch1 hits MAX_PER_FILE_GUARD_INTERCEPTS=4 despite interleaving!
+        guard.plan("update_project", json.dumps({"current_phase": "step-final"}))
+        plan_cap = guard.plan("query_files", raw_read)
+        assert plan_cap.blocked_output is not None
+        payload_cap = json.loads(plan_cap.blocked_output)
+        assert payload_cap["status"] == "error"
+        assert payload_cap["error_type"] == EDIT_GUARD_ESCALATED_ERROR_TYPE
+        assert payload_cap["guard_escalated"] is True
+        assert payload_cap["stop_calling_tools"] is True
     finally:
         req_ctx.clear()
 

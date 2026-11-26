@@ -427,11 +427,16 @@ class TestAuthorEditsAndWorkingSetHelpers:
         """超过总墙钟预算后停止继续算，剩余文件体面落入 unchecked_titles 明说未核对。"""
         from agent.tools import author_changes as author_changes_mod
         from agent.tools.author_changes import AuthorChanges, AuthorHunk
+        from services.features.file_version_service import FileVersionService
 
         project = session_loader_test_data["project"]
+        versions = FileVersionService()
         f1 = self._make_file(db_session, project.id, "第1章", "内容1")
         f2 = self._make_file(db_session, project.id, "第2章", "内容2")
         f3 = self._make_file(db_session, project.id, "第3章", "内容3")
+        for f in (f1, f2, f3):
+            versions.create_version(db_session, f.id, "AI原文", change_type="create", change_source="ai")
+            versions.create_version(db_session, f.id, f.content, change_type="edit", change_source="user")
 
         checked_ids: list[str] = []
         clock = {"now": 100.0}
@@ -469,11 +474,16 @@ class TestAuthorEditsAndWorkingSetHelpers:
 
         from agent.tools import author_changes as author_changes_mod
         from agent.tools.author_changes import AuthorChanges, AuthorHunk
+        from services.features.file_version_service import FileVersionService
 
         project = session_loader_test_data["project"]
+        versions = FileVersionService()
         f1 = self._make_file(db_session, project.id, "第1章", "内容1")
         f2 = self._make_file(db_session, project.id, "第2章", "内容2")
         f3 = self._make_file(db_session, project.id, "第3章", "内容3")
+        for f in (f1, f2, f3):
+            versions.create_version(db_session, f.id, "AI原文", change_type="create", change_source="ai")
+            versions.create_version(db_session, f.id, f.content, change_type="edit", change_source="user")
 
         loader = SessionLoader(project_id=project.id, user_id=session_loader_test_data["user"].id)
         cancel_event = threading.Event()

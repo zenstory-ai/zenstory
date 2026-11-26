@@ -8,22 +8,8 @@ regardless of whether they are novels, short stories, or screenplays.
 from typing import Any
 
 
-def get_base_prompt(
-    project_id: str,
-    folder_ids: dict[str, str],
-    config: dict[str, Any],
-) -> str:
-    """
-    Build the complete system prompt using base components and type-specific config.
-
-    Args:
-        project_id: Project ID
-        folder_ids: Dict mapping folder types to IDs
-        config: Type-specific prompt configuration
-
-    Returns:
-        Complete prompt string
-    """
+def get_base_prompt_static_prefix(config: dict[str, Any]) -> str:
+    """Build the cross-project static prefix of the base prompt (no project or folder UUIDs)."""
     parts = []
 
     # 1. 顶层上下文 (Context)
@@ -64,16 +50,46 @@ def get_base_prompt(
     # 6. 固定参考 (Reference)
     parts.append(IMPACT_ANALYSIS_EXAMPLES)
 
-    # 项目资料集中在末尾，让目录 UUID 不再打断固定协议和写作指导的公共前缀。
-    parts.append("")
-    parts.append(get_folder_reference(folder_ids))
-    parts.append("")
-    parts.append(_format_directory_structure(config["directory_structure"], folder_ids))
-    parts.append("")
-    parts.append(config.get("character_detection", get_default_character_detection(folder_ids)))
-    parts.append(f"## 当前项目 ID: {project_id}")
-
     return "\n".join(parts)
+
+
+def get_base_prompt_project_suffix(
+    project_id: str,
+    folder_ids: dict[str, str],
+    config: dict[str, Any],
+) -> str:
+    """Build the project-specific suffix containing folder UUIDs and project ID."""
+    parts = [
+        get_folder_reference(folder_ids),
+        "",
+        _format_directory_structure(config["directory_structure"], folder_ids),
+        "",
+        config.get("character_detection", get_default_character_detection(folder_ids)),
+        f"## 当前项目 ID: {project_id}",
+    ]
+    return "\n".join(parts)
+
+
+def get_base_prompt(
+    project_id: str,
+    folder_ids: dict[str, str],
+    config: dict[str, Any],
+) -> str:
+    """
+    Build the complete system prompt using base components and type-specific config.
+
+    Args:
+        project_id: Project ID
+        folder_ids: Dict mapping folder types to IDs
+        config: Type-specific prompt configuration
+
+    Returns:
+        Complete prompt string
+    """
+    # 项目资料集中在末尾，让目录 UUID 不再打断固定协议和写作指导的公共前缀。
+    static_prefix = get_base_prompt_static_prefix(config)
+    project_suffix = get_base_prompt_project_suffix(project_id, folder_ids, config)
+    return f"{static_prefix}\n\n{project_suffix}"
 
 
 class _KeepUnknownPlaceholders(dict):

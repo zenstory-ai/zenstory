@@ -40,8 +40,10 @@ def test_each_project_type_gets_its_own_norms_after_db_config(db_configs, projec
 
     norms = prompts.get_genre_norms(project_type)
     assert norms
-    assert rendered.endswith(norms)
+    assert norms in rendered
     assert rendered.index(f"DB {project_type} guidelines") < rendered.index(norms)
+    # Cross-project KV cache invariant: static genre norms appear BEFORE project-specific UUIDs.
+    assert rendered.index(norms) < rendered.index("## 当前项目 ID: project-1")
     others = [v for k, v in prompts.GENRE_NORMS.items() if k != project_type]
     assert not any(other in rendered for other in others)
 

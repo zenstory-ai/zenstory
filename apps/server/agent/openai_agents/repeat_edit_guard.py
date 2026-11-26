@@ -13,18 +13,23 @@ This guard relies solely on structured execution facts (per-file clean
 keyword or regex heuristics.
 
 Strict exemptions (never counted / never blocked):
-- Failed or partial calls (``status != "success"`` or ``mutation_applied=False``)
-  — handled by ``ToolFailureBreaker``;
+- Failed or no-mutation calls (``status == "error"`` or ``mutation_applied=False``)
+  — handled by ``ToolFailureBreaker``; ``status="partial"`` calls with
+  ``mutation_applied=True`` DO count as real edits and update tracked length;
 - Pure ``op="append"`` calls (e.g. ``_BODY_CUT_CONTEXT`` truncation continuation);
 - Bulk batches (``len(edits) >= 6``) on existing files so legitimate 10–30 edit
   outline/chapter sweeps never get blocked;
 - Different ``file_id`` targets are tracked independently.
 
-Also provides a lightweight self-read guard: ``query_files(id=...)`` (full read
-or ``start_char=0``) on a chapter just written via ``write_chapter`` in the same
-request returns current metadata (including ``word_count``) and a concise hint
-instead of re-injecting the just-written body into context, unless the file just
-hit ``anchor_not_found`` or ``stale_content`` and needs a recovery read.
+Also provides a lightweight self-read guard: ``query_files(id=...)`` and
+``query_files(ids=[...])`` (full read or ``start_char=0``) on a chapter just
+written via ``write_chapter`` in the same request returns current metadata
+(including ``word_count``) and a concise hint instead of re-injecting the
+just-written body into context, unless the file just hit ``anchor_not_found``
+or ``stale_content`` and needs a recovery read. Consecutive and per-file
+intercepts (both ``self_read_guarded`` and ``blocked_edits``) are hard-capped
+and escalate to ``ToolFailureBreaker`` so a stubborn model cannot spin until
+``max_turns=60``.
 """
 
 from __future__ import annotations
@@ -48,9 +53,19 @@ EDIT_TOOL_NAME = "edit_file"
 READ_TOOL_NAME = "query_files"
 
 EDIT_REPEAT_LIMIT_ERROR_TYPE = "edit_repeat_limit"
+# Escalated error type emitted once consecutive or per-file guard intercepts exceed
+# their hard cap. Intentionally NOT in EDIT_GUARD_ERROR_TYPES so ToolFailureBreaker
+# counts it and trips if a stubborn model keeps ignoring the guard.
+EDIT_GUARD_ESCALATED_ERROR_TYPE = "edit_guard_loop_exhausted"
 # Excluded from ToolFailureBreaker so hitting a micro-polish cap steers the
-# model to finish cleanly rather than tripping a fatal circuit breaker.
+# model to finish cleanly rather than tripping a fatal circuit breaker on the first 1-2 blocks.
 EDIT_GUARD_ERROR_TYPES: frozenset[str] = frozenset({EDIT_REPEAT_LIMIT_ERROR_TYPE})
+
+# Hard caps on consecutive and per-file guard intercepts (self_read_guarded + blocked_edits).
+# Once reached, the guard escalates from soft-skip / self_read_guarded to a real
+# error payload (EDIT_GUARD_ESCALATED_ERROR_TYPE) that ToolFailureBreaker counts.
+MAX_CONSECUTIVE_GUARD_INTERCEPTS = 3
+MAX_PER_FILE_GUARD_INTERCEPTS = 4
 
 # Bulk threshold: batches of >= 6 edits on an existing file are exempt from
 # micro-polish caps and reset any consecutive micro-edit streak.
@@ -247,6 +262,8 @@ class EditPlan:
     pre_edit_length: int | None = None
     written_this_turn: bool = False
     self_read_recovery_id: str = ""
+    self_read_recovery_ids: tuple[str, ...] = ()
+    self_read_guarded_ids: tuple[str, ...] = ()
     blocked_output: str | None = None
 
 
@@ -255,18 +272,22 @@ class RepeatEditGuard:
     """Per-request structural guard against serial micro-edit loops and post-write self-reads.
 
     Shared across continuation runs within a single user request (just like
-    ``ToolFailureBreaker`` and ``RepeatReadGuard``). Does NOT trip a fatal error;
-    when a micro-edit loop hits its cap, it synchronously returns a recoverable
-    ``edit_repeat_limit`` payload with the current ``word_count`` so the model
-    stops polishing and replies or proceeds to the next task.
+    ``ToolFailureBreaker`` and ``RepeatReadGuard``). Soft-skips the first 1-2
+    intercepts so well-behaved models converge cleanly, and escalates to
+    ``EDIT_GUARD_ESCALATED_ERROR_TYPE`` (counted by ``ToolFailureBreaker``) once
+    consecutive (``MAX_CONSECUTIVE_GUARD_INTERCEPTS``) or per-file
+    (``MAX_PER_FILE_GUARD_INTERCEPTS``) intercepts hit the hard cap.
     """
 
     request_context: Any = field(default=None, repr=False, compare=False)
     blocked_edits: int = 0
     hinted_edits: int = 0
     guarded_self_reads: int = 0
+    escalated_intercepts: int = 0
     _files: dict[str, _FileEditState] = field(default_factory=dict)
     _allow_self_read: set[str] = field(default_factory=set)
+    _consecutive_intercepts: int = 0
+    _per_file_intercepts: dict[str, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ plan
     def plan(self, tool_name: str, raw_arguments: str) -> EditPlan:
@@ -274,6 +295,7 @@ class RepeatEditGuard:
             return self._plan_edit(raw_arguments)
         if tool_name == READ_TOOL_NAME:
             return self._plan_self_read(raw_arguments)
+        self._consecutive_intercepts = 0
         return EditPlan()
 
     def _plan_edit(self, raw_arguments: str) -> EditPlan:
@@ -298,6 +320,7 @@ class RepeatEditGuard:
 
         # Pure op="append" is always exempt (e.g. output-cap truncation continuation).
         if is_append:
+            self._consecutive_intercepts = 0
             return EditPlan(
                 file_id=file_id,
                 edit_count=edit_count,
@@ -345,6 +368,7 @@ class RepeatEditGuard:
                         reason="existing_micro_loop",
                     )
 
+        self._consecutive_intercepts = 0
         return EditPlan(
             file_id=file_id,
             edit_count=edit_count,
@@ -356,8 +380,49 @@ class RepeatEditGuard:
             written_this_turn=written_this_turn,
         )
 
+    def _record_intercept(self, file_ids: list[str], *, increment_consecutive: bool = True) -> tuple[bool, int]:
+        """Increment intercept counters for ``file_ids`` and return ``(should_escalate, max_per_file)``."""
+        if increment_consecutive:
+            self._consecutive_intercepts += 1
+        max_per_file = 0
+        for fid in file_ids:
+            count = self._per_file_intercepts.get(fid, 0) + 1
+            self._per_file_intercepts[fid] = count
+            if count > max_per_file:
+                max_per_file = count
+        should_escalate = (
+            self._consecutive_intercepts >= MAX_CONSECUTIVE_GUARD_INTERCEPTS
+            or max_per_file >= MAX_PER_FILE_GUARD_INTERCEPTS
+        )
+        if should_escalate:
+            self.escalated_intercepts += 1
+        return should_escalate, max_per_file
+
+    def _self_read_row(self, file_id: str) -> tuple[dict[str, Any], str, int | None]:
+        state = self._files.get(file_id)
+        title = (state.title if state is not None and state.title else "") or _saved_title(
+            self.request_context, file_id
+        )
+        word_count = self._current_word_count(file_id, state)
+        row: dict[str, Any] = {
+            "id": file_id,
+            "title": title,
+            "content_omitted": True,
+        }
+        if word_count is not None:
+            row["word_count"] = word_count
+        return row, title, word_count
+
     def _plan_self_read(self, raw_arguments: str) -> EditPlan:
-        """Guard against re-reading a chapter just written via write_chapter in the same run."""
+        """Guard against re-reading chapters just written via write_chapter in the same run.
+
+        Supports both single-ID ``query_files(id=...)`` and multi-ID ``query_files(ids=[...])``:
+        - When ALL requested IDs were just written this turn (and not unlocked for recovery),
+          blocks synchronously without querying DB.
+        - When a batch mixes just-written IDs with normal existing IDs, lets the existing IDs
+          execute and strips just-written bodies in ``observe()`` (or escalates synchronously
+          once a guarded file hits ``MAX_PER_FILE_GUARD_INTERCEPTS``).
+        """
         if self.request_context is None:
             return EditPlan()
         args, parse_error, _ = parse_json_object(raw_arguments or "", tool_name=READ_TOOL_NAME)
@@ -367,12 +432,15 @@ class RepeatEditGuard:
         # Keyword search, section read, or tail read are not whole-chapter self-reads.
         raw_query = args.get("query")
         if isinstance(raw_query, str) and raw_query.strip():
+            self._consecutive_intercepts = 0
             return EditPlan()
         if args.get("section") not in (None, "") or args.get("tail_chars") not in (None, ""):
+            self._consecutive_intercepts = 0
             return EditPlan()
 
         start_char = args.get("start_char")
         if start_char not in (None, "") and not _is_zero_offset(start_char):
+            self._consecutive_intercepts = 0
             return EditPlan()
 
         try:
@@ -383,52 +451,157 @@ class RepeatEditGuard:
             )
         except ValueError:
             return EditPlan()
-        if len(target_ids) != 1:
+        if not target_ids:
+            self._consecutive_intercepts = 0
             return EditPlan()
 
-        file_id = target_ids[0]
-        if not _is_written_this_turn(self.request_context, file_id):
-            return EditPlan()
+        guarded_ids: list[str] = []
+        recovery_ids: list[str] = []
+        allowed_ids: list[str] = []
+        for fid in target_ids:
+            if not _is_written_this_turn(self.request_context, fid):
+                allowed_ids.append(fid)
+            elif fid in self._allow_self_read:
+                recovery_ids.append(fid)
+            else:
+                guarded_ids.append(fid)
 
-        if file_id in self._allow_self_read:
-            return EditPlan(file_id=file_id, self_read_recovery_id=file_id)
+        if not guarded_ids:
+            self._consecutive_intercepts = 0
+            first_recovery = recovery_ids[0] if recovery_ids else ""
+            return EditPlan(
+                file_id=first_recovery,
+                self_read_recovery_id=first_recovery,
+                self_read_recovery_ids=tuple(recovery_ids),
+            )
 
-        state = self._files.get(file_id)
-        title = (state.title if state is not None and state.title else "") or _saved_title(
-            self.request_context, file_id
-        )
-        word_count = self._current_word_count(file_id, state)
+        # Mixed batch (some just-written IDs + some legitimate other/recovery IDs):
+        # if any guarded ID has already reached the per-file cap, escalate synchronously so a
+        # stubborn model cannot keep piggybacking a guarded file onto multi-ID batches forever.
+        if allowed_ids or recovery_ids:
+            cap_exceeding = [
+                fid
+                for fid in guarded_ids
+                if self._per_file_intercepts.get(fid, 0) + 1 >= MAX_PER_FILE_GUARD_INTERCEPTS
+            ]
+            if not cap_exceeding:
+                self._consecutive_intercepts = 0
+                first_recovery = recovery_ids[0] if recovery_ids else ""
+                return EditPlan(
+                    file_id=first_recovery or guarded_ids[0],
+                    self_read_recovery_id=first_recovery,
+                    self_read_recovery_ids=tuple(recovery_ids),
+                    self_read_guarded_ids=tuple(guarded_ids),
+                )
+            self.guarded_self_reads += 1
+            self._record_intercept(cap_exceeding, increment_consecutive=True)
+            rows = [self._self_read_row(fid)[0] for fid in cap_exceeding]
+            return self._escalated_self_read_plan(
+                guarded_ids=cap_exceeding,
+                rows=rows,
+                start_char=start_char,
+            )
+
+        # All requested IDs were just written this turn and unchanged: block synchronously.
         self.guarded_self_reads += 1
+        escalate, _max_per_file = self._record_intercept(guarded_ids, increment_consecutive=True)
+        rows: list[dict[str, Any]] = []
+        labels: list[str] = []
+        wc_parts: list[str] = []
+        for fid in guarded_ids:
+            row, title, word_count = self._self_read_row(fid)
+            rows.append(row)
+            label = f"《{title}》" if title else f"文件(id={fid})"
+            labels.append(label)
+            if word_count is not None:
+                wc_parts.append(f"{label} {word_count} 字")
+
+        if escalate:
+            return self._escalated_self_read_plan(
+                guarded_ids=guarded_ids,
+                rows=rows,
+                start_char=start_char,
+            )
+
         log_with_context(
             logger,
             20,  # INFO
             "RepeatEditGuard self-read guarded",
-            file_id=file_id,
+            file_id=guarded_ids[0],
+            file_ids=guarded_ids if len(guarded_ids) > 1 else None,
             start_char=start_char,
-            word_count=word_count,
+            word_count=rows[0].get("word_count") if len(rows) == 1 else None,
+            consecutive_intercepts=self._consecutive_intercepts,
         )
 
-        label = f"《{title}》" if title else f"文件(id={file_id})"
-        wc_part = f"（当前真实字数 {word_count} 字）" if word_count is not None else ""
-        row: dict[str, Any] = {
-            "id": file_id,
-            "title": title,
-            "content_omitted": True,
-        }
-        if word_count is not None:
-            row["word_count"] = word_count
+        if len(guarded_ids) == 1:
+            wc_val = rows[0].get("word_count")
+            wc_part = f"（当前真实字数 {wc_val} 字）" if wc_val is not None else ""
+            read_hint = (
+                f"{labels[0]}是本轮刚写完并保存的正文{wc_part}，完整内容已在上方你刚写出的内容中，"
+                "无需再次读取原文。请直接对照上方内容继续未完成任务或按真实字数简短回复作者；"
+                "不要为了卡字数或微调措辞重读或反复修改。"
+            )
+        else:
+            wc_summary = f"（当前真实字数：{'、'.join(wc_parts)}）" if wc_parts else ""
+            read_hint = (
+                f"{'、'.join(labels)}都是本轮刚写完并保存的正文{wc_summary}，完整内容已在上方你刚写出的内容中，"
+                "无需再次读取原文。请直接对照上方内容继续未完成任务或按真实字数简短回复作者；"
+                "不要为了卡字数或微调措辞重读或反复修改。"
+            )
+
         payload: dict[str, Any] = {
             "status": "success",
             "self_read_guarded": True,
-            "data": [row],
-            "read_hint": (
-                f"{label}是本轮刚写完并保存的正文{wc_part}，完整内容已在上方你刚写出的内容中，"
-                "无需再次读取原文。请直接对照上方内容继续未完成任务或按真实字数简短回复作者；"
-                "不要为了卡字数或微调措辞重读或反复修改。"
-            ),
+            "data": rows,
+            "read_hint": read_hint,
         }
         return EditPlan(
-            file_id=file_id,
+            file_id=guarded_ids[0],
+            self_read_guarded_ids=tuple(guarded_ids),
+            blocked_output=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        )
+
+    def _escalated_self_read_plan(
+        self,
+        *,
+        guarded_ids: list[str],
+        rows: list[dict[str, Any]],
+        start_char: Any,
+    ) -> EditPlan:
+        labels = [
+            f"《{row['title']}》" if row.get("title") else f"文件(id={row['id']})"
+            for row in rows
+        ]
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "RepeatEditGuard self-read intercept cap reached; escalating",
+            file_id=guarded_ids[0],
+            file_ids=guarded_ids if len(guarded_ids) > 1 else None,
+            start_char=start_char,
+            consecutive_intercepts=self._consecutive_intercepts,
+            per_file_intercepts={fid: self._per_file_intercepts.get(fid, 0) for fid in guarded_ids},
+        )
+        error_msg = (
+            f"已多次拦截对本轮刚写完章节（{'、'.join(labels)}）的重复读取，本次 query_files 已拒绝执行。"
+            "请立即停止调用工具，直接按上方已有内容和真实字数向作者简短回复收尾。"
+        )
+        payload: dict[str, Any] = {
+            "status": "error",
+            "error": error_msg,
+            "error_type": EDIT_GUARD_ESCALATED_ERROR_TYPE,
+            "reason": "self_read_loop_cap",
+            "guard_escalated": True,
+            "stop_calling_tools": True,
+            "tool_name": READ_TOOL_NAME,
+            "id": guarded_ids[0],
+            "data": rows,
+            "user_message": "已完成保存，跳过重复读取。",
+        }
+        return EditPlan(
+            file_id=guarded_ids[0],
+            self_read_guarded_ids=tuple(guarded_ids),
             blocked_output=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
         )
 
@@ -442,10 +615,49 @@ class RepeatEditGuard:
         reason: str,
     ) -> EditPlan:
         self.blocked_edits += 1
+        escalate, per_file_count = self._record_intercept([file_id], increment_consecutive=True)
         title = state.title or _saved_title(self.request_context, file_id)
         label = f"《{title}》" if title else f"文件(id={file_id})"
         word_count = self._current_word_count(file_id, state)
         wc_part = f"（当前真实字数 {word_count} 字）" if word_count is not None else ""
+
+        if escalate:
+            error_msg = (
+                f"{label}的 edit_file 已被重复拦截（连续 {self._consecutive_intercepts} 次 / "
+                f"本文件 {per_file_count} 次{wc_part}），已触发硬上限并拒绝执行。"
+                "请立即停止调用任何编辑或读取工具，直接按当前真实字数向作者简短回复并结束本轮。"
+            )
+            log_with_context(
+                logger,
+                30,  # WARNING
+                "RepeatEditGuard edit intercept cap reached; escalating",
+                file_id=file_id,
+                written_this_turn=written_this_turn,
+                clean_calls=clean_calls,
+                consecutive_intercepts=self._consecutive_intercepts,
+                per_file_intercepts=per_file_count,
+                reason=reason,
+            )
+            payload: dict[str, Any] = {
+                "status": "error",
+                "error": error_msg,
+                "error_type": EDIT_GUARD_ESCALATED_ERROR_TYPE,
+                "reason": reason,
+                "guard_escalated": True,
+                "stop_calling_tools": True,
+                "tool_name": EDIT_TOOL_NAME,
+                "id": file_id,
+                "edits_applied": 0,
+                "mutation_applied": False,
+                "user_message": "这一步的细微调整已跳过，之前的修改都已保存。",
+            }
+            if word_count is not None:
+                payload["word_count"] = word_count
+            return EditPlan(
+                file_id=file_id,
+                written_this_turn=written_this_turn,
+                blocked_output=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            )
 
         if reason == "post_write_limit":
             error_msg = (
@@ -479,10 +691,12 @@ class RepeatEditGuard:
             written_this_turn=written_this_turn,
             clean_calls=clean_calls,
             consecutive_micro_calls=state.consecutive_micro_calls,
+            consecutive_intercepts=self._consecutive_intercepts,
+            per_file_intercepts=per_file_count,
             reason=reason,
         )
 
-        payload: dict[str, Any] = {
+        payload = {
             "status": "skipped",
             "guard_skipped": True,
             "reason": reason,
@@ -505,8 +719,13 @@ class RepeatEditGuard:
     # --------------------------------------------------------------- observe
     def observe(self, tool_name: str, plan: EditPlan, output_text: str) -> str:
         if tool_name == READ_TOOL_NAME:
-            if plan.self_read_recovery_id:
-                self._allow_self_read.discard(plan.self_read_recovery_id)
+            recovery_ids = plan.self_read_recovery_ids or (
+                (plan.self_read_recovery_id,) if plan.self_read_recovery_id else ()
+            )
+            for rid in recovery_ids:
+                self._allow_self_read.discard(rid)
+            if plan.self_read_guarded_ids:
+                return self._strip_guarded_self_reads_from_batch(plan.self_read_guarded_ids, output_text)
             return output_text
 
         if tool_name != EDIT_TOOL_NAME or not plan.file_id:
@@ -517,20 +736,39 @@ class RepeatEditGuard:
             return output_text
 
         status = payload.get("status")
-        if status != "success":
-            error_type = str(payload.get("error_type") or "")
+        mutation_applied = payload.get("mutation_applied")
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        edits_applied = data.get("edits_applied")
+        error_type = str(payload.get("error_type") or "")
+
+        is_applied_edit = (
+            (status == "success" and mutation_applied is not False)
+            or (
+                status == "partial"
+                and (
+                    mutation_applied is True
+                    or (
+                        mutation_applied is None
+                        and isinstance(edits_applied, int)
+                        and not isinstance(edits_applied, bool)
+                        and edits_applied > 0
+                    )
+                )
+            )
+            or (status not in ("error", "skipped") and mutation_applied is True)
+        )
+        if not is_applied_edit:
             if error_type in _SELF_READ_RECOVERY_ERROR_TYPES:
                 self._allow_self_read.add(plan.file_id)
             return output_text
 
-        if payload.get("mutation_applied") is False:
-            return output_text
-
         # A clean successful edit clears any pending self-read recovery allowance.
-        self._allow_self_read.discard(plan.file_id)
+        if status == "success":
+            self._allow_self_read.discard(plan.file_id)
+        elif error_type in _SELF_READ_RECOVERY_ERROR_TYPES:
+            self._allow_self_read.add(plan.file_id)
 
         state = self._files.setdefault(plan.file_id, _FileEditState())
-        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         if isinstance(data.get("title"), str) and data["title"]:
             state.title = data["title"]
         if isinstance(data.get("file_type"), str) and data["file_type"]:
@@ -609,6 +847,60 @@ class RepeatEditGuard:
             )
         return output_text
 
+    def _strip_guarded_self_reads_from_batch(
+        self, guarded_ids: tuple[str, ...], output_text: str
+    ) -> str:
+        """Strip full bodies for just-written chapters inside a mixed ``query_files(ids=[...])`` result."""
+        payload = _load_json(output_text)
+        if payload is None or payload.get("status") != "success":
+            return output_text
+        data = payload.get("data")
+        if not isinstance(data, list):
+            return output_text
+
+        guarded_set = set(guarded_ids)
+        stripped_ids: list[str] = []
+        labels: list[str] = []
+        new_data: list[Any] = []
+        for row in data:
+            if isinstance(row, dict):
+                fid = str(row.get("id") or "").strip()
+                if fid in guarded_set:
+                    slim_row, title, word_count = self._self_read_row(fid)
+                    if not slim_row.get("title") and isinstance(row.get("title"), str):
+                        slim_row["title"] = row["title"]
+                        title = row["title"]
+                    if word_count is None and isinstance(row.get("word_count"), int):
+                        slim_row["word_count"] = row["word_count"]
+                    new_data.append(slim_row)
+                    stripped_ids.append(fid)
+                    labels.append(f"《{title}》" if title else f"文件(id={fid})")
+                    continue
+            new_data.append(row)
+
+        if not stripped_ids:
+            return output_text
+
+        self.guarded_self_reads += 1
+        self._record_intercept(stripped_ids, increment_consecutive=False)
+        log_with_context(
+            logger,
+            20,  # INFO
+            "RepeatEditGuard stripped just-written chapter from batch query_files",
+            file_ids=stripped_ids,
+            per_file_intercepts={fid: self._per_file_intercepts.get(fid, 0) for fid in stripped_ids},
+        )
+        patched = dict(payload)
+        patched["data"] = new_data
+        patched["self_read_guarded_ids"] = stripped_ids
+        hint = (
+            f"{'、'.join(labels)}是本轮刚写完并保存的正文，本次批量读取已省略其正文以避免重复灌入上下文；"
+            "请直接对照上方内容继续任务，不要重读刚写完的章节。"
+        )
+        existing_hint = patched.get("read_hint")
+        patched["read_hint"] = f"{existing_hint}\n{hint}" if isinstance(existing_hint, str) and existing_hint else hint
+        return json.dumps(patched, ensure_ascii=False, separators=(",", ":"))
+
     # --------------------------------------------------------------- helpers
     def _current_word_count(self, file_id: str, state: _FileEditState | None) -> int | None:
         if state is not None and state.last_word_count is not None:
@@ -674,11 +966,14 @@ __all__ = [
     "BULK_EDIT_MIN_ITEMS",
     "CUMULATIVE_REWRITE_HINT_RATIO",
     "EDIT_GUARD_ERROR_TYPES",
+    "EDIT_GUARD_ESCALATED_ERROR_TYPE",
     "EDIT_REPEAT_LIMIT_ERROR_TYPE",
     "EXISTING_HARD_BLOCK_AT",
     "EXISTING_HINT_AT",
     "EXISTING_MICRO_BLOCK_AT",
     "EXISTING_MICRO_STREAK_MIN",
+    "MAX_CONSECUTIVE_GUARD_INTERCEPTS",
+    "MAX_PER_FILE_GUARD_INTERCEPTS",
     "MICRO_EDIT_MAX_ITEMS",
     "MICRO_EDIT_MAX_NET_DELTA",
     "POST_WRITE_BLOCK_AT",

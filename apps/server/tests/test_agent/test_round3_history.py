@@ -417,11 +417,14 @@ def test_folder_ids_still_recover_unrecognizable_legacy_folder(
     assert folder_ids["draft"] == f"{project.id}-draft-folder"
 
 
-def test_folder_ids_prefer_actively_used_folder_when_both_are_canonical(
+def test_folder_ids_use_stable_created_at_id_tie_break_when_both_are_canonical(
     db_session: Session,
     round3_user: User,
 ):
-    """两个目录都规范（确定性 id vs 同名旧目录）时，仍由子文件计数裁决。"""
+    """两个目录都规范（确定性 id vs 同名旧目录）时，按不可变的 (created_at, id) 决胜，
+    不受中途写入/移动子文件影响，避免翻转 folder_ids 击穿 system_prompt_sha256。"""
+    from datetime import datetime, timedelta
+
     project = _make_project(db_session, round3_user.id, "novel")
     _add_novel_root_folders(db_session, project.id)
 
@@ -434,23 +437,28 @@ def test_folder_ids_prefer_actively_used_folder_when_both_are_canonical(
             file_type="folder",
             parent_id=None,
             order=9,
-        )
-    )
-    db_session.commit()
-
-    db_session.add(
-        File(
-            id="legacy-character-child",
-            project_id=project.id,
-            title="李妍",
-            file_type="character",
-            parent_id=legacy_id,
-            order=0,
+            created_at=datetime(2020, 1, 1, 0, 0, 0),
         )
     )
     db_session.commit()
 
     manager = MessageManager(project_id=project.id, user_id=round3_user.id)
+    assert manager._get_folder_ids(session=db_session, project_type="novel")["character"] == legacy_id  # noqa: SLF001
+
+    # Adding children to the later-created deterministic folder must not flip the winner.
+    db_session.add(
+        File(
+            id="det-character-child",
+            project_id=project.id,
+            title="李妍",
+            file_type="character",
+            parent_id=f"{project.id}-character-folder",
+            order=0,
+            created_at=datetime(2026, 1, 1, 0, 0, 0) + timedelta(minutes=1),
+        )
+    )
+    db_session.commit()
+
     folder_ids = manager._get_folder_ids(  # noqa: SLF001
         session=db_session,
         project_type="novel",
