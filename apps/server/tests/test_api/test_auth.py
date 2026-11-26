@@ -28,8 +28,13 @@ def _set_invite_code_optional_for_legacy_auth_tests(monkeypatch):
 
 
 @pytest.mark.integration
-async def test_register_success(client: AsyncClient):
-    """Test successful user registration."""
+async def test_register_success(client: AsyncClient, monkeypatch):
+    """Test successful user registration with mocked email delivery."""
+    async def _mock_send_verification_code(_email: str, language: str = "zh"):
+        return True, None
+
+    monkeypatch.setattr("api.auth.send_verification_code", _mock_send_verification_code)
+
     response = await client.post(
         "/api/auth/register",
         json={
@@ -40,15 +45,10 @@ async def test_register_success(client: AsyncClient):
         }
     )
 
-    # Note: Registration might fail if email service is not configured
-    # The test checks for either success or expected error
-    assert response.status_code in [200, 500]
-
-    if response.status_code == 200:
-        data = response.json()
-        assert "email" in data
-        assert data["email"] == "test@example.com"
-        assert data["email_verified"] is False
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "test@example.com"
+    assert data["email_verified"] is False
 
 
 @pytest.mark.integration

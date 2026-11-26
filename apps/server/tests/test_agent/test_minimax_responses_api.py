@@ -1273,3 +1273,189 @@ async def test_compaction_streaming_end_to_end_real_sdk_cost_guard_and_httpx2_ti
     # MiniMax M3.1-Flash: 1M hit (10M units) + 100 miss (10k units) + 100 out (40k units) = 10,050,000
     assert reservation.settled_units == bucket.charged_units == 10_050_000
     llm_failover.reset_failover_state()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("writing_prompt_configs")
+async def test_responses_failed_mid_stream_after_partial_text_skips_failover_refunds_and_evicts_wire_cache(
+    db_session, monkeypatch
+):
+    """Mid-stream response.failed AFTER partial output_text.delta must NOT fail over to backup,
+    must emit a retryable+refundable upstream model error (setting terminal_model_failure=True for
+    quota refund), and must NOT store/retain wire_prefix_cache."""
+    import httpx2
+
+    from agent.core.round_outcome import RunOutcome
+    from agent.core.stream_billing import StreamBillingTracker
+    from agent.service import AgentService
+    from models import ChatSession, Project
+    from services.core.auth_service import hash_password
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
+    monkeypatch.setenv("LLM_PRIMARY_MODEL", "MiniMax-M3.1-Flash")
+    monkeypatch.setenv("MINIMAX_API_KEY", "sk-mm")
+    monkeypatch.setenv("LLM_BACKUP_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-ds")
+    monkeypatch.delenv("MINIMAX_API_SURFACE", raising=False)
+    sdk_model.reset_sdk_model_cache()
+    llm_failover.reset_failover_state()
+
+    # Fake Redis to verify stale wire_prefix_cache is evicted and failed turn is never cached.
+    class _FakeRedis:
+        def __init__(self):
+            self.store: dict[str, tuple[str, int]] = {}
+            self.deleted: list[str] = []
+
+        def get(self, key: str):
+            entry = self.store.get(key)
+            return entry[0] if entry is not None else None
+
+        def set(self, key: str, value: str, *, nx: bool = False, ex: int | None = None):
+            if nx and key in self.store:
+                return False
+            self.store[key] = (value, ex if ex is not None else 0)
+            return True
+
+        def expire(self, key: str, ttl: int):
+            entry = self.store.get(key)
+            if entry is None:
+                return False
+            self.store[key] = (entry[0], ttl)
+            return True
+
+        def setex(self, key: str, ttl: int, value: str):
+            self.store[key] = (value, ttl)
+            return True
+
+        def delete(self, *keys: str):
+            removed = 0
+            for key in keys:
+                self.deleted.append(key)
+                if self.store.pop(key, None) is not None:
+                    removed += 1
+            return removed
+
+    fake_redis = _FakeRedis()
+    monkeypatch.setenv("REDIS_URL", "redis://fake-responses-midfail/0")
+    monkeypatch.setattr(wire_prefix_cache, "get_redis_client", lambda: fake_redis)
+    monkeypatch.setattr("services.infra.redis_client.get_redis_client", lambda: fake_redis)
+    wire_prefix_cache.reset_wire_prefix_cache_state()
+
+    user = User(
+        username="resp_midfail",
+        email="resp_midfail@example.com",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="Midstream Fail", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="会话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    cache_key = wire_prefix_cache.wire_prefix_cache_key(chat.id)
+    fake_redis.setex(cache_key, 900, '{"stale": true}')
+
+    failed_resp = _make_failed_response(code="server_error", message="mid-stream upstream failure")
+    mm_sse = _responses_sse_body([
+        {
+            "type": "response.created",
+            "sequence_number": 0,
+            "response": _make_response(status="in_progress", text="", output_tokens=0).model_dump(mode="json"),
+        },
+        {
+            "type": "response.output_text.delta",
+            "sequence_number": 1,
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "已经流出了一半的正文内容。",
+            "logprobs": [],
+        },
+        {
+            "type": "response.failed",
+            "sequence_number": 2,
+            "response": failed_resp,
+        },
+    ])
+
+    provider_calls = {"minimax": 0, "deepseek": 0}
+
+    async def handle_mm(_req: httpx2.Request) -> httpx2.Response:
+        provider_calls["minimax"] += 1
+        return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=mm_sse)
+
+    async def handle_ds(_req: httpx2.Request) -> httpx2.Response:
+        provider_calls["deepseek"] += 1
+        raise AssertionError("Backup provider must not be called after partial text was streamed")
+
+    monkeypatch.setattr("agent.openai_agents.usage_hooks.schedule_llm_usage_record", lambda *_a, **_kw: None)
+
+    outcome = RunOutcome()
+    tracker = StreamBillingTracker()
+    frames: list[str] = []
+    try:
+        async with (
+            httpx2.AsyncClient(transport=httpx2.MockTransport(handle_mm)) as mm_http,
+            httpx2.AsyncClient(transport=httpx2.MockTransport(handle_ds)) as ds_http,
+        ):
+            clients = {
+                "minimax": AsyncOpenAI(
+                    api_key="sk-mm", base_url="https://mm.invalid/v1", http_client=mm_http, max_retries=0
+                ),
+                "deepseek": AsyncOpenAI(
+                    api_key="sk-ds", base_url="https://ds.invalid/v1", http_client=ds_http, max_retries=0
+                ),
+            }
+            monkeypatch.setattr(llm_providers, "get_async_client", lambda p: clients[p.name])
+
+            service = AgentService()
+            async for frame in service.process_stream(
+                project_id=str(project.id),
+                user_id=str(user.id),
+                message="写一段开篇",
+                session=db_session,
+                session_id=chat.id,
+                run_outcome=outcome,
+            ):
+                frames.append(frame)
+                tracker.observe(frame)
+    finally:
+        sdk_model.reset_sdk_model_cache()
+        llm_failover.reset_failover_state()
+        wire_prefix_cache.reset_wire_prefix_cache_state()
+
+    # 1. Partial text reached the SSE stream, and backup provider was NOT invoked.
+    assert provider_calls == {"minimax": 1, "deepseek": 0}
+    assert any("已经流出了一半的正文内容。" in frame for frame in frames)
+
+    # 2. Terminal error frame carries upstream model error metadata and marks terminal_model_failure.
+    error_frames = [
+        json.loads(frame.split("data:", 1)[1])
+        for frame in frames
+        if "event: error" in frame
+    ]
+    assert len(error_frames) == 1
+    assert error_frames[0]["code"] == ErrorCode.AGENT_UPSTREAM_UNAVAILABLE
+    assert error_frames[0]["retryable"] is True
+    assert error_frames[0]["refundable"] is True
+    assert outcome.terminal_model_failure is True
+
+    # 3. Billing tracker refunds the round as upstream_model_error even though partial text streamed.
+    assert tracker.decide(
+        client_disconnected=False,
+        unexpected_exception=False,
+        provider_attempted=True,
+        terminal_model_failure=outcome.terminal_model_failure,
+    ) == ("upstream_model_error", True)
+
+    # 4. Failed turn never wrote a corrupted wire_prefix_cache entry (and stale key was cleared).
+    assert cache_key not in fake_redis.store

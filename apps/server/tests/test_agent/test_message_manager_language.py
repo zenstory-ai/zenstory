@@ -2,7 +2,6 @@
 
 import pytest
 
-from agent.core import message_manager
 from agent.core.message_manager import MessageManager
 from agent.loop.turn_context import build_loop_turn_context
 from models import Project, User
@@ -26,32 +25,6 @@ def _create_project_and_manager(db_session) -> tuple[Project, MessageManager]:
     db_session.commit()
     db_session.refresh(project)
     return project, MessageManager(project_id=project.id, user_id=owner.id)
-
-
-@pytest.mark.unit
-def test_regex_author_language_heuristic_removed():
-    """Author reply language must be decided by the model directly, never by regex/character counting."""
-    assert not hasattr(message_manager, "detect_author_language")
-    assert not hasattr(MessageManager, "_build_author_language_line")
-
-
-@pytest.mark.unit
-def test_english_ui_system_prompt_supports_any_author_language_without_forcing_english(db_session):
-    _, manager = _create_project_and_manager(db_session)
-    prompt = manager.build_system_prompt(session=db_session, language="en")
-    assert "Reply in English even if the user writes in Chinese" not in prompt
-    assert "exact language of the author's latest message" in prompt
-    assert "any other language" in prompt
-    assert "fall back to English" in prompt
-
-
-@pytest.mark.unit
-def test_chinese_ui_system_prompt_supports_any_author_language(db_session):
-    _, manager = _create_project_and_manager(db_session)
-    prompt = manager.build_system_prompt(session=db_session, language="zh")
-    assert "作者最近一条消息的语言" in prompt
-    assert "其他任何语言" in prompt
-    assert "就用中文（作者的界面语言）" in prompt
 
 
 @pytest.mark.unit

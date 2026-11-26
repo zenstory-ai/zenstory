@@ -346,7 +346,7 @@ async def test_request_body_logging_limit(client: AsyncClient, db_session):
     )
 
     # The request should succeed
-    assert response.status_code in (200, 201)
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -379,7 +379,7 @@ async def test_json_request_body_is_logged_when_enabled(client: AsyncClient, db_
             json={"name": "BodyLog Project", "description": "BodyLog Description"},
         )
 
-    assert response.status_code in (200, 201)
+    assert response.status_code == 200
     assert any(
         "BodyLog Project" in str(getattr(record, "custom_fields", ""))
         for record in caplog.records

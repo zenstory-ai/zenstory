@@ -139,13 +139,13 @@ async def test_recovery_does_not_claim_verified_disabled_or_unowned_account(clie
     delivery.assert_not_called()
 
 
-@pytest.mark.parametrize("failure", [invalid_recipient(), TimeoutError("timeout")])
-async def test_recovery_delivery_failure_preserves_original_account(client, db_session, delivery, failure):
+@pytest.mark.parametrize("failure,expected_status", [(invalid_recipient(), 400), (TimeoutError("timeout"), 503)])
+async def test_recovery_delivery_failure_preserves_original_account(client, db_session, delivery, failure, expected_status):
     user_id = seed_stuck_user(db_session)
     before = db_session.get(User, user_id).model_dump()
     delivery.side_effect = failure
     response = await recover(client)
-    assert response.status_code in [400, 503]
+    assert response.status_code == expected_status
     db_session.expire_all()
     assert db_session.get(User, user_id).model_dump() == before
 

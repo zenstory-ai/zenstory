@@ -13,9 +13,8 @@ Tests endpoints for programmatic access using X-Agent-API-Key authentication:
 - POST /api/v1/agent/projects/{project_id}/search - Semantic search
 """
 
-import threading
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -221,27 +220,6 @@ async def test_create_file_write_scope_required(client: AsyncClient, db_session:
         f"/api/v1/agent/projects/{project.id}/files",
         headers={"X-Agent-API-Key": plain_key},
         json={"title": "New File", "file_type": "draft"},
-    )
-    assert response.status_code == 403
-    data = response.json()
-    # Error handler returns error_code in detail field (ERR_NOT_AUTHORIZED)
-    assert "error_code" in data or "detail" in data
-
-
-@pytest.mark.integration
-@pytest.mark.skip(reason="POST /api/v1/agent/chat not implemented; chat is at /api/v1/agent/stream")
-async def test_chat_endpoint_chat_scope_required(client: AsyncClient, db_session: Session):
-    """Test that chat endpoint requires 'chat' scope."""
-    user = create_test_user(db_session, "scope_user3")
-    project = create_test_project(db_session, user.id)
-    _, plain_key = create_test_api_key(
-        db_session, user.id, scopes=["read", "write"]  # No chat scope
-    )
-
-    response = await client.post(
-        "/api/v1/agent/chat",
-        headers={"X-Agent-API-Key": plain_key},
-        json={"project_id": str(project.id), "message": "Hello"},
     )
     assert response.status_code == 403
     data = response.json()
@@ -539,75 +517,24 @@ async def test_delete_file_not_found(client: AsyncClient, db_session: Session):
 
 
 # =============================================================================
-# Chat Endpoint Tests
+# Non-Existent Project Route Regression
 # =============================================================================
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="POST /api/v1/agent/chat not implemented; chat is at /api/v1/agent/stream")
-async def test_chat_missing_project_id(client: AsyncClient, db_session: Session):
-    """Test that chat without project_id returns 422."""
-    user = create_test_user(db_session, "chat_user1")
-    _, plain_key = create_test_api_key(db_session, user.id, scopes=["chat"])
+async def test_agent_project_files_nonexistent_project_returns_404(client: AsyncClient, db_session: Session):
+    """Test real agent API route returns domain 404 for non-existent project (not route-missing 404)."""
+    user = create_test_user(db_session, "proj_missing_user")
+    _, plain_key = create_test_api_key(db_session, user.id, scopes=["read"])
 
-    response = await client.post(
-        "/api/v1/agent/chat",
+    response = await client.get(
+        "/api/v1/agent/projects/00000000-0000-0000-0000-000000000000/files",
         headers={"X-Agent-API-Key": plain_key},
-        json={"message": "Hello"},
-    )
-
-    assert response.status_code == 422
-
-
-@pytest.mark.integration
-async def test_chat_project_not_found(client: AsyncClient, db_session: Session):
-    """Test chat with non-existent project returns 404."""
-    user = create_test_user(db_session, "chat_user2")
-    _, plain_key = create_test_api_key(db_session, user.id, scopes=["chat"])
-
-    response = await client.post(
-        "/api/v1/agent/chat",
-        headers={"X-Agent-API-Key": plain_key},
-        json={
-            "project_id": "00000000-0000-0000-0000-000000000000",
-            "message": "Hello",
-        },
     )
 
     assert response.status_code == 404
-
-
-@pytest.mark.integration
-@pytest.mark.skip(reason="POST /api/v1/agent/chat not implemented; chat is at /api/v1/agent/stream")
-async def test_chat_success_with_mock(client: AsyncClient, db_session: Session):
-    """Test chat endpoint with a mocked writing workflow."""
-    user = create_test_user(db_session, "chat_user3")
-    project = create_test_project(db_session, user.id)
-    _, plain_key = create_test_api_key(db_session, user.id, scopes=["chat"])
-
-    # Mock the writing workflow
-    from agent.core.workflow_events import StreamEvent, StreamEventType
-
-    async def mock_stream():
-        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "Hello"})
-        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
-
-    # Mock the service factory and its process_stream method
-    with patch("agent.service.get_agent_service") as mock_get_service:
-        mock_service = mock_get_service.return_value
-        mock_service.process_stream.return_value = mock_stream()
-
-        response = await client.post(
-            "/api/v1/agent/chat",
-            headers={"X-Agent-API-Key": plain_key},
-            json={
-                "project_id": str(project.id),
-                "message": "Hello, agent!",
-            },
-        )
-
-        assert response.status_code == 200
-        assert "text/event-stream" in response.headers["content-type"]
+    data = response.json()
+    assert data.get("error_code") in {"ERR_PROJECT_NOT_FOUND", "ERR_NOT_FOUND"}
 
 
 # =============================================================================

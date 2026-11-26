@@ -737,18 +737,13 @@ class TestJSONParsing:
         assert suggestions == ["建议1", "建议2"]
 
     def test_parse_invalid_json_attempts_repair(self, suggest_service):
-        """Test that invalid JSON attempts repair."""
-        # Missing closing brace
+        """Test that truncated JSON is actually repaired by json_repair."""
+        # Missing closing bracket and brace
         response = '{"suggestions": ["建议1", "建议2"'
 
-        with patch("json_repair.repair_json") as mock_repair:
-            mock_repair.return_value = '{"suggestions": ["建议1", "建议2"]}'
+        suggestions = suggest_service._parse_json_suggestions(response)
 
-            suggestions = suggest_service._parse_json_suggestions(response)
-
-            # Should attempt repair
-            mock_repair.assert_called_once()
-            assert len(suggestions) == 2
+        assert suggestions == ["建议1", "建议2"]
 
     def test_parse_empty_response(self, suggest_service):
         """Test parsing empty response."""
