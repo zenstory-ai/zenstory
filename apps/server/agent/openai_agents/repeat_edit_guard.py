@@ -62,9 +62,13 @@ MICRO_EDIT_MAX_ITEMS = 4
 MICRO_EDIT_MAX_NET_DELTA = 80
 
 # Newly written chapter (saved via write_chapter in the same request):
-# 1st clean edit: normal; 2nd: allowed + edit_hint; 3rd (non-append): blocked.
+# 1st clean non-bulk edit: normal; 2nd: allowed + edit_hint; 3rd (non-append): soft-skipped.
+# One bulk self-check batch (len(edits) >= BULK_EDIT_MIN_ITEMS) is allowed on a newly
+# written chapter before post_write_limit blocks so legitimate 6+ edit revisions aren't
+# falsely blocked while preventing unbounded bulk loops.
 POST_WRITE_HINT_AT = 2
 POST_WRITE_BLOCK_AT = 3
+POST_WRITE_BULK_ALLOWANCE = 1
 
 # Existing file (not written via write_chapter in the same request):
 # 1st-3rd clean non-bulk edits: normal; 4th: allowed + edit_hint;
@@ -219,6 +223,7 @@ def _snapshot_content(request_context: Any, file_id: str) -> str | None:
 @dataclass
 class _FileEditState:
     post_write_clean_calls: int = 0
+    post_write_bulk_calls: int = 0
     clean_non_bulk_calls: int = 0
     consecutive_micro_calls: int = 0
     cumulative_replaced_chars: int = 0
@@ -306,15 +311,18 @@ class RepeatEditGuard:
 
         if state is not None:
             if written_this_turn:
-                next_calls = state.post_write_clean_calls + 1
-                if next_calls >= POST_WRITE_BLOCK_AT:
-                    return self._block_edit(
-                        file_id=file_id,
-                        state=state,
-                        written_this_turn=True,
-                        clean_calls=state.post_write_clean_calls,
-                        reason="post_write_limit",
-                    )
+                # Allow 1 bulk self-check revision (>= BULK_EDIT_MIN_ITEMS) on a newly written
+                # chapter before post_write_limit blocks so 6+ edit sweeps aren't falsely skipped.
+                if not (is_bulk and state.post_write_bulk_calls < POST_WRITE_BULK_ALLOWANCE):
+                    next_calls = state.post_write_clean_calls + 1
+                    if next_calls >= POST_WRITE_BLOCK_AT:
+                        return self._block_edit(
+                            file_id=file_id,
+                            state=state,
+                            written_this_turn=True,
+                            clean_calls=state.post_write_clean_calls,
+                            reason="post_write_limit",
+                        )
             elif not is_bulk:
                 next_non_bulk = state.clean_non_bulk_calls + 1
                 if next_non_bulk >= EXISTING_HARD_BLOCK_AT:
@@ -475,8 +483,10 @@ class RepeatEditGuard:
         )
 
         payload: dict[str, Any] = {
-            "status": "error",
-            "error": error_msg,
+            "status": "skipped",
+            "guard_skipped": True,
+            "reason": reason,
+            "message": error_msg,
             "error_type": EDIT_REPEAT_LIMIT_ERROR_TYPE,
             "tool_name": EDIT_TOOL_NAME,
             "id": file_id,
@@ -549,6 +559,9 @@ class RepeatEditGuard:
         state.cumulative_replaced_chars += plan.arg_old_chars
 
         if plan.written_this_turn:
+            if plan.is_bulk and state.post_write_bulk_calls < POST_WRITE_BULK_ALLOWANCE:
+                state.post_write_bulk_calls += 1
+                return output_text
             state.post_write_clean_calls += 1
             if state.post_write_clean_calls == POST_WRITE_HINT_AT:
                 return self._attach_hint(
@@ -669,6 +682,7 @@ __all__ = [
     "MICRO_EDIT_MAX_ITEMS",
     "MICRO_EDIT_MAX_NET_DELTA",
     "POST_WRITE_BLOCK_AT",
+    "POST_WRITE_BULK_ALLOWANCE",
     "POST_WRITE_HINT_AT",
     "EditPlan",
     "RepeatEditGuard",

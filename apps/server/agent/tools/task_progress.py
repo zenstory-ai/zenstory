@@ -38,6 +38,14 @@ _UNIT_VALUES = frozenset(_UNITS)
 _ARTIFACT_FILE_TYPES = frozenset(
     {"outline", "draft", "script", "character", "lore", "snippet", "document"}
 )
+# 非正文类资料文件在显式给出有效 artifact_refs 时，以文件引用本身作为完成证据，
+# 不要求单份合集大纲的标题带「第1-5章」前缀，也不因人物/设定任务误填 unit_spec 而误拒。
+REF_SUFFICIENT_FILE_TYPES = frozenset(
+    {"outline", "character", "lore", "snippet", "document"}
+)
+# 显式给出有效非空 artifact_refs 时，资料类元文件（大纲/文档/设定）互为兼容类型；
+# 正文（draft/script）与人物卡（character）仍严格要求类型完全一致。
+COMPATIBLE_MATERIAL_REF_TYPES = frozenset({"outline", "document", "lore"})
 _METADATA_KEY_BY_UNIT = {
     "章": "chapter_number",
     "集": "episode_number",
@@ -164,6 +172,32 @@ def task_artifact_type(task: Mapping[str, Any]) -> str | None:
     return file_type if isinstance(file_type, str) and file_type in _ARTIFACT_FILE_TYPES else None
 
 
+def ref_type_matches(expected_type: str | None, actual_type: str) -> bool:
+    """Whether a live file's type satisfies an explicit artifact_refs contract."""
+    if expected_type is None:
+        return False
+    if actual_type == expected_type:
+        return True
+    return (
+        expected_type in COMPATIBLE_MATERIAL_REF_TYPES
+        and actual_type in COMPATIBLE_MATERIAL_REF_TYPES
+    )
+
+
+def task_requires_unit_spec(task: Mapping[str, Any]) -> bool:
+    """Whether unit-number matching is required for this task.
+
+    Body files (``draft`` / ``script``) always enforce unit numbers so a single
+    range-titled file can never claim multiple delivered chapters/episodes.
+    Material files (``outline`` / ``character`` / ``lore`` / ``snippet`` /
+    ``document``) with explicit non-empty ``artifact_refs`` are verified directly
+    by those live file references instead of leading-title chapter ranges.
+    """
+    file_type = task_artifact_type(task)
+    refs = task.get("artifact_refs")
+    return not (file_type in REF_SUFFICIENT_FILE_TYPES and isinstance(refs, list) and bool(refs))
+
+
 def task_evidence_spec(task: Mapping[str, Any]) -> UnitSpec | None:
     """Return structured units, or typed legacy range text for old task data."""
     if "unit_spec" in task:
@@ -288,11 +322,15 @@ def task_text(task: dict) -> str:
 
 __all__ = [
     "ArtifactEvidence",
+    "COMPATIBLE_MATERIAL_REF_TYPES",
+    "REF_SUFFICIENT_FILE_TYPES",
     "UnitSpec",
     "artifact_units",
     "format_units",
+    "ref_type_matches",
     "task_artifact_type",
     "task_evidence_spec",
+    "task_requires_unit_spec",
     "task_text",
     "task_unit_spec",
     "validate_task_artifact_fields",

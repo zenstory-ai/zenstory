@@ -17,8 +17,10 @@ from agent.tools.task_progress import (
     ArtifactEvidence,
     artifact_units,
     format_units,
+    ref_type_matches,
     task_artifact_type,
     task_evidence_spec,
+    task_requires_unit_spec,
     validate_task_artifact_fields,
 )
 from utils.logger import get_logger, log_with_context
@@ -62,17 +64,28 @@ def _build_completion_task_payload(
             updated_tasks.append(updated)
             continue
         refs = set(updated.get("artifact_refs") or [])
-        matching = [item for item in written if item.file_type == file_type and (not refs or item.id in refs)]
+        if refs:
+            matching = [
+                item for item in written
+                if item.id in refs and ref_type_matches(file_type, item.file_type)
+            ]
+        else:
+            matching = [item for item in written if item.file_type == file_type]
         if not matching:
             updated_tasks.append(updated)
             continue
-        spec = task_evidence_spec(updated)
+        spec = task_evidence_spec(updated) if task_requires_unit_spec(updated) else None
         label = str(updated.get("artifact") or "").strip()
         if spec is not None:
             prior_ids = set(updated.get("completed_artifact_refs") or [])
             live_prior = [
                 item for item in live_artifacts or []
-                if item.id in prior_ids and item.file_type == file_type and (not refs or item.id in refs)
+                if item.id in prior_ids
+                and (
+                    (item.id in refs and ref_type_matches(file_type, item.file_type))
+                    if refs
+                    else item.file_type == file_type
+                )
             ]
             relevant = [
                 item for item in matching + live_prior
@@ -81,24 +94,31 @@ def _build_completion_task_payload(
             if not relevant:
                 updated_tasks.append(updated)
                 continue
-            updated["completed_artifact_refs"] = sorted({item.id for item in relevant})
+            covered_ids = {item.id for item in relevant}
+            updated["completed_artifact_refs"] = sorted(covered_ids)
             covered = artifact_units(relevant, spec.unit, file_type) & spec.numbers
             missing = set(spec.numbers) - covered
-            if not missing:
+            if not missing and (not refs or refs <= covered_ids):
                 updated["status"] = "done"
                 updated.pop("progress", None)
                 updated.pop("done_units", None)
             else:
                 updated["status"] = "in_progress"
                 updated["done_units"] = sorted(covered)
-                updated["progress"] = f"已写：{format_units(covered, spec.unit)}；待写：{format_units(missing, spec.unit)}"
+                if missing:
+                    updated["progress"] = f"已写：{format_units(covered, spec.unit)}；待写：{format_units(missing, spec.unit)}"
         elif refs:
             prior_ids = set(updated.get("completed_artifact_refs") or [])
-            live_prior = [item for item in live_artifacts or [] if item.id in prior_ids and item.file_type == file_type and item.id in refs]
+            live_prior = [
+                item for item in live_artifacts or []
+                if item.id in prior_ids and item.id in refs and ref_type_matches(file_type, item.file_type)
+            ]
             covered_ids = {item.id for item in matching + live_prior}
             updated["completed_artifact_refs"] = sorted(covered_ids)
             if refs <= covered_ids:
                 updated["status"] = "done"
+                updated.pop("progress", None)
+                updated.pop("done_units", None)
         elif label and _artifact_written(label, matching):
             updated["status"] = "done"
             updated["completed_artifact_refs"] = sorted(item.id for item in matching if item.title.strip() == label)

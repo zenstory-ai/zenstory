@@ -36,6 +36,7 @@ from .core.events import (
     iteration_exhausted_event,
     skill_matched_event,
     thinking_content_event,
+    thinking_event,
     tool_call_event,
     tool_result_event,
 )
@@ -453,6 +454,13 @@ class StreamAdapter:
                 yield sse_event
 
         elif event_type == StreamEventType.THINKING:
+            # Lightweight transient status updates (e.g. tool-argument streaming progress)
+            # map to SSE `thinking` frames rather than persisted `thinking_content` blocks.
+            status_message = data.get("message")
+            if isinstance(status_message, str) and status_message:
+                step = data.get("step")
+                yield thinking_event(status_message, step=step if isinstance(step, str) else None)
+                return
             # Thinking content
             thinking_text = data.get("thinking", "")
             if thinking_text:
@@ -658,6 +666,8 @@ class StreamAdapter:
             # 「哪几处没改成、为什么」的唯一依据，丢掉它卡片就是空白的。
             emit_data = result_data if (status == "success" or edit_all_failed) else None
             emit_data = self._client_safe_skill_payload(tool_name, emit_data)
+            if isinstance(emit_data, dict) and emit_data.get("guard_skipped") is True and "message" in emit_data:
+                emit_data = {k: v for k, v in emit_data.items() if k != "message"}
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
@@ -739,7 +749,11 @@ class StreamAdapter:
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
-            if tool_name == "edit_file":
+            # 被 RepeatEditGuard 软跳过（guard_skipped=True）的调用未执行，不发假 file_edit 事件。
+            if tool_name == "edit_file" and not (
+                (isinstance(result_data, dict) and result_data.get("guard_skipped") is True)
+                or (isinstance(parsed_result, dict) and parsed_result.get("guard_skipped") is True)
+            ):
                 async for event in self._handle_edit_file_result(result_data):
                     yield event
 

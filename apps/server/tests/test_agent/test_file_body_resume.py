@@ -1160,13 +1160,13 @@ async def test_request_failure_cap_still_stops_before_any_correction(workspace):
 
 
 async def test_refusals_in_every_correction_round_end_unfinished_and_roll_back(workspace):
-    """纠偏轮里每次都先调工具被拒：用完既有纠偏配额后回滚空文件、如实报告未完成，不熔断、不宣告完成。"""
-    lookup = Reply(tools=(("query_files", {"query": "前文"}),))
-    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [lookup], [lookup], [WRITE_BODY]])
+    """纠偏轮里每次都先调冲突写工具被拒：用完既有纠偏配额后回滚空文件、如实报告未完成，不熔断、不宣告完成。"""
+    conflicting = Reply(tools=(NEXT_CREATE,))
+    model = ScriptedModel(runs=[[CREATE, NARRATE_ONLY], [conflicting], [conflicting], [WRITE_BODY]])
 
     outcome = await _run(workspace, model)
 
-    file_id = _created_id(model)
+    file_id = _pending_draft_id(model)
     assert len(model.run_inputs) == 3, "只用既有的 2 次纠偏配额"
     assert len(model.errors("file_body_pending")) == 2
     workspace.session.expire_all()
@@ -1176,6 +1176,76 @@ async def test_refusals_in_every_correction_round_end_unfinished_and_roll_back(w
     assert outcome.state["tool_failure_breaker"].is_open is False
     assert outcome.of("error") == [] and outcome.of("workflow_complete") == []
     assert len(outcome.of("done")) == 1
+
+
+async def test_non_conflicting_query_files_during_pending_body_stays_in_same_run(workspace):
+    """待写正文期间调用只读 query_files 正常执行并附带 pending_file_reminder，不触发 file_body_pending 拆轮。"""
+    lookup = Reply(tools=(("query_files", {"query": "前文"}),))
+    model = ScriptedModel(runs=[[CREATE, lookup, WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    _assert_body_saved_once(workspace, outcome, model)
+    assert len(model.run_inputs) == 1, "不因只读查询触发 FILE_BODY_RESUME 拆轮"
+    assert model.errors("file_body_pending") == []
+    query_calls = [call for call in model.tool_calls if call.name == "query_files"]
+    assert len(query_calls) == 1
+    assert query_calls[0].output["status"] == "success"
+    assert CHAPTER in query_calls[0].output["pending_file_reminder"]
+    breaker = outcome.state["tool_failure_breaker"]
+    assert breaker.is_open is False and breaker.total_failures == 0
+
+
+async def test_same_target_create_file_repeat_absorbs_in_same_run(workspace):
+    """待写正文期间重复 create_file 同一个文件：走既有幂等吸收，不触发 file_body_pending 拆轮，不建重名空文件。"""
+    model = ScriptedModel(runs=[[CREATE, CREATE, WRITE_BODY]])
+
+    outcome = await _run(workspace, model)
+
+    drafts = _drafts(workspace)
+    assert len(drafts) == 1
+    assert drafts[0].is_deleted is False
+    assert drafts[0].content.strip() == BODY
+    assert len(model.run_inputs) == 1
+    assert model.errors("file_body_pending") == []
+    creates = [call for call in model.tool_calls if call.name == "create_file"]
+    assert len(creates) == 2
+    assert creates[1].output["status"] == "success"
+    assert creates[1].output["mutation_applied"] is False
+    assert creates[1].output["data"]["id"] == creates[0].output["data"]["id"]
+    assert creates[1].output["data"]["awaiting_body"] is True
+    assert "不要再调用 create_file" in creates[1].output["data"]["next_step"]
+    assert outcome.state["tool_failure_breaker"].total_failures == 0
+
+
+async def test_same_chapter_write_chapter_repeat_absorbs_in_same_run(workspace):
+    """待写正文期间重复 write_chapter 同一章：走既有吸收逻辑，不触发 file_body_pending 拆轮，不建重复章节。"""
+    write_ch1 = Reply(tools=(("write_chapter", {"chapter": 1, "title": "开篇", "file_type": "draft"}),))
+    # draft 正文保存后会正常进入 1 次保存后自查续跑（不是 FILE_BODY_RESUME 纠偏轮）。
+    model = ScriptedModel(runs=[[write_ch1, write_ch1, WRITE_BODY], [Reply(text="自查完成。")]])
+
+    outcome = await _run(workspace, model)
+
+    workspace.session.expire_all()
+    saved_drafts = list(
+        workspace.session.exec(
+            select(File).where(File.project_id == workspace.project.id, File.file_type == "draft")
+        ).all()
+    )
+    assert len(saved_drafts) == 1
+    assert saved_drafts[0].is_deleted is False
+    assert saved_drafts[0].content.strip() == BODY
+    assert len(model.run_inputs) == 2
+    assert "自查" in json.dumps(model.run_inputs[1], ensure_ascii=False)
+    assert model.errors("file_body_pending") == []
+    wc_calls = [call for call in model.tool_calls if call.name == "write_chapter"]
+    assert len(wc_calls) == 2
+    assert wc_calls[1].output["status"] == "success"
+    assert wc_calls[1].output["mutation_applied"] is False
+    assert wc_calls[1].output["data"]["id"] == wc_calls[0].output["data"]["id"]
+    assert wc_calls[1].output["data"]["awaiting_body"] is True
+    assert "不要再调用 write_chapter" in wc_calls[1].output["data"]["next_step"]
+    assert outcome.state["tool_failure_breaker"].total_failures == 0
 
 
 async def test_after_an_exact_cancel_the_same_run_goes_on_to_create_and_write_the_next_file(workspace):

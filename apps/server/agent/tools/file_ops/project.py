@@ -18,8 +18,10 @@ from agent.tools.task_progress import (
     ArtifactEvidence,
     artifact_units,
     format_units,
+    ref_type_matches,
     task_artifact_type,
     task_evidence_spec,
+    task_requires_unit_spec,
     validate_task_artifact_fields,
 )
 from config.datetime_utils import utcnow
@@ -176,17 +178,20 @@ class ProjectOperations:
         self,
         tasks: list[Any],
         previous_tasks: list[dict[str, Any]] | None = None,
-    ) -> None:
+    ) -> list[str]:
         """
         Validate update_plan tasks for lightweight phase-state-machine rules.
 
         Rules:
-        1) At most one in_progress task in the current batch.
+        1) At most one in_progress task in the current batch; when multiple
+           in_progress tasks are submitted, keep the first and auto-normalize
+           extras to pending with a concise warning.
         2) Block rollback from done -> in_progress compared with previous board.
         3) Legacy task/status supports pending/in_progress and historical done.
            New done needs an explicit conversation kind or typed file evidence.
         """
-        in_progress_count = 0
+        warnings: list[str] = []
+        in_progress_indices: list[int] = []
         valid_statuses = {"pending", "in_progress", "done"}
         previous_by_identity = {
             self._task_identity(task): task for task in previous_tasks or [] if isinstance(task, dict)
@@ -221,13 +226,7 @@ class ProjectOperations:
                 )
 
             if status == "in_progress":
-                in_progress_count += 1
-
-        if in_progress_count > 1:
-            raise ValueError(
-                f"同时有 {in_progress_count} 个任务为 in_progress，只能保留一个；"
-                "其余未开始的任务改为 pending 后，重新提交完整 tasks。"
-            )
+                in_progress_indices.append(index)
 
         historical_tasks = previous_tasks or []
         done_phase_keys: set[tuple[str, str | None]] = set()
@@ -247,35 +246,45 @@ class ProjectOperations:
             if task_key:
                 done_legacy_task_keys.add(task_key)
 
-        if not done_phase_keys and not done_legacy_task_keys:
-            return
+        # Check done -> in_progress rollbacks against submitted statuses BEFORE normalizing
+        # extra in_progress tasks to "pending", so a rollback cannot hide behind another in_progress task.
+        if done_phase_keys or done_legacy_task_keys:
+            rollback_targets: list[str] = []
+            for index in in_progress_indices:
+                task = tasks[index]
+                phase_key = self._normalize_task_phase_identity(task)
+                task_key = self._normalize_task_name(task)
 
-        rollback_targets: list[str] = []
-        for index, task in enumerate(tasks):
-            if task.get("status") != "in_progress":
-                continue
-
-            phase_key = self._normalize_task_phase_identity(task)
-            task_key = self._normalize_task_name(task)
-
-            # If current task has phase_id, match by (phase_id + task name).
-            # This prevents false positives when phase_id is reused, while still
-            # allowing same task names across different phases.
-            is_rollback = (
-                bool(phase_key and phase_key in done_phase_keys)
-                or bool(not phase_key and task_key and task_key in done_legacy_task_keys)
-            )
-
-            if is_rollback:
-                rollback_targets.append(
-                    str(task.get("phase_id") or task.get("task") or f"index-{index}")
+                # If current task has phase_id, match by (phase_id + task name).
+                # This prevents false positives when phase_id is reused, while still
+                # allowing same task names across different phases.
+                is_rollback = (
+                    bool(phase_key and phase_key in done_phase_keys)
+                    or bool(not phase_key and task_key and task_key in done_legacy_task_keys)
                 )
 
-        if rollback_targets:
-            targets = ", ".join(rollback_targets)
-            raise ValueError(
-                f"Invalid task transition: done -> in_progress rollback is not allowed ({targets})"
+                if is_rollback:
+                    rollback_targets.append(
+                        str(task.get("phase_id") or task.get("task") or f"index-{index}")
+                    )
+
+            if rollback_targets:
+                targets = ", ".join(rollback_targets)
+                raise ValueError(
+                    f"Invalid task transition: done -> in_progress rollback is not allowed ({targets})"
+                )
+
+        if len(in_progress_indices) > 1:
+            kept_index = in_progress_indices[0]
+            kept_name = str(tasks[kept_index].get("task") or f"index-{kept_index}").strip()
+            for extra_index in in_progress_indices[1:]:
+                tasks[extra_index]["status"] = "pending"
+            warnings.append(
+                f"同时有 {len(in_progress_indices)} 个任务为 in_progress，已保留首个「{kept_name}」，"
+                f"其余 {len(in_progress_indices) - 1} 个已自动调整为 pending。"
             )
+
+        return warnings
 
     _ARTIFACT_CONTRACT_FIELDS = ("task_kind", "artifact_file_type", "artifact_refs", "unit_spec", "artifact")
     _SERVER_PROGRESS_FIELDS = ("done_units", "progress", "completed_artifact_refs")
@@ -323,25 +332,58 @@ class ProjectOperations:
     def _matching_artifacts(task: dict[str, Any], artifacts: list[ArtifactEvidence]) -> list[ArtifactEvidence]:
         file_type = task_artifact_type(task)
         refs = set(task.get("artifact_refs") or [])
-        matching = [item for item in artifacts if item.file_type == file_type and (not refs or item.id in refs)]
-        spec = task_evidence_spec(task)
-        if spec:
-            return [item for item in matching if artifact_units([item], spec.unit, file_type) & spec.numbers]
+        if refs:
+            matching = [
+                item for item in artifacts
+                if item.id in refs and ref_type_matches(file_type, item.file_type)
+            ]
+        else:
+            matching = [item for item in artifacts if item.file_type == file_type]
+        if task_requires_unit_spec(task):
+            spec = task_evidence_spec(task)
+            if spec:
+                return [item for item in matching if artifact_units([item], spec.unit, file_type) & spec.numbers]
         title = str(task.get("artifact") or "").strip()
         return matching if refs else [item for item in matching if title and title == item.title.strip()]
 
     @staticmethod
-    def _missing_artifact_evidence(task: dict[str, Any], matching: list[ArtifactEvidence]) -> str:
+    def _missing_artifact_evidence(
+        task: dict[str, Any],
+        matching: list[ArtifactEvidence],
+        artifacts: list[ArtifactEvidence] | None = None,
+    ) -> str:
         file_type = task_artifact_type(task)
         if file_type is None:
             return "明确的产物类型；非文件任务须显式标记 task_kind=conversation"
         refs = set(task.get("artifact_refs") or [])
-        if refs and not refs <= {item.id for item in matching}:
+        matched_ids = {item.id for item in matching}
+        if refs and not refs <= matched_ids:
+            if artifacts is not None:
+                live_by_id = {item.id: item for item in artifacts}
+                spec = task_evidence_spec(task) if task_requires_unit_spec(task) else None
+                details: list[str] = []
+                has_type_or_missing_issue = False
+                for ref_id in sorted(refs - matched_ids):
+                    actual = live_by_id.get(ref_id)
+                    if actual is None:
+                        has_type_or_missing_issue = True
+                        details.append(f"{ref_id}(不存在、已删除或内容为空)")
+                    elif not ref_type_matches(file_type, actual.file_type):
+                        has_type_or_missing_issue = True
+                        details.append(f"{ref_id}(实际类型={actual.file_type}，期望={file_type})")
+                    elif spec is not None:
+                        details.append(f"{ref_id}(未匹配预期编号：{format_units(spec.numbers, spec.unit)})")
+                    else:
+                        details.append(f"{ref_id}(未满足任务交付条件)")
+                if details:
+                    prefix = "对应类型的产物文件" if has_type_or_missing_issue else "符合预期编号的产物文件"
+                    return f"{prefix}：{'; '.join(details)}"
             return "对应类型的产物文件"
-        spec = task_evidence_spec(task)
-        if spec is not None:
-            missing = set(spec.numbers) - artifact_units(matching, spec.unit, file_type)
-            return format_units(missing, spec.unit) if missing else ""
+        if task_requires_unit_spec(task):
+            spec = task_evidence_spec(task)
+            if spec is not None:
+                missing = set(spec.numbers) - artifact_units(matching, spec.unit, file_type)
+                return format_units(missing, spec.unit) if missing else ""
         if refs or task.get("artifact"):
             return "" if matching else "完全同名、对应类型的产物文件"
         return "明确的产物引用或编号"
@@ -411,7 +453,7 @@ class ProjectOperations:
             prior_refs = set(prior.get("completed_artifact_refs") or []) if same_contract else set()
             verified = [item for item in matching if item.id in prior_refs | written_ids]
             if task.get("status") == "done":
-                missing = self._missing_artifact_evidence(task, matching)
+                missing = self._missing_artifact_evidence(task, matching, artifacts)
                 if missing:
                     # A previously verified completion can become stale after human edits.
                     # Correct that fact instead of retaining a false done status.
@@ -424,16 +466,16 @@ class ProjectOperations:
                     verified = matching
             if verified:
                 task["completed_artifact_refs"] = sorted(item.id for item in verified)
-            spec = task_evidence_spec(task)
+            spec = task_evidence_spec(task) if task_requires_unit_spec(task) else None
             if spec:
                 covered = artifact_units(verified, spec.unit, file_type) & spec.numbers
                 missing_units = set(spec.numbers) - covered
-                if covered and not missing_units and not self._missing_artifact_evidence(task, verified):
+                if covered and not missing_units and not self._missing_artifact_evidence(task, verified, artifacts):
                     task["status"] = "done"
                 elif covered:
                     task["done_units"] = sorted(covered)
                     task["progress"] = f"已写：{format_units(covered, spec.unit)}；待写：{format_units(missing_units, spec.unit)}"
-            elif verified and not self._missing_artifact_evidence(task, verified):
+            elif verified and not self._missing_artifact_evidence(task, verified, artifacts):
                 task["status"] = "done"
         return unverified
 
@@ -743,7 +785,9 @@ class ProjectOperations:
             self._carry_artifact_contract(tasks_payload, previous_tasks)
 
             try:
-                self._validate_update_plan_tasks(tasks=tasks_payload, previous_tasks=previous_tasks)
+                validation_warnings = self._validate_update_plan_tasks(
+                    tasks=tasks_payload, previous_tasks=previous_tasks
+                )
             except ValueError as validation_error:
                 # Task board is best-effort metadata. Validation failures should not
                 # crash the writing workflow; keep the previous board unchanged.
@@ -836,6 +880,8 @@ class ProjectOperations:
                 },
                 "tasks": validated_tasks,
             }
+            if validation_warnings:
+                result["warning"] = " ".join(validation_warnings)
             return result
 
         except Exception as e:

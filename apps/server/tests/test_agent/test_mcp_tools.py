@@ -974,11 +974,8 @@ async def test_create_folder_marker_free_on_offload_path(db_session):
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_create_folder_still_blocked_while_file_awaits_content(db_session):
-    """已有待写入正文的文件时，建文件夹仍被拦截（保留防内容丢失的守卫）。
-
-    stream_adapter 会把最近一次 create_file 的返回无条件设为流式捕获目标，
-    因此在正文写完前插入任何 create_file（含文件夹）都会让前一个文件的正文写错
-    位置；这里的拦截是可恢复的：写完正文后标记清除，建文件夹即可继续。
+    """已有待写入正文的文件时，建文件夹不占用 <file> 槽位可直接成功，且保留原待写文件标记；
+    建另一个需要正文的空文件仍被拦截（保留防内容丢失的守卫）。
     """
     user, project = _make_user_and_project(db_session, "folderguard")
 
@@ -989,19 +986,32 @@ async def test_create_folder_still_blocked_while_file_awaits_content(db_session)
         session_id="sess-folder-guard",
     )
     chapter = await create_file({"title": "第1章", "file_type": "draft"}, request_context=req_ctx)
-    assert _parse_payload(chapter)["status"] == "success"
+    chapter_payload = _parse_payload(chapter)
+    assert chapter_payload["status"] == "success"
     assert req_ctx.has_pending_empty_file() is True
 
-    blocked = await create_file({"title": "第一卷", "file_type": "folder"}, request_context=req_ctx)
+    # 文件夹是纯容器，stream_adapter 与 tools_adapter 均不为其开启流式捕获，可直接创建且不覆盖原待写标记
+    folder = await create_file({"title": "第一卷", "file_type": "folder"}, request_context=req_ctx)
+    folder_payload = _parse_payload(folder)
+    assert folder_payload["status"] == "success"
+    assert folder_payload["data"]["file_type"] == "folder"
+    assert folder_payload["data"].get("awaiting_body") is not True
+    assert [entry["file_id"] for entry in req_ctx.get_pending_empty_files()] == [chapter_payload["data"]["id"]]
+
+    # 建另一个待写正文的空文件仍被拦截
+    blocked = await create_file({"title": "第2章", "file_type": "outline"}, request_context=req_ctx)
     blocked_payload = _parse_payload(blocked)
     assert blocked_payload["status"] == "error"
     assert "第1章" in blocked_payload["error"]
 
-    # 正文写入后（stream_adapter 清除标记）文件夹可以正常创建
+    # 正文写入后（stream_adapter 清除标记）新文件夹与新空文件都可以正常创建
     req_ctx.clear_pending_empty_file()
-    folder = await create_file({"title": "第一卷", "file_type": "folder"}, request_context=req_ctx)
-    assert _parse_payload(folder)["status"] == "success"
+    folder2 = await create_file({"title": "第二卷", "file_type": "folder"}, request_context=req_ctx)
+    assert _parse_payload(folder2)["status"] == "success"
     assert req_ctx.has_pending_empty_file() is False
+    outline2 = await create_file({"title": "第2章", "file_type": "outline"}, request_context=req_ctx)
+    assert _parse_payload(outline2)["status"] == "success"
+    assert req_ctx.has_pending_empty_file() is True
 
 
 @pytest.mark.asyncio

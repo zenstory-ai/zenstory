@@ -662,7 +662,10 @@ SOURCE_TEXT_EXISTING_MISMATCH_ERROR_TYPE = "source_text_existing_mismatch"
 
 
 _LINE_BREAK_RE = re.compile(r"\r\n|\r|\n")
+_AUTHOR_LINE_ITER_RE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n|$)")
 _CANONICAL_LINE_SEP = r"[ \t]*(?:\r\n|\r|\n)(?:[ \t]*(?:\r\n|\r|\n))*"
+_SOURCE_SNAP_MIN_CHARS = 500
+_SOURCE_SNAP_MIN_LINE_MATCH_RATIO = 0.98
 
 
 def _find_unique_line_match(author_message: str, candidate: str) -> str | None:
@@ -699,14 +702,102 @@ def _match_verbatim_author_span(author_message: str, source_text: str) -> str | 
     return _find_unique_line_match(author_message, stripped)
 
 
+def _match_long_paste_verbatim_snap(author_message: str, source_text: str) -> str | None:
+    """长原文粘贴（>=500 字符）的 98% 逐行对齐回切：返回作者消息原始字节切片。
+
+    仅在首尾非空行各自在作者消息中按顺序唯一命中、行数完全一致（禁止跳段/漏行/插行）、
+    且至少 98% 的非空行逐字一致、差异字符极少（容忍模型 JSON 复制偶发的 1–3 个乱码/错字，如 U+FFFD）时生效，
+    落库始终取作者原始切片 author_message[start:end]，保证 100% 作者原文保真。
+    """
+    from difflib import SequenceMatcher
+
+    stripped = source_text.strip()
+    if len(stripped) < _SOURCE_SNAP_MIN_CHARS:
+        return None
+
+    cand_lines = [line.rstrip(" \t") for line in _LINE_BREAK_RE.split(source_text) if line.strip(" \t")]
+    if len(cand_lines) < 2:
+        return None
+
+    # Extract non-blank lines from author_message with exact character offsets,
+    # splitting strictly on \r\n / \r / \n (matching _LINE_BREAK_RE; str.splitlines
+    # would also split on \u2028/\u2029/\x0b and break line alignment).
+    author_lines: list[tuple[int, int, str]] = []
+    for match in _AUTHOR_LINE_ITER_RE.finditer(author_message):
+        raw_line = match.group(0)
+        if not raw_line:
+            continue
+        body = raw_line.rstrip("\r\n")
+        if body.strip(" \t"):
+            trimmed = body.rstrip(" \t")
+            start = match.start()
+            author_lines.append((start, start + len(trimmed), trimmed))
+    if len(author_lines) < len(cand_lines):
+        return None
+
+    first_cand, last_cand = cand_lines[0], cand_lines[-1]
+    first_hits = [idx for idx, (_s, _e, text) in enumerate(author_lines) if text == first_cand]
+    if not first_hits:
+        first_l = first_cand.lstrip(" \t")
+        first_hits = [idx for idx, (_s, _e, text) in enumerate(author_lines) if text.lstrip(" \t") == first_l]
+    last_hits = [idx for idx, (_s, _e, text) in enumerate(author_lines) if text == last_cand]
+    if len(first_hits) != 1 or len(last_hits) != 1:
+        return None
+    first_idx, last_idx = first_hits[0], last_hits[0]
+    if first_idx >= last_idx:
+        return None
+
+    slice_lines = author_lines[first_idx : last_idx + 1]
+    if len(slice_lines) != len(cand_lines):
+        return None
+
+    exact_count = 0
+    mismatched_pairs: list[tuple[str, str]] = []
+    for line_idx, ((_s, _e, author_text), cand_text) in enumerate(zip(slice_lines, cand_lines, strict=True)):
+        if author_text == cand_text or (
+            line_idx == 0 and author_text.lstrip(" \t") == cand_text.lstrip(" \t")
+        ):
+            exact_count += 1
+        else:
+            mismatched_pairs.append((author_text, cand_text))
+
+    if exact_count / len(cand_lines) < _SOURCE_SNAP_MIN_LINE_MATCH_RATIO:
+        return None
+
+    raw_slice = author_message[slice_lines[0][0] : slice_lines[-1][1]].replace("\r\n", "\n").replace("\r", "\n")
+    char_diff = 0
+    for author_text, cand_text in mismatched_pairs:
+        matched_chars = sum(
+            block.size for block in SequenceMatcher(None, author_text, cand_text, autojunk=False).get_matching_blocks()
+        )
+        char_diff += (len(author_text) + len(cand_text)) - 2 * matched_chars
+    if char_diff > max(10, int(len(raw_slice) * 0.02)):
+        return None
+    return raw_slice
+
+
+def _request_author_messages(req_ctx: AgentRequestContext) -> list[str]:
+    """Return all raw user messages delivered in this request (initial + consumed steering)."""
+    messages: list[str] = []
+    if isinstance(req_ctx.author_message, str):
+        messages.append(req_ctx.author_message)
+    steering = req_ctx.author_steering
+    if isinstance(steering, (list, tuple)):
+        for msg in list(steering):
+            if isinstance(msg, str):
+                messages.append(msg)
+    return messages
+
+
 def _source_copy_content(
     args: dict[str, Any], req_ctx: AgentRequestContext
 ) -> tuple[str | None, dict[str, Any] | None]:
-    """Validate a model-selected exact span from this request's raw author message.
+    """Validate a model-selected exact span from this request's raw author messages.
 
     The model chooses what the material means and which span belongs in a file.  This
-    guard only proves that the bytes being saved came from the current request; it does
-    not infer intent or expand the selected range from natural language.
+    guard only proves that the bytes being saved came from the current request (initial
+    message or mid-run steering); it does not infer intent or expand the selected range
+    from natural language.
     """
     if "source_text" not in args:
         return None, None
@@ -733,14 +824,29 @@ def _source_copy_content(
             tool_name="create_file",
         )
 
-    author_message = req_ctx.author_message
-    if not isinstance(author_message, str):
+    author_messages = _request_author_messages(req_ctx)
+    if not author_messages:
         return None, _make_structured_error(
             "当前调用没有可校验的作者原始消息，不能复制 source_text；没有新建文件。",
             error_type=SOURCE_TEXT_CONTEXT_MISSING_ERROR_TYPE,
             tool_name="create_file",
         )
-    matched_span = _match_verbatim_author_span(author_message, source_text)
+
+    exact_matches = {
+        matched
+        for msg in author_messages
+        if (matched := _match_verbatim_author_span(msg, source_text)) is not None
+    }
+    matched_span: str | None = next(iter(exact_matches)) if len(exact_matches) == 1 else None
+    if matched_span is None and not exact_matches:
+        snapped_matches = {
+            matched
+            for msg in author_messages
+            if (matched := _match_long_paste_verbatim_snap(msg, source_text)) is not None
+        }
+        if len(snapped_matches) == 1:
+            matched_span = next(iter(snapped_matches))
+
     if matched_span is None:
         return None, _make_structured_error(
             "source_text 不是作者本轮消息中的逐字连续原文；不要改写、拼接或补字段。没有新建文件。",
@@ -1328,7 +1434,7 @@ def _create_file_sync(
         # 空文件，后置位的把先置位的覆盖掉——先建的空文件从此没有任何指针。
         # 因此这里先 try_reserve 占坑，落库后再 bind 真实 file_id。
         reservation: str | None = None
-        if not content and not empty_by_request:
+        if not content and not empty_by_request and parsed.file_type != "folder":
             reservation = f"reserve-{uuid4().hex}"
             acquired, blocking_title = req_ctx.try_reserve_pending_empty_file(
                 reservation, title
@@ -1483,6 +1589,18 @@ def _edit_file_sync(
         },
     )
     if validation_error is not None or parsed is None:
+        raw_id = args.get("id") if isinstance(args, dict) else None
+        if raw_id is None and isinstance(args, dict):
+            raw_id = args.get("file_id") if args.get("file_id") is not None else args.get("fileId")
+        is_missing_id = raw_id is None or (isinstance(raw_id, str) and not raw_id.strip())
+        if is_missing_id and validation_error is not None:
+            known_ids = req_ctx.known_file_ids(limit=5)
+            if known_ids:
+                validation_error = dict(validation_error)
+                hint = f" 本轮已知文件 ID：{', '.join(known_ids)}（请确认后传入准确的 id）。"
+                validation_error["error"] = f"{validation_error.get('error', '')}{hint}"
+                validation_error["message"] = validation_error["error"]
+                validation_error["recent_file_ids"] = known_ids
         return _make_mcp_payload(validation_error, tool_name=tool_name)
 
     file_id = parsed.id
@@ -2365,18 +2483,53 @@ def _resolve_skill_for_tool(
     session: Session, req_ctx: AgentRequestContext | None, tool_name: str, name: str
 ):
     """Resolve an active skill for the current user; returns (skill, same-name skills, error_result)."""
+    from agent.loop.ui_actions import (
+        OFFICIAL_NATURAL_POLISH_SKILL_NAME,
+        UI_ACTION_NATURAL_POLISH,
+        resolve_official_natural_polish_skill,
+    )
     from agent.skills.active_skills import (
+        ActiveSkill,
         find_active_skill,
         load_active_skills,
         same_name_skills,
+        skill_name_key,
         suggest_skill_names,
     )
+    from config.official_skill_translations import OFFICIAL_SKILL_EN
 
     user_id = req_ctx.user_id if req_ctx is not None else None
     if not user_id:
         return None, [], _make_error("user_id not set", tool_name=tool_name)
     if not name:
         return None, [], _make_error("name is required", tool_name=tool_name)
+
+    # During ui_action="natural_polish", ui_actions.py injects the official "去AI味"
+    # instructions directly. Resolve references against that official skill FIRST so a
+    # user's custom skill named "去AI味" cannot shadow its reference files, while still
+    # allowing explicit lookup of any other skill by name or ID below.
+    if (
+        tool_name == "read_skill_resource"
+        and req_ctx is not None
+        and req_ctx.ui_action == UI_ACTION_NATURAL_POLISH
+    ):
+        official = resolve_official_natural_polish_skill(session)
+        if official is not None:
+            official_active = ActiveSkill(
+                id=official.id,
+                name=official.name,
+                description=official.description or "",
+                instructions=official.instructions or "",
+                source="added",
+            )
+            official_en_entry = OFFICIAL_SKILL_EN.get(OFFICIAL_NATURAL_POLISH_SKILL_NAME)
+            official_en_name = official_en_entry[0] if official_en_entry else None
+            if find_active_skill([official_active], name) is not None or (
+                official.name == OFFICIAL_NATURAL_POLISH_SKILL_NAME
+                and official_en_name is not None
+                and skill_name_key(name) == skill_name_key(official_en_name)
+            ):
+                return official_active, [], None
 
     skills = load_active_skills(session, user_id)
     skill = find_active_skill(skills, name)

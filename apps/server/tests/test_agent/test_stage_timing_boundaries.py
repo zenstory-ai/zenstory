@@ -325,7 +325,7 @@ async def test_file_save_timing_closes_on_cancellation(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_executed_tool_business_failures_reach_the_run_summary_without_content():
-    """edit_file failures (a whole batch rolled back by default) are counted, not their text."""
+    """edit_file failures (an explicit continue_on_error=False batch rolls back as a whole) are counted, not their text."""
     from agent.core.run_meter import AgentRunMeter
     from agent.openai_agents.tools_adapter import invoke_project_tool
 
@@ -343,7 +343,11 @@ async def test_executed_tool_business_failures_reach_the_run_summary_without_con
         return next(results)
 
     with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"edit_file": fake_edit}, clear=True):
-        batch = json.dumps({"id": "draft-1", "edits": [{"op": "replace", "old": "private-a", "new": "b"}] * 23})
+        batch = json.dumps({
+            "id": "draft-1",
+            "continue_on_error": False,
+            "edits": [{"op": "replace", "old": "private-a", "new": "b"}] * 23,
+        })
         single = json.dumps({"id": "draft-1", "edits": [{"op": "replace", "old": "private-a", "new": "b"}]})
         keep_going = json.dumps({
             "id": "draft-1", "continue_on_error": True, "edits": [{"op": "replace", "old": "private-a", "new": "b"}] * 3,

@@ -1,25 +1,43 @@
 """单循环 agent 每轮附在作者消息前的结构化上下文。
 
-只放这一轮请求本身带来的东西：项目信息与写作约定、作者正在看的文件、附加的文件、附加的素材库条目、
-引用的文字、作者选的技能；另附 <author_edits>：焦点、附加文件和本会话 AI 写过的正文文件里，
-作者在 AI 写过之后亲手改了哪几处（与图同一套 SessionLoader.author_edits_for_files，有文件数上限）。解析沿用 ContextAssembler 的既有解析器（归属校验、素材库
-格式化、渲染标注都一样），但不做优先级裁剪、检索片段和文件清单：项目里其他文件由模型用 query_files 查。
+只放这一轮请求本身带来的东西：项目信息与写作约定、紧凑的项目文件索引（`<project_files>`，按
+类型与章节顺序确定性排序、有界封顶，避免模型首步空跑 `query_files(list)`）、作者正在看的文件、
+附加的文件、附加的素材库条目、引用的文字、作者选的技能；另附 <author_edits>：焦点、附加文件和
+本会话 AI 写过的正文文件里，作者在 AI 写过之后亲手改了哪几处（与图同一套 SessionLoader.author_edits_for_files，
+有文件数上限）。解析沿用 ContextAssembler 的既有解析器（归属校验、素材库格式化、渲染标注都一样），
+不做优先级裁剪和检索片段：文件正文由模型按索引 ID 用 query_files 读取。
 """
 
 from __future__ import annotations
 
 import contextlib
+import json
 import threading
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from agent.core.message_manager import TURN_CONTEXT_CLOSE, TURN_CONTEXT_OPEN, MessageManager
 from agent.loop.ui_actions import UIAction, build_ui_action_turn_section
 from utils.logger import get_logger, log_with_context
+from utils.text_metrics import count_words
 
 logger = get_logger(__name__)
+
+PROJECT_FILES_OPEN = "<project_files>"
+PROJECT_FILES_CLOSE = "</project_files>"
+PROJECT_FILES_MANIFEST_MAX_FILES = 150
+# 参考资料优先于大批量正文分章，确保超大长篇封顶时大纲/角色/设定不被数百章正文挤出索引。
+_MANIFEST_TYPE_ORDER: dict[str, int] = {
+    "outline": 0,
+    "character": 1,
+    "lore": 2,
+    "snippet": 3,
+    "document": 4,
+    "draft": 5,
+    "script": 6,
+}
 
 _PREAMBLE = (
     "这一段由系统在本轮开始时附上（不是作者写的）：作者这一轮附带的文件、素材和引用，以及项目信息。"
@@ -102,8 +120,23 @@ def build_loop_turn_context(
     project_status = assembler.get_project_status(session, project_id)
     rendered = assembler.format_context(items, None, project_status)
 
+    loaded_word_counts: dict[str, int] = {}
+    for item in items:
+        file_id = assembler.item_file_id(item)
+        if file_id and not item.is_truncated and isinstance(item.content, str):
+            loaded_word_counts[file_id] = count_words(item.content)
+
     manager = MessageManager(project_id=project_id, user_id=user_id)
     parts: list[str] = [TURN_CONTEXT_OPEN, _PREAMBLE_EN if force_en else _PREAMBLE, "", rendered.strip()]
+    project_files = _project_files_block(
+        session,
+        project_id=project_id,
+        force_en=force_en,
+        loaded_word_counts=loaded_word_counts,
+        cancel_event=cancel_event,
+    )
+    if project_files:
+        parts.extend(["", project_files])
     author_edits = _author_edits_block(
         session,
         project_id=project_id,
@@ -158,6 +191,113 @@ def build_loop_turn_context(
 
 # 本会话 AI 写过、会一起核对作者手改的正文类文件。
 _BODY_FILE_TYPES = ("draft", "script")
+
+
+def _decode_file_metadata(raw_metadata: str | None) -> dict[str, Any]:
+    if not raw_metadata:
+        return {}
+    try:
+        parsed = json.loads(raw_metadata)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _project_files_block(
+    session: Session,
+    *,
+    project_id: str,
+    force_en: bool,
+    loaded_word_counts: dict[str, int] | None = None,
+    max_files: int = PROJECT_FILES_MANIFEST_MAX_FILES,
+    cancel_event: threading.Event | None = None,
+) -> str:
+    """构建紧凑有界的 `<project_files>` 索引块（仅查元数据列，不触发 PostgreSQL TOAST 解压）。
+
+    放在每轮动态 `<turn_context>` 内（静态系统提示与已缓存历史之后），保持前缀缓存 100% 稳定，
+    同时消除模型首步为找文件 ID 空跑 `query_files(list)` 的额外往返。
+    """
+    from models import File
+    from models.file_model import cached_word_count
+    from utils.title_sequence import build_sequence_sort_key
+
+    if max_files <= 0 or (cancel_event is not None and cancel_event.is_set()):
+        return ""
+    try:
+        rows = session.exec(
+            select(
+                File.id,
+                File.title,
+                File.file_type,
+                File.order,
+                File.file_metadata,
+                File.created_at,
+            ).where(
+                File.project_id == project_id,
+                File.file_type != "folder",
+                File.is_deleted.is_(False),
+            )
+        ).all()
+    except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
+        with contextlib.suppress(Exception):
+            session.rollback()
+        log_with_context(
+            logger,
+            30,
+            "Loop project files manifest build failed",
+            project_id=project_id,
+            error_type=type(exc).__name__,
+        )
+        return ""
+
+    if not rows:
+        return ""
+
+    entries: list[tuple[tuple[int, str, int, int, str, str], str]] = []
+    for file_id, title, file_type, file_order, raw_metadata, created_at in rows:
+        meta = _decode_file_metadata(raw_metadata)
+        ftype = str(file_type or "document")
+        clean_title = " ".join(str(title or "").split()) or "(untitled)"
+        effective_order, seq_num = build_sequence_sort_key(
+            file_order,
+            title=clean_title,
+            metadata=meta,
+            file_type=ftype,
+        )
+        created_key = created_at.isoformat() if created_at is not None else ""
+        sort_key = (
+            _MANIFEST_TYPE_ORDER.get(ftype, len(_MANIFEST_TYPE_ORDER)),
+            ftype,
+            effective_order,
+            seq_num,
+            created_key,
+            str(file_id),
+        )
+        word_count = cached_word_count(raw_metadata)
+        if word_count is None and loaded_word_counts and file_id in loaded_word_counts:
+            word_count = loaded_word_counts[file_id]
+        wc_part = (
+            (f", {word_count} words" if force_en else f", {word_count}字")
+            if isinstance(word_count, int)
+            else ""
+        )
+        line = f"- [{ftype}] {clean_title} (id={file_id}{wc_part})"
+        entries.append((sort_key, line))
+
+    entries.sort(key=lambda item: item[0])
+    shown = entries[:max_files]
+    remaining = len(entries) - len(shown)
+
+    lines = [PROJECT_FILES_OPEN, *(line for _, line in shown)]
+    if remaining > 0:
+        footer = (
+            f"... (+{remaining} more; use query_files to list or search remaining files)"
+            if force_en
+            else f"... (+{remaining} more；其余文件可用 query_files 查阅)"
+        )
+        lines.append(footer)
+    lines.append(PROJECT_FILES_CLOSE)
+    return "\n".join(lines)
 
 
 def _bound_turn_context_items(

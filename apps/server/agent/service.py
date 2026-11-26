@@ -1325,6 +1325,9 @@ class AgentService:
                 # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,
+                # 当轮经服务端校验的结构化 UI 动作（例如 ui_action="natural_polish" 时允许
+                # read_skill_resource 读取官方 PublicSkill('去AI味') 资源）。
+                ui_action=ui_action,
                 # 本轮开始时模型看到的正文：edit_file 拒绝基于旧正文的修改（作者生成期间又改了）。
                 read_snapshots=loop_turn.read_snapshots,
                 # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。

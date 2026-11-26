@@ -124,10 +124,11 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     assert wc_schema["properties"]["file_type"]["enum"] == ["draft", "script"]
     assert "metadata" not in wc_schema["properties"]
 
-    # edit_file: edits item schema inlined, continue_on_error default=False, occurrence minimum=1
+    # edit_file: edits item schema inlined, continue_on_error omits conflicting static default, occurrence minimum=1
     edit_schema = TOOL_SCHEMAS["edit_file"]["input_schema"]
     assert edit_schema["required"] == ["id", "edits"]
-    assert edit_schema["properties"]["continue_on_error"]["default"] is False
+    assert edit_schema["properties"]["continue_on_error"]["type"] == "boolean"
+    assert "default" not in edit_schema["properties"]["continue_on_error"]
     edit_item = edit_schema["properties"]["edits"]["items"]
     assert edit_item["required"] == ["op"]
     assert edit_item["properties"]["occurrence"]["minimum"] == 1
