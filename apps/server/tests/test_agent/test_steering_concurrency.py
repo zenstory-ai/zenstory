@@ -51,28 +51,36 @@ class TestConcurrentAccess:
     """Test concurrent access to steering queue."""
 
     async def test_concurrent_add_and_get(self):
-        """Concurrent add and get_pending should not lose messages."""
+        """Concurrent add and get_pending should not lose or duplicate messages."""
         queue = SteeringQueue()
         added_count = 0
-        get_count = 0
+        collected: list[str] = []
 
         async def add_messages():
             nonlocal added_count
             for i in range(20):
                 await queue.add(f"Message {i}")
                 added_count += 1
+                if i % 5 == 0:
+                    await asyncio.sleep(0)
 
         async def get_messages():
-            nonlocal get_count
-            await asyncio.sleep(0.01)  # Small delay
-            pending = await queue.get_pending()
-            get_count += len(pending)
+            for _ in range(4):
+                await asyncio.sleep(0)
+                pending = await queue.get_pending()
+                collected.extend(msg.content for msg in pending)
 
         # Run add and get concurrently
         await asyncio.gather(add_messages(), get_messages())
 
-        # All messages should be accounted for
+        # Drain any remaining messages that arrived after the last concurrent poll
+        remaining = await queue.get_pending()
+        collected.extend(msg.content for msg in remaining)
+
         assert added_count == 20
+        assert len(collected) == 20
+        assert set(collected) == {f"Message {i}" for i in range(20)}
+        assert await queue.get_pending() == []
 
     async def test_concurrent_sessions_isolated(self):
         """Different sessions should have isolated queues."""
@@ -119,15 +127,18 @@ class TestQueueManagerConcurrency:
         await _queue_manager.cleanup(session_id, run_id="same-run")
 
     async def test_concurrent_cleanup(self):
-        """Concurrent cleanup should not raise errors."""
+        """Concurrent cleanup should not raise errors and must remove the queue."""
         from agent.core.steering import _queue_manager
 
         session_id = "cleanup-test-session"
 
         # Create queue
         await _queue_manager.claim_queue(session_id, "concurrency-user", "run-a")
+        assert await get_steering_queue_for_user_async(session_id, "concurrency-user") is not None
 
-        # Concurrent cleanup should not raise
+        # Concurrent cleanup should not raise and must leave no dangling queue
         await asyncio.gather(*[
             _queue_manager.cleanup(session_id) for _ in range(5)
         ])
+        with pytest.raises(KeyError):
+            await get_steering_queue_for_user_async(session_id, "concurrency-user")
