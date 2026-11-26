@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
@@ -68,9 +68,21 @@ class ChatFeedbackService:
         Returns:
             Dict compatible with MessageFeedbackResponse.
         """
-        message: ChatMessage | ChatMessageArchive | None = session.get(ChatMessage, message_id)
+        # Lock hot row first (FOR UPDATE on PG) so concurrent archival cannot delete
+        # the row mid-request and cause StaleDataError; fall back to locked cold row.
+        message: ChatMessage | ChatMessageArchive | None = session.exec(
+            select(ChatMessage)
+            .where(ChatMessage.id == message_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).first()
         if message is None and has_chat_message_archive_table(session.connection()):
-            message = session.get(ChatMessageArchive, message_id)
+            message = session.exec(
+                select(ChatMessageArchive)
+                .where(ChatMessageArchive.id == message_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ).first()
         if not message:
             raise APIException(
                 error_code=ErrorCode.CHAT_MESSAGE_NOT_FOUND,

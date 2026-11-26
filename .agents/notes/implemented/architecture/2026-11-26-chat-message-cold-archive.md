@@ -11,23 +11,24 @@
 
 ## Decision
 
-1. **解除 `chat_message_ux_summary` 到 `chat_message` 的级联外键约束**：
+1. **解除 `chat_message_ux_summary` 到 `chat_message` 的级联外键约束与迁移保护**：
    - 在 `models/chat_message_ux_summary.py` 与 Alembic 迁移 `20261126_000000_add_chat_message_archive.py`（接续 `20261124_180000`）中移除 `chat_message_ux_summary.message_id` 指向 `chat_message.id` 的 `ON DELETE CASCADE` 外键，保留 `message_id` 主键与现有索引。
-   - 迁移同时兼容 PostgreSQL（通过 `inspector.get_foreign_keys` 检索真实约束名再 `op.drop_constraint`）与 SQLite（通过 `batch_alter_table` + `naming_convention` 清理匿名内联外键）。
-   - 会话清空（`DELETE /api/v1/chat/session/{project_id}`）仍显式删除 `chat_message_ux_summary`，同时补充 `ChatMessageArchive` 的 `after_update` 监听器，使对冷表消息的反馈与撤销/恢复写回同步更新 `chat_message_ux_summary`。
-2. **新增冷表 `chat_message_archive` 与安全降级探测**：
-   - 新增模型 `models/chat_message_archive.py`（`ChatMessageArchive`），包含与 `chat_message` 相同的列（`session_id` 带 `ForeignKey("chat_session.id", ondelete="CASCADE")`）及 `archived_at`，建立复合索引 `ix_chat_message_archive_session_created_at_id (session_id, created_at, id)` 与 `ix_chat_message_archive_archived_at (archived_at)`。
+   - 迁移同时兼容 PostgreSQL（`upgrade()`/`downgrade()` 开头设 `SET LOCAL lock_timeout = '5s'` 避免长时间锁阻塞热表读写，通过 `inspector.get_foreign_keys` 检索真实约束名再 `op.drop_constraint`）与 SQLite（通过 `batch_alter_table` + `naming_convention` 清理匿名内联外键）。`downgrade()` 检测到 `chat_message_archive` 非空时 `raise RuntimeError` 拒绝删表，防止误回滚导致不可逆冷数据丢失。
+   - 会话清空（`DELETE /api/v1/chat/session/{project_id}`）按与归档一致的锁序**先删热表 `ChatMessage`、再删冷表 `ChatMessageArchive`、最后删 `ChatMessageUxSummary`**，避免并发归档导致已清空消息从冷表幽灵复活；同时补充 `ChatMessageArchive` 的 `after_update` 监听器，使对冷表消息的反馈与撤销/恢复写回同步更新 `chat_message_ux_summary`。
+2. **新增冷表 `chat_message_archive`、部分索引与安全降级探测**：
+   - 新增模型 `models/chat_message_archive.py`（`ChatMessageArchive`），包含与 `chat_message` 相同的列（`session_id` 带 `ForeignKey("chat_session.id", ondelete="CASCADE")`）及 `archived_at`，建立复合索引 `ix_chat_message_archive_session_created_at_id (session_id, created_at, id)` 与 `ix_chat_message_archive_archived_at (archived_at)`；在 PostgreSQL 迁移与 `database.py` 中补充与热表一致的反馈部分索引 `ix_chat_message_archive_assistant_feedback_created_at`（`ON chat_message_archive (created_at) WHERE role = 'assistant' AND message_metadata IS NOT NULL AND strpos(message_metadata, '"feedback"') > 0`），避免后台 `list_chat_feedback_votes` 全表扫描解压冷表 TOAST。
    - 导出 `has_chat_message_archive_table(connection)`（与 `has_chat_message_ux_summary_table` 同构，仅缓存存在状态），在迁移前滚动发布或精简测试库上自动降级不报错。
-3. **零丢失、先拷贝校验再删除的渐进式归档服务与运维 CLI**：
+3. **零丢失、前置守卫 + 先拷贝校验再删除的渐进式归档服务与运维 CLI**：
    - `services/chat_message_archival.py` 提供 `archive_chat_messages_batch` 与 `run_gradual_archival`：
+     - **Fail-closed 前置守卫**：每批开始前强校验 `chat_message_archive` 存在且 `sa.inspect(bind).get_foreign_keys("chat_message_ux_summary")` 无任何指向 `chat_message` 的外键（防止仅靠 `init_db()` `create_all()` 建表但漏跑迁移时级联清空 UX 汇总）。
      - 拷贝入冷表前，将 `tool_calls` 经 `archive_historical_tool_calls_json` 瘦身并转为紧凑 UTF-8 JSON（`ensure_ascii=False, separators=(",", ":")`），将 `message_metadata` 转为紧凑 UTF-8 JSON，并清理已在 `display_events` 中保存的重复 `reasoning_content`。
-     - 以小批次短事务（默认 `batch_size=500`、PG 使用 `FOR UPDATE SKIP LOCKED`）执行 `INSERT ... ON CONFLICT (id) DO NOTHING`，随后回查 `chat_message_archive` 校验整批每一条 `id` 均已落库；若校验缺失则立即回滚、绝不执行热表 `DELETE`，同时中止本轮渐进归档并由 CLI 返回非零退出码（`1`），避免掩盖异常或继续归档更新批次。
-     - 支持 `--dry-run`（零写零删）、`--older-than-days`（默认 7）、`--batch-size`（默认 500）、`--max-batches`（默认 20）、`--sleep-ms`（默认 100）以及默认关闭的 `--vacuum-analyze`（仅 PG 非阻塞 `VACUUM ANALYZE chat_message`，永不执行 `VACUUM FULL`）。日志仅记录数值计数与字节数，不记录原文与 PII。
+     - 以小批次短事务（默认 `batch_size=500`、PG 使用 `FOR UPDATE SKIP LOCKED`）执行 `INSERT ... ON CONFLICT (id) DO NOTHING`（若 `inserted < len(batch)` 记 warning 日志），随后回查 `chat_message_archive` 校验整批每一条 `id` 均已落库，并在同事务内核对/补写缺失的 `assistant` `chat_message_ux_summary` 行后复验；任一校验缺失即回滚、绝不执行热表 `DELETE`，同时中止本轮渐进归档并由 CLI 返回非零退出码（`1`）。
+     - 支持 `--dry-run`（零写零删）、`--older-than-days`（默认 7）、`--batch-size`（默认 500）、`--max-batches`（默认 20）、`--sleep-ms`（默认 100）以及默认关闭的 `--vacuum-analyze`（仅 PG 非阻塞 `VACUUM ANALYZE chat_message` + `ANALYZE chat_message_archive`，永不执行 `VACUUM FULL`）。日志仅记录数值计数与字节数，不记录原文与 PII。
    - 提供独立 CLI `scripts/archive_old_chat_messages.py` 供分批运维执行。
 4. **读/写/删透明冷热回退**：
-   - `GET /api/v1/chat/session/{project_id}/recent`：先查热表，仅当返回行数 `< limit`（或指定 `message_id` 未命中热表）时补充查询 `chat_message_archive`，按 `id` 去重并按 `(created_at, id)` 升序合并，复用同一套 `client_tool_calls` / `client_message_metadata` 瘦身逻辑。
-   - `POST /api/v1/chat/messages/{message_id}/feedback`（`services/chat_feedback_service.py`）与 `services/chat_tool_cards.py`（修改卡撤销 / 删除卡恢复与状态读取）：先查热表，未命中则回退到 `chat_message_archive` 执行同等权限校验与行锁写回。
-   - `DELETE /api/v1/chat/session/{project_id}`：同步清空 `chat_message_ux_summary`、`chat_message_archive` 与 `chat_message` 并去重合并返回清理条数。
+   - `load_active_session_recent_messages()`（供 `GET /api/v1/chat/session/{project_id}/recent` 及后续 `/bootstrap` 共用）：按 `fetch_limit = limit + 1` 先查热表，仅当热表不足 `limit + 1`（或指定 `message_id` 未命中热表）时补充查询 `chat_message_archive`，按 `id` 去重（热表优先）并按 `(created_at, id)` 升序合并，以 `len(merged) > limit` 精确判定 `has_more`（修复 `hot == limit, cold >= 1` 边界假阴性）后再切片 `[-limit:]`，复用同一套 `client_tool_calls` / `client_message_metadata` 瘦身逻辑。
+   - `POST /api/v1/chat/messages/{message_id}/feedback`（`services/chat_feedback_service.py`）与 `services/chat_tool_cards.py`（修改卡撤销 / 删除卡恢复与状态读取）：先通过 `with_for_update()` + `populate_existing=True` 锁查热表，未命中则回退锁查 `chat_message_archive` 执行同等权限校验与写回，防止并发归档引发 `StaleDataError` 500。
+   - `DELETE /api/v1/chat/session/{project_id}`：按热表 → 冷表 → `chat_message_ux_summary` 顺序同步清空并去重合并返回清理条数。
    - `agent/loop/history.py`（`load_loop_history`）：通过冷热双路降序归并（`(created_at, id) DESC`，按 `id` 去重且热表优先）按页读取会话行，即便并发 `SKIP LOCKED` 造成短暂冷热交错，也能保证严格时序、准确 `last_message_id`/`last_prompt_tokens` 与压缩锚点匹配。
    - `services/usage/admin_ux_metrics_service.py`（`list_chat_feedback_votes`）与 `agent/service.py`（`_project_has_ai_reply`）：同步支持 `chat_message_archive` 回退（按 `message_id` 去重且热表优先），确保 14d/30d 管理后台点踩明细与 UX 看板一致，且全归档旧项目不会误判为首条消息。
 

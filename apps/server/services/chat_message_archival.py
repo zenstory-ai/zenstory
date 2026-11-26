@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, text
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, col, select
@@ -35,6 +36,11 @@ from agent.core.chat_storage import (
 )
 from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from models.chat_message_archive import ChatMessageArchive, has_chat_message_archive_table
+from models.chat_message_ux_summary import (
+    ChatMessageUxSummary,
+    build_chat_message_ux_summary_row,
+    has_chat_message_ux_summary_table,
+)
 from models.entities import ChatMessage
 from utils.logger import get_logger, log_with_context
 
@@ -46,6 +52,7 @@ DEFAULT_MAX_BATCHES = 20
 DEFAULT_SLEEP_MS = 100
 
 _ARCHIVE_TABLE = ChatMessageArchive.__table__
+_SUMMARY_TABLE = ChatMessageUxSummary.__table__
 _INSERT_CHUNK_SIZE = 100
 _IN_CLAUSE_CHUNK_SIZE = 500
 
@@ -218,6 +225,133 @@ def _verify_archived_ids(session: Session, message_ids: list[str]) -> set[str]:
     return verified
 
 
+def _assert_ux_summary_fk_removed(connection: Any) -> None:
+    """Fail closed if ``chat_message_ux_summary`` still has any FK referencing ``chat_message``.
+
+    Prevents running archival on a database where ``init_db()`` ``create_all()``
+    created ``chat_message_archive`` without running ``alembic upgrade head`` to
+    drop the legacy ``ON DELETE CASCADE`` FK on ``chat_message_ux_summary``.
+    """
+    inspector = sa_inspect(connection)
+    if not inspector.has_table(ChatMessageUxSummary.__tablename__):
+        return
+    blocking_fks = [
+        fk
+        for fk in inspector.get_foreign_keys(ChatMessageUxSummary.__tablename__)
+        if fk.get("referred_table") == ChatMessage.__tablename__
+    ]
+    if blocking_fks:
+        fk_names = sorted(str(fk.get("name") or "<unnamed>") for fk in blocking_fks)
+        raise RuntimeError(
+            "chat_message_ux_summary still has foreign key(s) referencing chat_message "
+            f"({', '.join(fk_names)}); run alembic upgrade head before archiving"
+        )
+
+
+def _verify_ux_summary_ids(session: Session, message_ids: list[str]) -> set[str]:
+    """Return the subset of ``message_ids`` already present in ``chat_message_ux_summary``."""
+    verified: set[str] = set()
+    for idx in range(0, len(message_ids), _IN_CLAUSE_CHUNK_SIZE):
+        chunk = message_ids[idx : idx + _IN_CLAUSE_CHUNK_SIZE]
+        found = session.exec(
+            select(ChatMessageUxSummary.message_id).where(
+                col(ChatMessageUxSummary.message_id).in_(chunk)
+            )
+        ).all()
+        verified.update(str(row_id) for row_id in found)
+    return verified
+
+
+def _insert_ux_summary_rows_idempotent(
+    session: Session,
+    summary_rows: list[dict[str, Any]],
+) -> int:
+    """Backfill missing ``chat_message_ux_summary`` rows with ``ON CONFLICT DO NOTHING``."""
+    if not summary_rows:
+        return 0
+    dialect = _dialect_name(session)
+    inserted_total = 0
+
+    for idx in range(0, len(summary_rows), _INSERT_CHUNK_SIZE):
+        chunk = summary_rows[idx : idx + _INSERT_CHUNK_SIZE]
+        if dialect == "postgresql":
+            stmt = (
+                pg_insert(_SUMMARY_TABLE)
+                .values(chunk)
+                .on_conflict_do_nothing(index_elements=["message_id"])
+            )
+            res = session.exec(stmt)  # type: ignore[arg-type]
+            if res.rowcount is not None and res.rowcount >= 0:
+                inserted_total += int(res.rowcount)
+        elif dialect == "sqlite":
+            stmt = (
+                sqlite_insert(_SUMMARY_TABLE)
+                .values(chunk)
+                .on_conflict_do_nothing(index_elements=["message_id"])
+            )
+            res = session.exec(stmt)  # type: ignore[arg-type]
+            if res.rowcount is not None and res.rowcount >= 0:
+                inserted_total += int(res.rowcount)
+        else:
+            chunk_ids = [row["message_id"] for row in chunk]
+            existing = set(
+                session.exec(
+                    select(ChatMessageUxSummary.message_id).where(
+                        col(ChatMessageUxSummary.message_id).in_(chunk_ids)
+                    )
+                ).all()
+            )
+            missing = [row for row in chunk if row["message_id"] not in existing]
+            if missing:
+                session.exec(_SUMMARY_TABLE.insert().values(missing))  # type: ignore[arg-type]
+                inserted_total += len(missing)
+
+    return inserted_total
+
+
+def _ensure_assistant_ux_summaries(
+    session: Session,
+    batch: list[ChatMessage],
+) -> tuple[bool, int, int]:
+    """Ensure every assistant row in ``batch`` has a ``chat_message_ux_summary`` row.
+
+    Backfills any missing summary rows inside the same transaction and re-verifies
+    presence before hot deletion is permitted.
+
+    Returns ``(all_verified, backfilled_count, missing_count)``.
+    """
+    if not has_chat_message_ux_summary_table(session.connection()):
+        return True, 0, 0
+
+    assistant_rows = [row for row in batch if row.role == "assistant"]
+    if not assistant_rows:
+        return True, 0, 0
+
+    assistant_ids = [row.id for row in assistant_rows]
+    existing_ids = _verify_ux_summary_ids(session, assistant_ids)
+    missing_rows = [row for row in assistant_rows if row.id not in existing_ids]
+
+    backfilled = 0
+    if missing_rows:
+        summary_payloads = [
+            build_chat_message_ux_summary_row(
+                message_id=row.id,
+                session_id=row.session_id,
+                created_at=row.created_at,
+                raw_metadata=row.message_metadata,
+                raw_tool_calls=row.tool_calls,
+            )
+            for row in missing_rows
+        ]
+        backfilled = _insert_ux_summary_rows_idempotent(session, summary_payloads)
+        verified_ids = _verify_ux_summary_ids(session, assistant_ids)
+    else:
+        verified_ids = existing_ids
+
+    missing_count = len(set(assistant_ids) - verified_ids)
+    return missing_count == 0, backfilled, missing_count
+
+
 def _delete_hot_rows(session: Session, message_ids: list[str]) -> int:
     """Delete verified rows from hot ``chat_message``."""
     deleted_total = 0
@@ -277,10 +411,14 @@ def archive_chat_messages_batch(
         raise ValueError("older_than_days must be >= 0")
     if batch_size < 1:
         raise ValueError("batch_size must be >= 1")
-    if not has_chat_message_archive_table(session.connection()):
+    conn = session.connection()
+    if not has_chat_message_archive_table(conn):
         raise RuntimeError(
             "chat_message_archive table does not exist; run alembic upgrade head first"
         )
+    # Fail closed if chat_message_ux_summary still has an ON DELETE CASCADE FK to
+    # chat_message (e.g. init_db() create_all ran without alembic upgrade head).
+    _assert_ux_summary_fk_removed(conn)
 
     cutoff_naive = _resolve_cutoff_naive(older_than_days=older_than_days, cutoff=cutoff)
     is_pg = _dialect_name(session) == "postgresql"
@@ -383,8 +521,17 @@ def archive_chat_messages_batch(
 
     # Phase 1: Idempotent copy into cold table.
     inserted = _insert_archive_rows_idempotent(session, archive_payloads)
+    if inserted < len(batch):
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Archive insert skipped existing row(s) via ON CONFLICT DO NOTHING",
+            scanned=len(batch),
+            inserted=inserted,
+            skipped=len(batch) - inserted,
+        )
 
-    # Phase 2: Verify EVERY batch id exists in chat_message_archive before deleting anything.
+    # Phase 2a: Verify EVERY batch id exists in chat_message_archive before deleting anything.
     verified_ids = _verify_archived_ids(session, batch_ids)
     expected_ids = set(batch_ids)
     if verified_ids != expected_ids:
@@ -397,6 +544,43 @@ def archive_chat_messages_batch(
             scanned=len(batch),
             verified=len(verified_ids),
             missing=missing_count,
+        )
+        return ArchiveBatchResult(
+            scanned=len(batch),
+            archived=0,
+            deleted=0,
+            bytes_before=bytes_before,
+            bytes_after=bytes_after,
+            has_more=_has_more_candidates(
+                session, cutoff_naive=cutoff_naive, after_cursor=last_cursor
+            ),
+            oldest_remaining_at=_oldest_remaining_created_at(session),
+            last_cursor=last_cursor,
+            verification_failed=True,
+        )
+
+    # Phase 2b: Ensure every assistant row in this batch has a persisted
+    # chat_message_ux_summary row (backfilling missing rows in the same
+    # transaction) before deleting hot rows, so un-backfilled metrics are never orphaned.
+    summaries_ok, backfilled_summaries, missing_summaries = _ensure_assistant_ux_summaries(
+        session, batch
+    )
+    if backfilled_summaries > 0:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Backfilled missing chat_message_ux_summary row(s) before hot delete",
+            scanned=len(batch),
+            backfilled=backfilled_summaries,
+        )
+    if not summaries_ok:
+        session.rollback()
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Aborted hot chat_message delete because assistant ux_summary verification was incomplete",
+            scanned=len(batch),
+            missing=missing_summaries,
         )
         return ArchiveBatchResult(
             scanned=len(batch),
@@ -436,7 +620,7 @@ def archive_chat_messages_batch(
 
 
 def _run_postgres_vacuum_analyze(session_or_factory: Session | Callable[[], Session]) -> bool:
-    """Run non-blocking ``VACUUM ANALYZE chat_message`` on PostgreSQL only."""
+    """Run non-blocking ``VACUUM ANALYZE chat_message`` and ``ANALYZE chat_message_archive`` on PostgreSQL only."""
     ctx = (
         contextlib.nullcontext(session_or_factory)
         if isinstance(session_or_factory, Session)
@@ -450,6 +634,7 @@ def _run_postgres_vacuum_analyze(session_or_factory: Session | Callable[[], Sess
         engine = getattr(bind, "engine", bind)
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.execute(text("VACUUM ANALYZE chat_message"))
+            conn.execute(text("ANALYZE chat_message_archive"))
         return True
 
 

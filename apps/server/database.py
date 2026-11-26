@@ -137,6 +137,12 @@ POSTGRES_PERFORMANCE_INDEX_SQL: tuple[str, ...] = (
         "AND strpos(message_metadata, '\"feedback\"') > 0"
     ),
     (
+        "CREATE INDEX IF NOT EXISTS ix_chat_message_archive_assistant_feedback_created_at "
+        "ON chat_message_archive (created_at) "
+        "WHERE role = 'assistant' AND message_metadata IS NOT NULL "
+        "AND strpos(message_metadata, '\"feedback\"') > 0"
+    ),
+    (
         "CREATE INDEX IF NOT EXISTS ix_chat_message_assistant_tool_calls_created_at "
         "ON chat_message (created_at) "
         "WHERE role = 'assistant' AND tool_calls IS NOT NULL"

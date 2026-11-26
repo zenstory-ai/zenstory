@@ -1257,10 +1257,541 @@ def test_alembic_chat_message_archive_migration_drops_ux_fk_and_round_trips(tmp_
         assert surviving == 1
     engine.dispose()
 
-    # Downgrade back to 20261124_180000 succeeds cleanly even with orphan summary row,
-    # and drops chat_message_archive.
+    # Downgrade MUST refuse when chat_message_archive is non-empty (protecting cold data).
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO chat_message_archive "
+                "(id, session_id, role, content, created_at, archived_at) "
+                "VALUES ('m-cold-keep', 's-mig', 'assistant', 'archived reply', :now, :now)"
+            ),
+            {"now": now_str},
+        )
+    engine.dispose()
+
+    blocked_downgrade = subprocess.run(
+        [_alembic_executable(), "downgrade", PREV_REVISION],
+        cwd=SERVER_DIR,
+        env={**os.environ, "DATABASE_URL": db_url},
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert blocked_downgrade.returncode != 0
+    assert "Refusing to drop non-empty chat_message_archive" in (
+        blocked_downgrade.stdout + blocked_downgrade.stderr
+    )
+
+    engine = create_engine(db_url)
+    inspector = inspect(engine)
+    assert "chat_message_archive" in inspector.get_table_names()
+    assert "ix_chat_message_archive_session_created_at_id" in {
+        idx["name"] for idx in inspector.get_indexes("chat_message_archive")
+    }
+    with engine.begin() as conn:
+        kept = conn.execute(
+            text("SELECT COUNT(*) FROM chat_message_archive WHERE id = 'm-cold-keep'")
+        ).scalar_one()
+        assert kept == 1
+        # Now empty the archive table so empty-table downgrade round-trip can proceed.
+        conn.execute(text("DELETE FROM chat_message_archive"))
+    engine.dispose()
+
+    # Downgrade back to 20261124_180000 succeeds cleanly when archive table is empty,
+    # even with orphan summary row, and drops chat_message_archive.
     _run_alembic(db_url, "downgrade", PREV_REVISION)
     engine = create_engine(db_url)
     inspector = inspect(engine)
     assert "chat_message_archive" not in inspector.get_table_names()
     engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# 5. Wave 3 Pre-Merge Audit Hardening Regressions (P0-1, P0-2, P1-1..3, P2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_archive_fails_closed_when_ux_summary_fk_still_references_chat_message(
+    tmp_path: Path,
+) -> None:
+    """P0-1: init_db() create_all() without alembic upgrade head MUST fail closed without deleting."""
+    db_url = f"sqlite:///{tmp_path / 'chat-archive-fk-guard.db'}"
+    engine = create_engine(db_url)
+    SQLModel.metadata.create_all(engine)
+    engine.dispose()
+
+    # Build a DB at PREV_REVISION (chat_message_ux_summary still has CASCADE FK to chat_message).
+    _run_alembic(db_url, "stamp", "head")
+    _run_alembic(db_url, "downgrade", PRE_SUMMARY_REVISION)
+    _run_alembic(db_url, "upgrade", PREV_REVISION)
+
+    # Simulate new container startup calling init_db() -> SQLModel.metadata.create_all(),
+    # which creates chat_message_archive WITHOUT dropping chat_message_ux_summary's FK.
+    engine = create_engine(db_url)
+    SQLModel.metadata.create_all(engine)
+
+    inspector = inspect(engine)
+    assert "chat_message_archive" in inspector.get_table_names()
+    assert any(
+        fk.get("referred_table") == "chat_message"
+        for fk in inspector.get_foreign_keys("chat_message_ux_summary")
+    )
+
+    cutoff = datetime(2026, 11, 19, 0, 0, 0)
+    old_ts = cutoff - timedelta(days=3)
+    with Session(engine) as session:
+        session.exec(text("PRAGMA foreign_keys = ON"))
+        _user, _project, chat = _seed_user_project_session(session)
+        old_msg = ChatMessage(
+            id=f"fk-guard-{uuid4().hex[:6]}",
+            session_id=chat.id,
+            role="assistant",
+            content="旧助手消息",
+            message_metadata=json.dumps({"stop_reason": "end_turn"}, ensure_ascii=False),
+            created_at=old_ts,
+        )
+        session.add(old_msg)
+        session.commit()
+
+        for dry_run in (True, False):
+            with pytest.raises(RuntimeError, match="chat_message_ux_summary"):
+                archive_chat_messages_batch(
+                    session, cutoff=cutoff, batch_size=10, dry_run=dry_run
+                )
+
+        session.expire_all()
+        assert session.get(ChatMessage, old_msg.id) is not None
+        assert session.get(ChatMessageArchive, old_msg.id) is None
+        assert session.get(ChatMessageUxSummary, old_msg.id) is not None
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_archive_backfills_missing_assistant_ux_summary_and_aborts_if_unverified(
+    db_session: Session,
+) -> None:
+    """P0-1: un-backfilled assistant rows are backfilled atomically before hot delete, and fail closed if unverified."""
+    _user, _project, chat = _seed_user_project_session(db_session)
+    cutoff = datetime(2026, 11, 19, 0, 0, 0)
+    old_ts = cutoff - timedelta(days=4)
+
+    msg = ChatMessage(
+        id=f"unbackfilled-{uuid4().hex[:6]}",
+        session_id=chat.id,
+        role="assistant",
+        content="尚未回填 UX 汇总的历史回答",
+        tool_calls=_bloated_assistant_tool_calls(
+            draft_id="f-bf-1",
+            deleted_id="f-bf-2",
+            updated_at=old_ts,
+            deleted_at=old_ts,
+        ),
+        message_metadata=json.dumps(
+            {
+                "stop_reason": "end_turn",
+                "feedback": {"vote": "down", "preset": "too_long"},
+            },
+            ensure_ascii=False,
+        ),
+        created_at=old_ts,
+    )
+    db_session.add(msg)
+    db_session.commit()
+
+    # Delete the summary row to simulate an older un-backfilled assistant row.
+    db_session.exec(
+        text("DELETE FROM chat_message_ux_summary WHERE message_id = :mid"),
+        params={"mid": msg.id},
+    )
+    db_session.commit()
+    db_session.expire_all()
+    assert db_session.get(ChatMessageUxSummary, msg.id) is None
+
+    # 1) If summary verification still reports missing, archival must abort & roll back without deleting hot row.
+    with patch(
+        "services.chat_message_archival._verify_ux_summary_ids",
+        return_value=set(),
+    ):
+        failed = archive_chat_messages_batch(
+            db_session, cutoff=cutoff, batch_size=10, dry_run=False
+        )
+    assert failed.verification_failed is True
+    assert failed.deleted == 0
+    db_session.expire_all()
+    assert db_session.get(ChatMessage, msg.id) is not None
+    assert db_session.get(ChatMessageArchive, msg.id) is None
+
+    # 2) Normal run backfills the missing summary row inside the same transaction before deleting hot row.
+    ok = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=10, dry_run=False)
+    assert ok.verification_failed is False
+    assert ok.deleted == 1
+    db_session.expire_all()
+    assert db_session.get(ChatMessage, msg.id) is None
+    assert db_session.get(ChatMessageArchive, msg.id) is not None
+    backfilled = db_session.get(ChatMessageUxSummary, msg.id)
+    assert backfilled is not None
+    assert backfilled.round_category == "healthy"
+    assert backfilled.feedback_vote == "down"
+    assert backfilled.feedback_preset == "too_long"
+    assert backfilled.ai_edit_cards == 1
+    assert backfilled.ai_delete_cards == 1
+
+
+@pytest.mark.integration
+def test_load_active_session_recent_messages_exact_boundary_hot_equals_limit_with_cold(
+    db_session: Session,
+) -> None:
+    """P0-2: when hot == limit and cold >= 1, cold MUST be probed and has_more MUST be True."""
+    from api.chat import load_active_session_recent_messages
+
+    user, project, chat = _seed_user_project_session(db_session)
+    base = datetime(2026, 11, 10, 12, 0, 0)
+    archived_at = datetime(2026, 11, 20, 0, 0, 0)
+
+    # Seed 3 cold archived messages (t0..t2) and 3 hot messages (t3..t5).
+    cold_ids = [f"b-cold-{i}-{uuid4().hex[:6]}" for i in range(3)]
+    hot_ids = [f"b-hot-{i}-{uuid4().hex[:6]}" for i in range(3)]
+    for idx, cid in enumerate(cold_ids):
+        db_session.add(
+            ChatMessageArchive(
+                id=cid,
+                session_id=chat.id,
+                role="user" if idx % 2 == 0 else "assistant",
+                content=f"cold-{idx}",
+                created_at=base + timedelta(minutes=idx),
+                archived_at=archived_at,
+            )
+        )
+    for idx, hid in enumerate(hot_ids):
+        db_session.add(
+            ChatMessage(
+                id=hid,
+                session_id=chat.id,
+                role="user" if idx % 2 == 0 else "assistant",
+                content=f"hot-{idx}",
+                created_at=base + timedelta(days=10, minutes=idx),
+            )
+        )
+    db_session.commit()
+
+    # Exact boundary: hot == limit (3 == 3), cold == 3 >= 1 -> MUST probe cold and return has_more=True!
+    sess_resp, msgs, has_more = load_active_session_recent_messages(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        limit=3,
+    )
+    assert sess_resp is not None and sess_resp.id == chat.id
+    assert [m.id for m in msgs] == hot_ids
+    assert has_more is True
+
+    # Spanning hot + cold with older cold still remaining (limit=5, total=6) -> has_more=True.
+    _, msgs_5, has_more_5 = load_active_session_recent_messages(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        limit=5,
+    )
+    assert [m.id for m in msgs_5] == [*cold_ids[1:], *hot_ids]
+    assert has_more_5 is True
+
+    # Exact total == limit (limit=6, total=6) -> has_more=False.
+    _, msgs_6, has_more_6 = load_active_session_recent_messages(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        limit=6,
+    )
+    assert [m.id for m in msgs_6] == [*cold_ids, *hot_ids]
+    assert has_more_6 is False
+
+    # Hot-only exact boundary (remove cold rows, hot == limit == 3) -> has_more=False.
+    db_session.exec(
+        text("DELETE FROM chat_message_archive WHERE session_id = :sid"),
+        params={"sid": chat.id},
+    )
+    db_session.commit()
+    _, msgs_hot_only, has_more_hot_only = load_active_session_recent_messages(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        limit=3,
+    )
+    assert [m.id for m in msgs_hot_only] == hot_ids
+    assert has_more_hot_only is False
+
+
+@pytest.mark.integration
+def test_clear_session_deletes_hot_before_cold_to_prevent_ghost_resurrection(
+    db_session: Session,
+) -> None:
+    """P1-3: clear_session MUST delete chat_message BEFORE chat_message_archive."""
+    from sqlalchemy import event
+
+    from api.chat import clear_session
+
+    user, project, chat = _seed_user_project_session(db_session)
+    now = datetime(2026, 11, 20, 12, 0, 0)
+    db_session.add(
+        ChatMessage(
+            id=f"clr-hot-{uuid4().hex[:6]}",
+            session_id=chat.id,
+            role="user",
+            content="hot",
+            created_at=now,
+        )
+    )
+    db_session.add(
+        ChatMessageArchive(
+            id=f"clr-cold-{uuid4().hex[:6]}",
+            session_id=chat.id,
+            role="assistant",
+            content="cold",
+            created_at=now - timedelta(days=10),
+            archived_at=now,
+        )
+    )
+    db_session.commit()
+
+    delete_statements: list[str] = []
+
+    def _capture_deletes(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        normalized = " ".join(statement.strip().lower().split())
+        if normalized.startswith("delete from "):
+            delete_statements.append(normalized)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _capture_deletes)
+    try:
+        result = clear_session(project_id=project.id, session=db_session, current_user=user)
+    finally:
+        event.remove(engine, "before_cursor_execute", _capture_deletes)
+
+    assert result["success"] is True
+    hot_idx = next(
+        idx for idx, sql in enumerate(delete_statements) if sql.startswith("delete from chat_message ")
+    )
+    cold_idx = next(
+        idx
+        for idx, sql in enumerate(delete_statements)
+        if sql.startswith("delete from chat_message_archive ")
+    )
+    assert hot_idx < cold_idx, f"Expected hot delete before cold delete, got: {delete_statements}"
+
+
+@pytest.mark.integration
+def test_chat_feedback_service_locks_hot_then_falls_back_to_locked_cold(
+    db_session: Session,
+) -> None:
+    """P1-3: ChatFeedbackService MUST use FOR UPDATE + populate_existing on hot, then locked cold fallback."""
+    from sqlalchemy.dialects import postgresql
+
+    from services.chat_feedback_service import chat_feedback_service
+
+    user, _project, chat = _seed_user_project_session(db_session)
+    now = datetime(2026, 11, 20, 12, 0, 0)
+    cold_msg = ChatMessageArchive(
+        id=f"fb-lock-cold-{uuid4().hex[:6]}",
+        session_id=chat.id,
+        role="assistant",
+        content="已归档的回复",
+        message_metadata=json.dumps({"stop_reason": "end_turn"}, ensure_ascii=False),
+        created_at=now - timedelta(days=10),
+        archived_at=now,
+    )
+    db_session.add(cold_msg)
+    db_session.commit()
+
+    seen_locked_queries: list[tuple[str, bool]] = []
+    orig_exec = db_session.exec
+
+    def _spy_exec(statement, *args, **kwargs):
+        compiled = str(
+            statement.compile(dialect=postgresql.dialect())
+        )
+        if "FROM chat_message " in compiled or "FROM chat_message_archive " in compiled:
+            exec_opts = getattr(statement, "_execution_options", {})
+            seen_locked_queries.append((compiled, bool(exec_opts.get("populate_existing"))))
+        return orig_exec(statement, *args, **kwargs)
+
+    with patch.object(db_session, "exec", side_effect=_spy_exec):
+        res = chat_feedback_service.submit_feedback(
+            session=db_session,
+            current_user=user,
+            message_id=cold_msg.id,
+            vote="up",
+            preset="helpful",
+            comment="并发归档后仍可安全反馈",
+        )
+
+    assert res["message_id"] == cold_msg.id
+    assert res["feedback"]["vote"] == "up"
+    assert len(seen_locked_queries) == 2
+    hot_sql, hot_pop = seen_locked_queries[0]
+    cold_sql, cold_pop = seen_locked_queries[1]
+    assert "FROM chat_message " in hot_sql and "FOR UPDATE" in hot_sql and hot_pop is True
+    assert "FROM chat_message_archive " in cold_sql and "FOR UPDATE" in cold_sql and cold_pop is True
+
+
+@pytest.mark.unit
+def test_migration_postgres_lock_timeout_and_partial_feedback_index() -> None:
+    """P1-1 & P1-2: PG migration sets lock_timeout=5s and creates/drops partial feedback index matching database.py."""
+    import importlib.util
+    import types
+    from unittest.mock import MagicMock
+
+    import database as db_module
+
+    # Partial index DDL in database.py must include the cold feedback partial index.
+    assert any(
+        "ix_chat_message_archive_assistant_feedback_created_at" in sql
+        and "strpos(message_metadata, '\"feedback\"') > 0" in sql
+        for sql in db_module.POSTGRES_PERFORMANCE_INDEX_SQL
+    )
+
+    migration_path = (
+        SERVER_DIR / "alembic" / "versions" / "20261126_000000_add_chat_message_archive.py"
+    )
+    fake_op = MagicMock()
+    fake_alembic = types.ModuleType("alembic")
+    fake_alembic.op = fake_op  # type: ignore[attr-defined]
+
+    spec = importlib.util.spec_from_file_location("mig_20261126", migration_path)
+    assert spec is not None and spec.loader is not None
+    mig = importlib.util.module_from_spec(spec)
+    with patch.dict(sys.modules, {"alembic": fake_alembic}):
+        spec.loader.exec_module(mig)
+
+    executed_ops: list[tuple[str, str]] = []
+
+    fake_bind = MagicMock()
+    fake_bind.dialect.name = "postgresql"
+    fake_bind.execute.return_value.scalar_one.return_value = 0
+
+    fake_inspector = MagicMock()
+    fake_inspector.has_table.side_effect = lambda name: name == "chat_message_ux_summary"
+    fake_inspector.get_foreign_keys.return_value = [
+        {
+            "name": "chat_message_ux_summary_message_id_fkey",
+            "referred_table": "chat_message",
+            "constrained_columns": ["message_id"],
+        }
+    ]
+    fake_inspector.get_indexes.return_value = []
+
+    fake_op.get_bind.return_value = fake_bind
+    fake_op.execute.side_effect = lambda stmt: executed_ops.append(("execute", str(stmt)))
+    fake_op.drop_constraint.side_effect = lambda name, table, **kw: executed_ops.append(
+        ("drop_constraint", name)
+    )
+    fake_op.create_table.side_effect = lambda name, *a, **kw: executed_ops.append(
+        ("create_table", name)
+    )
+    fake_op.create_index.side_effect = lambda name, table, cols: executed_ops.append(
+        ("create_index", name)
+    )
+    fake_op.drop_index.side_effect = lambda name, **kw: executed_ops.append(("drop_index", name))
+    fake_op.drop_table.side_effect = lambda name: executed_ops.append(("drop_table", name))
+
+    with patch.object(mig.sa, "inspect", return_value=fake_inspector):
+        mig.upgrade()
+
+    assert executed_ops[0] == ("execute", "SET LOCAL lock_timeout = '5s'")
+    assert ("drop_constraint", "chat_message_ux_summary_message_id_fkey") in executed_ops
+    assert any(
+        kind == "execute" and "ix_chat_message_archive_assistant_feedback_created_at" in sql
+        for kind, sql in executed_ops
+    )
+
+    # PG downgrade on non-empty archive table refuses BEFORE dropping any index or table.
+    executed_ops.clear()
+    fake_bind.execute.return_value.scalar_one.return_value = 42
+    fake_inspector.has_table.side_effect = lambda name: name in {
+        "chat_message_archive",
+        "chat_message_ux_summary",
+        "chat_message",
+    }
+    fake_inspector.get_indexes.return_value = [
+        {"name": "ix_chat_message_archive_session_created_at_id"},
+        {"name": "ix_chat_message_archive_archived_at"},
+        {"name": "ix_chat_message_archive_assistant_feedback_created_at"},
+    ]
+    with patch.object(mig.sa, "inspect", return_value=fake_inspector):
+        with pytest.raises(RuntimeError, match="Refusing to drop non-empty chat_message_archive"):
+            mig.downgrade()
+    assert executed_ops == [("execute", "SET LOCAL lock_timeout = '5s'")]
+
+    # PG downgrade on empty archive table drops partial feedback index, standard indexes, and table.
+    executed_ops.clear()
+    fake_bind.execute.return_value.scalar_one.return_value = 0
+    with patch.object(mig.sa, "inspect", return_value=fake_inspector):
+        mig.downgrade()
+    assert executed_ops[0] == ("execute", "SET LOCAL lock_timeout = '5s'")
+    assert ("drop_index", "ix_chat_message_archive_assistant_feedback_created_at") in executed_ops
+    assert ("drop_table", "chat_message_archive") in executed_ops
+
+
+@pytest.mark.integration
+def test_archive_warns_on_conflict_skip_and_vacuum_analyzes_archive_table(
+    db_session: Session,
+) -> None:
+    """P2 hygiene: warn when ON CONFLICT DO NOTHING skips rows, and ANALYZE chat_message_archive."""
+    from unittest.mock import MagicMock
+
+    from services.chat_message_archival import _run_postgres_vacuum_analyze
+
+    _user, _project, chat = _seed_user_project_session(db_session)
+    cutoff = datetime(2026, 11, 19, 0, 0, 0)
+    old_ts = cutoff - timedelta(days=3)
+
+    msg = ChatMessage(
+        id=f"dup-warn-{uuid4().hex[:6]}",
+        session_id=chat.id,
+        role="user",
+        content="热表新内容",
+        created_at=old_ts,
+    )
+    db_session.add(msg)
+    db_session.add(
+        ChatMessageArchive(
+            id=msg.id,
+            session_id=chat.id,
+            role="user",
+            content="冷表旧内容",
+            created_at=old_ts,
+            archived_at=cutoff,
+        )
+    )
+    db_session.commit()
+
+    with patch("services.chat_message_archival.log_with_context") as mock_log:
+        batch = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=10, dry_run=False)
+
+    assert batch.scanned == 1
+    assert batch.archived == 0
+    assert batch.deleted == 1
+    assert any(
+        call.args[1] == 30 and "ON CONFLICT DO NOTHING" in call.args[2]
+        for call in mock_log.call_args_list
+    )
+
+    # Verify PostgreSQL --vacuum-analyze executes BOTH VACUUM ANALYZE chat_message and ANALYZE chat_message_archive.
+    executed_sql: list[str] = []
+    fake_conn = MagicMock()
+    fake_conn.execute.side_effect = lambda stmt: executed_sql.append(str(stmt))
+    fake_engine = MagicMock()
+    fake_engine.connect.return_value.execution_options.return_value.__enter__.return_value = fake_conn
+    fake_bind = MagicMock()
+    fake_bind.dialect.name = "postgresql"
+    fake_bind.engine = fake_engine
+    fake_session = MagicMock(spec=Session)
+    fake_session.get_bind.return_value = fake_bind
+
+    assert _run_postgres_vacuum_analyze(fake_session) is True
+    assert executed_sql == [
+        "VACUUM ANALYZE chat_message",
+        "ANALYZE chat_message_archive",
+    ]

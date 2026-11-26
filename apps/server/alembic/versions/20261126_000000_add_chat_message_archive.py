@@ -24,6 +24,14 @@ _ARCHIVE_INDEXES: tuple[tuple[str, list[str]], ...] = (
     ("ix_chat_message_archive_session_created_at_id", ["session_id", "created_at", "id"]),
     ("ix_chat_message_archive_archived_at", ["archived_at"]),
 )
+_ARCHIVE_FEEDBACK_PARTIAL_INDEX_NAME = "ix_chat_message_archive_assistant_feedback_created_at"
+_ARCHIVE_FEEDBACK_PARTIAL_INDEX_DDL = (
+    "CREATE INDEX IF NOT EXISTS ix_chat_message_archive_assistant_feedback_created_at "
+    "ON chat_message_archive (created_at) "
+    "WHERE role = 'assistant' AND message_metadata IS NOT NULL "
+    "AND strpos(message_metadata, '\"feedback\"') > 0"
+)
+_PG_MIGRATION_LOCK_TIMEOUT = "5s"
 _FK_NAMING_CONVENTION = {
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
 }
@@ -111,6 +119,12 @@ def _restore_summary_chat_message_fk(bind: sa.Connection, inspector: sa.Inspecto
 
 def upgrade() -> None:
     bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        # Bound DDL lock wait so DROP CONSTRAINT on chat_message_ux_summary
+        # (which takes ACCESS EXCLUSIVE on parent chat_message) never queues
+        # live chat traffic unboundedly.
+        op.execute(sa.text(f"SET LOCAL lock_timeout = '{_PG_MIGRATION_LOCK_TIMEOUT}'"))
+
     inspector = sa.inspect(bind)
 
     # 1. Decouple chat_message_ux_summary from hot chat_message deletes so
@@ -144,12 +158,32 @@ def upgrade() -> None:
         if not _has_index(inspector, ARCHIVE_TABLE, index_name):
             op.create_index(index_name, ARCHIVE_TABLE, columns)
 
+    if bind.dialect.name == "postgresql" and not _has_index(
+        inspector, ARCHIVE_TABLE, _ARCHIVE_FEEDBACK_PARTIAL_INDEX_NAME
+    ):
+        op.execute(sa.text(_ARCHIVE_FEEDBACK_PARTIAL_INDEX_DDL))
+
 
 def downgrade() -> None:
     bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute(sa.text(f"SET LOCAL lock_timeout = '{_PG_MIGRATION_LOCK_TIMEOUT}'"))
+
     inspector = sa.inspect(bind)
 
     if inspector.has_table(ARCHIVE_TABLE):
+        archived_rows = bind.execute(
+            sa.text(f"SELECT COUNT(*) FROM {ARCHIVE_TABLE}")
+        ).scalar_one()
+        if int(archived_rows or 0) > 0:
+            raise RuntimeError(
+                f"Refusing to drop non-empty {ARCHIVE_TABLE} table "
+                f"({int(archived_rows)} archived rows); restore or migrate archived rows first"
+            )
+        if bind.dialect.name == "postgresql" and _has_index(
+            inspector, ARCHIVE_TABLE, _ARCHIVE_FEEDBACK_PARTIAL_INDEX_NAME
+        ):
+            op.drop_index(_ARCHIVE_FEEDBACK_PARTIAL_INDEX_NAME, table_name=ARCHIVE_TABLE)
         for index_name, _columns in reversed(_ARCHIVE_INDEXES):
             if _has_index(inspector, ARCHIVE_TABLE, index_name):
                 op.drop_index(index_name, table_name=ARCHIVE_TABLE)
