@@ -69,6 +69,22 @@ function createMockStream(chunks: string[]): ReadableStream<Uint8Array> {
   })
 }
 
+// Deterministic helper: awaits streamAgentRequest's onClosed finally callback instead of sleeping
+function runStream(
+  request: Parameters<typeof streamAgentRequest>[0],
+  callbacks: Parameters<typeof streamAgentRequest>[1] = {},
+): Promise<AbortController> {
+  return new Promise((resolve) => {
+    const controller = streamAgentRequest(request, {
+      ...callbacks,
+      onClosed: () => {
+        callbacks.onClosed?.()
+        resolve(controller)
+      },
+    })
+  })
+}
+
 // Helper to extract parseSSEEvent logic for direct testing
 function parseSSEEvent(eventString: string): SSEEvent | null {
   const lines = eventString.split('\n')
@@ -283,8 +299,7 @@ describe('agentApi', () => {
         ]),
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError, onQuotaRefunded })
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onError, onQuotaRefunded })
 
       expect(onError).toHaveBeenCalledWith(
         'Translated: ERR_AGENT_ROUTING_FAILED',
@@ -307,8 +322,7 @@ describe('agentApi', () => {
         ]),
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onThinking, onHistoryCompacted })
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onThinking, onHistoryCompacted })
 
       expect(onThinking).toHaveBeenCalledWith('正在压缩对话…', 'history_compaction')
       expect(onHistoryCompacted).toHaveBeenCalledWith('交接摘要')
@@ -326,8 +340,7 @@ describe('agentApi', () => {
           ]),
         }))
 
-        streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onDone, onQuotaRefunded })
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await runStream({ project_id: 'test-project', message: 'test' }, { onDone, onQuotaRefunded })
 
         expect(onDone).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -353,8 +366,7 @@ describe('agentApi', () => {
         ]),
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError, onQuotaRefunded })
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onError, onQuotaRefunded })
 
       expect(onError).toHaveBeenCalledTimes(1)
       expect(onQuotaRefunded).toHaveBeenCalledWith('error', [])
@@ -372,8 +384,7 @@ describe('agentApi', () => {
         ]),
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded, onDone })
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded, onDone })
 
       expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
         assistant_message_id: 'm-1',
@@ -391,7 +402,7 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
 
-      streamAgentRequest(
+      await runStream(
         {
           project_id: 'test-project',
           message: '给第一章去AI味',
@@ -401,7 +412,6 @@ describe('agentApi', () => {
         },
         {},
       )
-      await new Promise(resolve => setTimeout(resolve, 50))
 
       const init = fetchMock.mock.calls[0]?.[1] as { body?: string }
       expect(JSON.parse(init.body || '{}')).toMatchObject({
@@ -423,23 +433,20 @@ describe('agentApi', () => {
       const originalMatchMedia = window.matchMedia
       try {
         window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
-        streamAgentRequest({ project_id: 'test-project', message: 'mobile msg' }, {})
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await runStream({ project_id: 'test-project', message: 'mobile msg' }, {})
         const mobileBody = JSON.parse(((fetchMock.mock.calls[0]?.[1] as { body?: string }).body) || '{}')
         expect(mobileBody.metadata.is_mobile).toBe(true)
 
         window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia
-        streamAgentRequest({ project_id: 'test-project', message: 'desktop msg' }, {})
-        await new Promise(resolve => setTimeout(resolve, 50))
+        await runStream({ project_id: 'test-project', message: 'desktop msg' }, {})
         const desktopBody = JSON.parse(((fetchMock.mock.calls[1]?.[1] as { body?: string }).body) || '{}')
         expect(desktopBody.metadata.is_mobile).toBe(false)
 
         // Explicit caller boolean wins over matchMedia.
-        streamAgentRequest(
+        await runStream(
           { project_id: 'test-project', message: 'override msg', metadata: { is_mobile: true } },
           {},
         )
-        await new Promise(resolve => setTimeout(resolve, 50))
         const overrideBody = JSON.parse(((fetchMock.mock.calls[2]?.[1] as { body?: string }).body) || '{}')
         expect(overrideBody.metadata.is_mobile).toBe(true)
       } finally {
@@ -461,8 +468,7 @@ describe('agentApi', () => {
           ]),
         }))
 
-        streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded })
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await runStream({ project_id: 'test-project', message: 'test' }, { onQuotaRefunded })
 
         expect(onQuotaRefunded).toHaveBeenCalledTimes(1)
         expect(onQuotaRefunded).toHaveBeenCalledWith(kind, [])
@@ -480,12 +486,11 @@ describe('agentApi', () => {
         ]),
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, {
+      await runStream({ project_id: 'test-project', message: 'test' }, {
         onDone: () => order.push('done'),
         onQuotaRefunded: () => order.push('refunded'),
         onClosed: () => order.push('closed'),
       })
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(order).toEqual(['done', 'refunded', 'closed'])
     })
@@ -493,12 +498,22 @@ describe('agentApi', () => {
     it('reports the connection closed when the request is aborted', async () => {
       const onClosed = vi.fn()
       vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
-        init.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+        const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' })
+        if (init.signal?.aborted) {
+          reject(abortErr)
+          return
+        }
+        init.signal?.addEventListener('abort', () => reject(abortErr))
       })))
 
-      const controller = streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onClosed })
+      let resolveClosed!: () => void
+      const closed = new Promise<void>(resolve => { resolveClosed = resolve })
+      const controller = streamAgentRequest(
+        { project_id: 'test-project', message: 'test' },
+        { onClosed: () => { onClosed(); resolveClosed() } },
+      )
       controller.abort()
-      await new Promise(resolve => setTimeout(resolve, 20))
+      await closed
 
       expect(onClosed).toHaveBeenCalledTimes(1)
     })
@@ -512,8 +527,7 @@ describe('agentApi', () => {
         headers: { get: (name: string) => (name === 'X-Agent-Run-ID' ? 'run-42' : null) },
       }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onRunStarted })
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onRunStarted })
 
       expect(onRunStarted).toHaveBeenCalledWith('run-42')
     })
@@ -526,8 +540,7 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, {})
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await runStream({ project_id: 'test-project', message: 'test' }, {})
 
       expect(mockFetch.mock.calls[0][1].headers['X-Client-Stop-Contract']).toBe('1')
     })
@@ -540,12 +553,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test', session_id: 'session-123' },
         {}
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       const [, options] = mockFetch.mock.calls[0]
       const body = JSON.parse(options.body)
@@ -560,16 +571,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
-        { project_id: 'test-project', message: 'test', selected_skill_ids: ['s1', 's2'] },
-        {}
-      )
-      streamAgentRequest(
-        { project_id: 'test-project', message: 'test', selected_skill_ids: [] },
-        {}
-      )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await Promise.all([
+        runStream({ project_id: 'test-project', message: 'test', selected_skill_ids: ['s1', 's2'] }),
+        runStream({ project_id: 'test-project', message: 'test', selected_skill_ids: [] }),
+      ])
 
       expect(JSON.parse(mockFetch.mock.calls[0][1].body).selected_skill_ids).toEqual(['s1', 's2'])
       expect(JSON.parse(mockFetch.mock.calls[1][1].body)).not.toHaveProperty('selected_skill_ids')
@@ -589,13 +594,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onContent }
       )
-
-      // Wait for stream to complete
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onContent).toHaveBeenCalledTimes(2)
       expect(onContent).toHaveBeenNthCalledWith(1, 'Hello ', undefined)
@@ -615,12 +617,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onToolCall }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onToolCall).toHaveBeenCalledTimes(1)
       expect(onToolCall).toHaveBeenCalledWith('create_file', {
@@ -642,12 +642,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onToolResult }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onToolResult).toHaveBeenCalledWith(
         'create_file',
@@ -672,12 +670,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onToolCall, onToolResult }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onToolCall).toHaveBeenCalledWith(
         'update_project',
@@ -708,12 +704,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onFileEditStart, onFileEditEnd }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onFileEditStart).toHaveBeenCalledWith('file-1', 'Chapter 1', 2, 'outline')
       expect(onFileEditEnd).toHaveBeenCalledWith(
@@ -735,26 +729,28 @@ describe('agentApi', () => {
     it('handles abort signal correctly', async () => {
       const onError = vi.fn()
       const mockFetch = vi.fn().mockImplementation(
-        () =>
+        (_url: string, init?: RequestInit) =>
           new Promise((_, reject) => {
-            setTimeout(() => {
-              const error = new Error('The user aborted a request.')
-              error.name = 'AbortError'
-              reject(error)
-            }, 50)
+            const abortErr = Object.assign(new Error('The user aborted a request.'), { name: 'AbortError' })
+            if (init?.signal?.aborted) {
+              reject(abortErr)
+              return
+            }
+            init?.signal?.addEventListener('abort', () => reject(abortErr))
           })
       )
       vi.stubGlobal('fetch', mockFetch)
 
+      let resolveClosed!: () => void
+      const closed = new Promise<void>(resolve => { resolveClosed = resolve })
       const controller = streamAgentRequest(
         { project_id: 'test-project', message: 'test' },
-        { onError }
+        { onError, onClosed: resolveClosed }
       )
 
       // Abort immediately
       controller.abort()
-
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await closed
 
       // Should NOT call onError for abort
       expect(onError).not.toHaveBeenCalled()
@@ -794,12 +790,10 @@ describe('agentApi', () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'))
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
         expect.not.stringContaining('Network error'),
@@ -845,12 +839,10 @@ describe('agentApi', () => {
       vi.stubGlobal('fetch', mockFetch)
 
       const onContent = vi.fn()
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onContent }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 150))
 
       expect(mockFetch).toHaveBeenCalledTimes(3)
       expect(String(mockFetch.mock.calls[1]?.[0])).toContain('/api/auth/refresh')
@@ -882,12 +874,10 @@ describe('agentApi', () => {
       vi.stubGlobal('fetch', mockFetch)
 
       const onError = vi.fn()
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
       window.removeEventListener('auth:logout', onLogout)
 
       expect(logoutReasons).toContain('agent_auth_failed')
@@ -907,12 +897,10 @@ describe('agentApi', () => {
       vi.stubGlobal('fetch', mockFetch)
 
       const onError = vi.fn()
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
         'Internal Server Error',
@@ -934,12 +922,10 @@ describe('agentApi', () => {
       vi.stubGlobal('fetch', mockFetch)
 
       const onError = vi.fn()
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
         'Translated: ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED',
@@ -960,12 +946,10 @@ describe('agentApi', () => {
       vi.stubGlobal('fetch', mockFetch)
 
       const onError = vi.fn()
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
         'Translated: ERR_SESSION_BUSY',
@@ -985,9 +969,7 @@ describe('agentApi', () => {
       vi.stubGlobal('fetch', mockFetch)
 
       const onError = vi.fn()
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError })
-
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onError })
 
       expect(onError).toHaveBeenCalledTimes(1)
       expect(onError).toHaveBeenCalledWith(`Translated: ${code}`, code, true)
@@ -1005,12 +987,10 @@ describe('agentApi', () => {
       ])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: mockStream }))
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onContent, onError, onDone }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onContent).toHaveBeenCalledTimes(1)
       expect(onContent.mock.calls[0][0]).toBe('第一段')
@@ -1025,9 +1005,7 @@ describe('agentApi', () => {
       ])
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: mockStream }))
 
-      streamAgentRequest({ project_id: 'test-project', message: 'test' }, { onError })
-
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await runStream({ project_id: 'test-project', message: 'test' }, { onError })
 
       expect(onError).toHaveBeenCalledWith(
         'Translated: ERR_AGENT_UPSTREAM_UNAVAILABLE',
@@ -1049,12 +1027,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onThinking }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onThinking).toHaveBeenCalledWith('Analyzing...', '1')
     })
@@ -1072,12 +1048,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onDone }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onDone).toHaveBeenCalledWith({
         assistant_message_id: 'assistant-1',
@@ -1099,12 +1073,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onWorkflowStopped }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onWorkflowStopped).toHaveBeenCalledWith({
         reason: 'clarification_needed',
@@ -1126,12 +1098,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onFileCreated }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onFileCreated).toHaveBeenCalledWith('123', 'draft', 'Chapter 1')
     })
@@ -1182,7 +1152,7 @@ describe('agentApi', () => {
         body: mockStream,
       }))
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { [callback]: handler } as Parameters<typeof streamAgentRequest>[1]
       )
@@ -1203,12 +1173,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onContext }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onContext).toHaveBeenCalledWith(
         [{ id: '1', type: 'draft', title: 'Chapter 1', content: '...', relevance_score: 0.9 }],
@@ -1229,12 +1197,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
         'Rate limit exceeded',
@@ -1256,12 +1222,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onError).toHaveBeenCalledWith(
         'Translated: ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED',
@@ -1283,12 +1247,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onContent }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onContent).toHaveBeenCalledTimes(2)
     })
@@ -1313,12 +1275,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         {}
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(debugContext.get()?.agent_session_id).toBe('session-from-server')
     })
@@ -1337,12 +1297,10 @@ describe('agentApi', () => {
       })
       vi.stubGlobal('fetch', mockFetch)
 
-      streamAgentRequest(
+      await runStream(
         { project_id: 'test-project', message: 'test' },
         { onDone, onError }
       )
-
-      await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(onDone).toHaveBeenCalledWith({ session_id: 's-1' })
       expect(onError).not.toHaveBeenCalledWith(

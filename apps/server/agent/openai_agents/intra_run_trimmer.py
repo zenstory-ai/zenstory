@@ -54,8 +54,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# 只读检索工具：结果体积大，且原文仍可按 id 重新读取，超预算时可安全折叠。
-DEFAULT_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"query_files"})
+# 只读检索与技能加载工具：结果体积大，且原文仍可按 id/名称重新读取，超预算时可安全折叠。
+SKILL_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"load_skill", "read_skill_resource"})
+DEFAULT_TRIMMABLE_TOOLS: frozenset[str] = frozenset({"query_files", *SKILL_TRIMMABLE_TOOLS})
 DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset({"create_file", "write_chapter", "edit_file"})
 MAX_TRACE_VALUES = 40
 
@@ -72,6 +73,14 @@ COMPACTION_REASON = "context_budget_compaction"
 READ_COMPACTION_NOTE = (
     "该结果已在本轮更早时完整返回，因上下文接近上限被折叠。不要整篇重读；"
     '只在确实需要原文细节时，用 query_files(id=…, response_mode="full") 读取该文件一次。'
+)
+SKILL_LOAD_COMPACTION_NOTE = (
+    "该技能正文已在本轮更早时完整返回，因上下文接近上限被折叠。不要重复加载；"
+    "只在确实需要核对原文方法时，用 load_skill(name=…) 读取一次。"
+)
+SKILL_RESOURCE_COMPACTION_NOTE = (
+    "该技能参考资料已在本轮更早时完整返回，因上下文接近上限被折叠。不要重复读取；"
+    "只在确实需要原文细节时，用 read_skill_resource(name=…, path=…) 读取一次。"
 )
 WRITE_RECEIPT_COMPACTION_NOTE = (
     "该写入已成功落库，回执因上下文接近上限被折叠。不要重复写入；"
@@ -102,6 +111,10 @@ _TRACE_KEYS = frozenset(
         "edits_applied",
         "reused_existing",
         "original_content_length",
+        "skill_id",
+        "skill_name",
+        "path",
+        "offset",
     }
 )
 
@@ -111,12 +124,12 @@ class IntraRunToolOutputTrimmer:
 
     Args:
         max_input_chars: 模型输入（items JSON + instructions）的安全阀上限。不超过时
-            输入原样返回。默认 600_000。
+            输入原样返回。默认 1_500_000。
         target_ratio: 超预算时折叠到 ``max_input_chars * target_ratio`` 附近；
             ``max_input_chars - target`` 同时是折叠量的量化台阶（滞回）。默认 0.7。
         min_compact_chars: 只折叠长度超过该值的载荷。默认 2000。
-        preview_chars: 折叠摘要里保留的原文开头字符数。默认 400。
-        trimmable_tools: 可折叠结果的只读工具名，默认 ``{"query_files"}``。
+        preview_chars: 折叠摘要里保留的原文开头字符数（技能工具绝不保留正文预览）。默认 400。
+        trimmable_tools: 可折叠结果的只读工具名，默认 ``{"query_files", "load_skill", "read_skill_resource"}``。
             控制流工具永远不在其中。
     """
 
@@ -303,18 +316,29 @@ class IntraRunToolOutputTrimmer:
         if original_len <= self.min_compact_chars:
             return None
 
+        if kind == "write_output":
+            note = WRITE_RECEIPT_COMPACTION_NOTE
+        elif tool_name == "load_skill":
+            note = SKILL_LOAD_COMPACTION_NOTE
+        elif tool_name == "read_skill_resource":
+            note = SKILL_RESOURCE_COMPACTION_NOTE
+        else:
+            note = READ_COMPACTION_NOTE
+
         summary_payload: dict[str, Any] = {
             "_zenstory_context_summary": COMPACTION_REASON,
             "tool": tool_name,
             "original_chars": original_len,
-            "note": WRITE_RECEIPT_COMPACTION_NOTE if kind == "write_output" else READ_COMPACTION_NOTE,
+            "note": note,
         }
         trace = self._collect_trace(self._parse_json(output_str))
         if trace:
             summary_payload["trace"] = trace
-        preview = output_str[: self.preview_chars]
-        if preview:
-            summary_payload["preview"] = preview
+        # 技能工具（含官方技能）绝不保留正文/资源片段预览，只留安全元数据 trace。
+        if tool_name not in SKILL_TRIMMABLE_TOOLS:
+            preview = output_str[: self.preview_chars]
+            if preview:
+                summary_payload["preview"] = preview
         summary = json.dumps(summary_payload, ensure_ascii=False)
         if len(summary) >= original_len:
             return None

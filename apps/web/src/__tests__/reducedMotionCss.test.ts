@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { readComposedStylesheet } from '../test/readStylesheet';
 
 describe('reduced-motion stylesheet contract', () => {
   it('disables ambient, loading, and entrance motion without hiding progress UI', () => {
-    const css = readFileSync('src/index.css', 'utf8');
+    const css = readComposedStylesheet('src/index.css');
     const reducedMotion = css.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 
     expect(reducedMotion).toContain('.animate-float');
@@ -31,7 +32,7 @@ describe('reduced-motion stylesheet contract', () => {
   });
 
   it('defines unified motion tokens and GPU-composited keyframes in index.css', () => {
-    const css = readFileSync('src/index.css', 'utf8');
+    const css = readComposedStylesheet('src/index.css');
 
     for (const token of [
       '--ease-standard:',

@@ -46,7 +46,7 @@ describe('translation locale bundle backend', () => {
       'Couldn’t load. Check your connection and try again.',
     );
     expect(instance.hasResourceBundle('en', 'common')).toBe(true);
-    expect(instance.hasResourceBundle('en', 'referral')).toBe(true);
+    expect(instance.hasResourceBundle('en', 'project')).toBe(true);
     expect(instance.hasResourceBundle('en', 'docs')).toBe(true);
     expect(instance.hasResourceBundle('en', 'admin')).toBe(true);
     expect(instance.hasResourceBundle('en', 'skills')).toBe(false);

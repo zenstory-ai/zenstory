@@ -536,30 +536,6 @@ class TestProcessEventToolResult:
         assert events[0].data["data"]["raw"] == "plain text payload"
 
     @pytest.mark.asyncio
-    async def test_tool_result_handoff_status_is_normalized_to_success(self, adapter):
-        """Control-tool statuses should map to frontend-compatible success/error."""
-        result_json = json.dumps({
-            "status": "handoff",
-            "target_agent": "quality_reviewer",
-            "reason": "质量审查",
-        })
-        event = WorkflowStreamEvent(
-            type=StreamEventType.TOOL_RESULT,
-            data={
-                "name": "handoff_to_agent",
-                "result": {"content": [{"text": result_json}]},
-            },
-        )
-
-        events = []
-        async for sse_event in adapter._process_workflow_event(event):
-            events.append(sse_event)
-
-        assert len(events) == 1
-        assert events[0].type == EventType.TOOL_RESULT
-        assert events[0].data["status"] == "success"
-
-    @pytest.mark.asyncio
     async def test_tool_result_edit_file_with_non_dict_data_is_tolerated(self, adapter):
         """edit_file extra events should be skipped (not crashed) when data is truncated/non-dict."""
         result_json = json.dumps({
@@ -1993,8 +1969,8 @@ async def test_delivery_receipt_keeps_last_saved_body_when_later_write_fails(mon
 
 
 @pytest.mark.asyncio
-async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_preserving_db_payload():
-    """SSE frames drop multi-KB file content for query_files/parallel_execute, while pop_persisted_tool_result keeps full DB payload and non-target tools stay intact."""
+async def test_sse_tool_result_slims_query_files_while_preserving_db_payload():
+    """SSE frames drop multi-KB file content for query_files, while pop_persisted_tool_result keeps full DB payload and non-target tools stay intact."""
     adapter = create_stream_adapter(project_id="p", user_id="u", process_file_markers=True)
     heavy_body = "整章小说正文。" * 1000
     heavy_preview = "章节预览片段。" * 80
@@ -2014,43 +1990,6 @@ async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_pres
                 "author_edits": {"changed": False},
             }
         ],
-    }
-    pe_payload = {
-        "status": "success",
-        "data": {
-            "total_tasks": 2,
-            "completed": 1,
-            "failed": 1,
-            "tasks": [
-                {
-                    "id": "t0",
-                    "type": "query_files",
-                    "description": "读取第1章",
-                    "status": "completed",
-                    "result": [
-                        {
-                            "id": "ch-1",
-                            "title": "第1章",
-                            "file_type": "draft",
-                            "content": heavy_body,
-                            "content_preview": heavy_preview,
-                        }
-                    ],
-                },
-                {
-                    "id": "t1",
-                    "type": "edit_file",
-                    "description": "改第2章",
-                    "status": "failed",
-                    "result": {
-                        "error_type": "author_edit_protected",
-                        "user_message": "跳过作者手改段落",
-                        "author_edits_touched": [{"restored_deleted": True}],
-                        "original_content": heavy_body,
-                    },
-                },
-            ],
-        },
     }
     edit_payload = {
         "status": "success",
@@ -2090,7 +2029,6 @@ async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_pres
 
     async def _gen():
         yield _wf_result("call-qf", "query_files", qf_payload)
-        yield _wf_result("call-pe", "parallel_execute", pe_payload)
         yield _wf_result("call-edit", "edit_file", edit_payload)
         yield _wf_result("call-del", "delete_file", delete_payload)
         yield _wf_result("call-up", "update_project", update_proj_payload)
@@ -2103,7 +2041,7 @@ async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_pres
         if e.type == EventType.TOOL_RESULT
     }
 
-    # SSE payloads strip multi-KB content/preview/matches for query_files & parallel_execute
+    # SSE payloads strip multi-KB content/preview/matches for query_files
     sse_blob = json.dumps([e.data for e in sse_events if e.type == EventType.TOOL_RESULT], ensure_ascii=False)
     assert "整章小说正文" not in sse_blob
     assert "章节预览片段" not in sse_blob
@@ -2117,14 +2055,6 @@ async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_pres
             "content_length": len(heavy_body),
         }
     ]
-    assert by_tool["parallel_execute"]["tasks"][0]["result"] == [
-        {"id": "ch-1", "title": "第1章", "file_type": "draft"}
-    ]
-    assert by_tool["parallel_execute"]["tasks"][1]["result"] == {
-        "error_type": "author_edit_protected",
-        "user_message": "跳过作者手改段落",
-        "author_edits_touched": [{"restored_deleted": True}],
-    }
 
     # Non-target tools stay 100% intact on SSE
     assert by_tool["edit_file"] == edit_payload["data"]
@@ -2134,7 +2064,5 @@ async def test_sse_tool_result_slims_query_files_and_parallel_execute_while_pres
     # DB persistence pops the unslimmed payload so DB & history replay remain 100% untouched
     persisted_qf = adapter.pop_persisted_tool_result("call-qf", by_tool["query_files"])
     assert persisted_qf[0]["content"] == heavy_body
-    persisted_pe = adapter.pop_persisted_tool_result("call-pe", by_tool["parallel_execute"])
-    assert persisted_pe["tasks"][0]["result"][0]["content"] == heavy_body
     # Non-target tools fall back directly to SSE payload
     assert adapter.pop_persisted_tool_result("call-edit", by_tool["edit_file"]) == edit_payload["data"]

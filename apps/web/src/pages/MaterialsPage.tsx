@@ -1,423 +1,65 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Upload, BookOpen, FileText, Clock, CheckCircle, AlertCircle, RefreshCw, Trash2, Download } from "../components/icons";
-import { materialsApi } from "../lib/materialsApi";
-import { ApiError } from "../lib/apiClient";
-import { handleApiError } from "../lib/errorHandler";
-import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
-import { trackEvent } from "../lib/analytics";
-import { toast } from "../lib/toast";
-import type { MaterialNovel } from "../lib/materialsApi";
+import { Upload } from "../components/icons";
 import { useIsMobile, useIsTablet } from "../hooks/useMediaQuery";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardPageHeader } from "../components/dashboard/DashboardPageHeader";
-import { DashboardEmptyState } from "../components/dashboard/DashboardEmptyState";
-import { DashboardSearchBar } from "../components/dashboard/DashboardSearchBar";
-import { Modal } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
-import { IconButton } from "../components/ui/IconButton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { MaterialsUpgradePromptModal } from "../components/subscription/MaterialsUpgradePrompt";
-import { useMaterialsCheckoutUnavailableText, useMaterialsProEntry } from "../hooks/useMaterialsProEntry";
 import { RedeemCodeModal } from "../components/subscription/RedeemCodeModal";
-import { buildUpgradeUrl, getUpgradePromptDefinition } from "../config/upgradeExperience";
-import {
-  prepareMaterialUpload,
-  resolveMaterialUploadErrorMessage,
-  type MaterialTrialSelection,
-} from "../lib/materialUploadValidation";
-import {
-  MaterialTrialBookNote,
-  MaterialTrialSelectionNote,
-  MaterialTrialUsedEmptyState,
-} from "../components/materials/MaterialTrialNotes";
-import { hasMaterialsLibraryAccess, materialJobErrorText } from "../lib/materialsAccess";
-import { MATERIAL_LIBRARY_SUMMARY_QUERY_KEY } from "../hooks/useMaterialLibrary";
-import { useRefreshMaterialLibraryOnCompletion } from "../hooks/useMaterialLibraryRefresh";
-import { useProMaterialDecompositionsLimit } from "../hooks/useProMaterialDecompositionsLimit";
+import { MaterialErrorAlert, MaterialLibrarySection } from "../components/materials/MaterialLibrarySection";
+import { MaterialTeaserView } from "../components/materials/MaterialTeaserView";
+import { MaterialUploadModal } from "../components/materials/MaterialUploadModal";
+import { useMaterialsPageState } from "../components/materials/useMaterialsPageState";
 
 export default function MaterialsPage() {
-  const { t, i18n } = useTranslation(["materials", "common"]);
-  const fileSelectButtonId = useId();
-  const titleInputId = useId();
-  const uploadFormId = useId();
-  const materialUploadUpgradePrompt = getUpgradePromptDefinition("material_upload_quota_blocked");
+  const { t } = useTranslation(["materials", "common"]);
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const showDeleteAction = isMobile || isTablet;
   /** Page and card actions: 40px on desktop, 44px touch target on phones. */
   const actionSize = isMobile ? "touch" : "md";
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const teaserTrackedRef = useRef(false);
+  const state = useMaterialsPageState();
 
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showMaterialAccessUpgradeModal, setShowMaterialAccessUpgradeModal] = useState(false);
-  /** Funnel source of the open redeem dialog (null = closed). */
-  const [redeemSource, setRedeemSource] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-  const [exportingId, setExportingId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Upload modal state
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [trialSelection, setTrialSelection] = useState<MaterialTrialSelection | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const {
-    data: subscriptionStatus,
-    isLoading: isSubscriptionLoading,
-    isError: isSubscriptionError,
-    refetch: refetchSubscriptionStatus,
-  } = useQuery({
-    queryKey: subscriptionQueryKeys.status(),
-    queryFn: () => subscriptionApi.getStatus(),
-  });
-
-  const subscriptionFeatures = (subscriptionStatus?.features ?? {}) as Record<string, unknown>;
-  const materialsAccess = hasMaterialsLibraryAccess(
-    subscriptionFeatures,
-    subscriptionStatus?.tier,
-  );
-  const hasWorkspaceAccess = materialsAccess === true;
-
-  // The quota also carries the free trial (once per account, first N chapters), so free
-  // authors need it too.
-  const {
-    data: quota,
-    isLoading: isQuotaLoading,
-  } = useQuery({
-    queryKey: subscriptionQueryKeys.quota(),
-    queryFn: () => subscriptionApi.getQuota(),
-    enabled: materialsAccess !== undefined,
-  });
-  const materialTrial = quota?.material_trial;
-  const trialAvailable = materialsAccess === false && materialTrial?.available === true;
-  const trialCharacterLimit = (materialTrial?.max_characters ?? 0).toLocaleString("en-US");
-  // A free author who used the trial reads their trial book in the library.
-  const trialUsed = materialsAccess === false && materialTrial?.used === true;
-  const canReadLibrary = hasWorkspaceAccess || trialUsed;
-  const showTeaser = materialsAccess === false && !trialUsed;
-  const proDecompositionsLimit = useProMaterialDecompositionsLimit(materialsAccess === false);
-  // Online checkout off: the Pro entries become 「兑换码开通」 and open the redeem dialog here.
-  const proEntry = useMaterialsProEntry(materialsAccess === false);
-  const checkoutUnavailableText = useMaterialsCheckoutUnavailableText();
-
-  const materialDecomposeQuota = quota?.material_decompositions;
-  const remainingDecompositions =
-    materialDecomposeQuota == null || materialDecomposeQuota.limit === -1
-      ? null
-      : Math.max(0, materialDecomposeQuota.limit - materialDecomposeQuota.used);
-  const isMaterialsQuotaExhausted = Boolean(
-    hasWorkspaceAccess &&
-      materialDecomposeQuota &&
-      materialDecomposeQuota.limit !== -1 &&
-      remainingDecompositions === 0,
-  );
-
-  // Fetch materials list
-  const {
-    data: materials = [],
-    isLoading,
-    isFetching,
-    isError: isMaterialsError,
-    refetch: refetchMaterials,
-  } = useQuery({
-    queryKey: ["materials"],
-    queryFn: () => materialsApi.list(),
-    enabled: canReadLibrary,
-    staleTime: 30 * 1000, // 30 seconds - prevents refetch on tab switch
-    // Poll every 3 seconds when there are pending/processing items
-    refetchInterval: (query) => {
-      const data = query.state.data as MaterialNovel[] | undefined;
-      const hasProcessing = data?.some(
-        (m) => m.status === "pending" || m.status === "processing"
-      );
-      return hasProcessing ? 3000 : false;
-    },
-  });
-  // A free author's page (teaser, trial or library) depends on the trial state in the
-  // quota: wait for it instead of flashing the Pro teaser first.
-  const isTrialStateLoading = materialsAccess === false && isQuotaLoading;
-  const isMaterialsLoading =
-    isSubscriptionLoading ||
-    isTrialStateLoading ||
-    (canReadLibrary && (isLoading || (isFetching && materials.length === 0)));
-  useRefreshMaterialLibraryOnCompletion(canReadLibrary ? materials : undefined);
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: (novelId: string) => materialsApi.delete(novelId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["materials"] });
-      queryClient.invalidateQueries({ queryKey: MATERIAL_LIBRARY_SUMMARY_QUERY_KEY });
-      setDeletingId(null);
-    },
-    onError: (err) => {
-      toast.error(handleApiError(err));
-    },
-  });
-
-  useEffect(() => {
-    if (
-      isSubscriptionLoading ||
-      isSubscriptionError ||
-      isTrialStateLoading ||
-      !showTeaser ||
-      teaserTrackedRef.current
-    ) {
-      return;
-    }
-
-    trackEvent("materials_teaser_exposed", {
-      source: "materials_teaser",
-    });
-    teaserTrackedRef.current = true;
-  }, [isSubscriptionError, isSubscriptionLoading, isTrialStateLoading, showTeaser]);
-
-  if (isSubscriptionError) {
+  if (state.isSubscriptionError) {
     return (
       <>
         <DashboardPageHeader
           title={t("materials:title")}
           subtitle={t("materials:description")}
         />
-        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
-          <div className="space-y-3">
-            <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-              {t("common:error", { defaultValue: "加载失败" })}
-            </h2>
-            <p className="text-sm text-[hsl(var(--text-secondary))]">
-              {t("materials:statusLoadError", {
-                defaultValue: "没能确认你的 Pro 状态，请重试。",
-              })}
-            </p>
-            <Button
-              variant="secondary"
-              size={actionSize}
-              onClick={() => {
-                void refetchSubscriptionStatus();
-              }}
-            >
-              {t("common:retry", { defaultValue: "重试" })}
-            </Button>
-          </div>
-        </div>
+        <MaterialErrorAlert
+          title={t("common:error", { defaultValue: "加载失败" })}
+          message={t("materials:statusLoadError", {
+            defaultValue: "没能确认你的 Pro 状态，请重试。",
+          })}
+          actionSize={actionSize}
+          onRetry={() => {
+            void state.refetchSubscriptionStatus();
+          }}
+        />
       </>
     );
   }
 
-  if (!isSubscriptionLoading && materialsAccess === null) {
+  if (!state.isSubscriptionLoading && state.materialsAccess === null) {
     return (
       <>
         <DashboardPageHeader
           title={t("materials:title")}
           subtitle={t("materials:description")}
         />
-        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
-          <div className="space-y-3">
-            <p className="text-sm text-[hsl(var(--text-secondary))]">
-              {t("materials:statusLoadError", {
-                defaultValue: "没能确认你的 Pro 状态，请重试。",
-              })}
-            </p>
-            <Button
-              variant="secondary"
-              size={actionSize}
-              onClick={() => {
-                void refetchSubscriptionStatus();
-              }}
-            >
-              {t("common:retry", { defaultValue: "重试" })}
-            </Button>
-          </div>
-        </div>
+        <MaterialErrorAlert
+          message={t("materials:statusLoadError", {
+            defaultValue: "没能确认你的 Pro 状态，请重试。",
+          })}
+          actionSize={actionSize}
+          onRetry={() => {
+            void state.refetchSubscriptionStatus();
+          }}
+        />
       </>
     );
   }
-
-  const openUpgradePath = (destination: "billing" | "pricing", source = "materials_teaser") => {
-    if (destination === "billing" && proEntry.checkoutOff) {
-      // The billing page would only offer the redeem dialog: open it here instead.
-      trackEvent("materials_upgrade_clicked", { source, destination: "redeem" });
-      setRedeemSource(source);
-      return;
-    }
-    trackEvent("materials_upgrade_clicked", {
-      source,
-      destination,
-    });
-
-    window.location.assign(
-      buildUpgradeUrl(
-        destination === "billing"
-          ? materialUploadUpgradePrompt.billingPath
-          : materialUploadUpgradePrompt.pricingPath,
-        source,
-      ),
-    );
-  };
-
-  const formatResetAt = (resetAt: string | null | undefined): string | null => {
-    if (!resetAt) return null;
-    const parsed = new Date(resetAt);
-    if (Number.isNaN(parsed.getTime())) return null;
-    const locale = i18n?.language?.startsWith("en") ? "en-US" : "zh-CN";
-    return new Intl.DateTimeFormat(locale, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      timeZone: "Asia/Shanghai",
-    }).format(parsed);
-  };
-
-  const exhaustedMessage = t("materials:quotaExhausted", {
-    defaultValue: "本月 {{limit}} 次拆解已用完，将于 {{resetAt}} 恢复。已拆好的内容仍可查看和引用。",
-    limit: materialDecomposeQuota?.limit ?? 5,
-    resetAt:
-      formatResetAt(materialDecomposeQuota?.reset_at) ??
-      t("materials:quotaResetFallback", { defaultValue: "下月 1 日" }),
-  });
-
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id);
-  };
-
-  const handleCardClick = (novelId: string) => {
-    navigate(`/materials/${novelId}`);
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      // A free trial only checks and uploads the first chapters of the book.
-      const prepared = await prepareMaterialUpload(selectedFile, t, {
-        trialMaxChapters: trialAvailable ? materialTrial?.max_chapters : null,
-        trialMaxCharacters: trialAvailable ? materialTrial?.max_characters : null,
-      });
-      if (prepared.error !== null) {
-        setFile(null);
-        setTrialSelection(null);
-        setError(prepared.error);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-        return;
-      }
-
-      setFile(selectedFile);
-      setTrialSelection(prepared.trial);
-      if (!title) {
-        setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
-      }
-      setError(null);
-    }
-  };
-
-  const handleSelectFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleUpload = async () => {
-    if (!file || isMaterialsQuotaExhausted) return;
-
-    setUploading(true);
-    setError(null);
-    const uploadingWithTrial = trialAvailable;
-
-    try {
-      await materialsApi.upload(file, title || undefined);
-      setShowUploadModal(false);
-      setFile(null);
-      setTrialSelection(null);
-      setTitle("");
-      queryClient.invalidateQueries({ queryKey: ["materials"] });
-      queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-    } catch (err) {
-      const message = resolveMaterialUploadErrorMessage(err, t, t("materials:uploadError"));
-      setError(message);
-      if (uploadingWithTrial) {
-        // A failure after the trial was committed leaves a used trial and a failed book.
-        queryClient.invalidateQueries({ queryKey: ["materials"] });
-        queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-      }
-      if (err instanceof ApiError && err.errorCode === "ERR_FEATURE_NOT_INCLUDED") {
-        trackEvent("materials_upload_blocked_free", {
-          source: "materials_upload_runtime_guard",
-        });
-        setShowMaterialAccessUpgradeModal(true);
-      } else if (err instanceof ApiError && err.errorCode === "ERR_QUOTA_EXCEEDED") {
-        trackEvent("materials_quota_exhausted_paid", {
-          source: "materials_upload",
-        });
-        queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-        setError(exhaustedMessage);
-      }
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleRetry = async (novelId: string) => {
-    setRetryingId(novelId);
-
-    try {
-      await materialsApi.retry(novelId);
-      toast.success(
-        t("materials:retrySuccess", {
-          defaultValue: "已重新开始拆解",
-        })
-      );
-      queryClient.invalidateQueries({ queryKey: ["materials"] });
-      queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-    } catch (err) {
-      if (err instanceof ApiError && err.errorCode === "ERR_QUOTA_EXCEEDED") {
-        trackEvent("materials_quota_exhausted_paid", {
-          source: "materials_retry",
-        });
-        queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-        toast.error(exhaustedMessage);
-      } else if (err instanceof ApiError && err.errorCode === "ERR_FEATURE_NOT_INCLUDED") {
-        trackEvent("materials_upload_blocked_free", {
-          source: "materials_retry_runtime_guard",
-        });
-        setShowMaterialAccessUpgradeModal(true);
-      } else {
-        toast.error(handleApiError(err));
-      }
-    } finally {
-      setRetryingId(null);
-    }
-  };
-
-  const handleExport = async (material: MaterialNovel) => {
-    setExportingId(material.id);
-    try {
-      await materialsApi.exportBreakdown(material.id, material.title);
-      toast.success(
-        t("materials:export.success", {
-          defaultValue: "拆解结果已导出为 TXT 文件",
-        })
-      );
-    } catch (err) {
-      toast.error(handleApiError(err));
-    } finally {
-      setExportingId(null);
-    }
-  };
-
-  // Only show the header Pro button once loading finishes and when the page body does
-  // not already present a primary upgrade CTA (teaser without trial, or empty trial-used).
-  const showHeaderUpgrade =
-    !hasWorkspaceAccess &&
-    !isMaterialsLoading &&
-    !isMaterialsError &&
-    !((showTeaser && !trialAvailable) || (materials.length === 0 && trialUsed));
 
   return (
     <>
@@ -425,7 +67,7 @@ export default function MaterialsPage() {
       <DashboardPageHeader
         title={t("materials:title")}
         subtitle={
-          hasWorkspaceAccess
+          state.hasWorkspaceAccess
             ? t("materials:paidSubtitle", {
                 defaultValue: "上传参考小说，拆出角色、世界观和章节梗概，写作时随时引用",
               })
@@ -434,693 +76,134 @@ export default function MaterialsPage() {
               })
         }
         action={
-          hasWorkspaceAccess ? (
+          state.hasWorkspaceAccess ? (
             <Button
               size={actionSize}
-              onClick={() => setShowUploadModal(true)}
-              disabled={isMaterialsQuotaExhausted}
-              title={isMaterialsQuotaExhausted ? exhaustedMessage : undefined}
+              onClick={() => state.setShowUploadModal(true)}
+              disabled={state.isMaterialsQuotaExhausted}
+              title={state.isMaterialsQuotaExhausted ? state.exhaustedMessage : undefined}
               leftIcon={<Upload className="w-4 h-4" />}
             >
-              {isMaterialsQuotaExhausted
+              {state.isMaterialsQuotaExhausted
                 ? t("materials:quota.decomposeTitle", {
                     defaultValue: "本月拆解次数已用完",
                   })
                 : t("materials:upload")}
             </Button>
-          ) : showHeaderUpgrade ? (
+          ) : state.showHeaderUpgrade ? (
             <Button
               variant="primary"
               size={actionSize}
-              onClick={() => openUpgradePath("billing")}
+              onClick={() => state.openUpgradePath("billing")}
               data-testid="materials-header-upgrade"
             >
-              {proEntry.label}
+              {state.proEntry.label}
             </Button>
           ) : undefined
         }
       />
 
-      {proEntry.checkoutOff && !hasWorkspaceAccess && (
+      {state.proEntry.checkoutOff && !state.hasWorkspaceAccess && (
         <p
           data-testid="materials-checkout-unavailable"
           className="mb-4 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
         >
-          {checkoutUnavailableText}
+          {state.checkoutUnavailableText}
         </p>
       )}
 
-      {isMaterialsLoading ? (
+      {state.isMaterialsLoading ? (
         <div role="status" className="flex items-center justify-center h-64">
           <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
           <span className="sr-only">{t("common:loading", { defaultValue: "加载中…" })}</span>
         </div>
-      ) : isMaterialsError ? (
-        <div role="alert" className="rounded-2xl border border-[hsl(var(--error)/0.3)] bg-[hsl(var(--error)/0.08)] p-6">
-          <p className="text-sm text-[hsl(var(--text-secondary))]">
-            {t("materials:listLoadError", { defaultValue: "素材列表加载失败，请重试。" })}
-          </p>
-          <Button variant="secondary" size={actionSize} className="mt-3" onClick={() => void refetchMaterials()}>
-            {t("common:retry", { defaultValue: "重试" })}
-          </Button>
-        </div>
-      ) : showTeaser ? (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-6">
-            <div className="max-w-3xl space-y-4">
-              <h2 className="text-base font-semibold text-[hsl(var(--text-primary))]">
-                {t("materials:teaserTitle", {
-                  defaultValue: "上传参考小说，一键拆出章节梗概、角色和世界观",
-                })}
-              </h2>
-              <p className="text-sm leading-6 text-[hsl(var(--text-secondary))]">
-                {proDecompositionsLimit === null
-                  ? t("materials:teaserDescriptionNoLimit", {
-                      defaultValue: "开通 Pro 后，每月都能拆解参考小说。",
-                    })
-                  : t("materials:teaserDescription", {
-                      defaultValue: "开通 Pro 后，每月可拆解 {{limit}} 次。",
-                      limit: proDecompositionsLimit,
-                    })}
-              </p>
-              <ul className="space-y-2 text-sm text-[hsl(var(--text-secondary))]">
-                <li>• {t("materials:teaserFeatureOne", { defaultValue: "拆出章节梗概、角色、世界观和金手指" })}</li>
-                <li>• {t("materials:teaserFeatureTwo", { defaultValue: "把角色和设定添加到项目，或引用到 AI 对话" })}</li>
-                <li>• {t("materials:teaserFeatureThree", { defaultValue: "次数用完后，已拆好的内容仍可查看和引用" })}</li>
-              </ul>
-              {!trialAvailable && (
-              <p data-testid="materials-free-try" className="text-sm text-[hsl(var(--text-secondary))]">
-                {t("materials:teaserFreeTry", {
-                  defaultValue: "素材库免费试拆暂未开放。开通 Pro 后，可上传参考小说自动拆解，并在写作时引用拆解结果。",
-                })}
-              </p>
-              )}
-              <p data-testid="materials-example-source" className="pt-2 text-xs text-[hsl(var(--text-tertiary))]">
-                {t("materials:teaserExampleSource", {
-                  defaultValue: "拆解示例 ·《九天斩神诀》· 小知了 · 前 3 章",
-                })}
-              </p>
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
-                  <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
-                    {t("materials:teaserCardCharacter", {
-                      defaultValue: "角色 · 秦月儿",
-                    })}
-                  </div>
-                  <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-                    {t("materials:teaserCardCharacterBody", {
-                      defaultValue: "林辰的未婚妻，却选择入宗机会与力量：探狱时撕下伪装，向落难的林辰索取唯一的入宗信物青玄令。",
-                    })}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
-                  <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
-                    {t("materials:teaserCardSynopsis", {
-                      defaultValue: "章节梗概 · 前 3 章",
-                    })}
-                  </div>
-                  <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-                    {t("materials:teaserCardSynopsisBody", {
-                      defaultValue: "少帅林辰蒙冤待斩 → 玉佩带来重修机会 → 未婚妻摊牌索要信物。第 3 章结尾他刚恢复聚力境一重，脱困仍悬而未决。",
-                    })}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
-                  <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
-                    {t("materials:teaserCardWorldview", {
-                      defaultValue: "设定 · 天钨",
-                    })}
-                  </div>
-                  <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
-                    {t("materials:teaserCardWorldviewBody", {
-                      defaultValue: "能穿透禁制与大阵、遮掩气息、遁入黑暗。丹田虽已修复，重伤未愈：力量有用，危机仍在。",
-                    })}
-                  </p>
-                </div>
-              </div>
-              {trialAvailable && (
-                <p data-testid="materials-trial-limits" className="pt-2 text-sm text-[hsl(var(--text-secondary))]">
-                  {t("materials:trialLimits", {
-                    defaultValue: "每个账号仅 1 次：前 {{chapters}} 章，合计不超过 {{characters}} 字。提交成功后即消耗机会。",
-                    chapters: materialTrial?.max_chapters,
-                    characters: trialCharacterLimit,
-                  })}
-                </p>
-              )}
-              <div className="flex flex-wrap gap-3 pt-2">
-                {trialAvailable && (
-                  <Button
-                    size={actionSize}
-                    data-testid="materials-trial-start"
-                    onClick={() => {
-                      trackEvent("materials_trial_started", { source: "materials_teaser" });
-                      setShowUploadModal(true);
-                    }}
-                  >
-                    {t("materials:trialStart", {
-                      defaultValue: "免费试拆前 {{chapters}} 章",
-                      chapters: materialTrial?.max_chapters,
-                    })}
-                  </Button>
-                )}
-                {/* With the trial on offer, the header keeps the Pro entry. */}
-                {!trialAvailable && (
-                  <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
-                    {proEntry.label}
-                  </Button>
-                )}
-                <Button variant="secondary" size={actionSize} onClick={() => openUpgradePath("pricing")}>
-                  {t("materials:teaserSecondary", { defaultValue: "查看套餐对比" })}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : materials.length === 0 && trialUsed ? (
-        <MaterialTrialUsedEmptyState
-          onUpgrade={() => openUpgradePath("billing", "materials_trial_used")}
-          label={proEntry.label}
-          size={actionSize}
+      ) : state.isMaterialsError ? (
+        <MaterialErrorAlert
+          message={t("materials:listLoadError", { defaultValue: "素材列表加载失败，请重试。" })}
+          actionSize={actionSize}
+          onRetry={() => {
+            void state.refetchMaterials();
+          }}
         />
-      ) : materials.length === 0 ? (
-        <>
-          {materialDecomposeQuota && hasWorkspaceAccess && (
-            <div className="mb-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-              <p className="text-sm font-medium tabular-nums text-[hsl(var(--text-primary))]">
-                {remainingDecompositions == null
-                  ? t("common:unlimited", { defaultValue: "不限" })
-                  : t("materials:quotaRemaining", {
-                      defaultValue: "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
-                      remaining: remainingDecompositions,
-                      limit: materialDecomposeQuota.limit,
-                    })}
-              </p>
-              {isMaterialsQuotaExhausted && (
-                <p className="mt-2 text-sm text-[hsl(var(--warning-text))]">
-                  {exhaustedMessage}
-                </p>
-              )}
-            </div>
-          )}
-          <DashboardEmptyState
-            icon={BookOpen}
-            title={t("materials:noMaterials")}
-            action={
-              !isMaterialsQuotaExhausted ? (
-                <Button
-                  size={actionSize}
-                  onClick={() => setShowUploadModal(true)}
-                >
-                  {t("materials:uploadFirst")}
-                </Button>
-              ) : undefined
-            }
-          />
-        </>
+      ) : state.showTeaser ? (
+        <MaterialTeaserView
+          proDecompositionsLimit={state.proDecompositionsLimit}
+          trialAvailable={state.trialAvailable}
+          trialMaxChapters={state.materialTrial?.max_chapters}
+          trialCharacterLimit={state.trialCharacterLimit}
+          proEntryLabel={state.proEntry.label}
+          actionSize={actionSize}
+          onStartTrial={state.handleStartTrial}
+          onOpenUpgrade={(destination) => state.openUpgradePath(destination)}
+        />
       ) : (
-        <div className="space-y-4">
-          {trialUsed && (
-            <div
-              data-testid="materials-trial-banner"
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-[hsl(var(--accent-primary)/0.25)] bg-[hsl(var(--accent-primary)/0.06)] p-4"
-            >
-              <p className="flex-1 min-w-0 text-sm text-[hsl(var(--text-primary))]">
-                {t("materials:trialUsedBanner", {
-                  defaultValue: "你已经用掉免费试拆（每个账号 1 次，只拆前 {{chapters}} 章）。开通 Pro 后，每月可以拆解更多参考小说，每本最多 30 万字。",
-                  chapters: materialTrial?.max_chapters,
-                })}
-                {materials.some((material) => material.status === "failed" || material.status === "completed_with_errors") && (
-                  <span data-testid="materials-trial-incomplete" className="mt-1 block text-[hsl(var(--text-secondary))]">
-                    {t("materials:trialIncomplete", {
-                      defaultValue: "这次试拆没有全部完成，已拆好的内容仍可查看；免费机会不会恢复，开通 Pro 后可以继续拆解。",
-                    })}
-                  </span>
-                )}
-              </p>
-              <Button size={actionSize} onClick={() => openUpgradePath("billing")}>
-                {proEntry.label}
-              </Button>
-            </div>
-          )}
-          {materialDecomposeQuota && hasWorkspaceAccess && (
-            <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-4">
-              <p className="text-sm font-medium tabular-nums text-[hsl(var(--text-primary))]">
-                {remainingDecompositions == null
-                  ? t("common:unlimited", { defaultValue: "不限" })
-                  : t("materials:quotaRemaining", {
-                      defaultValue: "本月还可拆解 {{remaining}} / {{limit}} 次，每次上传或重试用 1 次",
-                      remaining: remainingDecompositions,
-                      limit: materialDecomposeQuota.limit,
-                    })}
-              </p>
-              {isMaterialsQuotaExhausted && (
-                <p className="mt-2 text-sm text-[hsl(var(--warning-text))]">
-                  {exhaustedMessage}
-                </p>
-              )}
-            </div>
-          )}
-          {materials.length >= 2 && (
-            <DashboardSearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder={t("materials:searchPlaceholder", { defaultValue: "搜索素材" })}
-              className="max-w-md"
-              inputTestId="materials-search-input"
-            />
-          )}
-          {(() => {
-            const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
-            const filteredMaterials = normalizedSearch
-              ? materials.filter(
-                  (material) =>
-                    material.title.toLocaleLowerCase().includes(normalizedSearch) ||
-                    (material.original_filename?.toLocaleLowerCase().includes(normalizedSearch) ?? false),
-                )
-              : materials;
-            if (filteredMaterials.length === 0 && normalizedSearch) {
-              return (
-                <DashboardEmptyState
-                  icon={BookOpen}
-                  title={t("materials:noSearchResults", {
-                    defaultValue: "没有找到匹配的素材，换个关键词试试",
-                  })}
-                  action={
-                    <Button
-                      variant="secondary"
-                      size={actionSize}
-                      onClick={() => setSearchQuery("")}
-                    >
-                      {t("common:clearSearch", { defaultValue: "清空搜索" })}
-                    </Button>
-                  }
-                />
-              );
-            }
-            return (
-              <div className={`grid gap-3.5 motion-content-reveal ${isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"}`}>
-                {filteredMaterials.map((material) => (
-                  <MaterialCard
-                    key={material.id}
-                    material={material}
-                    onClick={() => handleCardClick(material.id)}
-                    onDelete={() => setDeletingId(material.id)}
-                    onExport={() => handleExport(material)}
-                    isExporting={exportingId === material.id}
-                    onRetry={
-                      // Retrying charges a monthly breakdown: the free trial cannot retry.
-                      !hasWorkspaceAccess || isMaterialsQuotaExhausted
-                        ? undefined
-                        : () => handleRetry(material.id)
-                    }
-                    isRetrying={retryingId === material.id}
-                    isMobile={isMobile}
-                    showDeleteAction={showDeleteAction}
-                  />
-                ))}
-              </div>
-            );
-          })()}
-        </div>
+        <MaterialLibrarySection
+          materials={state.materials}
+          hasWorkspaceAccess={state.hasWorkspaceAccess}
+          trialUsed={state.trialUsed}
+          trialMaxChapters={state.materialTrial?.max_chapters}
+          proEntryLabel={state.proEntry.label}
+          actionSize={actionSize}
+          isMobile={isMobile}
+          showDeleteAction={showDeleteAction}
+          decomposeQuotaLimit={state.materialDecomposeQuota?.limit}
+          remainingDecompositions={state.remainingDecompositions}
+          isMaterialsQuotaExhausted={state.isMaterialsQuotaExhausted}
+          exhaustedMessage={state.exhaustedMessage}
+          searchQuery={state.searchQuery}
+          onSearchChange={state.setSearchQuery}
+          exportingId={state.exportingId}
+          retryingId={state.retryingId}
+          onOpenUpload={() => state.setShowUploadModal(true)}
+          onOpenUpgrade={state.openUpgradePath}
+          onCardClick={state.handleCardClick}
+          onDelete={state.setDeletingId}
+          onExport={state.handleExport}
+          onRetry={state.handleRetry}
+        />
       )}
 
       {/* Upload Modal */}
-      <Modal
-        open={showUploadModal}
-        onClose={() => {
-          if (uploading) return;
-          setShowUploadModal(false);
-          setFile(null);
-          setTrialSelection(null);
-          setTitle("");
-          setError(null);
-        }}
-        title={t("materials:uploadModal.title")}
-        size="md"
-        showCloseButton={!uploading}
-        closeOnBackdropClick={!uploading}
-        closeOnEscape={!uploading}
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="touch"
-              onClick={() => {
-                if (uploading) return;
-                setShowUploadModal(false);
-                setFile(null);
-                setTrialSelection(null);
-                setTitle("");
-                setError(null);
-              }}
-              disabled={uploading}
-              className="flex-1"
-            >
-              {t("common:cancel")}
-            </Button>
-            <Button
-              type="submit"
-              form={uploadFormId}
-              size="touch"
-              disabled={!file || uploading}
-              title={!file && !uploading ? t("materials:uploadModal.selectFileFirst", { defaultValue: "请先选择一个 .txt 文件" }) : undefined}
-              isLoading={uploading}
-              loadingText={t("materials:uploadModal.uploading")}
-              leftIcon={<Upload className="w-4 h-4" />}
-              className="flex-1"
-            >
-              {t("materials:uploadModal.upload")}
-            </Button>
-          </>
-        }
-      >
-        <form
-          id={uploadFormId}
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (file && !uploading) {
-              void handleUpload();
-            }
-          }}
-        >
-        {trialAvailable && (
-          <p data-testid="materials-trial-upload-note" className="mb-4 text-sm text-[hsl(var(--text-secondary))]">
-            {t("materials:trialUploadNote", {
-              defaultValue: "免费试拆每个账号仅 1 次，提交成功后即消耗机会，之后失败或删书都不会恢复。整本上传即可，只拆前 {{chapters}} 章，合计不能超过 {{characters}} 字。",
-              chapters: materialTrial?.max_chapters,
-              characters: trialCharacterLimit,
-            })}
-          </p>
-        )}
-        {/* File Input */}
-        <div>
-          <label htmlFor={fileSelectButtonId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-2">
-            {t("materials:uploadModal.selectFile")} *
-          </label>
-          {/* Hidden native file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          {/* Custom file select button */}
-          <button
-            id={fileSelectButtonId}
-            type="button"
-            onClick={handleSelectFile}
-            className="w-full text-left flex items-center gap-3 p-3 border border-dashed border-[hsl(var(--border-color))] rounded-xl cursor-pointer hover:border-[hsl(var(--accent-primary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
-          >
-            <div className="w-10 h-10 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center shrink-0">
-              <Upload className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              {file ? (
-                <>
-                  <p className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
-                    {file.name}
-                  </p>
-                  <p className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
-                    {(file.size / 1024).toFixed(1)} KB
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-[hsl(var(--text-secondary))]">
-                    {t("materials:uploadModal.clickToSelect")}
-                  </p>
-                  <p className="text-xs text-[hsl(var(--text-tertiary))]">
-                    {trialAvailable
-                      ? t("materials:uploadModal.trialSupportedFormats", {
-                          defaultValue: "仅支持 .txt，不超过 20MB，需要有章节标题（如“第一章”“第一回”）；前 {{chapters}} 章合计不超过 {{characters}} 字",
-                          chapters: materialTrial?.max_chapters,
-                          characters: trialCharacterLimit,
-                        })
-                      : t("materials:uploadModal.supportedFormats")}
-                  </p>
-                </>
-              )}
-            </div>
-          </button>
-          {file && trialAvailable && trialSelection && (
-            <MaterialTrialSelectionNote selection={trialSelection} />
-          )}
-        </div>
-
-        {/* Title Input */}
-        <div className="mt-4">
-          <label htmlFor={titleInputId} className="block text-sm font-medium text-[hsl(var(--text-secondary))] mb-1">
-            {t("materials:uploadModal.titleLabel")}
-          </label>
-          <input
-            id={titleInputId}
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="input"
-            placeholder={t("materials:uploadModal.titlePlaceholder")}
-          />
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div key={error} role="alert" className="mt-4 p-3 rounded-xl bg-[hsl(var(--error)/0.1)] border border-[hsl(var(--error)/0.3)] motion-error-shake">
-            <p className="text-sm text-[hsl(var(--error-text))]">{error}</p>
-          </div>
-        )}
-        </form>
-      </Modal>
+      <MaterialUploadModal
+        open={state.showUploadModal}
+        file={state.file}
+        title={state.title}
+        uploading={state.uploading}
+        error={state.error}
+        trialAvailable={state.trialAvailable}
+        trialMaxChapters={state.materialTrial?.max_chapters}
+        trialCharacterLimit={state.trialCharacterLimit}
+        trialSelection={state.trialSelection}
+        fileInputRef={state.fileInputRef}
+        onClose={state.handleCloseUploadModal}
+        onFileChange={(e) => void state.handleFileChange(e)}
+        onSelectFile={state.handleSelectFile}
+        onTitleChange={state.setTitle}
+        onUpload={() => void state.handleUpload()}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        open={!!deletingId}
-        onClose={() => setDeletingId(null)}
-        onConfirm={() => handleDelete(deletingId!)}
+        open={!!state.deletingId}
+        onClose={() => state.setDeletingId(null)}
+        onConfirm={() => state.handleDelete(state.deletingId!)}
         title={t("materials:deleteConfirm.title")}
         message={t("materials:deleteConfirm.message")}
         variant="danger"
         confirmLabel={t("common:delete")}
         cancelLabel={t("common:cancel")}
-        loading={deleteMutation.isPending}
+        loading={state.isDeleting}
       />
 
       <MaterialsUpgradePromptModal
-        open={showMaterialAccessUpgradeModal}
-        onClose={() => setShowMaterialAccessUpgradeModal(false)}
+        open={state.showMaterialAccessUpgradeModal}
+        onClose={() => state.setShowMaterialAccessUpgradeModal(false)}
       />
       <RedeemCodeModal
-        isOpen={redeemSource !== null}
-        onClose={() => setRedeemSource(null)}
-        source={redeemSource ?? undefined}
+        isOpen={state.redeemSource !== null}
+        onClose={() => state.setRedeemSource(null)}
+        source={state.redeemSource ?? undefined}
       />
     </>
-  );
-}
-
-// Material Card Component
-function MaterialCard({
-  material,
-  onClick,
-  onDelete,
-  onExport,
-  isExporting,
-  onRetry,
-  isRetrying,
-  isMobile,
-  showDeleteAction,
-}: {
-  material: MaterialNovel;
-  onClick: () => void;
-  onDelete: () => void;
-  onExport?: () => void;
-  isExporting?: boolean;
-  onRetry?: () => void;
-  isRetrying?: boolean;
-  isMobile?: boolean;
-  showDeleteAction?: boolean;
-}) {
-  const { t } = useTranslation(["materials", "common"]);
-  const canExport =
-    Boolean(onExport) &&
-    (material.status === "completed" || material.status === "completed_with_errors");
-  const canRetryCard =
-    Boolean(onRetry) &&
-    (material.status === "failed" || material.status === "completed_with_errors");
-  const openMaterialLabel = `${t("materials:viewMaterialDetail", {
-    defaultValue: "查看素材详情",
-  })}: ${material.title}`;
-
-  const handleOpenByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onClick();
-    }
-  };
-
-  const getStatusIcon = () => {
-    switch (material.status) {
-      case "completed":
-        return <CheckCircle className="w-4 h-4 text-[hsl(var(--success-text))]" />;
-      case "completed_with_errors":
-        return <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-text))]" />;
-      case "processing":
-        return <RefreshCw className="w-4 h-4 text-[hsl(var(--info-text))] animate-spin" />;
-      case "failed":
-        return <AlertCircle className="w-4 h-4 text-[hsl(var(--error-text))]" />;
-      default:
-        return <Clock className="w-4 h-4 text-[hsl(var(--text-tertiary))]" />;
-    }
-  };
-
-  const getStatusText = () => {
-    switch (material.status) {
-      case "completed":
-        return t("materials:status.completed");
-      case "completed_with_errors":
-        return t("materials:status.completed_with_errors", {
-          defaultValue: "部分完成",
-        });
-      case "processing":
-        return t("materials:status.processing");
-      case "failed":
-        return t("materials:status.failed");
-      default:
-        return t("materials:status.pending");
-    }
-  };
-
-  const getStatusColor = () => {
-    switch (material.status) {
-      case "completed":
-        return "text-[hsl(var(--success-text))] bg-[hsl(var(--success)/0.1)]";
-      case "completed_with_errors":
-        return "text-[hsl(var(--warning-text))] bg-[hsl(var(--warning)/0.1)]";
-      case "processing":
-        return "text-[hsl(var(--info-text))] bg-[hsl(var(--info)/0.1)]";
-      case "failed":
-        return "text-[hsl(var(--error-text))] bg-[hsl(var(--error)/0.1)]";
-      default:
-        return "text-[hsl(var(--text-tertiary))] bg-[hsl(var(--bg-tertiary))]";
-    }
-  };
-
-  return (
-    <div
-      data-testid="material-card"
-      className={`group relative bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.3)] transition-colors ${isMobile ? "p-3" : "p-4"}`}
-    >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onClick}
-        onKeyDown={handleOpenByKeyboard}
-        aria-label={openMaterialLabel}
-        className="cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-      >
-        <div className="flex items-start justify-between gap-3 mb-3 pr-10">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-10 h-10 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center shrink-0">
-              <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate">
-                {material.title}
-              </h3>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] truncate">
-                {material.original_filename}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Badge */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${getStatusColor()}`}>
-            {getStatusIcon()}
-            {getStatusText()}
-          </span>
-        </div>
-
-        {/* Stats */}
-        {(material.status === "completed" || material.status === "completed_with_errors") && (
-          <div className="flex items-center gap-4 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
-            <div className="flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5" />
-              <span>{material.chapters_count || 0} {t("materials:chapters")}</span>
-            </div>
-          </div>
-        )}
-
-        <MaterialTrialBookNote material={material} />
-
-        {/* Error Message */}
-        {(material.status === "failed" || material.status === "completed_with_errors") && material.error_message && (
-          <p className="text-xs text-[hsl(var(--error-text))] mt-2 line-clamp-2">
-            {materialJobErrorText(material.error_message)}
-          </p>
-        )}
-      </div>
-
-      {(canExport || canRetryCard) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {canExport && onExport && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              onClick={(e) => {
-                e.stopPropagation();
-                onExport();
-              }}
-              disabled={isExporting}
-              leftIcon={
-                isExporting ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
-                )
-              }
-            >
-              {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
-            </Button>
-          )}
-          {canRetryCard && onRetry && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRetry();
-              }}
-              disabled={isRetrying}
-              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />}
-            >
-              {isRetrying
-                ? t("materials:status.processing", { defaultValue: "处理中" })
-                : t("common:retry", { defaultValue: "重试" })}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* Delete Button */}
-      <IconButton
-        label={t("materials:deleteConfirm.title", { defaultValue: "删除素材" })}
-        tone="danger"
-        icon={<Trash2 className="w-4 h-4" />}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className={`absolute top-2 right-2 ${
-          showDeleteAction
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-        }`}
-      />
-    </div>
   );
 }

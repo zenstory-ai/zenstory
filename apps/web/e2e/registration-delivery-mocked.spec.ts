@@ -11,8 +11,7 @@ for (const width of [390, 768, 1440]) {
       const path = new URL(route.request().url()).pathname;
       let body: unknown = {};
       let status = 200;
-      if (path.endsWith('/register-policy')) body = { invite_code_optional: true, variant: 'global_optional', rollout_percent: 100 };
-      else if (path.endsWith('/register')) body = { email: 'writer@example.com', email_verified: false, verification_sent: false };
+      if (path.endsWith('/register')) body = { email: 'writer@example.com', email_verified: false, verification_sent: false };
       else if (path.endsWith('/check-verification')) body = { email_verified: false, resend_cooldown_seconds: corrected ? 60 : 0, verification_code_ttl_seconds: corrected ? 300 : 0 };
       else if (path.endsWith('/resend-verification')) { status = 400; body = { error_code: 'ERR_AUTH_EMAIL_UNDELIVERABLE' }; }
       else if (path.endsWith('/registration-email')) {

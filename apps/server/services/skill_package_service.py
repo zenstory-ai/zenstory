@@ -1,7 +1,7 @@
 """
 Skill package service.
 
-标准技能包（SKILL.md + references/ + assets/）的导入、导出与资源文件管理。
+标准技能包（SKILL.md + references/ + assets/ + examples/ + templates/）的导入、导出与资源文件管理。
 路由层（api/skills.py）保持轻薄，业务逻辑都在这里；解析/打包是 agent/skills/package.py
 里的纯函数。永不执行技能携带的代码。
 """

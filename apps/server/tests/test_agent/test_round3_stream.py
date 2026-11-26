@@ -941,27 +941,42 @@ async def test_selected_skills_are_not_announced_again_by_load_skill():
 
 @pytest.mark.asyncio
 async def test_skill_tool_results_sent_to_client_omit_full_content():
-    """浏览器只拿技能名/路径/大小；完整方法与资源正文只给模型（不经过适配器）。"""
+    """浏览器只拿技能名/id/路径/大小（以及正数 offset）；完整方法与资源正文只给模型（不经过适配器）。"""
     load_payload = {
         "status": "success",
         "data": {
             "skill_id": "s-1",
             "skill_name": "悬念大师",
-            "source": "user",
+            "source": "added",
             "instructions": "机密方法" * 100,
             "resources": [{"path": "references/a.md", "size": 3}],
         },
     }
     read_payload = {
         "status": "success",
-        "data": {"skill_name": "悬念大师", "path": "references/a.md", "content": "机密正文"},
+        "data": {
+            "skill_id": "s-1",
+            "skill_name": "悬念大师",
+            "path": "references/a.md",
+            "content": "机密正文",
+        },
+    }
+    read_with_offset_payload = {
+        "status": "success",
+        "data": {
+            "skill_id": "s-1",
+            "skill_name": "悬念大师",
+            "path": "examples/b.md",
+            "content": "机密续段",
+            "offset": 120,
+        },
     }
 
-    def _result(name: str, payload: dict) -> WorkflowStreamEvent:
+    def _result(tool_use_id: str, name: str, payload: dict) -> WorkflowStreamEvent:
         return WorkflowStreamEvent(
             type=StreamEventType.TOOL_RESULT,
             data={
-                "tool_use_id": f"call-{name}",
+                "tool_use_id": tool_use_id,
                 "name": name,
                 "result": {"content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}]},
             },
@@ -969,20 +984,33 @@ async def test_skill_tool_results_sent_to_client_omit_full_content():
 
     events = await _drive(
         _make_adapter(),
-        [_result("load_skill", load_payload), _result("read_skill_resource", read_payload), _message_end()],
+        [
+            _result("call-load", "load_skill", load_payload),
+            _result("call-read-full", "read_skill_resource", read_payload),
+            _result("call-read-offset", "read_skill_resource", read_with_offset_payload),
+            _message_end(),
+        ],
     )
 
-    results = {e.data["tool_name"]: e.data["data"] for e in events if e.type == EventType.TOOL_RESULT}
-    assert results["load_skill"] == {
+    results_by_id = {e.data["tool_use_id"]: e.data["data"] for e in events if e.type == EventType.TOOL_RESULT}
+    assert results_by_id["call-load"] == {
         "skill_id": "s-1",
         "skill_name": "悬念大师",
-        "source": "user",
+        "source": "added",
         "instructions_chars": 400,
         "resources": [{"path": "references/a.md", "size": 3}],
     }
-    assert results["read_skill_resource"] == {
+    assert results_by_id["call-read-full"] == {
+        "skill_id": "s-1",
         "skill_name": "悬念大师",
         "path": "references/a.md",
         "size": len("机密正文".encode()),
+    }
+    assert results_by_id["call-read-offset"] == {
+        "skill_id": "s-1",
+        "skill_name": "悬念大师",
+        "path": "examples/b.md",
+        "size": len("机密续段".encode()),
+        "offset": 120,
     }
     assert "机密" not in json.dumps([e.data for e in events], ensure_ascii=False)

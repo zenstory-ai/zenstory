@@ -1,0 +1,557 @@
+/* ========================================
+   Animations & Motion Choreography
+   ======================================== */
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+    will-change: transform;
+}
+
+@keyframes shimmer-sheen {
+    0% {
+        transform: translate3d(-100%, 0, 0);
+    }
+    100% {
+        transform: translate3d(100%, 0, 0);
+    }
+}
+
+/* Skeleton shimmer animation class (GPU-composited transform sheen, zero repaint) */
+.skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: hsl(var(--bg-tertiary));
+}
+
+.skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        hsl(var(--bg-secondary) / 0.72) 50%,
+        transparent 100%
+    );
+    transform: translate3d(-100%, 0, 0);
+    animation: shimmer-sheen 1.45s var(--ease-standard) infinite;
+    will-change: transform;
+    pointer-events: none;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes scale-in {
+    from {
+        transform: translate3d(0, var(--motion-distance-sm), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes scale-out {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, var(--motion-distance-sm), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
+@keyframes popover-in {
+    from {
+        transform: translate3d(0, calc(var(--motion-distance-xs) * -1), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes popover-out {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, calc(var(--motion-distance-xs) * -1), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
+@keyframes popover-in-up {
+    from {
+        transform: translate3d(0, var(--motion-distance-xs), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes popover-out-up {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, var(--motion-distance-xs), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
+@keyframes popover-in-right {
+    from {
+        transform: translate3d(calc(var(--motion-distance-xs) * -1), 0, 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes popover-out-right {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(calc(var(--motion-distance-xs) * -1), 0, 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
+@keyframes sheet-down-in {
+    from {
+        transform: translate3d(0, calc(var(--motion-distance-sm) * -1), 0);
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes sheet-down-out {
+    from {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, calc(var(--motion-distance-sm) * -1), 0);
+        opacity: 0;
+    }
+}
+
+@keyframes slide-in-bottom {
+    from {
+        transform: translate3d(0, var(--motion-distance-md), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-out-bottom {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, var(--motion-distance-xs), 0) scale(var(--motion-scale-subtle));
+        opacity: 0;
+    }
+}
+
+@keyframes banner-in {
+    from {
+        transform: translate3d(0, var(--motion-distance-xs), 0);
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes banner-out {
+    from {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+    to {
+        transform: translate3d(0, calc(var(--motion-distance-xs) * -1), 0);
+        opacity: 0;
+    }
+}
+
+@keyframes tab-panel-in {
+    from {
+        transform: translate3d(0, 3px, 0);
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes content-reveal {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 2px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes disclosure-in {
+    from {
+        transform: translate3d(0, calc(var(--motion-distance-xs) * -1), 0);
+        opacity: 0;
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+        opacity: 1;
+    }
+}
+
+@keyframes icon-pop {
+    from {
+        transform: scale(0.82);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes error-shake {
+    0%, 100% {
+        transform: translate3d(0, 0, 0);
+    }
+    20% {
+        transform: translate3d(-3px, 0, 0);
+    }
+    45% {
+        transform: translate3d(3px, 0, 0);
+    }
+    70% {
+        transform: translate3d(-2px, 0, 0);
+    }
+    88% {
+        transform: translate3d(1px, 0, 0);
+    }
+}
+
+.animate-fade-in,
+.motion-backdrop-enter {
+    animation: fade-in var(--duration-fast) var(--ease-standard) both;
+}
+
+.motion-backdrop-exit {
+    animation: fade-out var(--duration-fast) var(--ease-standard) forwards;
+    pointer-events: none;
+}
+
+.animate-scale-in,
+.motion-surface-enter {
+    animation: scale-in var(--duration-base) var(--ease-out-expo) both;
+}
+
+.motion-surface-exit {
+    animation: scale-out var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-toast-enter {
+    animation: slide-in-bottom var(--duration-base) var(--ease-out-expo) both;
+}
+
+.motion-toast-exit {
+    animation: toast-out-bottom var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-popover-enter {
+    animation: popover-in var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-popover-exit {
+    animation: popover-out 130ms var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-popover-enter-up {
+    animation: popover-in-up var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-popover-exit-up {
+    animation: popover-out-up 130ms var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-popover-enter-right {
+    animation: popover-in-right var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-popover-exit-right {
+    animation: popover-out-right 130ms var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-toolbar-enter {
+    animation: popover-in-up var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-toolbar-exit {
+    animation: popover-out-up 120ms var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-sheet-down {
+    animation: sheet-down-in var(--duration-base) var(--ease-out-expo) both;
+}
+
+.motion-sheet-down-exit {
+    animation: sheet-down-out var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-banner-enter {
+    animation: banner-in var(--duration-base) var(--ease-out-expo) both;
+}
+
+.motion-banner-exit {
+    animation: banner-out var(--duration-fast) var(--ease-in-expo) forwards;
+    pointer-events: none;
+}
+
+.motion-tab-panel {
+    animation: tab-panel-in var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-content-reveal {
+    animation: content-reveal 180ms var(--ease-out-expo) both;
+}
+
+.motion-disclosure-enter {
+    animation: disclosure-in var(--duration-fast) var(--ease-out-expo) both;
+}
+
+.motion-icon-pop {
+    animation: icon-pop var(--duration-fast) var(--ease-spring-snappy) both;
+}
+
+.motion-error-shake {
+    animation: error-shake 220ms var(--ease-standard) both;
+}
+
+/* Smooth CSS Grid open/close height choreography */
+.motion-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+        grid-template-rows var(--duration-base) var(--ease-out-expo),
+        opacity var(--duration-fast) var(--ease-standard);
+}
+
+.motion-collapse[data-open="true"] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+.motion-collapse-fast {
+    transition:
+        grid-template-rows var(--duration-fast) var(--ease-out-expo),
+        opacity var(--duration-instant) var(--ease-standard);
+}
+
+.motion-collapse-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.motion-collapse[data-open="true"][data-settled="true"] > .motion-collapse-inner {
+    overflow: visible;
+}
+
+.motion-chevron {
+    transition: transform var(--duration-fast) var(--ease-out-expo);
+}
+
+.motion-switch-thumb {
+    transition: transform var(--duration-fast) var(--ease-spring-snappy);
+}
+
+.motion-tab-indicator {
+    transition: transform var(--duration-base) var(--ease-out-expo);
+}
+
+.motion-segmented-indicator {
+    transition:
+        transform var(--duration-base) var(--ease-out-expo),
+        width var(--duration-base) var(--ease-out-expo),
+        height var(--duration-base) var(--ease-out-expo),
+        opacity var(--duration-instant) var(--ease-standard);
+    will-change: transform;
+}
+
+.motion-segmented-indicator[data-animate="false"] {
+    transition: none;
+}
+
+.motion-progress-fill {
+    transform-origin: left center;
+    transition:
+        transform var(--duration-base) var(--ease-out-expo),
+        background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* One-shot celebration for a successful Pro activation */
+@keyframes celebration-burst {
+    0% {
+        transform: translate(0, 0) rotate(0deg) scale(0.6);
+        opacity: 0;
+    }
+    12% {
+        opacity: 1;
+    }
+    70% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(var(--burst-x), calc(var(--burst-y) + 60px)) rotate(var(--burst-rotate)) scale(1);
+        opacity: 0;
+    }
+}
+
+@keyframes celebration-pop {
+    0% {
+        transform: scale(0.6);
+        opacity: 0;
+    }
+    60% {
+        transform: scale(1.12);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.celebration-piece {
+    /* Per-piece offsets are set inline by CelebrationBurst. */
+    --burst-x: 0px;
+    --burst-y: 0px;
+    --burst-rotate: 0deg;
+    opacity: 0;
+    animation: celebration-burst 1.4s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.animate-celebration-pop {
+    animation: celebration-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --duration-instant: 0.01ms;
+        --duration-fast: 0.01ms;
+        --duration-base: 0.01ms;
+        --duration-normal: 0.01ms;
+        --duration-slow: 0.01ms;
+    }
+
+    html:focus-within {
+        scroll-behavior: auto;
+    }
+
+    .animate-float,
+    .skeleton-shimmer,
+    .skeleton-shimmer::after,
+    .animate-pulse,
+    .animate-ping,
+    .animate-bounce,
+    .animate-fade-in,
+    .animate-scale-in,
+    .animate-celebration-pop,
+    .celebration-piece,
+    .motion-backdrop-enter,
+    .motion-backdrop-exit,
+    .motion-surface-enter,
+    .motion-surface-exit,
+    .motion-toast-enter,
+    .motion-toast-exit,
+    .motion-popover-enter,
+    .motion-popover-exit,
+    .motion-popover-enter-up,
+    .motion-popover-exit-up,
+    .motion-popover-enter-right,
+    .motion-popover-exit-right,
+    .motion-toolbar-enter,
+    .motion-toolbar-exit,
+    .motion-sheet-down,
+    .motion-sheet-down-exit,
+    .motion-banner-enter,
+    .motion-banner-exit,
+    .motion-tab-panel,
+    .motion-content-reveal,
+    .motion-disclosure-enter,
+    .motion-icon-pop,
+    .motion-error-shake {
+        animation: none !important;
+        will-change: auto;
+    }
+
+    .motion-collapse,
+    .motion-collapse-fast,
+    .motion-chevron,
+    .motion-switch-thumb,
+    .motion-tab-indicator,
+    .motion-segmented-indicator,
+    .motion-progress-fill,
+    .panel-resize-handle::after {
+        transition-duration: 0.01ms !important;
+        will-change: auto;
+    }
+}

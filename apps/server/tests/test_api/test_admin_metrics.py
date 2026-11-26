@@ -2,23 +2,14 @@
 Tests for admin quota/check-in/referral metric endpoints.
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel import Session
 
-from config.datetime_utils import beijing_date, utcnow
+from config.datetime_utils import utcnow
 from models import UpgradeFunnelEvent, User
-from models.points import CheckInRecord
-from models.referral import (
-    REFERRAL_STATUS_COMPLETED,
-    REFERRAL_STATUS_PENDING,
-    REFERRAL_STATUS_REWARDED,
-    InviteCode,
-    Referral,
-    UserReward,
-)
 from models.skill import UserSkill
 from models.subscription import SubscriptionHistory, SubscriptionPlan, UsageQuota, UserSubscription
 from services.core.auth_service import hash_password
@@ -174,243 +165,6 @@ async def test_admin_quota_usage_and_user_quota_detail(client: AsyncClient, db_s
     )
     assert missing_user_response.status_code == 404
     assert missing_user_response.json()["error_detail"] == "User not found"
-
-
-@pytest.mark.integration
-async def test_admin_check_in_stats_and_records_filter(client: AsyncClient, db_session: Session):
-    admin = await create_user(db_session, "admin_checkin_metrics", "admin_checkin_metrics@example.com", is_superuser=True)
-    user_a = await create_user(db_session, "checkin_user_a", "checkin_user_a@example.com")
-    user_b = await create_user(db_session, "checkin_user_b", "checkin_user_b@example.com")
-
-    today = beijing_date(utcnow())
-    yesterday = today - timedelta(days=1)
-
-    def created_on_beijing_day(day: date) -> datetime:
-        return datetime.combine(
-            day - timedelta(days=1), datetime.min.time(), tzinfo=UTC
-        ).replace(hour=17)
-
-    db_session.add(
-        CheckInRecord(
-            user_id=user_a.id,
-            check_in_date=today,
-            streak_days=9,
-            points_earned=10,
-            created_at=created_on_beijing_day(today),
-        )
-    )
-    db_session.add(
-        CheckInRecord(
-            user_id=user_b.id,
-            check_in_date=today,
-            streak_days=2,
-            points_earned=5,
-            created_at=created_on_beijing_day(today),
-        )
-    )
-    db_session.add(
-        CheckInRecord(
-            user_id=user_a.id,
-            check_in_date=yesterday,
-            streak_days=8,
-            points_earned=8,
-            created_at=created_on_beijing_day(yesterday),
-        )
-    )
-    db_session.commit()
-
-    token = await login_user(client, admin.username)
-
-    stats_response = await client.get(
-        "/api/admin/check-in/stats",
-        headers=auth_headers(token),
-    )
-    assert stats_response.status_code == 200
-    stats_data = stats_response.json()
-    assert stats_data["today_count"] == 2
-    assert stats_data["yesterday_count"] == 1
-    assert stats_data["week_total"] >= 3
-    assert stats_data["streak_distribution"].get("7", 0) >= 1
-
-    records_response = await client.get(
-        "/api/admin/check-in/records",
-        headers=auth_headers(token),
-        params={"user_id": user_a.id, "page": 1, "page_size": 10},
-    )
-    assert records_response.status_code == 200
-    records_data = records_response.json()
-    assert records_data["total"] == 2
-    assert len(records_data["items"]) == 2
-    assert all(item["user_id"] == user_a.id for item in records_data["items"])
-    assert all(item["username"] == user_a.username for item in records_data["items"])
-
-
-@pytest.mark.integration
-async def test_admin_check_in_stats_use_beijing_days_and_include_legacy_records(
-    client: AsyncClient,
-    db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    now = datetime(2026, 10, 5, 17, 0, tzinfo=UTC)  # 2026-10-06 01:00 in Beijing
-    monkeypatch.setattr("api.admin.checkin.utcnow", lambda: now)
-    admin = await create_user(
-        db_session,
-        "admin_checkin_beijing",
-        "admin_checkin_beijing@example.com",
-        is_superuser=True,
-    )
-    target = await create_user(
-        db_session,
-        "checkin_beijing_target",
-        "checkin_beijing_target@example.com",
-    )
-    current_format_target = await create_user(
-        db_session,
-        "checkin_beijing_current",
-        "checkin_beijing_current@example.com",
-    )
-    db_session.add_all(
-        [
-            # Legacy records stored the UTC date. At UTC 17:00 this belongs to
-            # the next Beijing calendar day and must be counted as today.
-            CheckInRecord(
-                user_id=target.id,
-                check_in_date=date(2026, 10, 5),
-                streak_days=8,
-                points_earned=10,
-                created_at=datetime(2026, 10, 5, 17, 0, tzinfo=UTC),
-            ),
-            CheckInRecord(
-                user_id=target.id,
-                check_in_date=date(2026, 10, 4),
-                streak_days=7,
-                points_earned=10,
-                created_at=datetime(2026, 10, 4, 17, 0, tzinfo=UTC),
-            ),
-            # Under the old UTC-day policy the same user could check in again
-            # after UTC midnight while still in the same Beijing day.
-            CheckInRecord(
-                user_id=target.id,
-                check_in_date=date(2026, 10, 6),
-                streak_days=14,
-                points_earned=10,
-                created_at=datetime(2026, 10, 6, 1, 0, tzinfo=UTC),
-            ),
-            CheckInRecord(
-                user_id=current_format_target.id,
-                check_in_date=date(2026, 10, 6),
-                streak_days=2,
-                points_earned=10,
-                created_at=datetime(2026, 10, 5, 18, 0, tzinfo=UTC),
-            ),
-        ]
-    )
-    db_session.commit()
-
-    token = await login_user(client, admin.username)
-    response = await client.get(
-        "/api/admin/check-in/stats",
-        headers=auth_headers(token),
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["today_count"] == 2
-    assert payload["yesterday_count"] == 1
-    assert payload["week_total"] == 3
-    assert payload["streak_distribution"] == {"7": 1, "14": 1}
-
-    records_response = await client.get(
-        "/api/admin/check-in/records",
-        headers=auth_headers(token),
-        params={"user_id": target.id},
-    )
-    assert records_response.status_code == 200
-    assert [item["check_in_date"] for item in records_response.json()["items"]] == [
-        "2026-10-06",
-        "2026-10-06",
-        "2026-10-05",
-    ]
-
-
-@pytest.mark.integration
-async def test_admin_referral_stats_and_invite_filtering(client: AsyncClient, db_session: Session):
-    admin = await create_user(db_session, "admin_referral_metrics", "admin_referral_metrics@example.com", is_superuser=True)
-    inviter = await create_user(db_session, "ref_inviter", "ref_inviter@example.com")
-    invitee = await create_user(db_session, "ref_invitee", "ref_invitee@example.com")
-
-    active_code = InviteCode(code="ACTV-1001", owner_id=inviter.id, max_uses=5, current_uses=1, is_active=True)
-    inactive_code = InviteCode(code="INAC-1001", owner_id=inviter.id, max_uses=5, current_uses=0, is_active=False)
-    db_session.add(active_code)
-    db_session.add(inactive_code)
-    db_session.commit()
-    db_session.refresh(active_code)
-
-    pending_referral = Referral(
-        inviter_id=inviter.id,
-        invitee_id=invitee.id,
-        invite_code_id=active_code.id,
-        status=REFERRAL_STATUS_PENDING,
-        inviter_rewarded=False,
-    )
-    completed_referral = Referral(
-        inviter_id=inviter.id,
-        invitee_id=admin.id,
-        invite_code_id=active_code.id,
-        status=REFERRAL_STATUS_COMPLETED,
-        inviter_rewarded=False,
-    )
-    rewarded_referral = Referral(
-        inviter_id=inviter.id,
-        invitee_id=inviter.id,
-        invite_code_id=active_code.id,
-        status=REFERRAL_STATUS_REWARDED,
-        inviter_rewarded=True,
-    )
-    db_session.add(pending_referral)
-    db_session.add(completed_referral)
-    db_session.add(rewarded_referral)
-    db_session.commit()
-    db_session.refresh(completed_referral)
-
-    db_session.add(
-        UserReward(
-            user_id=inviter.id,
-            reward_type="points",
-            amount=25,
-            source="referral",
-            referral_id=completed_referral.id,
-            is_used=False,
-        )
-    )
-    db_session.commit()
-
-    token = await login_user(client, admin.username)
-
-    stats_response = await client.get(
-        "/api/admin/referrals/stats",
-        headers=auth_headers(token),
-    )
-    assert stats_response.status_code == 200
-    stats_data = stats_response.json()
-    assert stats_data["total_codes"] == 2
-    assert stats_data["active_codes"] == 1
-    assert stats_data["total_referrals"] == 3
-    assert stats_data["successful_referrals"] == 2
-    assert stats_data["pending_rewards"] == 1
-    assert stats_data["total_points_awarded"] == 25
-
-    invites_response = await client.get(
-        "/api/admin/invites",
-        headers=auth_headers(token),
-        params={"is_active": "true"},
-    )
-    assert invites_response.status_code == 200
-    invites_data = invites_response.json()
-    assert invites_data["total"] == 1
-    assert len(invites_data["items"]) == 1
-    assert invites_data["items"][0]["code"] == "ACTV-1001"
-    assert invites_data["items"][0]["owner_name"] == inviter.username
 
 
 @pytest.mark.integration
@@ -732,8 +486,6 @@ async def test_admin_upgrade_funnel_stats_by_source(client: AsyncClient, db_sess
     "endpoint",
     [
         "/api/admin/quota/usage",
-        "/api/admin/check-in/stats",
-        "/api/admin/referrals/stats",
         "/api/admin/dashboard/upgrade-conversion",
         "/api/admin/dashboard/upgrade-funnel",
     ],

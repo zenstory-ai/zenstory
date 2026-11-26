@@ -32,8 +32,8 @@ const SKILL_CARD = {
   editButton: 'button:has(svg.lucide-pencil)',
   deleteButton: 'button:has(svg.lucide-trash-2)',
   duplicateButton: 'button:has(svg.lucide-copy)',
-  expandButton: 'button:has(svg.lucide-chevron-down)',
-  collapseButton: 'button:has(svg.lucide-chevron-up)',
+  expandButton: 'button[aria-expanded="false"]',
+  collapseButton: 'button[aria-expanded="true"]',
   checkbox: 'button:has(svg.lucide-square), button:has(svg.lucide-check-square)',
 };
 
@@ -185,11 +185,11 @@ test.describe('Skills Management Flow - CRUD Lifecycle', () => {
     await expect(page.locator('[role="dialog"]')).not.toBeVisible({ timeout: 5000 });
 
     // Step 4: Verify edited content
-    await skillCard.locator('button:has(svg.lucide-chevron-down)').click();
+    await skillCard.locator('button[aria-expanded="false"]').click();
     await expect(page.locator(`text=${editedInstructions}`)).toBeVisible({ timeout: 5000 });
 
     // Step 5: Delete skill
-    await skillCard.locator('button:has(svg.lucide-chevron-up)').click();
+    await skillCard.locator('button[aria-expanded="true"]').click();
     await skillCard.locator('button:has(svg.lucide-trash-2)').click();
 
     const deleteDialog = page.locator('[role="dialog"]').filter({ hasText: /删除|确认/i }).last();
@@ -411,25 +411,27 @@ test.describe('Skills Management Flow - Search and Filter', () => {
   });
 
   test('search with no matches shows empty state', async ({ page }) => {
-    await switchToMySkills(page);
+    // Progressive disclosure hides the search bar when there are 0 skills; seed one first
+    const seedSkillName = `E2E 空搜索测试 ${Date.now()}`;
+    await createSkill(page, seedSkillName, '空搜索测试内容');
 
     const searchInput = page.locator('input[placeholder*="搜索"]').first();
     await searchInput.fill('不存在的技能名称xyz12345');
 
-    // Wait for reactive filtering
-    await page.waitForTimeout(500);
+    // Seed skill must be filtered out and no remaining card may match the query
+    await expect(page.locator(`text=${seedSkillName}`)).not.toBeVisible({ timeout: 5000 });
 
-    // Either no skills should be visible or empty state should show
     const skillCards = page.locator(SKILL_CARD.container);
     const cardCount = await skillCards.count();
 
-    // If cards exist, they shouldn't contain our search term
     if (cardCount > 0) {
       for (let i = 0; i < cardCount; i++) {
         const cardText = await skillCards.nth(i).textContent();
         expect(cardText).not.toContain('不存在的技能名称xyz12345');
       }
     }
+
+    await searchInput.fill('');
   });
 
   test('search is case insensitive', async ({ page }) => {
@@ -590,8 +592,8 @@ test.describe('Skills Management Flow - Accessibility', () => {
     const hasDialogRole = await modal.getAttribute('role');
     const hasAriaModal = await modal.getAttribute('aria-modal');
 
-    // Either role="dialog" or aria-modal="true" should be present
-    expect(hasDialogRole === 'dialog' || hasAriaModal === 'true' || true).toBeTruthy();
+    // Either role="dialog" or aria-modal="true" must be present
+    expect(hasDialogRole === 'dialog' || hasAriaModal === 'true').toBe(true);
 
     // Modal should have a title
     await expect(modal.getByText(/创建技能|编辑技能/i).first()).toBeVisible();
@@ -614,17 +616,28 @@ test.describe('Skills Management Flow - Accessibility', () => {
 
     const createButton = page.locator('button:has(svg.lucide-plus)').first();
     await createButton.click();
-    await expect(page.locator('[role="dialog"]')).toBeVisible();
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
 
     // Check name input has label (via placeholder or label element)
-    const nameInput = page.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
+    const nameInput = dialog.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
     const hasPlaceholder = await nameInput.getAttribute('placeholder');
     expect(hasPlaceholder).toBeTruthy();
 
-    // Check textarea has label
-    const textarea = page.locator('textarea');
-    const hasTextareaPlaceholder = await textarea.getAttribute('placeholder');
-    expect(hasTextareaPlaceholder || true).toBeTruthy(); // Placeholder might be optional
+    // Check textarea has an accessible label or placeholder
+    const textarea = dialog.locator('textarea').first();
+    await expect(textarea).toBeVisible();
+    const hasTextareaLabel = await textarea.evaluate((el) => {
+      const input = el as HTMLTextAreaElement;
+      return Boolean(
+        input.placeholder ||
+        input.getAttribute('aria-label') ||
+        input.getAttribute('aria-labelledby') ||
+        (input.id && document.querySelector(`label[for="${input.id}"]`)) ||
+        input.closest('label')
+      );
+    });
+    expect(hasTextareaLabel).toBe(true);
   });
 });
 

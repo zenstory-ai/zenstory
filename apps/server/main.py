@@ -46,16 +46,13 @@ from api.chat import router as chat_router
 from api.export import router as export_router
 from api.feedback import router as feedback_router
 from api.files import router as files_router
-from api.inspirations import router as inspirations_router
 from api.materials import router as materials_router
 from api.oauth import router as oauth_router
 from api.payments import router as payments_router
-from api.points import router as points_router
 from api.persona import router as persona_router
 from api.projects import router as projects_router
 from api.workspace_onboarding import router as workspace_onboarding_router
 from api.public_skills import router as public_skills_router
-from api.referral import router as referral_router
 from api.skills import router as skills_router
 from api.subscription import router as subscription_router
 from api.search import router as file_search_router
@@ -329,17 +326,14 @@ app.include_router(chat_router)
 app.include_router(voice_router)
 app.include_router(skills_router)
 app.include_router(public_skills_router)
-app.include_router(inspirations_router)
 app.include_router(materials_router)
 app.include_router(admin_router)
 app.include_router(announcements_router)
-app.include_router(referral_router)
 app.include_router(persona_router)
 app.include_router(activation_router)
 app.include_router(workspace_onboarding_router)
 app.include_router(subscription_router)
 app.include_router(payments_router)
-app.include_router(points_router)
 app.include_router(agent_api_keys_router)
 app.include_router(agent_api_router)
 app.include_router(file_search_router)

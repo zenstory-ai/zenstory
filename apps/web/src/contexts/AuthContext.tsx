@@ -36,7 +36,7 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (email: string, password: string, inviteCode?: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
+  register: (email: string, password: string) => Promise<{ email: string; email_verified: boolean; verification_sent?: boolean }>;
   logout: () => void;
   handleOAuthCallback: (
     accessToken: string,
@@ -45,7 +45,7 @@ export interface AuthContextType {
   ) => Promise<void>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
-  googleLogin: (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
+  googleLogin: (options?: { redirectUrl?: string; planIntent?: PlanIntent | null }) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -378,14 +378,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const register = async (email: string, password: string, inviteCode?: string) => {
+  const register = async (email: string, password: string) => {
     // The verification email goes out in the language the visitor is using; the
     // server names the account after the email prefix.
-    const data = await authApi.register({ email, password, invite_code: inviteCode, language: getLocale(), acquisition: getAcquisition() });
+    const data = await authApi.register({ email, password, language: getLocale(), acquisition: getAcquisition() });
     trackEvent('register_success', {
       method: 'password',
       email_verified: data.email_verified,
-      invite_code_provided: Boolean(inviteCode?.trim()),
       entry_source: getEntrySource(),
     });
 
@@ -479,11 +478,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     trackEvent('oauth_callback_success', { is_new_user: isNewUser });
   };
 
-  const googleLogin = (options?: { inviteCode?: string; redirectUrl?: string; planIntent?: PlanIntent | null }) => {
+  const googleLogin = (options?: { redirectUrl?: string; planIntent?: PlanIntent | null }) => {
     // Check for redirect parameter from external apps
     const params = new URLSearchParams(window.location.search);
     const redirectUrl = options?.redirectUrl ?? params.get('redirect');
-    const inviteCode = options?.inviteCode?.trim();
     saveOAuthPlanIntent(options?.planIntent);
 
     // Redirect to backend Google OAuth endpoint
@@ -493,10 +491,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (redirectUrl) {
       // Pass redirect parameter to backend OAuth flow
       url.searchParams.set('redirect', redirectUrl);
-    }
-    if (inviteCode) {
-      // Pass invite code for new-user gating (especially when registration requires invite codes)
-      url.searchParams.set('invite_code', inviteCode);
     }
     const acquisition = getAcquisition();
     if (acquisition) {

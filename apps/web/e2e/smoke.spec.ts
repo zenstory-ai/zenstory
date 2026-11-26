@@ -7,20 +7,6 @@ import { ChatPanel } from './fixtures/page-objects/ChatPanel';
 const TEST_EMAIL = TEST_USERS.standard.email;
 const TEST_USERNAME = process.env.E2E_TEST_USERNAME || 'e2e_test_user';
 const TEST_PASSWORD = TEST_USERS.standard.password;
-const MOCK_INSPIRATION = {
-  id: 'smoke-inspiration-1',
-  name: 'Smoke Inspiration',
-  description: 'Smoke test inspiration template',
-  cover_image: null,
-  project_type: 'novel',
-  tags: ['test'],
-  source: 'official',
-  author_id: null,
-  original_project_id: null,
-  copy_count: 1,
-  is_featured: false,
-  created_at: '2026-03-01T00:00:00Z',
-};
 
 async function gotoWithRetry(
   page: Page,
@@ -59,30 +45,6 @@ async function createProjectViaApi(
   await gotoWithRetry(page, `/project/${projectId}`);
   await expect(page).toHaveURL(/\/project\//, { timeout: 10000 });
   return result;
-}
-
-async function loginViaApi(page: Page): Promise<void> {
-  const params = new URLSearchParams();
-  params.append('username', TEST_EMAIL);
-  params.append('password', TEST_PASSWORD);
-
-  const response = await page.request.post('/api/auth/login', {
-    data: params.toString(),
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  });
-  expect(response.ok()).toBeTruthy();
-  const tokens = await response.json();
-
-  await gotoWithRetry(page, '/');
-  await page.evaluate((tokenData) => {
-    localStorage.setItem('access_token', tokenData.access_token);
-    localStorage.setItem('refresh_token', tokenData.refresh_token);
-    localStorage.setItem('token_type', tokenData.token_type);
-    localStorage.setItem('user', JSON.stringify(tokenData.user));
-    localStorage.setItem('auth_validated_at', Date.now().toString());
-  }, tokens);
 }
 
 async function createOrReuseProject(
@@ -306,53 +268,6 @@ test.describe('Smoke Tests - Critical Path', () => {
 
       await expect(page).toHaveURL(/\/dashboard\/billing/, { timeout: 10000 });
       await expect(page.getByText(/(订阅权益|Plans & Benefits|套餐权益)/i).first()).toBeVisible({ timeout: 10000 });
-    });
-
-    test('inspiration quota modal primary CTA routes to billing with source tracking', async ({ page }) => {
-      test.setTimeout(45000);
-
-      await page.route('**/api/v1/inspirations/*/copy', async (route) => {
-        await route.fulfill({
-          status: 402,
-          contentType: 'application/json',
-          body: JSON.stringify({ detail: 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' }),
-        });
-      });
-
-      await page.route('**/api/v1/inspirations*', async (route) => {
-        const request = route.request();
-        if (request.method() !== 'GET') {
-          await route.continue();
-          return;
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            inspirations: [MOCK_INSPIRATION],
-            total: 1,
-            page: 1,
-            page_size: 12,
-          }),
-        });
-      });
-
-      await loginViaApi(page);
-      await gotoWithRetry(page, '/dashboard/inspirations');
-      await expect(page).toHaveURL(/\/dashboard\/inspirations/, { timeout: 10000 });
-
-      const useButton = page.getByRole('button', { name: /创建项目|Create project/i }).first();
-      await expect(useButton).toBeVisible({ timeout: 10000 });
-      await useButton.click();
-
-      await expect(page.getByText(/本月灵感使用次数已用完|limit reached/i).first()).toBeVisible({ timeout: 10000 });
-
-      const upgradeButton = page.getByRole('button', { name: /升级套餐|Upgrade/i }).first();
-      await upgradeButton.click();
-
-      await expect(page).toHaveURL(/\/dashboard\/billing\?source=inspiration_copy_quota_blocked/, {
-        timeout: 10000,
-      });
     });
   });
 

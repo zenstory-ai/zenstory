@@ -1,9 +1,12 @@
 """Tests for skill-related prompt sections (catalog in the system prompt, selected skills in the turn context)."""
 
+import json
+
 import pytest
 
 from agent.core.message_manager import MessageManager
-from models import Project, User
+from agent.skills.context_injector import SkillContextInjector
+from models import Project, User, UserSkill
 
 pytestmark = pytest.mark.usefixtures("writing_prompt_configs")
 
@@ -97,3 +100,23 @@ def test_turn_context_skips_selected_skill_without_instructions(db_session):
     )
 
     assert "User-Selected Skills" not in turn_context
+
+
+@pytest.mark.unit
+def test_system_prompt_surfaces_catalog_trigger_hints_without_injecting_body(db_session):
+    manager = _create_manager(db_session)
+    db_session.add(UserSkill(
+        user_id=manager.user_id,
+        name="情绪拉扯",
+        description="强化双人对手戏的张力",
+        triggers=json.dumps(["对手戏", "感情线", "冲突"]),
+        instructions="PRIVATE_INSTRUCTIONS_DO_NOT_INJECT_IN_L1",
+    ))
+    db_session.commit()
+
+    catalog = SkillContextInjector().build_skill_catalog(db_session, manager.user_id)
+    prompt = manager.build_system_prompt(session=db_session, language="zh", skill_catalog=catalog)
+
+    assert "## 可用写作技能" in prompt
+    assert "- **情绪拉扯**: 强化双人对手戏的张力（触发场景：感情线、冲突）" in prompt
+    assert "PRIVATE_INSTRUCTIONS_DO_NOT_INJECT_IN_L1" not in prompt

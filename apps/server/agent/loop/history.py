@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +61,9 @@ _SKILL_CONTENT_NOT_KEPT = {
     "load_skill": "技能方法正文没有保留在历史里；这一轮要按这个技能做，先重新调用 load_skill 读取。",
     "read_skill_resource": "资源正文没有保留在历史里；这一轮要用它，先重新调用 read_skill_resource 读取。",
 }
+# 冷回放仅对最近 N 个用户轮次内的技能工具调用重新水合正文，避免过早的轮次膨胀冷回放输入。
+SKILL_REPLAY_RECENT_TURNS = 3
+_SkillRehydrator = Callable[[str, Any, Any], dict[str, Any] | None]
 _FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的具体原因与候选没有保留，重试前先重新读取相关文件。"
 
 
@@ -423,7 +427,11 @@ def summary_message(summary: str) -> dict[str, Any]:
     return {"role": "user", "content": f"{SUMMARY_PREFIX}{summary.strip()}"}
 
 
-def _tool_output_text(call: dict[str, Any]) -> str:
+def _tool_output_text(
+    call: dict[str, Any],
+    *,
+    skill_rehydrator: _SkillRehydrator | None = None,
+) -> str:
     """持久化的工具结果（前端卡片口径）还原成交给模型的结果文字。"""
     status = str(call.get("status") or "")
     name = str(call.get("name") or "")
@@ -435,6 +443,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+    rehydrated_skill = False
     if name == "edit_file" and isinstance(result, dict):
         from agent.tools.file_ops.edit import slim_edit_file_result_for_llm
 
@@ -458,6 +467,16 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             result["body_saved"] = saved if has_receipt else True
             if has_receipt and not saved:
                 result["result"] = _CREATE_NOT_SAVED_NOTE
+    elif (
+        skill_rehydrator is not None
+        and (status or "success") == "success"
+        and name in _SKILL_CONTENT_NOT_KEPT
+        and isinstance(result, dict)
+    ):
+        hydrated = skill_rehydrator(name, result, call.get("arguments"))
+        if hydrated is not None:
+            result = hydrated
+            rehydrated_skill = True
     payload: dict[str, Any] = {"status": status or "success"}
     if result is not None:
         payload["data"] = result
@@ -465,12 +484,17 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         payload["error"] = error
     if status == "error":
         payload["note"] = _FAILED_CALL_NOTE
-    elif name in _SKILL_CONTENT_NOT_KEPT:
+    elif name in _SKILL_CONTENT_NOT_KEPT and not rehydrated_skill:
         payload["note"] = _SKILL_CONTENT_NOT_KEPT[name]
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def _loop_row_items(row: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
+def _loop_row_items(
+    row: Any,
+    metadata: dict[str, Any],
+    *,
+    skill_rehydrator: _SkillRehydrator | None = None,
+) -> list[dict[str, Any]]:
     """一条单循环 assistant 行 → SDK 输入项（文字与成对的工具调用，按显示顺序）。"""
     raw_calls = _parse_json(getattr(row, "tool_calls", None))
     calls = [call for call in raw_calls if isinstance(call, dict)] if isinstance(raw_calls, list) else []
@@ -500,7 +524,11 @@ def _loop_row_items(row: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
             "name": str(call.get("name") or ""),
             "arguments": arguments,
         })
-        items.append({"type": "function_call_output", "call_id": call_id, "output": _tool_output_text(call)})
+        items.append({
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": _tool_output_text(call, skill_rehydrator=skill_rehydrator),
+        })
 
     if isinstance(events, list) and events:
         for event in events:
@@ -549,14 +577,20 @@ def _status_cards_to_replay(status_cards: list[Any], stop_reason: Any, *, has_te
     ]
 
 
-def _row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list[dict[str, Any]]:
+def _row_items(
+    loader: Any,
+    row: Any,
+    *,
+    latest_assistant: bool = False,
+    skill_rehydrator: _SkillRehydrator | None = None,
+) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
         return [{"role": "user", "content": content}] if content.strip() else []
     metadata = row_metadata(row)
     if metadata.get("engine") != LOOP_ENGINE_METADATA_VALUE:
         return _legacy_row_items(loader, row, latest_assistant=latest_assistant)
-    items = _loop_row_items(row, metadata)
+    items = _loop_row_items(row, metadata, skill_rehydrator=skill_rehydrator)
     stop_reason = metadata.get("stop_reason")
     status_cards = metadata.get("status_cards")
     if isinstance(status_cards, list):
@@ -575,6 +609,34 @@ def _row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list
     elif isinstance(stop_reason, str) and stop_reason in _INTERRUPTED_ROUND_NOTES:
         items.append({"role": "assistant", "content": _INTERRUPTED_ROUND_NOTES[stop_reason]})
     return items
+
+
+def _recent_skill_replay_row_ids(
+    after_rows: list[Any],
+    *,
+    recent_turns: int = SKILL_REPLAY_RECENT_TURNS,
+) -> set[Any]:
+    """选出最近 ``recent_turns`` 个用户轮次内的 assistant 行 id（``after_rows`` 按新→旧排列）。
+
+    同一轮内由 steering 产生的连续多条 user 行合并计作 1 个用户轮次。
+    """
+    if recent_turns <= 0:
+        return set()
+    eligible: set[Any] = set()
+    user_turns_seen = 0
+    prev_was_user = False
+    for row in after_rows:
+        if row.role == "user":
+            if not prev_was_user:
+                user_turns_seen += 1
+                prev_was_user = True
+            continue
+        prev_was_user = False
+        if row.role == "assistant":
+            if user_turns_seen >= recent_turns:
+                break
+            eligible.add(row.id)
+    return eligible
 
 
 def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list[dict[str, Any]]:
@@ -819,8 +881,42 @@ def load_loop_history(
             chat_session_id=chat_session_id,
         )
     latest_assistant_id = next((row.id for row in after_rows if row.role == "assistant"), None)
+    recent_skill_row_ids = _recent_skill_replay_row_ids(after_rows) if user_id else set()
+    active_skills_by_id: dict[str, Any] | None = None
+
+    def rehydrate_skill_call(
+        tool_name: str,
+        result_data: Any,
+        call_arguments: Any,
+    ) -> dict[str, Any] | None:
+        nonlocal active_skills_by_id
+        if not user_id:
+            return None
+        if active_skills_by_id is None:
+            from agent.skills.active_skills import load_active_skills
+            from agent.skills.replay import index_active_skills
+
+            active_skills_by_id = index_active_skills(load_active_skills(session, user_id))
+        from agent.skills.replay import rehydrate_skill_tool_result
+
+        return rehydrate_skill_tool_result(
+            active_skills_by_id,
+            session,
+            tool_name,
+            result_data,
+            call_arguments=call_arguments,
+        )
+
     for row in reversed(after_rows):
-        items.extend(_row_items(loader, row, latest_assistant=row.id == latest_assistant_id))
+        rehydrator = rehydrate_skill_call if row.id in recent_skill_row_ids else None
+        items.extend(
+            _row_items(
+                loader,
+                row,
+                latest_assistant=row.id == latest_assistant_id,
+                skill_rehydrator=rehydrator,
+            )
+        )
         if row.role == "user" and str(row.content or "").strip():
             result.author_messages.append(str(row.content))
     result.items = items

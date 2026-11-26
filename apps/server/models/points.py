@@ -1,9 +1,10 @@
 """
-Points and check-in models for gamification system.
+Points and check-in models (DORMANT).
 
-Defines SQLModel entities for:
-- PointsTransaction: Points earning/spending history with expiry tracking
-- CheckInRecord: Daily check-in records with streak tracking
+Retained strictly for Alembic metadata compatibility and historical data
+preservation (no DROP TABLE). Runtime code no longer reads or writes:
+- PointsTransaction
+- CheckInRecord
 """
 
 from datetime import date, datetime
