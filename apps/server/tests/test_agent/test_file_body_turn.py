@@ -95,10 +95,17 @@ async def test_tools_in_the_reply_that_creates_the_file_still_run(tools):
 # ---------------------------------------------------------------------------
 
 
-def _overdue(req_ctx: AgentRequestContext, file_id: str = "f1", title: str = "第一章", version: str | None = "v1") -> None:
+def _overdue(
+    req_ctx: AgentRequestContext,
+    file_id: str = "f1",
+    title: str = "第一章",
+    version: str | None = "v1",
+    *,
+    file_type: str | None = None,
+) -> None:
     """version：create_file 新建时记下的版本；复用已有剧集时为 None。"""
     req_ctx.begin_model_reply()
-    req_ctx.set_pending_empty_file(file_id, title, version)  # reply 1 ends with create_file
+    req_ctx.set_pending_empty_file(file_id, title, version, file_type=file_type)  # reply 1 ends with create_file
     req_ctx.begin_model_reply()  # reply 2 calls tools instead of streaming <file>
 
 
@@ -424,3 +431,143 @@ async def test_wall_clock_wrap_up_still_blocks_non_conflicting_tools_when_overdu
         assert executed == []
     finally:
         req_ctx.clear()
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "pending_title", "pending_type", "args"),
+    [
+        ("write_chapter", "第1章 细纲", "outline", '{"chapter": 1, "title": "起势", "file_type": "draft"}'),
+        ("write_chapter", "第1章 细纲", "outline", '{"chapter": 1, "title": "起势", "file_type": "draft", "empty": true}'),
+        ("write_chapter", "第1章 启程", "draft", '{"chapter": 1, "title": "启程", "file_type": "draft", "empty": true}'),
+        ("write_chapter", "第2集 交锋", "script", '{"chapter": 2, "title": "交锋", "file_type": "draft"}'),
+        ("create_file", "第1章 细纲", "outline", '{"title": "第1章 细纲", "file_type": "character"}'),
+    ],
+)
+async def test_overdue_blocks_cross_type_or_empty_writer_repeat_as_file_body_pending(
+    tools, tool_name, pending_title, pending_type, args
+):
+    """Overdue file_type must match: e.g. an overdue outline '第1章 细纲' must NOT match write_chapter(draft)."""
+    from agent.openai_agents.runner import _stop_run_after_tools
+
+    by_name, executed, req_ctx = tools
+    _overdue(req_ctx, file_id="f1", title=pending_title, version="v1", file_type=pending_type)
+
+    refused = await _call(by_name[tool_name], req_ctx, args)
+    assert refused["status"] == "error"
+    assert refused["error_type"] == "file_body_pending"
+    assert executed == []
+    assert _stop_run_after_tools(RunContextWrapper(req_ctx), [_result(tool_name, refused)]).is_final_output is True
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "pending_title", "pending_type", "args"),
+    [
+        ("create_file", "角色档案", "character", '{"title": "角色档案", "file_type": "character"}'),
+        ("write_chapter", "第3章 雨夜", "draft", '{"chapter": 3, "title": "雨夜", "file_type": "draft"}'),
+    ],
+)
+async def test_overdue_caps_same_target_writer_repeat_at_one_before_file_body_pending(
+    tools, tool_name, pending_title, pending_type, args
+):
+    """At most 1 same-target repeat is absorbed per pending file_id; the 2nd repeat falls back to file_body_pending."""
+    from agent.openai_agents.runner import _stop_run_after_tools
+
+    by_name, executed, req_ctx = tools
+    _overdue(req_ctx, file_id="f1", title=pending_title, version="v1", file_type=pending_type)
+
+    first = await _call(by_name[tool_name], req_ctx, args)
+    assert first["status"] == "success"
+    assert executed == [tool_name]
+    assert _stop_run_after_tools(RunContextWrapper(req_ctx), [_result(tool_name, first)]).is_final_output is False
+
+    second = await _call(by_name[tool_name], req_ctx, args)
+    assert second["status"] == "error"
+    assert second["error_type"] == "file_body_pending"
+    assert executed == [tool_name]
+    assert _stop_run_after_tools(RunContextWrapper(req_ctx), [_result(tool_name, second)]).is_final_output is True
+
+
+async def test_invoke_project_tool_records_pending_file_type_from_create_file_output(monkeypatch):
+    """When create_file binds a pending entry without passing file_type, invoke_project_tool stamps it from output."""
+    from agent.openai_agents.tools_adapter import invoke_project_tool
+
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+
+    async def fake_create(_args, *, request_context=None):
+        assert request_context is req_ctx
+        request_context.try_reserve_pending_empty_file("r1", "第1章 细纲")
+        request_context.bind_pending_empty_file("r1", "outline-1", "第1章 细纲", "v1")
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "status": "success",
+                            "mutation_applied": True,
+                            "data": {
+                                "id": "outline-1",
+                                "title": "第1章 细纲",
+                                "file_type": "outline",
+                                "awaiting_body": True,
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
+                }
+            ]
+        }
+
+    try:
+        monkeypatch.setattr("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"create_file": fake_create})
+        req_ctx.begin_model_reply()
+        await invoke_project_tool(
+            "create_file",
+            '{"title": "第1章 细纲", "file_type": "outline"}',
+            request_context=req_ctx,
+        )
+        req_ctx.begin_model_reply()
+        overdue = req_ctx.overdue_file_bodies()
+        assert overdue == [
+            {"id": "outline-1", "title": "第1章 细纲", "created_here": True, "file_type": "outline"}
+        ]
+    finally:
+        req_ctx.clear()
+
+
+async def test_rolled_back_batch_metric_aligns_with_effective_edit_file_continue_on_error(monkeypatch):
+    """Multi-edit calls default continue_on_error=True in EditFileInput; only explicit False counts as rolled back."""
+    from agent.core.run_meter import AgentRunMeter
+    from agent.openai_agents.tools_adapter import invoke_project_tool
+
+    meter = AgentRunMeter()
+
+    async def fake_edit(_args):
+        return {"status": "error", "error_type": "old_text_not_found", "error": "not found"}
+
+    monkeypatch.setattr("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"edit_file": fake_edit})
+    multi_default = json.dumps(
+        {
+            "id": "f1",
+            "edits": [
+                {"op": "replace", "old": "a", "new": "b"},
+                {"op": "replace", "old": "c", "new": "d"},
+            ],
+        }
+    )
+    multi_atomic = json.dumps(
+        {
+            "id": "f1",
+            "continue_on_error": False,
+            "edits": [
+                {"op": "replace", "old": "a", "new": "b"},
+                {"op": "replace", "old": "c", "new": "d"},
+            ],
+        }
+    )
+
+    await invoke_project_tool("edit_file", multi_default, run_meter=meter)
+    assert meter.timing_report()["tool_failures"]["edit_file"]["rolled_back_batches"] == 0
+
+    await invoke_project_tool("edit_file", multi_atomic, run_meter=meter)
+    assert meter.timing_report()["tool_failures"]["edit_file"]["rolled_back_batches"] == 1

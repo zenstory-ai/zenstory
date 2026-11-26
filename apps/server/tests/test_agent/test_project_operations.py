@@ -148,6 +148,29 @@ def test_execute_update_plan_rejects_done_to_in_progress_rollback(monkeypatch):
 
 
 @pytest.mark.unit
+def test_execute_update_plan_rejects_done_to_in_progress_rollback_even_when_second_in_progress(monkeypatch):
+    """Submitting a done -> in_progress task as a 2nd in_progress entry must NOT bypass rollback rejection."""
+    previous_tasks = [
+        {"task": "任务1", "status": "pending", "phase_id": "phase-1"},
+        {"task": "章节大纲", "status": "done", "phase_id": "phase-outline"},
+    ]
+    service = _mock_task_board(monkeypatch, previous_tasks=previous_tasks)
+    ops = ProjectOperations(session=MagicMock(), user_id="user-1")
+    tasks = [
+        {"task": "任务1", "status": "in_progress", "phase_id": "phase-1"},
+        {"task": "章节大纲", "status": "in_progress", "phase_id": "phase-outline"},
+    ]
+
+    result = ops.execute_update_plan(session_id="sess-3b", tasks=tasks)
+
+    assert result["status"] == "ignored"
+    assert result["reason"] == "validation_rejected"
+    assert "done -> in_progress rollback is not allowed" in result["error"]
+    assert "phase-outline" in result["error"]
+    service.save_tasks.assert_not_called()
+
+
+@pytest.mark.unit
 def test_execute_update_plan_allows_same_task_name_across_different_phases(monkeypatch):
     """Same task name in another phase should not be treated as rollback."""
     previous_tasks = [
@@ -221,6 +244,29 @@ def test_execute_update_plan_still_blocks_legacy_task_name_rollback(monkeypatch)
     assert result["status"] == "ignored"
     assert result["reason"] == "validation_rejected"
     assert "done -> in_progress rollback is not allowed" in result["error"]
+    service.save_tasks.assert_not_called()
+
+
+@pytest.mark.unit
+def test_execute_update_plan_rejects_legacy_rollback_even_when_second_in_progress(monkeypatch):
+    """Legacy (no phase_id) done -> in_progress rollback as a 2nd in_progress task is also blocked."""
+    previous_tasks = [
+        {"task": "任务1", "status": "pending"},
+        {"task": "章节大纲", "status": "done"},
+    ]
+    service = _mock_task_board(monkeypatch, previous_tasks=previous_tasks)
+    ops = ProjectOperations(session=MagicMock(), user_id="user-1")
+    tasks = [
+        {"task": "任务1", "status": "in_progress"},
+        {"task": "章节大纲", "status": "in_progress"},
+    ]
+
+    result = ops.execute_update_plan(session_id="sess-5b", tasks=tasks)
+
+    assert result["status"] == "ignored"
+    assert result["reason"] == "validation_rejected"
+    assert "done -> in_progress rollback is not allowed" in result["error"]
+    assert "章节大纲" in result["error"]
     service.save_tasks.assert_not_called()
 
 

@@ -985,3 +985,59 @@ async def test_finalize_reports_incomplete_when_update_project_mcp_envelope_fail
 
     assert len(events) == 2
     assert has_incomplete is True
+
+
+def test_completion_payload_accepts_compatible_material_refs_and_skips_unit_spec():
+    """Auto-finalization uses ref_type_matches & task_requires_unit_spec for material tasks with explicit refs."""
+    outline_task = {
+        "task": "写第1-5章细纲合集",
+        "status": "in_progress",
+        "artifact_file_type": "outline",
+        "artifact_refs": ["doc-1", "lore-1"],
+        "unit_spec": {"unit": "章", "numbers": [1, 2, 3, 4, 5]},
+    }
+    first = _build_completion_task_payload(
+        [outline_task],
+        [_artifact("doc-1", "第一卷总纲合集", "document")],
+    )
+    assert first == [
+        {
+            **outline_task,
+            "completed_artifact_refs": ["doc-1"],
+        }
+    ]
+
+    second = _build_completion_task_payload(
+        first,
+        [_artifact("lore-1", "世界观与伏笔备忘", "lore")],
+        [
+            _artifact("doc-1", "第一卷总纲合集", "document"),
+            _artifact("lore-1", "世界观与伏笔备忘", "lore"),
+        ],
+    )
+    assert second == [
+        {
+            **outline_task,
+            "status": "done",
+            "completed_artifact_refs": ["doc-1", "lore-1"],
+        }
+    ]
+
+
+def test_missing_artifact_evidence_reports_unit_mismatch_instead_of_same_type_error():
+    """When a draft ref has matching file_type='draft' but fails unit_spec, do not blame type mismatch."""
+    task = {
+        "task": "写第1-2章正文",
+        "status": "done",
+        "artifact_file_type": "draft",
+        "artifact_refs": ["d-extra"],
+        "unit_spec": {"unit": "章", "numbers": [1, 2]},
+    }
+    artifacts = [_artifact("d-extra", "番外 序曲", "draft")]
+    matching = ProjectOperations._matching_artifacts(task, artifacts)
+    assert matching == []
+
+    missing = ProjectOperations._missing_artifact_evidence(task, matching, artifacts)
+    assert "实际类型=draft" not in missing
+    assert "d-extra" in missing
+    assert "第1–2章" in missing

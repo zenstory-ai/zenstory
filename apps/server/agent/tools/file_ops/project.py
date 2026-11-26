@@ -228,16 +228,6 @@ class ProjectOperations:
             if status == "in_progress":
                 in_progress_indices.append(index)
 
-        if len(in_progress_indices) > 1:
-            kept_index = in_progress_indices[0]
-            kept_name = str(tasks[kept_index].get("task") or f"index-{kept_index}").strip()
-            for extra_index in in_progress_indices[1:]:
-                tasks[extra_index]["status"] = "pending"
-            warnings.append(
-                f"同时有 {len(in_progress_indices)} 个任务为 in_progress，已保留首个「{kept_name}」，"
-                f"其余 {len(in_progress_indices) - 1} 个已自动调整为 pending。"
-            )
-
         historical_tasks = previous_tasks or []
         done_phase_keys: set[tuple[str, str | None]] = set()
         done_legacy_task_keys: set[str] = set()
@@ -256,35 +246,44 @@ class ProjectOperations:
             if task_key:
                 done_legacy_task_keys.add(task_key)
 
-        if not done_phase_keys and not done_legacy_task_keys:
-            return warnings
+        # Check done -> in_progress rollbacks against submitted statuses BEFORE normalizing
+        # extra in_progress tasks to "pending", so a rollback cannot hide behind another in_progress task.
+        if done_phase_keys or done_legacy_task_keys:
+            rollback_targets: list[str] = []
+            for index in in_progress_indices:
+                task = tasks[index]
+                phase_key = self._normalize_task_phase_identity(task)
+                task_key = self._normalize_task_name(task)
 
-        rollback_targets: list[str] = []
-        for index, task in enumerate(tasks):
-            if task.get("status") != "in_progress":
-                continue
-
-            phase_key = self._normalize_task_phase_identity(task)
-            task_key = self._normalize_task_name(task)
-
-            # If current task has phase_id, match by (phase_id + task name).
-            # This prevents false positives when phase_id is reused, while still
-            # allowing same task names across different phases.
-            is_rollback = (
-                bool(phase_key and phase_key in done_phase_keys)
-                or bool(not phase_key and task_key and task_key in done_legacy_task_keys)
-            )
-
-            if is_rollback:
-                rollback_targets.append(
-                    str(task.get("phase_id") or task.get("task") or f"index-{index}")
+                # If current task has phase_id, match by (phase_id + task name).
+                # This prevents false positives when phase_id is reused, while still
+                # allowing same task names across different phases.
+                is_rollback = (
+                    bool(phase_key and phase_key in done_phase_keys)
+                    or bool(not phase_key and task_key and task_key in done_legacy_task_keys)
                 )
 
-        if rollback_targets:
-            targets = ", ".join(rollback_targets)
-            raise ValueError(
-                f"Invalid task transition: done -> in_progress rollback is not allowed ({targets})"
+                if is_rollback:
+                    rollback_targets.append(
+                        str(task.get("phase_id") or task.get("task") or f"index-{index}")
+                    )
+
+            if rollback_targets:
+                targets = ", ".join(rollback_targets)
+                raise ValueError(
+                    f"Invalid task transition: done -> in_progress rollback is not allowed ({targets})"
+                )
+
+        if len(in_progress_indices) > 1:
+            kept_index = in_progress_indices[0]
+            kept_name = str(tasks[kept_index].get("task") or f"index-{kept_index}").strip()
+            for extra_index in in_progress_indices[1:]:
+                tasks[extra_index]["status"] = "pending"
+            warnings.append(
+                f"同时有 {len(in_progress_indices)} 个任务为 in_progress，已保留首个「{kept_name}」，"
+                f"其余 {len(in_progress_indices) - 1} 个已自动调整为 pending。"
             )
+
         return warnings
 
     _ARTIFACT_CONTRACT_FIELDS = ("task_kind", "artifact_file_type", "artifact_refs", "unit_spec", "artifact")
@@ -361,15 +360,24 @@ class ProjectOperations:
         if refs and not refs <= matched_ids:
             if artifacts is not None:
                 live_by_id = {item.id: item for item in artifacts}
+                spec = task_evidence_spec(task) if task_requires_unit_spec(task) else None
                 details: list[str] = []
+                has_type_or_missing_issue = False
                 for ref_id in sorted(refs - matched_ids):
                     actual = live_by_id.get(ref_id)
-                    if actual is not None:
-                        details.append(f"{ref_id}(实际类型={actual.file_type}，期望={file_type})")
-                    else:
+                    if actual is None:
+                        has_type_or_missing_issue = True
                         details.append(f"{ref_id}(不存在、已删除或内容为空)")
+                    elif not ref_type_matches(file_type, actual.file_type):
+                        has_type_or_missing_issue = True
+                        details.append(f"{ref_id}(实际类型={actual.file_type}，期望={file_type})")
+                    elif spec is not None:
+                        details.append(f"{ref_id}(未匹配预期编号：{format_units(spec.numbers, spec.unit)})")
+                    else:
+                        details.append(f"{ref_id}(未满足任务交付条件)")
                 if details:
-                    return f"对应类型的产物文件：{'; '.join(details)}"
+                    prefix = "对应类型的产物文件" if has_type_or_missing_issue else "符合预期编号的产物文件"
+                    return f"{prefix}：{'; '.join(details)}"
             return "对应类型的产物文件"
         if task_requires_unit_spec(task):
             spec = task_evidence_spec(task)

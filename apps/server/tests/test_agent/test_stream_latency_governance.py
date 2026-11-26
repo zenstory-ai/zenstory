@@ -329,6 +329,87 @@ async def test_runner_parallel_tool_calls_with_fake_responses_id_do_not_collide(
 
 @pytest.mark.asyncio
 @pytest.mark.unit
+async def test_runner_ignores_stray_post_done_delta_with_explicit_id_or_index(monkeypatch):
+    """A stray/post-done delta carrying an explicit item_id or output_index must not bleed into another active call."""
+    from agents.models.fake_id import FAKE_RESPONSES_ID
+
+    now = [60.0]
+    monkeypatch.setattr("agent.openai_agents.runner.time.monotonic", lambda: now[0])
+
+    sdk_events: list[Any] = [
+        _raw_ev(SimpleNamespace(type="response.created")),
+        _raw_ev(
+            SimpleNamespace(
+                type="response.output_item.added",
+                output_index=0,
+                item=SimpleNamespace(type="function_call", id=FAKE_RESPONSES_ID, call_id="call_0", name="edit_file"),
+            )
+        ),
+        _raw_ev(
+            SimpleNamespace(
+                type="response.output_item.added",
+                output_index=1,
+                item=SimpleNamespace(type="function_call", id=FAKE_RESPONSES_ID, call_id="call_1", name="create_file"),
+            )
+        ),
+        # Call 0 finishes.
+        _raw_ev(
+            SimpleNamespace(
+                type="response.output_item.done",
+                output_index=0,
+                item=SimpleNamespace(type="function_call", id=FAKE_RESPONSES_ID, call_id="call_0", name="edit_file"),
+            )
+        ),
+        # Stray late delta for call 0 (explicit output_index=0) must NOT fall back to last_tool_arg_stream_key (call 1)!
+        _raw_ev(
+            SimpleNamespace(
+                type="response.function_call_arguments.delta",
+                item_id=FAKE_RESPONSES_ID,
+                output_index=0,
+                delta="x" * 2_000,
+            )
+        ),
+        # Call 1 finishes (clears last_tool_arg_stream_key), then an anonymous stray delta arrives -> ignored.
+        _raw_ev(
+            SimpleNamespace(
+                type="response.output_item.done",
+                output_index=1,
+                item=SimpleNamespace(type="function_call", id=FAKE_RESPONSES_ID, call_id="call_1", name="create_file"),
+            )
+        ),
+        _raw_ev(
+            SimpleNamespace(
+                type="response.function_call_arguments.delta",
+                item_id=FAKE_RESPONSES_ID,
+                output_index=None,
+                delta="y" * 2_000,
+            )
+        ),
+    ]
+
+    fake_result = _FakeStreamedResult(sdk_events)
+    with (
+        patch("agents.Runner.run_streamed", return_value=fake_result),
+        patch("agent.openai_agents.runner._build_agent", return_value=SimpleNamespace(name="loop")),
+        patch("agent.openai_agents.runner._preferred_model_name", AsyncMock(return_value="mock-model")),
+    ):
+        collected = [
+            ev
+            async for ev in run_openai_agents_streaming_agent(
+                {"user_message": "并行操作", "language": "zh"},
+                agent_type="loop",
+                system_prompt="sys",
+            )
+        ]
+
+    statuses = [ev.data for ev in collected if ev.type == StreamEventType.THINKING and "message" in ev.data]
+    # Only the 2 initial preparing messages; neither stray delta produced a spurious progress update.
+    assert [s["tool_name"] for s in statuses] == ["edit_file", "create_file"]
+    assert all("2000" not in s["message"] for s in statuses)
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
 async def test_stream_adapter_maps_tool_preparing_to_transient_thinking_sse_without_polluting_billing():
     """StreamAdapter emits transient SSE `thinking` (not `thinking_content`) and leaves billing untouched."""
     adapter = StreamAdapter(StreamAdapterConfig(project_id="p1", user_id="u1"))

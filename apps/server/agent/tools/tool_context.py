@@ -62,15 +62,20 @@ class _PendingEmptyFileState:
     """
 
     __slots__ = (
-        "_lock", "_entries", "_reservations", "_streamed", "_reply_seq", "_created_in", "_versions",
-        "_prebody_reply", "_waiting_at_reply_start", "_replacements", "_closed", "_replacement_saved",
-        "_chapter_bodies_saved", "_saved_body_types", "_cut_bodies_saved",
+        "_lock", "_entries", "_file_types", "_repeat_absorptions", "_reservations", "_streamed",
+        "_reply_seq", "_created_in", "_versions", "_prebody_reply", "_waiting_at_reply_start",
+        "_replacements", "_closed", "_replacement_saved", "_chapter_bodies_saved",
+        "_saved_body_types", "_cut_bodies_saved",
     )
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         # file_id -> title，按插入顺序保存全部待写入空文件
         self._entries: dict[str, str] = {}
+        # file_id -> 规范化 file_type（小写，未知时省略），供同目标重复守卫校验类型
+        self._file_types: dict[str, str] = {}
+        # file_id -> 本待写周期内已吸收的同目标重复 write_chapter / create_file 次数（上限 1）
+        self._repeat_absorptions: dict[str, int] = {}
         # ticket -> title，正在建库途中（还没拿到真实 file_id）的占坑
         self._reservations: dict[str, str] = {}
         # 正文已以闭合 <file> 块出现在模型回复里、只差 adapter 落库的条目
@@ -128,7 +133,7 @@ class _PendingEmptyFileState:
             ]
 
     def entry_for(self, file_id: str) -> dict[str, Any] | None:
-        """file_id 当前在待写入集合里时返回 {file_id, title, created_here}，否则为 None。"""
+        """file_id 当前在待写入集合里时返回 {file_id, title, created_here, file_type}，否则为 None。"""
         with self._lock:
             if file_id not in self._entries:
                 return None
@@ -136,6 +141,7 @@ class _PendingEmptyFileState:
                 "file_id": file_id,
                 "title": self._entries[file_id],
                 "created_here": file_id in self._versions,
+                "file_type": self._file_types.get(file_id, ""),
             }
 
     # ---- 写入 --------------------------------------------------------------
@@ -145,23 +151,66 @@ class _PendingEmptyFileState:
             self._reply_seq += 1
             self._waiting_at_reply_start = any(file_id not in self._streamed for file_id in self._entries)
 
-    def overdue_unwritten_files(self) -> list[dict[str, str]]:
-        """上一次（或更早的）回复建好、这次回复还没写出正文的文件：精确 {id, title}（按置位先后）。
+    def overdue_unwritten_files(self) -> list[dict[str, Any]]:
+        """上一次（或更早的）回复建好、这次回复还没写出正文的文件：精确 {id, title, created_here, file_type}（按置位先后）。
 
         created_here：本请求新建、记下了建好时版本的文件（复用的已有剧集没有，可能已有正文）。
         """
         with self._lock:
             return [
-                {"id": file_id, "title": title, "created_here": file_id in self._versions}
+                {
+                    "id": file_id,
+                    "title": title,
+                    "created_here": file_id in self._versions,
+                    "file_type": self._file_types.get(file_id, ""),
+                }
                 for file_id, title in self._entries.items()
                 if file_id not in self._streamed and self._created_in.get(file_id, self._reply_seq) < self._reply_seq
             ]
 
-    def add(self, file_id: str, title: str, version: str | None = None) -> None:
+    def _set_file_type_locked(self, file_id: str, file_type: str | None) -> None:
+        normalized = file_type.strip().lower() if isinstance(file_type, str) else ""
+        if normalized:
+            self._file_types[file_id] = normalized
+        else:
+            self._file_types.pop(file_id, None)
+
+    def set_file_type(self, file_id: str, file_type: str | None) -> None:
+        """为当前仍在待写入集合里的 file_id 补充或更新规范化 file_type。"""
+        normalized = file_type.strip().lower() if isinstance(file_type, str) else ""
+        if not file_id or not normalized:
+            return
+        with self._lock:
+            if file_id in self._entries:
+                self._file_types[file_id] = normalized
+
+    def consume_repeat_absorption(self, file_id: str, *, max_repeats: int = 1) -> bool:
+        """为当前待写 file_id 消耗一次同目标重复调用吸收额度；超限时返回 False。"""
+        if not file_id or max_repeats <= 0:
+            return False
+        with self._lock:
+            if file_id not in self._entries:
+                return False
+            used = self._repeat_absorptions.get(file_id, 0)
+            if used >= max_repeats:
+                return False
+            self._repeat_absorptions[file_id] = used + 1
+            return True
+
+    def add(
+        self,
+        file_id: str,
+        title: str,
+        version: str | None = None,
+        *,
+        file_type: str | None = None,
+    ) -> None:
         with self._lock:
             self._created_in[file_id] = self._reply_seq
             self._entries[file_id] = title
             self._set_version(file_id, version)
+            self._set_file_type_locked(file_id, file_type)
+            self._repeat_absorptions.pop(file_id, None)
             self._replacements.pop(file_id, None)
             # 同一文件重新进入待写：旧的"正文已写出"标记不能沿用
             self._streamed.discard(file_id)
@@ -214,11 +263,17 @@ class _PendingEmptyFileState:
         with self._lock:
             if file_id is None:
                 self._entries.clear()
+                self._file_types.clear()
+                self._repeat_absorptions.clear()
+                self._created_in.clear()
                 self._streamed.clear()
                 self._versions.clear()
                 self._replacements.clear()
             else:
                 self._entries.pop(file_id, None)
+                self._file_types.pop(file_id, None)
+                self._repeat_absorptions.pop(file_id, None)
+                self._created_in.pop(file_id, None)
                 self._streamed.discard(file_id)
                 self._versions.pop(file_id, None)
                 self._replacements.pop(file_id, None)
@@ -226,6 +281,9 @@ class _PendingEmptyFileState:
     def clear_all(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._file_types.clear()
+            self._repeat_absorptions.clear()
+            self._created_in.clear()
             self._reservations.clear()
             self._streamed.clear()
             self._versions.clear()
@@ -366,17 +424,26 @@ class _PendingEmptyFileState:
         title: str,
         version: str | None = None,
         replacement: dict[str, Any] | None = None,
+        *,
+        file_type: str | None = None,
     ) -> None:
         """占坑成功且文件已落库：把票据换成真实 file_id，并记下建好时的版本。
 
         replacement：write_chapter 整章替换已有章节时的定位结果（这时 version 为 None）。
         """
+        effective_type = file_type
+        if not effective_type and isinstance(replacement, dict):
+            raw_type = replacement.get("file_type")
+            if isinstance(raw_type, str):
+                effective_type = raw_type
         with self._lock:
             self._reservations.pop(ticket, None)
             if file_id:
                 self._entries[file_id] = title
                 self._created_in[file_id] = self._reply_seq
                 self._set_version(file_id, version)
+                self._set_file_type_locked(file_id, effective_type)
+                self._repeat_absorptions.pop(file_id, None)
                 if replacement is not None:
                     self._replacements[file_id] = dict(replacement)
                     self._replacement_saved[file_id] = False
@@ -1107,9 +1174,22 @@ class AgentRequestContext:
 
     # ---- Pending empty-file / chapter-replacement state --------------------
     def set_pending_empty_file(
-        self, file_id: str, title: str, version: str | None = None
+        self,
+        file_id: str,
+        title: str,
+        version: str | None = None,
+        *,
+        file_type: str | None = None,
     ) -> None:
-        self.pending_empty_file_state.add(file_id, title, version)
+        self.pending_empty_file_state.add(file_id, title, version, file_type=file_type)
+
+    def set_pending_empty_file_type(self, file_id: str, file_type: str | None) -> None:
+        self.pending_empty_file_state.set_file_type(file_id, file_type)
+
+    def consume_pending_writer_repeat(self, file_id: str, *, max_repeats: int = 1) -> bool:
+        return self.pending_empty_file_state.consume_repeat_absorption(
+            file_id, max_repeats=max_repeats
+        )
 
     def clear_pending_empty_file(self, file_id: str | None = None) -> None:
         self.pending_empty_file_state.discard(file_id)
@@ -1162,8 +1242,12 @@ class AgentRequestContext:
         title: str,
         version: str | None = None,
         replacement: dict[str, Any] | None = None,
+        *,
+        file_type: str | None = None,
     ) -> None:
-        self.pending_empty_file_state.bind(ticket, file_id, title, version, replacement)
+        self.pending_empty_file_state.bind(
+            ticket, file_id, title, version, replacement, file_type=file_type
+        )
 
     def release_pending_empty_file(self, ticket: str) -> None:
         self.pending_empty_file_state.release(ticket)

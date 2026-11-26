@@ -666,6 +666,8 @@ class StreamAdapter:
             # 「哪几处没改成、为什么」的唯一依据，丢掉它卡片就是空白的。
             emit_data = result_data if (status == "success" or edit_all_failed) else None
             emit_data = self._client_safe_skill_payload(tool_name, emit_data)
+            if isinstance(emit_data, dict) and emit_data.get("guard_skipped") is True and "message" in emit_data:
+                emit_data = {k: v for k, v in emit_data.items() if k != "message"}
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 

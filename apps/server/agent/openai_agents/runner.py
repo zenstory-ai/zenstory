@@ -149,12 +149,22 @@ def _tool_arg_progress_message(tool_name: str, chars: int, *, english: bool) -> 
     return template.format(chars=chars)
 
 
+_CACHED_FAKE_RESPONSES_ID: str | None = None
+
+
+def _fake_responses_id() -> str:
+    global _CACHED_FAKE_RESPONSES_ID
+    if _CACHED_FAKE_RESPONSES_ID is None:
+        from agents.models.fake_id import FAKE_RESPONSES_ID
+
+        _CACHED_FAKE_RESPONSES_ID = FAKE_RESPONSES_ID
+    return _CACHED_FAKE_RESPONSES_ID
+
+
 def _real_raw_item_id(value: Any) -> str:
     """Return a provider item id only when it is a real unique id (never Chat Completions' FAKE_RESPONSES_ID)."""
-    from agents.models.fake_id import FAKE_RESPONSES_ID
-
     raw_id = str(value or "")
-    return "" if not raw_id or raw_id == FAKE_RESPONSES_ID else raw_id
+    return "" if not raw_id or raw_id == _fake_responses_id() else raw_id
 
 # 距离上限还剩多少次模型调用时开始收尾：在这几次调用的输入末尾追加提醒，
 # 要求模型停止调用工具、写阶段总结（已完成 / 剩余 / 用到的文件 id）。上限取
@@ -1118,7 +1128,12 @@ async def run_openai_agents_streaming_agent(
                             )
                             if tracker is None and output_index is not None:
                                 tracker = active_tool_arg_streams.get(f"idx:{output_index}")
-                            if tracker is None and last_tool_arg_stream_key is not None:
+                            if (
+                                tracker is None
+                                and not raw_item_id
+                                and output_index is None
+                                and last_tool_arg_stream_key is not None
+                            ):
                                 tracker = active_tool_arg_streams.get(last_tool_arg_stream_key)
                             if tracker is not None:
                                 tracker.total_bytes += len(arg_delta.encode("utf-8"))
@@ -1152,18 +1167,20 @@ async def run_openai_agents_streaming_agent(
                                     )
                     elif raw_type in {"response.function_call_arguments.done", "response.output_item.done"}:
                         done_item = getattr(raw, "item", None)
-                        done_key = _real_raw_item_id(getattr(raw, "item_id", "")) or _real_raw_item_id(
-                            _raw_item_value(done_item, "id", "")
-                        )
+                        done_keys: list[str] = []
+                        for candidate in (
+                            _real_raw_item_id(getattr(raw, "item_id", "")),
+                            _real_raw_item_id(_raw_item_value(done_item, "id", "")),
+                            _real_raw_item_id(_raw_item_value(done_item, "call_id", "")),
+                        ):
+                            if candidate and candidate not in done_keys:
+                                done_keys.append(candidate)
                         output_index = getattr(raw, "output_index", None)
-                        if done_key:
-                            active_tool_arg_streams.pop(done_key, None)
-                        elif output_index is not None:
-                            active_tool_arg_streams.pop(f"idx:{output_index}", None)
-                        else:
-                            call_key = _real_raw_item_id(_raw_item_value(done_item, "call_id", ""))
-                            if call_key:
-                                active_tool_arg_streams.pop(call_key, None)
+                        if output_index is not None:
+                            done_keys.append(f"idx:{output_index}")
+                        for key in done_keys:
+                            if active_tool_arg_streams.pop(key, None) is not None and last_tool_arg_stream_key == key:
+                                last_tool_arg_stream_key = None
                     continue
 
                 if event_type != "run_item_stream_event":

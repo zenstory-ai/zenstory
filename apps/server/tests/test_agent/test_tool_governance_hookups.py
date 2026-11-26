@@ -217,3 +217,5 @@ async def test_stream_adapter_skips_file_edit_events_on_guard_skipped():
     tool_res = next(ev for ev in sse_events if ev.type.value == "tool_result")
     assert tool_res.data["status"] == "success"
     assert tool_res.data["data"]["guard_skipped"] is True
+    assert "message" not in tool_res.data["data"]
+    assert tool_res.data["data"]["user_message"] == "这一步的细微调整已跳过，之前的修改都已保存。"
