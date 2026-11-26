@@ -173,14 +173,18 @@ describe('ChatPanel undo / delete-restore card state sync across reload', () => 
   const hash1 = 'a'.repeat(64);
   const hash2 = 'b'.repeat(64);
 
+  let originalScrollIntoView: typeof Element.prototype.scrollIntoView;
+
   beforeEach(() => {
     vi.clearAllMocks();
     // jsdom lacks scrollIntoView on elements
+    originalScrollIntoView = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = vi.fn();
   });
 
   afterEach(() => {
     cleanup();
+    Element.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it('persists edit_file undo state across reload and prevents double-undo', async () => {

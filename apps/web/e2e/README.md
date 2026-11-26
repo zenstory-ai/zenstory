@@ -111,6 +111,6 @@ await expect(page.locator('.chat')).toHaveScreenshot('chat.png', {
 
 Wait for the relevant page state and fonts rather than an arbitrary buffer. Keep viewport, theme and fixture data consistent. A DOM assertion does not replace keyboard/focus testing or visual review.
 
-Voice codec checks have a separate [fixture guide](fixtures/audio/README.md); they do not prove physical microphone or native Safari permission behavior. Production bundle smoke checks use `playwright.prod-smoke.config.ts` (`pnpm test:e2e:prod-smoke`) against `vite preview`. Organization/domain checks use `playwright.geo.config.ts` and the [domain guide](../../../docs/ops/domain-migration.md). Online production checks and paid-provider calls require their own explicit scope.
+Voice codec checks have a separate [fixture guide](fixtures/audio/README.md) and `playwright.voice.config.ts` (`pnpm test:e2e:voice-codec`); they do not prove physical microphone or native Safari permission behavior. Production bundle smoke checks use `playwright.prod-smoke.config.ts` (`pnpm test:e2e:prod-smoke`) against `vite preview`. Organization/domain checks use `playwright.geo.config.ts` and the [domain guide](../../../docs/ops/domain-migration.md). Online production checks and paid-provider calls require their own explicit scope.
 
 For release authorization, source binding and migration/drain requirements, use [the release contract](../../../docs/ops/release-ci-cd.md).

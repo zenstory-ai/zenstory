@@ -370,7 +370,7 @@ async function setupMaterialLibraryMocking(page: Page) {
           updated_at: mockTimestamp,
         }),
       })
-    } else if (pathname.endsWith('/plots') || pathname.endsWith('/storylines')) {
+    } else if (pathname.endsWith('/plots') || pathname.endsWith('/storylines') || pathname.endsWith('/stories')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -717,32 +717,36 @@ test.describe('Material Library Flow - Entity Exploration', () => {
   })
 
   test('user can browse plot/storylines', async ({ page }) => {
-    const plotTab = page.locator('button:has-text("Plot"), button:has-text("剧情"), button:has-text("故事线"), button:has-text("Story")').first()
-    await expect(plotTab).toBeVisible({ timeout: 5000 })
-    await plotTab.click()
+    const storylineFolder = page.locator('#material-folder-storylines')
+    await expect(storylineFolder).toBeVisible({ timeout: 5000 })
+    await storylineFolder.click()
 
-    const plotContent = page.locator('text=/三年之约|炼药大会|Plot|Story/i')
+    const plotContent = page.locator('text=/三年之约|炼药大会/')
     await expect(plotContent.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('user can view relationships', async ({ page }) => {
-    const relationshipTab = page.locator('button:has-text("Relation"), button:has-text("关系")').first()
+    const relationshipTab = page.locator('#material-folder-relationships')
     if (!(await relationshipTab.isVisible())) {
       // Relationships category is behind a feature flag when disabled
       return
     }
     await relationshipTab.click()
 
-    const relationContent = page.locator('text=/萧炎|药老|师徒|Relation/i')
+    const relationContent = page.locator('text=/萧炎 - 药老|萧炎 - 纳兰嫣然|师徒/')
     await expect(relationContent.first()).toBeVisible({ timeout: 5000 })
   })
 
   test('user can view world view/setting', async ({ page }) => {
-    const worldTab = page.locator('button:has-text("World"), button:has-text("世界"), button:has-text("设定")').first()
-    await expect(worldTab).toBeVisible({ timeout: 5000 })
-    await worldTab.click()
+    const worldFolder = page.locator('#material-folder-worldview')
+    await expect(worldFolder).toBeVisible({ timeout: 5000 })
+    await worldFolder.click()
 
-    const worldContent = page.locator('text=/斗气|修炼|云岚宗|Power|Cultivation|世界观/i')
+    const worldItem = page.getByRole('button', { name: /世界观设定|Worldbuilding Settings/i }).first()
+    await expect(worldItem).toBeVisible({ timeout: 5000 })
+    await worldItem.click()
+
+    const worldContent = page.locator('text=/斗气修炼体系|云岚宗|斗气大陆/')
     await expect(worldContent.first()).toBeVisible({ timeout: 5000 })
   })
 })
@@ -1223,10 +1227,8 @@ test.describe('Material Library Flow - Delete Operations', () => {
     await expect(deleteButton).toBeVisible({ timeout: 5000 })
     await deleteButton.click()
 
-    const confirmDialog = page
-      .locator('[role="dialog"]')
-      .or(page.getByText(/确认删除|Confirm|删除/i))
-    await expect(confirmDialog.first()).toBeVisible({ timeout: 5000 })
+    const confirmDialog = page.locator('[role="dialog"], [role="alertdialog"]').first()
+    await expect(confirmDialog).toBeVisible({ timeout: 5000 })
   })
 
   test('delete removes material from list', async ({ page }) => {

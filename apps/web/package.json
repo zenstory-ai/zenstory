@@ -34,6 +34,7 @@
     "test:e2e:local:full": "pnpm --dir ../.. e2e:zenstory:local:full",
     "test:smoke": "playwright test smoke.spec.ts --project=chromium",
     "test:e2e:prod-smoke": "playwright test --config=playwright.prod-smoke.config.ts",
+    "test:e2e:voice-codec": "playwright test --config=playwright.voice.config.ts",
     "test:ci-local": "act -j e2e-test",
     "test:ci-local:all": "act",
     "test:site": "node --test scripts/__tests__/*.test.mjs",
