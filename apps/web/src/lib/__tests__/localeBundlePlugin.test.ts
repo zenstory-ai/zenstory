@@ -4,6 +4,11 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { localeBundlePlugin } from '../../../scripts/locale-bundle-plugin';
+import {
+  CORE_LOCALE_NAMESPACES,
+  LAZY_LOCALE_NAMESPACES,
+  LOCALE_LANGUAGES,
+} from '../localeNamespaces';
 
 type PluginHook = (this: { addWatchFile(file: string): void }, id: string) => unknown;
 
@@ -15,7 +20,7 @@ function hook(plugin: Plugin, name: 'resolveId' | 'load'): PluginHook {
   return candidate as unknown as PluginHook;
 }
 
-function bundleFrom(source: unknown): Record<string, unknown> {
+function moduleJsonFrom(source: unknown): Record<string, unknown> {
   expect(source).toEqual(expect.any(String));
   const moduleSource = source as string;
   expect(moduleSource).toMatch(/^export default .*;$/s);
@@ -42,64 +47,127 @@ afterEach(() => {
 });
 
 describe('locale bundle Vite plugin', () => {
-  it('aggregates every real namespace without changing its JSON and watches each source', () => {
-    const plugin = localeBundlePlugin();
-    const watched: string[] = [];
-    const source = hook(plugin, 'load').call(
-      { addWatchFile: (file) => watched.push(file) },
-      '\0virtual:zenstory-locale-zh',
-    );
-    const bundle = bundleFrom(source);
-    const localeDir = path.resolve('public/locales/zh');
-    const files = fs.readdirSync(localeDir).filter((name) => name.endsWith('.json')).sort();
+  it('partitions every real locale JSON into disjoint core and lazy namespaces', () => {
+    const coreSet = new Set<string>(CORE_LOCALE_NAMESPACES);
+    const lazySet = new Set<string>(LAZY_LOCALE_NAMESPACES);
 
-    expect(Object.keys(bundle)).toEqual(files.map((name) => path.basename(name, '.json')));
-    expect(bundle.common).toEqual(JSON.parse(fs.readFileSync(path.join(localeDir, 'common.json'), 'utf8')));
-    expect(bundle.docs).toEqual(JSON.parse(fs.readFileSync(path.join(localeDir, 'docs.json'), 'utf8')));
-    expect(watched).toEqual(files.map((name) => path.join(localeDir, name)));
+    for (const ns of lazySet) {
+      expect(coreSet.has(ns)).toBe(false);
+    }
+
+    const expectedAll = [...CORE_LOCALE_NAMESPACES, ...LAZY_LOCALE_NAMESPACES].sort();
+    for (const language of LOCALE_LANGUAGES) {
+      const localeDir = path.resolve(`public/locales/${language}`);
+      const realNamespaces = fs
+        .readdirSync(localeDir)
+        .filter((name) => name.endsWith('.json'))
+        .map((name) => path.basename(name, '.json'))
+        .sort();
+      expect(realNamespaces).toEqual(expectedAll);
+    }
   });
 
-  it('exposes exactly the two supported language modules', () => {
+  it('aggregates only core namespaces in the core bundle and excludes lazy namespaces', () => {
+    const plugin = localeBundlePlugin();
+    const load = hook(plugin, 'load');
+
+    for (const language of LOCALE_LANGUAGES) {
+      const watched: string[] = [];
+      const source = load.call(
+        { addWatchFile: (file) => watched.push(file) },
+        `\0virtual:zenstory-locale-${language}-core`,
+      );
+      const bundle = moduleJsonFrom(source);
+      const localeDir = path.resolve(`public/locales/${language}`);
+      const expectedCore = [...CORE_LOCALE_NAMESPACES].sort();
+
+      expect(Object.keys(bundle).sort()).toEqual(expectedCore);
+      for (const lazyNs of LAZY_LOCALE_NAMESPACES) {
+        expect(bundle).not.toHaveProperty(lazyNs);
+      }
+      expect(bundle.common).toEqual(
+        JSON.parse(fs.readFileSync(path.join(localeDir, 'common.json'), 'utf8')),
+      );
+      expect(watched.sort()).toEqual(expectedCore.map((ns) => path.join(localeDir, `${ns}.json`)));
+    }
+  });
+
+  it('loads each lazy namespace as its own single-file virtual module', () => {
+    const plugin = localeBundlePlugin();
+    const load = hook(plugin, 'load');
+
+    for (const language of LOCALE_LANGUAGES) {
+      for (const lazyNs of LAZY_LOCALE_NAMESPACES) {
+        const watched: string[] = [];
+        const source = load.call(
+          { addWatchFile: (file) => watched.push(file) },
+          `\0virtual:zenstory-locale-${language}-${lazyNs}`,
+        );
+        const expectedFile = path.resolve(`public/locales/${language}/${lazyNs}.json`);
+        expect(moduleJsonFrom(source)).toEqual(JSON.parse(fs.readFileSync(expectedFile, 'utf8')));
+        expect(watched).toEqual([expectedFile]);
+      }
+    }
+  });
+
+  it('resolves only supported core and lazy virtual module ids', () => {
     const plugin = localeBundlePlugin();
     const resolveId = hook(plugin, 'resolveId');
+    const load = hook(plugin, 'load');
     const context = { addWatchFile: () => undefined };
 
-    expect(resolveId.call(context, 'virtual:zenstory-locale-zh')).toBe('\0virtual:zenstory-locale-zh');
-    expect(resolveId.call(context, 'virtual:zenstory-locale-en')).toBe('\0virtual:zenstory-locale-en');
-    expect(resolveId.call(context, 'virtual:zenstory-locale-fr')).toBeNull();
+    expect(resolveId.call(context, 'virtual:zenstory-locale-zh-core')).toBe('\0virtual:zenstory-locale-zh-core');
+    expect(resolveId.call(context, 'virtual:zenstory-locale-en-core')).toBe('\0virtual:zenstory-locale-en-core');
+    expect(resolveId.call(context, 'virtual:zenstory-locale-zh-admin')).toBe('\0virtual:zenstory-locale-zh-admin');
+    expect(resolveId.call(context, 'virtual:zenstory-locale-en-docs')).toBe('\0virtual:zenstory-locale-en-docs');
+
+    expect(resolveId.call(context, 'virtual:zenstory-locale-zh')).toBeNull();
+    expect(resolveId.call(context, 'virtual:zenstory-locale-zh-common')).toBeNull();
+    expect(resolveId.call(context, 'virtual:zenstory-locale-fr-core')).toBeNull();
+    expect(resolveId.call(context, 'virtual:zenstory-locale-zh-unknown')).toBeNull();
     expect(resolveId.call(context, './ordinary-module')).toBeNull();
-    expect(hook(plugin, 'load').call(context, '\0virtual:zenstory-locale-fr')).toBeNull();
-    expect(hook(plugin, 'load').call(context, '/ordinary-module')).toBeNull();
+
+    expect(load.call(context, '\0virtual:zenstory-locale-fr-core')).toBeNull();
+    expect(load.call(context, '\0virtual:zenstory-locale-zh-unknown')).toBeNull();
+    expect(load.call(context, '/ordinary-module')).toBeNull();
   });
 
-  it('changes only the bundle whose language JSON changed', () => {
+  it('isolates core and lazy bundle invalidation by language and namespace', () => {
     const root = fixture();
-    const zhFile = writeLocale(root, 'zh', 'common', { greeting: '你好' });
+    const zhCommon = writeLocale(root, 'zh', 'common', { greeting: '你好' });
+    const zhAdmin = writeLocale(root, 'zh', 'admin', { title: '后台' });
     writeLocale(root, 'en', 'common', { greeting: 'Hello' });
+    writeLocale(root, 'en', 'admin', { title: 'Admin' });
     const plugin = localeBundlePlugin(root);
     const load = hook(plugin, 'load');
     const context = { addWatchFile: () => undefined };
-    const zhBefore = load.call(context, '\0virtual:zenstory-locale-zh');
-    const enBefore = load.call(context, '\0virtual:zenstory-locale-en');
 
-    fs.writeFileSync(zhFile, JSON.stringify({ greeting: '您好' }));
-    const zhAfter = load.call(context, '\0virtual:zenstory-locale-zh');
-    const enAfter = load.call(context, '\0virtual:zenstory-locale-en');
+    const zhCoreBefore = load.call(context, '\0virtual:zenstory-locale-zh-core');
+    const zhAdminBefore = load.call(context, '\0virtual:zenstory-locale-zh-admin');
+    const enCoreBefore = load.call(context, '\0virtual:zenstory-locale-en-core');
 
-    expect(zhAfter).not.toBe(zhBefore);
-    expect(bundleFrom(zhAfter).common).toEqual({ greeting: '您好' });
-    expect(enAfter).toBe(enBefore);
-    expect(bundleFrom(enAfter).common).toEqual({ greeting: 'Hello' });
+    fs.writeFileSync(zhAdmin, JSON.stringify({ title: '管理后台' }));
+    expect(load.call(context, '\0virtual:zenstory-locale-zh-core')).toBe(zhCoreBefore);
+    expect(load.call(context, '\0virtual:zenstory-locale-en-core')).toBe(enCoreBefore);
+    const zhAdminAfter = load.call(context, '\0virtual:zenstory-locale-zh-admin');
+    expect(zhAdminAfter).not.toBe(zhAdminBefore);
+    expect(moduleJsonFrom(zhAdminAfter)).toEqual({ title: '管理后台' });
+
+    fs.writeFileSync(zhCommon, JSON.stringify({ greeting: '您好' }));
+    const zhCoreAfter = load.call(context, '\0virtual:zenstory-locale-zh-core');
+    expect(zhCoreAfter).not.toBe(zhCoreBefore);
+    expect(moduleJsonFrom(zhCoreAfter).common).toEqual({ greeting: '您好' });
+    expect(load.call(context, '\0virtual:zenstory-locale-en-core')).toBe(enCoreBefore);
   });
 
-  it('fails the build when a locale file is invalid JSON', () => {
+  it('fails the build when a core or lazy locale file is invalid JSON', () => {
     const root = fixture();
     fs.writeFileSync(path.join(root, 'zh', 'common.json'), '{ invalid json');
+    fs.writeFileSync(path.join(root, 'zh', 'admin.json'), '{ invalid json');
     const plugin = localeBundlePlugin(root);
+    const context = { addWatchFile: () => undefined };
 
-    expect(() => hook(plugin, 'load').call(
-      { addWatchFile: () => undefined },
-      '\0virtual:zenstory-locale-zh',
-    )).toThrow(SyntaxError);
+    expect(() => hook(plugin, 'load').call(context, '\0virtual:zenstory-locale-zh-core')).toThrow(SyntaxError);
+    expect(() => hook(plugin, 'load').call(context, '\0virtual:zenstory-locale-zh-admin')).toThrow(SyntaxError);
   });
 });

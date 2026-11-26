@@ -908,7 +908,9 @@ describe('ProjectContext', () => {
         result.current.enterDiffReview('file-1', 'original content', 'modified content')
       })
 
-      expect(result.current.diffReviewState).not.toBe(null)
+      await waitFor(() => {
+        expect(result.current.diffReviewState).not.toBe(null)
+      })
       expect(result.current.diffReviewState?.isReviewing).toBe(true)
       expect(result.current.diffReviewState?.fileId).toBe('file-1')
       expect(result.current.diffReviewState?.originalContent).toBe('original content')
@@ -922,15 +924,37 @@ describe('ProjectContext', () => {
       await waitFor(() => expect(result.current.projects.length).toBe(2))
 
       act(() => result.current.enterDiffReview('file-1', 'mine', 'merged', 'conflict'))
-      expect(result.current.diffReviewState?.pendingEdits.length).toBeGreaterThan(0)
+      await waitFor(() => expect(result.current.diffReviewState?.pendingEdits.length).toBeGreaterThan(0))
 
       act(() => result.current.enterDiffReview('file-2', 'other', 'other merged', 'conflict'))
-      expect(result.current.diffReviewState).toMatchObject({
+      await waitFor(() => expect(result.current.diffReviewState).toMatchObject({
         fileId: 'file-2',
         originalContent: 'other',
         modifiedContent: 'other merged',
         origin: 'conflict',
+      }))
+    })
+
+    it('queues immediate rejectEdit calls while lazy diffReview module loads', async () => {
+      vi.resetModules()
+      const { ProjectProvider: FreshProjectProvider, useProject: useFreshProject } = await import('../ProjectContext')
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const freshWrapper = ({ children }: { children: ReactNode }) => (
+        <FreshProjectProvider>{children}</FreshProjectProvider>
+      )
+
+      const { result } = renderHook(() => useFreshProject(), { wrapper: freshWrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+
+      act(() => {
+        result.current.enterDiffReview('file-1', 'original content', 'modified content', 'conflict')
+        result.current.rejectEdit('edit-0')
       })
+
+      await waitFor(() => {
+        expect(result.current.diffReviewState?.fileId).toBe('file-1')
+      })
+      expect(result.current.diffReviewState?.pendingEdits[0]?.status).toBe('rejected')
     })
 
     it('queues and consumes one-shot agent UI actions per project', async () => {

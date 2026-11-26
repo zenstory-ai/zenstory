@@ -35,7 +35,7 @@
       "width": 1920,
       "height": 1080,
       "duration": "42.400000",
-      "poster": "/org/demos/writing-poster.jpg",
+      "poster": "/org/demos/writing-poster.webp",
       "poster_frame_seconds": 23
     }
   },
@@ -75,7 +75,7 @@
       "width": 720,
       "height": 1280,
       "duration": "68.500000",
-      "poster": "/org/demos/drama-poster.jpg",
+      "poster": "/org/demos/drama-poster.webp",
       "poster_frame_seconds": 50
     }
   },
@@ -115,7 +115,7 @@
       "width": 1920,
       "height": 1080,
       "duration": "58.960000",
-      "poster": "/org/demos/recap-poster.jpg",
+      "poster": "/org/demos/recap-poster.webp",
       "captions": "/org/demos/recap-zh.vtt",
       "poster_frame_seconds": 1
     },
@@ -145,11 +145,11 @@
       "zh": "RPG 原型与改编文档"
     },
     "image": {
-      "file": "/org/demos/story-game.jpg",
+      "file": "/org/demos/story-game.webp",
       "source": "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/screenshots/hero.jpg",
       "source_sha256": "e3b2969bf4aa40f1df3374d50a5202f932fe2516cd60c2a68f0338b0c37c47eb",
-      "asset_sha256": "c7b1afa7c54e0708ae18db751a157f74e6059ee885c112ae4d13a75b1632275b",
-      "transform": "JPEG, max dimension 1200, quality70",
+      "asset_sha256": "cd16d2c6c94e7fdc154adaea15ad1eca4bc4c90cae0445d9029296c6d9e9f54b",
+      "transform": "WebP, 1200×750, quality 78",
       "width": 1200,
       "height": 750,
       "alt": {
@@ -197,13 +197,13 @@
         "qa/evidence/"
       ],
       "result": {
-        "file": "/org/demos/story-game-battle.jpg",
+        "file": "/org/demos/story-game-battle.webp",
         "width": 1200,
         "height": 750,
         "source": "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/qa/evidence/browser/03_boss_command.jpg",
         "source_sha256": "cbd5ee40201dfe769a2800f017d7a9e48ea4cccea27a7644ea31070f45eaa03a",
-        "asset_sha256": "32a900956fae9a2aa0f82159633171bff8fe09f740cd193d8da1732d98bbd389",
-        "transform": "JPEG, 1200×750, quality 78",
+        "asset_sha256": "a955db7b8b81ec1e5ced750604c8287670c7a371c0e73489198774fd2e7a636f",
+        "transform": "WebP, 1200×750, quality 78",
         "alt": {
           "en": "Playable prototype, browser QA capture: the final battle at Jilei Mountain against the Bull Demon King, with the turn-based command menu.",
           "zh": "可玩原型的浏览器 QA 截图：积雷山决战牛魔王，下方为回合制指令菜单。"
@@ -224,12 +224,15 @@
       },
       "scene": {
         "file": "/org/demos/story-game-village-art.jpg",
+        "webp": "/org/demos/story-game-village-art.webp",
         "width": 1672,
         "height": 941,
         "source": "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/build/app/assets/scene/map-village.jpg",
         "source_sha256": "0d73406e8ddb43914b6c504001de2ce44b8a0c13b230715b891589d6e41d437e",
         "asset_sha256": "0d73406e8ddb43914b6c504001de2ce44b8a0c13b230715b891589d6e41d437e",
+        "webp_sha256": "618b71dafe2a7add7b5c6b3a6935393a765482fef25f048a37389fc1da436deb",
         "transform": "Unmodified in-game environment art",
+        "webp_transform": "WebP, 1672×941, quality 78",
         "usage_sources": [
           "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/build/app/js/world.js",
           "https://github.com/zenstory-ai/novel-to-game/blob/e2695b720591335321738039b869f418593b1985/examples/journey-to-the-west/build/app/js/assets.js"
@@ -273,7 +276,7 @@
       "width": 1440,
       "height": 900,
       "duration": "14.960000",
-      "poster": "/org/demos/plateau-poster.jpg",
+      "poster": "/org/demos/plateau-poster.webp",
       "poster_frame_seconds": 13.5
     },
     "method": "/novel-to-game/quick-start",

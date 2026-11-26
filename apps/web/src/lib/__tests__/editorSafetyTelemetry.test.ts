@@ -82,6 +82,7 @@ describe("UX phase 3 telemetry opt-out respect", () => {
     const { trackEditorSaveConflict409 } = await import("../editorSafetyTelemetry");
 
     expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
+    await analytics.whenAnalyticsReady();
 
     let clock = 1_000;
     const stream = createAgentStreamTelemetry("project-1", () => clock);

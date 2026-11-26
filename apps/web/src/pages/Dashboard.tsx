@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Outlet, Link } from "react-router-dom";
 import {
@@ -20,7 +20,11 @@ import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useIsMobile, useIsTablet, useIsDesktop } from "../hooks/useMediaQuery";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
-import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
+import type { SettingsTab } from "../components/SettingsDialog";
+
+const SettingsDialog = lazy(() =>
+  import("../components/SettingsDialog").then((m) => ({ default: m.SettingsDialog })),
+);
 import { UserAvatar } from "../components/UserMenu";
 import { normalizeLocale, switchLocale } from "../lib/i18n-helpers";
 import { inspirationsConfig } from "../config/inspirations";
@@ -70,6 +74,7 @@ function DashboardContent() {
   const mobileMenuRef = useRef<HTMLElement | null>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const { isMounted: isSettingsMounted } = useAnimatedPresence(showSettings, 180);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<string | undefined>(undefined);
 
   // Deep-link: auto-open settings to a specific tab via location.state.openSettingsTab
@@ -614,11 +619,15 @@ function DashboardContent() {
           <Outlet />
         </div>
       </main>
-      <SettingsDialog
-        isOpen={showSettings}
-        onClose={() => { setShowSettings(false); setSettingsDefaultTab(undefined); }}
-        defaultTab={settingsDefaultTab as SettingsTab | undefined}
-      />
+      {isSettingsMounted && (
+        <Suspense fallback={null}>
+          <SettingsDialog
+            isOpen={showSettings}
+            onClose={() => { setShowSettings(false); setSettingsDefaultTab(undefined); }}
+            defaultTab={settingsDefaultTab as SettingsTab | undefined}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

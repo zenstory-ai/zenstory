@@ -1,15 +1,61 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin, AgentUiAction } from '../types';
+import type { Project, SelectedItem, ProjectType, DiffReviewState, DiffReviewOrigin, AgentUiAction, PendingEdit } from '../types';
 import { projectApi } from '../lib/api';
 import { useAuth } from './AuthContext';
-import {
-  applyPendingEditsToDiffs,
-  buildParagraphReviewData,
-  computeParagraphReviewDiffs,
-} from '../lib/diffReview';
 import { logger } from '../lib/logger';
 import { trackEvent } from '../lib/analytics';
+
+type DiffReviewModule = typeof import('../lib/diffReview');
+
+let cachedDiffReviewModule: DiffReviewModule | null = null;
+let diffReviewModulePromise: Promise<DiffReviewModule> | null = null;
+
+function loadDiffReviewModule(): Promise<DiffReviewModule> {
+  if (cachedDiffReviewModule) {
+    return Promise.resolve(cachedDiffReviewModule);
+  }
+  if (!diffReviewModulePromise) {
+    diffReviewModulePromise = import('../lib/diffReview')
+      .then((mod) => {
+        cachedDiffReviewModule = mod;
+        return mod;
+      })
+      .catch((err) => {
+        diffReviewModulePromise = null;
+        throw err;
+      });
+  }
+  return diffReviewModulePromise;
+}
+
+type DiffReviewEditAction =
+  | { type: 'accept'; editId: string }
+  | { type: 'reject'; editId: string }
+  | { type: 'reset'; editId: string }
+  | { type: 'acceptAll' }
+  | { type: 'rejectAll' };
+
+function applyDiffReviewAction(edits: PendingEdit[], action: DiffReviewEditAction): PendingEdit[] {
+  switch (action.type) {
+    case 'accept':
+      return edits.map(edit =>
+        edit.id === action.editId ? { ...edit, status: 'accepted' as const } : edit
+      );
+    case 'reject':
+      return edits.map(edit =>
+        edit.id === action.editId ? { ...edit, status: 'rejected' as const } : edit
+      );
+    case 'reset':
+      return edits.map(edit =>
+        edit.id === action.editId ? { ...edit, status: 'pending' as const } : edit
+      );
+    case 'acceptAll':
+      return edits.map(edit => ({ ...edit, status: 'accepted' as const }));
+    case 'rejectAll':
+      return edits.map(edit => ({ ...edit, status: 'rejected' as const }));
+  }
+}
 
 const STORAGE_KEY_PREFIX = 'zenstory_current_project_id';
 const STREAMING_CONTENT_FLUSH_MS = 40;
@@ -152,6 +198,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Diff review state (for Cursor-style inline diff)
   const [diffReviewState, setDiffReviewState] = useState<DiffReviewState | null>(null);
+  const diffReviewRequestSeqRef = useRef(0);
+  const diffReviewPendingRef = useRef(false);
+  const pendingDiffReviewActionsRef = useRef<DiffReviewEditAction[]>([]);
 
   // Use a ref to avoid event-order / state-update races:
   // SSE chunks can arrive before React state updates are visible to callbacks.
@@ -268,91 +317,101 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     resetStreamingContent();
   }, [resetStreamingContent]);
 
-  // Enter diff review mode - compute diffs and create pending edits when needed
+  // Enter diff review mode - lazily loads diffReview (diff-match-patch) on first use
   const enterDiffReview = useCallback((
     fileId: string,
     originalContent: string,
     newContent: string,
     origin?: DiffReviewOrigin,
   ) => {
-    setDiffReviewState(() => {
-      const pendingEdits = buildParagraphReviewData(originalContent, newContent).pendingEdits;
+    const requestSeq = ++diffReviewRequestSeqRef.current;
+    pendingDiffReviewActionsRef.current = [];
+
+    const commitReview = (mod: DiffReviewModule, queuedActions: DiffReviewEditAction[]) => {
+      let pendingEdits = mod.buildParagraphReviewData(originalContent, newContent).pendingEdits;
+      for (const action of queuedActions) {
+        pendingEdits = applyDiffReviewAction(pendingEdits, action);
+      }
       logger.log(`[DiffReview] Entering review mode for file ${fileId} with ${pendingEdits.length} edits`);
-      return {
+      setDiffReviewState({
         isReviewing: true,
         fileId,
         originalContent,
         modifiedContent: newContent,
         pendingEdits,
         ...(origin ? { origin } : {}),
+      });
+    };
+
+    if (cachedDiffReviewModule) {
+      diffReviewPendingRef.current = false;
+      commitReview(cachedDiffReviewModule, []);
+      return;
+    }
+
+    diffReviewPendingRef.current = true;
+    void loadDiffReviewModule()
+      .then((mod) => {
+        if (diffReviewRequestSeqRef.current !== requestSeq) return;
+        diffReviewPendingRef.current = false;
+        const queuedActions = pendingDiffReviewActionsRef.current;
+        pendingDiffReviewActionsRef.current = [];
+        commitReview(mod, queuedActions);
+      })
+      .catch((err) => {
+        if (diffReviewRequestSeqRef.current === requestSeq) {
+          diffReviewPendingRef.current = false;
+          pendingDiffReviewActionsRef.current = [];
+        }
+        logger.error('[DiffReview] Failed to load diff review module:', err);
+      });
+  }, []);
+
+  const dispatchDiffReviewAction = useCallback((action: DiffReviewEditAction) => {
+    if (diffReviewPendingRef.current) {
+      pendingDiffReviewActionsRef.current.push(action);
+      return;
+    }
+    setDiffReviewState(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        pendingEdits: applyDiffReviewAction(prev.pendingEdits, action),
       };
     });
   }, []);
 
   // Accept a single edit
   const acceptEdit = useCallback((editId: string) => {
-    setDiffReviewState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        pendingEdits: prev.pendingEdits.map(edit =>
-          edit.id === editId ? { ...edit, status: 'accepted' as const } : edit
-        ),
-      };
-    });
-  }, []);
+    dispatchDiffReviewAction({ type: 'accept', editId });
+  }, [dispatchDiffReviewAction]);
 
   // Reject a single edit
   const rejectEdit = useCallback((editId: string) => {
-    setDiffReviewState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        pendingEdits: prev.pendingEdits.map(edit =>
-          edit.id === editId ? { ...edit, status: 'rejected' as const } : edit
-        ),
-      };
-    });
-  }, []);
+    dispatchDiffReviewAction({ type: 'reject', editId });
+  }, [dispatchDiffReviewAction]);
 
   // Reset a single edit back to pending
   const resetEdit = useCallback((editId: string) => {
-    setDiffReviewState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        pendingEdits: prev.pendingEdits.map(edit =>
-          edit.id === editId ? { ...edit, status: 'pending' as const } : edit
-        ),
-      };
-    });
-  }, []);
+    dispatchDiffReviewAction({ type: 'reset', editId });
+  }, [dispatchDiffReviewAction]);
 
   // Accept all pending edits
   const acceptAllEdits = useCallback(() => {
-    setDiffReviewState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        pendingEdits: prev.pendingEdits.map(edit => ({ ...edit, status: 'accepted' as const })),
-      };
-    });
-  }, []);
+    dispatchDiffReviewAction({ type: 'acceptAll' });
+  }, [dispatchDiffReviewAction]);
 
   // Reject all pending edits
   const rejectAllEdits = useCallback(() => {
-    setDiffReviewState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        pendingEdits: prev.pendingEdits.map(edit => ({ ...edit, status: 'rejected' as const })),
-      };
-    });
-  }, []);
+    dispatchDiffReviewAction({ type: 'rejectAll' });
+  }, [dispatchDiffReviewAction]);
 
   // Exit diff review mode
   const exitDiffReview = useCallback(() => {
     logger.log('[DiffReview] Exiting review mode');
+    diffReviewRequestSeqRef.current += 1;
+    diffReviewPendingRef.current = false;
+    pendingDiffReviewActionsRef.current = [];
     setDiffReviewState(null);
   }, []);
 
@@ -360,15 +419,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   // This reconstructs the text based on accepted/rejected edits
   // Note: pending edits are treated as "accepted" (default behavior when finishing review)
   const applyDiffReviewChanges = useCallback((): string => {
-    if (!diffReviewState) return '';
+    if (!diffReviewState || !cachedDiffReviewModule) return '';
 
     const { originalContent, pendingEdits } = diffReviewState;
-    const diffs = computeParagraphReviewDiffs(
+    const diffs = cachedDiffReviewModule.computeParagraphReviewDiffs(
       originalContent,
       diffReviewState.modifiedContent
     );
 
-    return applyPendingEditsToDiffs(diffs, pendingEdits);
+    return cachedDiffReviewModule.applyPendingEditsToDiffs(diffs, pendingEdits);
   }, [diffReviewState]);
 
   // Derive current project from projects list

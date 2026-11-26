@@ -10,7 +10,8 @@
  *
  * @module components/Editor
  */
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo, useContext } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useProject } from "../contexts/ProjectContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -27,8 +28,13 @@ import { Button } from "./ui/Button";
 import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
 import { SimpleEditor } from "./SimpleEditor";
 import type { SaveOutcome, SaveResult, SaveSubmission } from "./SimpleEditor";
-import { MaterialPreview } from "./MaterialPreview";
-import { ImportMaterialDialog } from "./ImportMaterialDialog";
+
+const MaterialPreview = lazy(() =>
+  import("./MaterialPreview").then((m) => ({ default: m.MaterialPreview })),
+);
+const ImportMaterialDialog = lazy(() =>
+  import("./ImportMaterialDialog").then((m) => ({ default: m.ImportMaterialDialog })),
+);
 import type { File, FileTreeNode, TreeNodeType } from "../types";
 import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
 import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload, Plus } from "lucide-react";
@@ -60,6 +66,7 @@ import { applyPendingEditsToDiffs, computeParagraphReviewDiffs } from "../lib/di
 import type { DiffReviewState } from "../types";
 import { FILE_REMOVED_EVENT, clearFileRemoved, isFileRemoved, notifyFileRemoved, setUnprotectedDeletedDraft, type FileRemovedDetail } from "../lib/fileRemovalEvents";
 import { clearLastOpenedFile } from "../lib/lastOpenedFile";
+import { consumePreloadedFile, peekPreloadedFile } from "../lib/preloadedFileCache";
 
 /** Retry delays for re-reading the open file after an external write. */
 const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
@@ -137,6 +144,7 @@ const isApplePlatform = (): boolean => {
  */
 const EditorComponent: React.FC<EditorProps> = () => {
   const { t } = useTranslation(['editor', 'common']);
+  const queryClient = useContext(QueryClientContext);
   const { user } = useAuth();
   const currentUserId = user?.id ?? null;
   const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
@@ -386,6 +394,9 @@ const EditorComponent: React.FC<EditorProps> = () => {
       const outcome = await editorFlushRef.current();
       if (generation !== loadGenerationRef.current) return;
       if (outcome !== "saved") {
+        if (currentProjectId && selectedItem?.id) {
+          consumePreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
+        }
         toast.error(translateRef.current('editor:saveFailed'));
         restoredSelectionRef.current = currentFile.id;
         setSelectedItem({id:currentFile.id,type:currentFile.file_type,title:currentFile.title});
@@ -428,8 +439,24 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const serverReadSeq = ++serverSyncSeqRef.current;
 
     try {
-      const data = await fileApi.get(selectedItem.id);
-      if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
+      const preloaded =
+        !options?.followServer &&
+        !options?.discardUnsaved &&
+        currentFile?.id !== selectedItem.id
+          ? peekPreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id)
+          : null;
+      let data: File;
+      if (preloaded) {
+        // Yield a microtask before consuming so StrictMode double-mounts do not
+        // drop the one-shot handoff before the surviving effect commits.
+        await Promise.resolve();
+        if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
+        consumePreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
+        data = preloaded;
+      } else {
+        data = await fileApi.get(selectedItem.id);
+        if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
+      }
       if (
         !options?.discardUnsaved &&
         currentFileRef.current?.id === data.id &&
@@ -567,6 +594,7 @@ const EditorComponent: React.FC<EditorProps> = () => {
     currentProjectId,
     setSelectedItem,
     currentUserId,
+    queryClient,
     markServerBaseline,
     clearRemovedDraftEntry,
   ]);
@@ -1553,52 +1581,63 @@ const EditorComponent: React.FC<EditorProps> = () => {
     const previewEntityInfo = materialLib.previewEntityInfo;
     return renderWithUpgradeModal(
       <>
-        <MaterialPreview
-          preview={materialLib.preview}
-          isLoading={materialLib.isPreviewLoading}
-          onAddToProject={() => setImportDialogOpen(true)}
-          onAttachToChat={() => {
-            if (!materialLib.preview) return;
-            const virtualId = `lib_${previewEntityInfo.novelId}_${previewEntityInfo.entityType}_${previewEntityInfo.entityId}`;
-            if (isMaterialAttached?.(virtualId)) {
-              toast.info(t('editor:fileTree.alreadyAttached'));
-              return;
-            }
-            const added = addMaterial(
-              virtualId,
-              materialLib.preview.title,
-              {
-                novelId: previewEntityInfo.novelId,
-                entityType: previewEntityInfo.entityType,
-                entityId: previewEntityInfo.entityId,
-              }
-            );
-            if (!added) {
-              toast.info(
-                isAtLimit === false
-                  ? t('editor:fileTree.alreadyAttached')
-                  : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
-              );
-              return;
-            }
-            materialLib.clearPreview();
-          }}
-          onBack={() => materialLib.clearPreview()}
-        />
-        {importDialogOpen && materialLib.preview && (
-          <ImportMaterialDialog
-            isOpen={importDialogOpen}
-            onClose={() => setImportDialogOpen(false)}
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center justify-center h-full gap-4">
+              <LoadingSpinner size="lg" color="primary" />
+              <p className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading')}</p>
+            </div>
+          }
+        >
+          <MaterialPreview
             preview={materialLib.preview}
-            novelId={previewEntityInfo.novelId}
-            entityType={previewEntityInfo.entityType}
-            entityId={previewEntityInfo.entityId}
-            onSuccess={() => {
-              setImportDialogOpen(false);
+            isLoading={materialLib.isPreviewLoading}
+            onAddToProject={() => setImportDialogOpen(true)}
+            onAttachToChat={() => {
+              if (!materialLib.preview) return;
+              const virtualId = `lib_${previewEntityInfo.novelId}_${previewEntityInfo.entityType}_${previewEntityInfo.entityId}`;
+              if (isMaterialAttached?.(virtualId)) {
+                toast.info(t('editor:fileTree.alreadyAttached'));
+                return;
+              }
+              const added = addMaterial(
+                virtualId,
+                materialLib.preview.title,
+                {
+                  novelId: previewEntityInfo.novelId,
+                  entityType: previewEntityInfo.entityType,
+                  entityId: previewEntityInfo.entityId,
+                }
+              );
+              if (!added) {
+                toast.info(
+                  isAtLimit === false
+                    ? t('editor:fileTree.alreadyAttached')
+                    : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
+                );
+                return;
+              }
               materialLib.clearPreview();
-              triggerFileTreeRefresh();
             }}
+            onBack={() => materialLib.clearPreview()}
           />
+        </Suspense>
+        {importDialogOpen && materialLib.preview && (
+          <Suspense fallback={null}>
+            <ImportMaterialDialog
+              isOpen={importDialogOpen}
+              onClose={() => setImportDialogOpen(false)}
+              preview={materialLib.preview}
+              novelId={previewEntityInfo.novelId}
+              entityType={previewEntityInfo.entityType}
+              entityId={previewEntityInfo.entityId}
+              onSuccess={() => {
+                setImportDialogOpen(false);
+                materialLib.clearPreview();
+                triggerFileTreeRefresh();
+              }}
+            />
+          </Suspense>
         )}
       </>
     );

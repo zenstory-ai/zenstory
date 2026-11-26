@@ -14,17 +14,22 @@
  *
  * @module components/Header
  */
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Settings, Menu, X, Download, Bug, CreditCard, BookOpen } from "lucide-react";
 import { Logo, LogoMark } from "./Logo";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { DropdownMenu } from "./ui/DropdownMenu";
-import { SettingsDialog } from "./SettingsDialog";
 import { UserMenu, UserMenuMobile } from "./UserMenu";
-import { FeedbackDialog } from "./feedback/FeedbackDialog";
 import { downloadCurrentFile, UnsavedEditorError } from "../lib/currentFileDownload";
+
+const SettingsDialog = lazy(() =>
+  import("./SettingsDialog").then((m) => ({ default: m.SettingsDialog })),
+);
+const FeedbackDialog = lazy(() =>
+  import("./feedback/FeedbackDialog").then((m) => ({ default: m.FeedbackDialog })),
+);
 import { useProject } from "../contexts/ProjectContext";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
@@ -92,7 +97,9 @@ export const Header: React.FC<HeaderProps> = () => {
   const isScreenplay = currentProject?.project_type === 'screenplay';
   const exportLabel = isScreenplay ? t('editor:header.exportScript') : t('editor:header.export');
   const [showSettings, setShowSettings] = useState(false);
+  const { isMounted: isSettingsMounted } = useAnimatedPresence(showSettings, 180);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const { isMounted: isFeedbackMounted } = useAnimatedPresence(showFeedbackDialog, 180);
   const [showExportUpgradeModal, setShowExportUpgradeModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
@@ -429,17 +436,25 @@ export const Header: React.FC<HeaderProps> = () => {
       )}
 
       {/* Settings Modal */}
-      <SettingsDialog
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-      />
+      {isSettingsMounted && (
+        <Suspense fallback={null}>
+          <SettingsDialog
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+          />
+        </Suspense>
+      )}
 
-      <FeedbackDialog
-        open={showFeedbackDialog}
-        onClose={() => setShowFeedbackDialog(false)}
-        sourcePage="editor"
-        sourceRoute={feedbackSourceRoute}
-      />
+      {isFeedbackMounted && (
+        <Suspense fallback={null}>
+          <FeedbackDialog
+            open={showFeedbackDialog}
+            onClose={() => setShowFeedbackDialog(false)}
+            sourcePage="editor"
+            sourceRoute={feedbackSourceRoute}
+          />
+        </Suspense>
+      )}
 
       <UpgradePromptModal
         open={showExportUpgradeModal}

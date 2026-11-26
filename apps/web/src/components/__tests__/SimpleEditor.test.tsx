@@ -98,7 +98,7 @@ describe('SimpleEditor', () => {
     origin,
   });
 
-  it('keeps save conflicts in the paragraph comparison', () => {
+  it('keeps save conflicts in the paragraph comparison', async () => {
     render(
       <SimpleEditor
         fileId="file-1"
@@ -114,7 +114,7 @@ describe('SimpleEditor', () => {
       />,
     );
 
-    expect(screen.getByTestId('paragraph-review')).toBeInTheDocument();
+    expect(await screen.findByTestId('paragraph-review')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'editor:naturalPolishCandidate' })).not.toBeInTheDocument();
   });
 

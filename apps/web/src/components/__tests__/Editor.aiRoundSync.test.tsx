@@ -144,7 +144,9 @@ async function runRoundUntilV1({ failReloadAfterStream = false } = {}) {
   server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V1, updated_at: T_V1 });
   if (failReloadAfterStream) server.get.mockRejectedValueOnce(new Error('network'));
   act(() => callbacks().onFileContentEnd(CH2_ID));
-  await advance(300); await settle();
+  await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
   if (!failReloadAfterStream) expect(textarea().value).toBe(V1);
 }
 
@@ -159,7 +161,9 @@ async function secondWrite() {
       failedCount: 0, partialSuccess: false, allFailed: false, warnings: [],
     });
   });
-  await advance(300); await settle();
+  await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 }
 
 beforeEach(() => {
@@ -227,7 +231,9 @@ describe('AI writes the open chapter twice in one round', () => {
     // A write the stream never announced lands before the round ends.
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
     await act(async () => { await callbacks().onComplete([], { confirmedFileMutation: true }); });
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
     expect(textarea().value).toBe(V2);
   });
 
@@ -326,7 +332,9 @@ describe('AI writes the open chapter twice in one round', () => {
     await advance(50);
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
     act(() => callbacks().onFileContentEnd(CH2_ID));
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 
     // Not replaced by the streamed copy: the comparison opens instead.
     expect(toastError).toHaveBeenCalledWith('editor:aiEditedWhileDirty');
@@ -354,7 +362,9 @@ describe('AI writes the open chapter twice in one round', () => {
     act(() => callbacks().onFileContent(CH2_ID, V2.slice(6)));
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
     act(() => callbacks().onFileContentEnd(CH2_ID));
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 
     // The AI's copy landed: the author's unsaved text is kept and compared, never overwritten.
     expect(harness.project!.diffReviewState).toMatchObject({ originalContent: authorText, modifiedContent: `${V2}作者补的一句。` });
@@ -379,7 +389,9 @@ describe('AI writes the open chapter twice in one round', () => {
     expect(putsFor(CH2_ID)).toHaveLength(0);
     // The replacement was not saved (cut off or refused): the server copy is unchanged.
     act(() => callbacks().onFileContentEnd(CH2_ID));
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
     expect(textarea().value).toBe(authorText);
     expect(harness.project!.diffReviewState).toBeNull();
 
@@ -412,7 +424,9 @@ describe('AI writes the open chapter twice in one round', () => {
     act(() => callbacks().onFileContent(CH2_ID, V2));
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, content: V2, updated_at: T_V2 });
     act(() => callbacks().onFileContentEnd(CH2_ID));
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
     expect(harness.project!.diffReviewState).toMatchObject({ originalContent: authorText, modifiedContent: `${V2}作者补的一句。` });
     expect(putsFor(CH2_ID)).toHaveLength(0);
   });
@@ -422,7 +436,9 @@ describe('AI writes the open chapter twice in one round', () => {
     fireEvent.change(textarea(), { target: { value: `${V1}作者补的一句。` } });
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, title: '第2章 新名', updated_at: T_V2 });
     act(() => { callbacks().onToolResult('rename_file', 'success', { id: CH2_ID }); });
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 
     // Nothing from the AI to review: no comparison, the author's text stays.
     expect(harness.project!.diffReviewState).toBeNull();
@@ -510,7 +526,9 @@ describe('AI writes the open chapter twice in one round', () => {
     await runRoundUntilV1();
     server.files.set(CH2_ID, { ...server.files.get(CH2_ID)!, title: '第2章 倒着拨的表', content: V2, updated_at: T_V2 });
     act(() => { callbacks().onToolResult('rename_file', 'success', { id: CH2_ID }); });
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
     expect(titleInput().value).toBe('第2章 倒着拨的表');
     expect(textarea().value).toBe(V2);
 
@@ -1156,7 +1174,9 @@ describe('AI fulfills a pending empty file', () => {
             callbacks().onFileEditEnd(file.id, 1, undefined, undefined, file.file_type, file.title);
           });
         }
-        await advance(300); await settle();
+        await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
         displayedAfterWrite.push(textarea().value);
         // Exercise the next file's switch flush before the debounce expires.
         await advance(2200);
@@ -1227,7 +1247,9 @@ describe('chat chapter replacement applies directly', () => {
       callbacks().onFileEditApplied(0, 'replace');
       callbacks().onFileEditEnd(CH1.id, 1, content, ORIGINAL, 'draft', CH1.title, OUTCOME);
     });
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
   }
 
   it('shows a whole-chapter replacement without opening review or sending a confirmation PUT', async () => {
@@ -1295,7 +1317,9 @@ describe('chat chapter replacement applies directly', () => {
     await announceWrite(REPLACED, T_REPLACED);
     server.files.set(CH1.id, { ...server.files.get(CH1.id)!, content: ORIGINAL, updated_at: T_RESTORED });
     act(() => harness.project!.triggerEditorRefresh(CH1.id));
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 
     expect(textarea()).toHaveValue(ORIGINAL);
     expect(harness.project!.diffReviewState).toBeNull();
@@ -1332,7 +1356,9 @@ describe('chat chapter replacement applies directly', () => {
     await act(async () => {
       resolveReloadGet({ ...server.files.get(CH1.id)! });
     });
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 
     // Author's typed text must NOT be wiped: Editor delegates to syncOpenFileFromServer and opens comparison.
     expect(harness.project!.diffReviewState).toMatchObject({
@@ -1373,7 +1399,9 @@ describe('chat chapter replacement applies directly', () => {
     await act(async () => {
       resolveReloadGet({ ...server.files.get(CH1.id)! });
     });
-    await advance(300); await settle();
+    await advance(300);
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await settle();
 
     expect(titleInput()).toHaveValue(authorTitle);
     expect(textarea()).toHaveValue(REPLACED);

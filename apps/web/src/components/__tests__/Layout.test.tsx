@@ -95,11 +95,68 @@ vi.mock('../BottomTabs', () => ({
     ),
 }))
 
+const mockSetGroupLayout = vi.fn()
+const mockGetGroupLayout = vi.fn(() => ({}))
+
 vi.mock('react-resizable-panels', () => ({
-  Panel: ({ children, defaultSize, minSize }: { children: React.ReactNode; defaultSize?: number | string; minSize?: number | string }) =>
-    React.createElement('div', { 'data-testid': 'panel', 'data-default-size': defaultSize, 'data-min-size': minSize }, children),
-  Group: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', { 'data-testid': 'group' }, children),
+  Panel: ({
+    children,
+    id,
+    defaultSize,
+    minSize,
+  }: {
+    children: React.ReactNode
+    id?: string
+    defaultSize?: number | string
+    minSize?: number | string
+  }) =>
+    React.createElement(
+      'div',
+      {
+        'data-testid': 'panel',
+        'data-panel-id': id,
+        'data-default-size': defaultSize,
+        'data-min-size': minSize,
+      },
+      children
+    ),
+  Group: ({
+    children,
+    groupRef,
+    disabled,
+    className,
+    onTouchStart,
+    onTouchEnd,
+  }: {
+    children: React.ReactNode
+    groupRef?: React.Ref<{
+      getLayout: () => Record<string, number>
+      setLayout: (layout: Record<string, number>) => Record<string, number>
+    }>
+    disabled?: boolean
+    className?: string
+    onTouchStart?: React.TouchEventHandler<HTMLDivElement>
+    onTouchEnd?: React.TouchEventHandler<HTMLDivElement>
+  }) => {
+    React.useImperativeHandle(groupRef, () => ({
+      getLayout: mockGetGroupLayout,
+      setLayout: (layout: Record<string, number>) => {
+        mockSetGroupLayout(layout)
+        return layout
+      },
+    }))
+    return React.createElement(
+      'div',
+      {
+        'data-testid': 'group',
+        'data-disabled': disabled ? 'true' : 'false',
+        className,
+        onTouchStart,
+        onTouchEnd,
+      },
+      children
+    )
+  },
   Separator: () => React.createElement('div', { 'data-testid': 'separator' }),
 }))
 
@@ -267,6 +324,7 @@ describe('Layout', () => {
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       expect(screen.queryByTestId('bottom-tabs')).not.toBeInTheDocument()
+      expect(document.getElementById('files-panel')).toBeNull()
     })
   })
 
@@ -344,9 +402,17 @@ describe('Layout', () => {
       expect(document.getElementById('chat-panel')).toHaveAttribute('inert')
     })
 
-    it('shows files panel when activePanel is files', () => {
+    it('shows files panel when activePanel is files', async () => {
       mockActivePanel = 'files'
       renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
+
+      // Lazy-loaded MobileFileTree resolves inside #files-panel
+      const filesPanel = document.getElementById('files-panel')
+      expect(filesPanel).not.toBeNull()
+      expect(filesPanel).toHaveAttribute('aria-hidden', 'false')
+      await waitFor(() => {
+        expect(filesPanel?.querySelector('.animate-spin')).toBeNull()
+      })
 
       // Files panel in mobile layout uses MobileFileTree, not the left prop
       // Check that inactive panels are hidden (aria-hidden)
@@ -429,19 +495,236 @@ describe('Layout', () => {
   })
 
   describe('Responsive Behavior', () => {
+    const createLifecycleProbe = (
+      testId: string,
+      onMount: () => void,
+      onUnmount: () => void,
+    ) => {
+      const Probe: React.FC = () => {
+        const [count, setCount] = React.useState(0)
+        React.useEffect(() => {
+          onMount()
+          return () => {
+            onUnmount()
+          }
+        }, [])
+        return (
+          <button
+            type="button"
+            data-testid={testId}
+            onClick={() => setCount((c) => c + 1)}
+          >
+            {`${testId}:${count}`}
+          </button>
+        )
+      }
+      return Probe
+    }
+
     it('switches to mobile layout when isMobile becomes true', () => {
       mockIsMobile = false
-      const { rerenderWithRouter } = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
+      const { rerender } = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Desktop mode - no bottom tabs
       expect(screen.queryByTestId('bottom-tabs')).not.toBeInTheDocument()
 
       // Switch to mobile
       mockIsMobile = true
-      rerenderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
+      rerender(<Layout middle={middlePanel} right={rightPanel} />)
 
       // Mobile mode - has bottom tabs
       expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
+    })
+
+    it('does not unmount chatPanel or editor when crossing 1024px (desktop <-> tablet)', () => {
+      const chatMount = vi.fn()
+      const chatUnmount = vi.fn()
+      const editorMount = vi.fn()
+      const editorUnmount = vi.fn()
+      const ChatProbe = createLifecycleProbe('chat-probe', chatMount, chatUnmount)
+      const EditorProbe = createLifecycleProbe('editor-probe', editorMount, editorUnmount)
+
+      // Start at desktop (>= 1024px)
+      mockIsMobile = false
+      mockIsTablet = false
+      const { rerender, unmount } = renderWithRouter(
+        <Layout middle={<EditorProbe />} right={<ChatProbe />} />
+      )
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(mockSetGroupLayout).not.toHaveBeenCalled()
+
+      // Mutate local state inside both probes (simulating active SSE stream + draft state)
+      fireEvent.click(screen.getByTestId('chat-probe'))
+      fireEvent.click(screen.getByTestId('editor-probe'))
+      expect(screen.getByTestId('chat-probe')).toHaveTextContent('chat-probe:1')
+      expect(screen.getByTestId('editor-probe')).toHaveTextContent('editor-probe:1')
+
+      // Resize across 1024px to tablet (e.g. 1200 -> 900)
+      mockIsTablet = true
+      rerender(<Layout middle={<EditorProbe />} right={<ChatProbe />} />)
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(screen.getByTestId('chat-probe')).toHaveTextContent('chat-probe:1')
+      expect(screen.getByTestId('editor-probe')).toHaveTextContent('editor-probe:1')
+      expect(mockSetGroupLayout).toHaveBeenLastCalledWith({
+        'workbench-sidebar': 25,
+        'workbench-editor': 40,
+        'workbench-chat': 35,
+      })
+      const tabletPanels = screen.getAllByTestId('panel')
+      expect(tabletPanels.map((p) => p.dataset.defaultSize)).toEqual(['25%', '40%', '35%'])
+      expect(tabletPanels.map((p) => p.dataset.minSize)).toEqual(['20%', '30%', '280'])
+
+      // Resize back across 1024px to desktop (900 -> 1200)
+      mockIsTablet = false
+      rerender(<Layout middle={<EditorProbe />} right={<ChatProbe />} />)
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(screen.getByTestId('chat-probe')).toHaveTextContent('chat-probe:1')
+      expect(screen.getByTestId('editor-probe')).toHaveTextContent('editor-probe:1')
+      expect(mockSetGroupLayout).toHaveBeenLastCalledWith({
+        'workbench-sidebar': 20,
+        'workbench-editor': 48,
+        'workbench-chat': 32,
+      })
+      const desktopPanels = screen.getAllByTestId('panel')
+      expect(desktopPanels.map((p) => p.dataset.defaultSize)).toEqual(['20%', '48%', '32%'])
+      expect(desktopPanels.map((p) => p.dataset.minSize)).toEqual(['180', '30%', '300'])
+
+      // Cleanup only fires when Layout itself unmounts
+      unmount()
+      expect(chatUnmount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not unmount chatPanel or editor across 768px and 1024px transitions (700 -> 900 -> 1200 -> 700)', async () => {
+      const chatMount = vi.fn()
+      const chatUnmount = vi.fn()
+      const editorMount = vi.fn()
+      const editorUnmount = vi.fn()
+      const ChatProbe = createLifecycleProbe('chat-probe', chatMount, chatUnmount)
+      const EditorProbe = createLifecycleProbe('editor-probe', editorMount, editorUnmount)
+
+      // Start at mobile (< 768px, e.g. 700px)
+      mockIsMobile = true
+      mockIsTablet = false
+      mockActivePanel = 'chat'
+      const { rerender, unmount } = renderWithRouter(
+        <Layout middle={<EditorProbe />} right={<ChatProbe />} />
+      )
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
+      expect(screen.queryAllByTestId('separator')).toHaveLength(0)
+      expect(screen.getByTestId('group')).toHaveAttribute('data-disabled', 'true')
+      expect(document.getElementById('files-panel')).not.toBeNull()
+
+      fireEvent.click(screen.getByTestId('chat-probe'))
+      fireEvent.click(screen.getByTestId('editor-probe'))
+
+      // Cross 768px -> tablet (700 -> 900)
+      mockIsMobile = false
+      mockIsTablet = true
+      rerender(<Layout middle={<EditorProbe />} right={<ChatProbe />} />)
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(screen.getByTestId('chat-probe')).toHaveTextContent('chat-probe:1')
+      expect(screen.getByTestId('editor-probe')).toHaveTextContent('editor-probe:1')
+      expect(screen.queryByTestId('bottom-tabs')).not.toBeInTheDocument()
+      expect(screen.getAllByTestId('separator')).toHaveLength(2)
+      expect(screen.getByTestId('group')).toHaveAttribute('data-disabled', 'false')
+      expect(document.getElementById('files-panel')).toBeNull()
+      expect(screen.getByTestId('chat-panel')).toBeInTheDocument()
+      expect(screen.getByTestId('editor-panel')).toBeInTheDocument()
+      expect(mockSetGroupLayout).toHaveBeenLastCalledWith({
+        'workbench-sidebar': 25,
+        'workbench-editor': 40,
+        'workbench-chat': 35,
+      })
+
+      // Cross 1024px -> desktop (900 -> 1200)
+      mockIsMobile = false
+      mockIsTablet = false
+      rerender(<Layout middle={<EditorProbe />} right={<ChatProbe />} />)
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(screen.getByTestId('chat-probe')).toHaveTextContent('chat-probe:1')
+      expect(screen.getByTestId('editor-probe')).toHaveTextContent('editor-probe:1')
+      expect(mockSetGroupLayout).toHaveBeenLastCalledWith({
+        'workbench-sidebar': 20,
+        'workbench-editor': 48,
+        'workbench-chat': 32,
+      })
+
+      // Cross back below 768px -> mobile (1200 -> 700)
+      mockSetGroupLayout.mockClear()
+      mockIsMobile = true
+      mockIsTablet = false
+      mockActivePanel = 'chat'
+      rerender(<Layout middle={<EditorProbe />} right={<ChatProbe />} />)
+
+      expect(chatMount).toHaveBeenCalledTimes(1)
+      expect(chatUnmount).toHaveBeenCalledTimes(0)
+      expect(editorMount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(0)
+      expect(screen.getByTestId('chat-probe')).toHaveTextContent('chat-probe:1')
+      expect(screen.getByTestId('editor-probe')).toHaveTextContent('editor-probe:1')
+      expect(screen.getByTestId('bottom-tabs')).toBeInTheDocument()
+      expect(screen.queryAllByTestId('separator')).toHaveLength(0)
+      expect(screen.getByTestId('group')).toHaveAttribute('data-disabled', 'true')
+      expect(mockSetGroupLayout).not.toHaveBeenCalled()
+      expect(document.getElementById('chat-panel')).toHaveAttribute('aria-hidden', 'false')
+      expect(document.getElementById('editor-panel')).toHaveAttribute('inert')
+      await waitFor(() => {
+        expect(document.getElementById('files-panel')?.querySelector('.animate-spin')).toBeNull()
+      })
+
+      unmount()
+      expect(chatUnmount).toHaveBeenCalledTimes(1)
+      expect(editorUnmount).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps MobileFileTree lazy-loaded only after entering mobile mode and does not consume chat-on-open on desktop', async () => {
+      mockIsMobile = false
+      mockIsTablet = false
+      mockCurrentProjectId = 'project-desktop-then-mobile'
+      requestChatOnOpen('project-desktop-then-mobile')
+
+      const { rerender } = renderWithRouter(<Layout middle={middlePanel} right={rightPanel} />)
+
+      // Desktop should neither mount #files-panel nor consume the mobile chat-on-open flag
+      expect(document.getElementById('files-panel')).toBeNull()
+      expect(mockSetActivePanel).not.toHaveBeenCalled()
+
+      // Entering mobile mounts #files-panel (resolving lazy MobileFileTree) and opens AI tab
+      mockIsMobile = true
+      rerender(<Layout middle={middlePanel} right={rightPanel} />)
+
+      expect(mockSetActivePanel).toHaveBeenCalledWith('chat')
+      const filesPanel = document.getElementById('files-panel')
+      expect(filesPanel).not.toBeNull()
+      await waitFor(() => {
+        expect(filesPanel?.querySelector('.animate-spin')).toBeNull()
+      })
     })
   })
 

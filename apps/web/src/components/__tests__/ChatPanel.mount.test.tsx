@@ -530,7 +530,7 @@ describe('ChatPanel mount smoke', () => {
     const props = mockMessageList.mock.calls.at(-1)?.[0] as { onOpenAIMemory?: () => void }
     act(() => props.onOpenAIMemory?.())
 
-    expect(screen.getByTestId('mock-project-status-dialog')).toHaveAttribute('data-initial-section', 'writing-agreements')
+    expect(await screen.findByTestId('mock-project-status-dialog')).toHaveAttribute('data-initial-section', 'writing-agreements')
     expect(mockProjectStatusDialog.mock.calls.at(-1)?.[0]).toMatchObject({ initialSection: 'writing-agreements' })
   })
 
@@ -539,7 +539,7 @@ describe('ChatPanel mount smoke', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'chat:panel.aiMemory' }))
 
-    expect(screen.getByTestId('mock-project-status-dialog')).toHaveAttribute('data-initial-section', '')
+    expect(await screen.findByTestId('mock-project-status-dialog')).toHaveAttribute('data-initial-section', '')
     expect(mockProjectStatusDialog.mock.calls.at(-1)?.[0]).toMatchObject({ initialSection: undefined })
   })
 

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { PROSE_MIN_CHARS, createBodyWriteProgress, createProseCounter, isInternalOrderingRefusal, isWriteToolResult } from '../agentRoundProgress'
+import {
+  PROSE_MIN_CHARS,
+  createBodyWriteProgress,
+  createProseCounter,
+  getActiveStreamStatusText,
+  isInternalOrderingRefusal,
+  isWriteToolResult,
+  normalizeStreamStatusText,
+} from '../agentRoundProgress'
 
 describe('agentRoundProgress (same output rules as the server bills a stopped round by)', () => {
   it('does not count an empty chapter that create_file just made', () => {
@@ -169,5 +177,38 @@ describe('isInternalOrderingRefusal', () => {
     expect(isInternalOrderingRefusal({ status: 'error', error_type: 'stale_content' })).toBe(false)
     expect(isInternalOrderingRefusal({ status: 'error', error_type: 'clarify_first' })).toBe(false)
     expect(isInternalOrderingRefusal(undefined)).toBe(false)
+  })
+})
+
+describe('stream status text helpers', () => {
+  it('normalizes whitespace and rejects empty status strings', () => {
+    expect(normalizeStreamStatusText('  正在准备编辑文件… \n （已生成 1,500 字）  ')).toBe('正在准备编辑文件… （已生成 1,500 字）')
+    expect(normalizeStreamStatusText('   \n\t  ')).toBeNull()
+    expect(normalizeStreamStatusText(null)).toBeNull()
+    expect(normalizeStreamStatusText(undefined)).toBeNull()
+  })
+
+  it('extracts active thinking_status only when no newer tool call or visible text supersedes it', () => {
+    expect(
+      getActiveStreamStatusText([
+        { type: 'thinking_content', content: '先分析一下' },
+        { type: 'thinking_status', content: '正在准备编辑文件…', transient: true },
+        { type: 'content', content: '   ' },
+      ]),
+    ).toBe('正在准备编辑文件…')
+
+    expect(
+      getActiveStreamStatusText([
+        { type: 'thinking_status', content: '正在准备编辑文件…', transient: true },
+        { type: 'tool_calls' },
+      ]),
+    ).toBeNull()
+
+    expect(
+      getActiveStreamStatusText([
+        { type: 'thinking_status', content: '正在准备编辑文件…', transient: true },
+        { type: 'content', content: '修改完成。' },
+      ]),
+    ).toBeNull()
   })
 })
