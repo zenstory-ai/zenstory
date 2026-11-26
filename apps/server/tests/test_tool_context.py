@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from agents import RunContextWrapper
 
-from agent.core.request_context import AgentRequestContext, unwrap_request_context
+from agent.tools.tool_context import AgentRequestContext, unwrap_request_context
 
 
 class TestAgentRequestContextBasic:

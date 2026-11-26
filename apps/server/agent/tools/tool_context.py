@@ -290,9 +290,11 @@ class _PendingEmptyFileState:
             self._replacements.clear()
             self._replacement_saved.clear()
             self._chapter_bodies_saved.clear()
+            self._saved_body_types.clear()
             self._cut_bodies_saved.clear()
             self._prebody_reply = None
             self._waiting_at_reply_start = False
+            self._closed = False
 
     def version(self, file_id: str) -> str | None:
         """这个待写文件建好时的版本；不是待写条目或没有记下时为 None。"""

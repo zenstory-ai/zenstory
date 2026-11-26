@@ -3,8 +3,7 @@
 ZenStory 写作 agent 的服务端：由**单循环 agent**（`loop/`）跑完每一轮——一个模型、写作工具集、
 一份只追加的对话 → openai-agents-python 运行时（主备两个供应商，见 `core/llm_providers.py` /
 `core/llm_failover.py`：MiniMax 默认走 OpenAI `/v1/responses` + `store=False` + 会话确定性 `prompt_cache_key`，可由 `MINIMAX_API_SURFACE=chat_completions` 环境变量即时回滚；DeepSeek 严格走 `/v1/chat/completions`；[minimax-responses-api][n-minimax-responses]）→ SSE。决策见 [single-loop-agent][n-loop]。原来的多角色工作流（路由 → planner / hook_designer / writer /
-quality_reviewer）已删除（[remove-graph-agent][n-remove-graph]）：它写下的旧会话行只读回放（`loop/history.py` 的 `_legacy_row_items` →
-`SessionLoader._format_chat_message_for_history`），前端照常展示；回滚 = 从 git 检出删除前的提交重新部署。
+quality_reviewer）已删除（[remove-graph-agent][n-remove-graph]）：它写下的旧会话行只读回放（`loop/history.py` 的 `_legacy_row_items` 退回纯文本 `row.content`），前端照常展示；回滚 = 从 git 检出删除前的提交重新部署。
 
 MiniMax 可配置双凭证：`MINIMAX_API_KEY` 是主凭证，
 `MINIMAX_SECONDARY_API_KEY` 是次凭证，
@@ -38,11 +37,10 @@ agent/
 │   ├── events.py           # SSE 事件（EventType）与帧构造
 │   ├── workflow_events.py  # 循环 → StreamAdapter 的内部事件（StreamEventType / StreamEvent）
 │   ├── writing_state.py    # WritingState：一轮请求交给单循环 agent 与 runner 的状态
-│   ├── request_context.py  # AgentRequestContext 与 unwrap_request_context 的 core 层导出入口
 │   ├── empty_files.py      # 空文件的落库核验、恢复写入目标与回滚
 │   ├── task_board_completion.py # 正常结束时按实际写出的文件补记任务板
 │   ├── sse_pump.py         # SSEStreamPump：心跳、请求墙钟时限、作者停止
-│   ├── account_run_limit.py# 账号任务名额（每账号最多 2 个）：原子获取、续租、失效回收
+│   ├── account_run_limit.py# 账号任务名额（每账号最多 1 个）：原子获取、续租、失效回收
 │   ├── stream_billing.py   # StreamBillingTracker：按结构化执行事实判定计费 / 退还与产出回执标记
 │   ├── stream_errors.py    # 错误码、固定文案、retryable / refundable
 │   ├── round_outcome.py    # 停止 / 断线的一轮怎样收尾（终态落库、空白占位文件）
@@ -50,7 +48,7 @@ agent/
 │   ├── steering.py         # 运行中插话（steering）队列
 │   ├── output_truncation.py# 输出截断后的续写提示
 │   ├── author_facing_text.py # 作者可见文字整理（AgentTextShaper）
-│   ├── session_loader.py   # 旧行（图写下的）的文字折叠、面包屑、作者手改与本会话写过的文件
+│   ├── session_loader.py   # 状态卡回放、作者手改提醒、会话读取快照与本会话写过的文件
 │   ├── message_manager.py  # 系统提示构建（含多语言回复规则）、本轮上下文的共用分段、历史保存
 │   ├── protocol_filter.py  # 代码块/行内代码外的泄漏工具调用协议过滤与检测（单源共享）
 │   ├── stream_processor.py # <file>…</file> 捕获状态机
@@ -109,14 +107,13 @@ agent/
   `LOOP_AUTHOR_REPLY_PROTOCOL`、`LOOP_TOOL_USAGE_PROTOCOL`）+ 回复语言 + `loop/prompts.py` 的输入布局与
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、经服务端校验的当轮结构化 UI 动作（`ui_action="natural_polish"` 时经 `loop/ui_actions.py` 直接注入官方「去AI味」权威方法、剧本 `△`/台词保护及单次批量 `edit_file` 范围约束，不改动静态系统提示、也不依赖 `UserAddedSkill`；见 [deai-via-agent][n-deai-agent]）（回复语言完全交由模型按作者最新消息在系统提示规则下自主判断，不再经正则启发式注入 `<turn_context>`；沿用 ContextAssembler 的解析器与渲染，不做
-  优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token（先扣除本轮显式 `selected_skills` 的供应商 token 占用，保留所选技能完整）时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
-  按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `AgentRequestContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
-- **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
+  优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token（先扣除本轮显式 `selected_skills` 的供应商 token 占用，保留所选技能完整）时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：本会话 AI 写过但不在本轮全文上下文中的正文文件（`SessionLoader.session_written_file_ids`，
+  按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改提醒（`SessionLoader.author_edits_for_files`，单次批量 `FileVersion` 元数据查询判定是否晚于最近 AI 版本被手改，仅在极少数等长等字数候选上批量还原 AI 版本原文核验，零逐行 `SequenceMatcher` 归属计算；受 `service.process_stream` 传入的协同 `cancel_event` 约束）；热缓存轮次还按 `wire_prefix_cache` 携带的 `context_fingerprints` 对未变更的 `<project_files>`、焦点文件与 `<author_edits>` 输出精简 unchanged 标记（不改前面轮次前缀字节、仍保留 `read_snapshots[file_id]`，本轮发生文件变更时失效对应指纹、Stage 2 压缩或滑窗截断时回退完整 `full_text`）。选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `AgentRequestContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
+- **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗，按显式 6 列投影 + keyset 分页（不读取未用的 `reasoning_content` 列）。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
   `awaiting_body` / `next_step`，带 `body_saved`（write_chapter 的整章替换只认落库后补发的结果，只有定位结果时 `body_saved=false` 并说明没保存；
   新建写入看 service 落库前按保存回执写进卡片的 `body_saved`（`service._stamp_body_receipts`），为 false 时附说明，修复前没有这个键的行照旧当作已保存）。成功的历史文件写入回执另带 `write_target_active=false`：不恢复上一轮捕获目标，本轮仍需按作者要求重新定位，改为只读时不恢复写入；load_skill / read_skill_resource 与失败调用的结果附 `note`，说明正文 / 给模型的原因没有落库、
-  需要时重新调用。活跃会话在 `AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS`（默认 1200s，匹配 MiniMax 20 分钟缓存窗口；`<=0` 关闭）与 `AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`（默认 2 MiB，按压缩后实际入库载荷大小核验）内额外将干净结束或干净软着陆（`end_turn` / `run_deadline_exceeded` / `max_turns_exceeded`，含无未完成/回滚空文件的 `layer="collaboration", limit=None` 协作上限暂停卡，无未配对工具调用尾部、无错误/取消/待写文件/阻塞状态卡/保存前迟到插话）的一轮的 SDK `completed_items` 以 gzip+base64（`zsgz1:` 前缀，适配全局 `decode_responses=True` 连接池，读取端同时无缝兼容滚动发布期间 Redis 残留的旧纯文本 JSON）缓存到 Redis（`agent:wire_prefix:{session_id}`），落库了新消息却跳过写入时记一条带 `skip_reason` 的 `INFO` 日志（仅无错未取消轮次，不与 `wire_prefix_cache` 内部拒写日志重复）并主动 fail-open 删除旧键；下一轮按数据库最新消息 id、归属、`system_prompt` SHA-256 与 `provider:model:key_slot` 严格校验命中后直接复用（含轮前压缩，不记录原始内容；任何不匹配、会话清空/新建、卡片撤销/恢复、迟到插话或 Redis 异常均 fail-open 回退到 `load_loop_history`）[prompt-cache-stability][n-cache-stability]、[cache-soft-land-and-key-sticky][n-cache-followup]、[author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]、[tier0-minimax-quota-safety][n-tier0-quota]。图写下的旧行沿用 `SessionLoader._format_chat_message_for_history`
-  的文字折叠。首次 run 由 `runner.build_run_input` 把 `state["history_items"]` 排在本轮消息之前；同轮续跑（自查 / 纠偏 / 插话）直接从 `state["run_items"]`（上一次正常结束 run 的 `result.to_input_list()`）只追加续接，待消费插话记在 `state["pending_steering"]`（干净结束时 `service.py` 也直接把 `state["run_items"]` 写入 `wire_prefix_cache`）。
+  需要时重新调用。活跃会话在 `AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS`（默认 1200s，匹配 MiniMax 20 分钟缓存窗口；`<=0` 关闭）与 `AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`（默认 2 MiB，按压缩后实际入库载荷大小核验）内额外将干净结束或干净软着陆（`end_turn` / `run_deadline_exceeded` / `max_turns_exceeded`，含无未完成/回滚空文件的 `layer="collaboration", limit=None` 协作上限暂停卡，无未配对工具调用尾部、无错误/取消/待写文件/阻塞状态卡/保存前迟到插话）的一轮的 SDK `completed_items` 以 gzip+base64（`zsgz1:` 前缀，适配全局 `decode_responses=True` 连接池，读取端同时无缝兼容滚动发布期间 Redis 残留的旧纯文本 JSON）缓存到 Redis（`agent:wire_prefix:{session_id}`），落库了新消息却跳过写入时记一条带 `skip_reason` 的 `INFO` 日志（仅无错未取消轮次，不与 `wire_prefix_cache` 内部拒写日志重复）并主动 fail-open 删除旧键；下一轮先以 3 列轻量索引查询（`id, role, created_at LIMIT 1`）尝试命中热缓存，按数据库最新消息 id、归属、`system_prompt` SHA-256、`provider:model:key_slot`、`tools_sha256` 与 `reasoning_effort` 严格校验命中后直接复用 `items` + `history_meta` + `context_fingerprints` 并跳过 `load_loop_history` 全表 TOAST 扫描（任何不匹配、会话清空/新建、卡片撤销/恢复、迟到插话或 Redis 异常均 fail-open 回退到 `load_loop_history`）[prompt-cache-stability][n-cache-stability]、[cache-soft-land-and-key-sticky][n-cache-followup]、[author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]、[tier0-minimax-quota-safety][n-tier0-quota]。图写下的旧行回退为纯文本 `row.content` 摘要。首次 run 由 `runner.build_run_input` 把 `state["history_items"]` 排在本轮消息之前；同轮续跑（自查 / 纠偏 / 插话）直接从 `state["run_items"]`（上一次正常结束 run 的 `result.to_input_list()`）只追加续接，待消费插话记在 `state["pending_steering"]`（干净结束时 `service.py` 也直接把 `state["run_items"]` 写入 `wire_prefix_cache`）。
 - **压缩**（`loop/compaction.py`）：上一条单循环 assistant 行的 `prompt_tokens`（最后一次模型调用的实测输入，含缓存；没有时用供应商同量纲估算 `estimate_provider_items_tokens`）加上本轮新增输入（`<turn_context>` + 用户消息的 `estimate_provider_text_tokens` 估算）
   超过 `AGENT_LOOP_COMPACT_AT_TOKENS`（300000）时，本轮开始前用会话固定的供应商写交接摘要（`COMPACT_PROMPT`，工具清单经 `Converter.tool_to_openai(build_agent_function_tools())` 生成并保持默认 `tool_choice` 以保住前缀缓存、`should_replay_reasoning_content` 与主循环一致、`max_retries=0`；Responses 供应商走 `acreate_response(..., stream_collect=True)` 流式收集终态 `Response` 以规避长摘要非流式 120s 读超时，并传入 `request_context` 写入 `llm_usage_event` 与免费成本预算；见 [deepseek-cost-reduction][n-deepseek-cost]），
   空、被截断或混入未执行的工具调用机器协议（结构化 `tool_calls` 或代码外泄漏 `<tool_call>` / `<invoke>` / `<parameter>` 标签）时保持默认思考强度附带精炼重试说明再试一次（不降低 `reasoning_effort`），仍不行就不压缩。成功时写进本轮 assistant 行的 `message_metadata.compaction`
@@ -145,7 +142,7 @@ agent/
   「《…》写到了单次回复的输出上限，正文已保存到中断处。」（`author_facing_text.body_cut_at_output_cap_notice`），续跑说明 `_BODY_CUT_CONTEXT` 附落库正文末尾 200 字，
   要求用 edit_file `op=append` 从断点续写、不整章重写，写完再自查；没撞上限的未闭合正文（漏写 `</file>`）照旧按已保存续跑。整章替换的新正文被截断时
   仍是原文不动、在纠偏次数内重试，重试说明换成 `_CHAPTER_REPLACE_CUT_RETRY_CONTEXT`（说明被截断、思考尽量简短）。到收尾时间不再开新 run：
-  若结构化 `pending_self_check` 为真（或正在跑的 `in_self_check` 通过 `runner.RunExecutionPolicy(defer_wall_clock_soft_landing=True)` 将内层 `limit=wall_clock` 软着陆延迟交回外层循环），且已有确认落库正文、`auto_finalize_task_board_on_completion` 单次读取收尾后无未完任务（`has_incomplete == False`）、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话，直接按 `end_turn` 正常收尾（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；任务板仍有未完成项或其余未完成续跑照旧补发 `wall_clock` 暂停卡（`StreamAdapter` 随之将 `stop_reason` 记为 `run_deadline_exceeded`）；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理。所有卡片 `last_agent` 为空（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`）。[prod-review-followups][n-prod-review]、[prod-audit-round2][n-prod-audit2]
+  若结构化 `pending_self_check` 为真（或正在跑的 `in_self_check` 通过 `runner.RunExecutionPolicy(defer_wall_clock_soft_landing=True)` 将内层 `limit=wall_clock` 软着陆延迟交回外层循环），且已有确认落库正文、`auto_finalize_task_board_on_completion` 单次读取收尾后无未完任务（`has_incomplete == False`）、无待写空文件、无截断残稿、无未保存替换、无未执行工具与插话，直接按 `end_turn` 正常收尾（上一轮停在 `</file>` 尚未写总结时补一句确定性的已保存说明），不发暂停卡；任务板仍有未完成项或其余未完成续跑照旧补发 `wall_clock` 暂停卡（`StreamAdapter` 随之将 `stop_reason` 记为 `run_deadline_exceeded`）；工具轮数耗尽、熔断、无进展、重复、截断都由 runner 原样处理（API 墙钟硬超时补发暂停卡时 `iterations_used` 取 `RunOutcome.runs_started`；单循环不再透传死字段 `last_agent`）。[prod-review-followups][n-prod-review]、[prod-audit-round2][n-prod-audit2]
   收尾提醒（`runner._ModelCallCountingFilter`）用 `LOOP_SOFT_LANDING_PROMPT` / `LOOP_TIME_LANDING_PROMPT`
   （刚调用 write_chapter 或 create_file 还没写 `<file>` 的先写完）。空文件的核验与回滚在 `core/empty_files.py`，收尾说明、插话追加轮提示与续跑说明里的字数在 `loop/run_support.py`。
 - **工具与权限**：`registry.LOOP_TOOL_NAMES` 是唯一的工具集（顺序即请求里工具清单的顺序，前缀缓存依赖它），请求里直接从 `tool_schemas.TOOL_SCHEMAS` 按序取出（`get_exposed_tools()`；`CREATE_FILE_TOOL` 只列资料文件与文件夹，不列 draft / script）。没有路由的 read_only / scope_constraints：改不改文件由模型按提示判断，写入直接落库并保留修改卡撤销、历史版本及草稿冲突与版本并发保护（[direct-ai-edits][n-direct-edits]）；
@@ -194,12 +191,12 @@ agent/
 ## 请求与流
 
 1. `apps/server/api/agent.py` 的 `POST /api/v1/agent/stream`：鉴权、项目权限（`verify_project_access`）、按用户限流、
-   会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 2 个，见下）、
+   会话忙预检、额度预检、原子获取账号任务名额（`core/account_run_limit.py`，每账号最多 1 个，见下）、
    预扣一次 AI 对话额度（免费账号同时占用客户端网络的共享额度，同一事务，运行 id 即预约 id，单轮至多退还一次；网络额度用完时 402 `ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED`）；用 `SSEStreamPump` 包住 `AgentService.process_stream`，`StreamBillingTracker` 记账每一帧。
    同文件还有 `/stop`（作者停止）、`/steer`（运行中插话）、`/suggest`。新增会触发 LLM 的端点必须同时有
    鉴权 + 项目权限 + 成本上限 + 按用户限流（见该文件模块 docstring）。
 2. `AgentService.process_stream`（`service.py`）：按本轮已解析的会话 id（`chat_session_id`，不是重新挑最新活跃会话）准备单循环 agent 的输入
-   （见上一节），构造单份强类型 `AgentRequestContext`（`tools/tool_context.py`，同时由 `core/request_context.py` 导出；生产路径下工具每次调用经 `req_ctx.session_scope()` 独立开关短生命周期 DB Session，不再使用全局 `ContextVar` 服务定位器或跨线程复用的懒建 Session），经 `WritingState["request_context"]`、`StreamAdapterConfig.request_context` 与 SDK 原生 `Runner.run_streamed(..., context=req_ctx)`（`RunContextWrapper[AgentRequestContext]`）贯通 `FunctionTool.on_invoke_tool`、`RunHooks`、`call_model_input_filter` 与 `_stop_run_after_tools`（[agent-run-context-wrapper][n-run-context-wrapper]），然后
+   （见上一节），构造单份强类型 `AgentRequestContext`（`tools/tool_context.py`；生产路径下工具每次调用经 `req_ctx.session_scope()` 独立开关短生命周期 DB Session，不再使用全局 `ContextVar` 服务定位器或跨线程复用的懒建 Session），经 `WritingState["request_context"]`、`StreamAdapterConfig.request_context` 与 SDK 原生 `Runner.run_streamed(..., context=req_ctx)`（`RunContextWrapper[AgentRequestContext]`）贯通 `FunctionTool.on_invoke_tool`、`RunHooks`、`call_model_input_filter` 与 `_stop_run_after_tools`（[agent-run-context-wrapper][n-run-context-wrapper]），然后
    `StreamAdapter.process_workflow_events(run_loop_agent_streaming(...))`，结束时保存历史并清理请求级上下文。
 3. `loop/engine.run_loop_agent_streaming` 每次 run 调用 `openai_agents/runner.run_openai_agents_streaming_agent`。[cache-stable-prompt-layout][n-cache-layout]
    runner 用 `Runner.run_streamed` 跑 SDK，事件映射：`response.output_text.delta` → TEXT，reasoning delta → THINKING，
@@ -230,7 +227,7 @@ agent/
 - 墙钟时限由 `SSEStreamPump` 执行：到点先发真实超时终态再等生产者收尾。[platform-deadline][n-deadline]、[deadline-terminal][n-deadline2]
 - 发布交接：SIGTERM 后 `core/server_drain.py` 让所有运行立即按时限收尾提醒，`api/agent.py` 把进行中的泵的时限提前到 `AGENT_DRAIN_STOP_AFTER_S`（240 秒），到点以 `ERR_AGENT_SERVER_RESTARTING` 收尾、计费同墙钟超时（`billing_reason=server_restarting`）；lifespan 关闭前等后台退还与终态任务。[deploy-drain][n-drain]
 - 运行中插话：`/agent/steer` 写入 `core/steering.py` 的队列，runner 在边界处消费。入队与「存在未封口的存活 run」原子判定；工作流结束后、保存历史前的那次 drain 起就封口（本 run 不再把引导喂给模型），释放前的兜底 drain 再封一次；之后的 steer 回 404，前端改为下一条普通消息发送。[steering-busy-409][n-steer]
-- 账号任务名额：同一账号所有写作任务（`/agent/stream`）合计最多 2 个，跨项目、会话、设备和进程共享；内部模型调用（含压缩）、工具和 `/steer` 不另占。超限 409 `ERR_ACCOUNT_RUNS_BUSY`，不排队、不自动重试、不扣额；前端把这句话和技能退回输入框。名额在预扣额度前原子获取，每 20 秒续租，90 秒没心跳即失效；`process_stream` 接管后在真正结束时释放（取消路径在残稿补存和会话释放之后），接管前的失败由路由释放。Redis 故障或 staging / production 没配 Redis 时放行，不用进程内计数拒绝请求；首次初始化和数据丢失没有等待窗口。只续租当前任务，不批量写回其他任务，避免已释放任务被旧快照复活。故障恢复和首次混合版本发布期间可能暂时超出 2 个，这是优先保障写作可用性的取舍。[account-two-tasks][n-account-tasks]
+- 账号任务名额：同一账号所有写作任务（`/agent/stream`）合计最多 1 个，跨项目、会话、设备和进程共享；内部模型调用（含压缩）、工具和 `/steer` 不另占。超限 409 `ERR_ACCOUNT_RUNS_BUSY`，不排队、不自动重试、不扣额；前端把这句话和技能退回输入框。名额在预扣额度前原子获取，每 20 秒续租，90 秒没心跳即失效；`process_stream` 接管后在真正结束时释放（取消路径在残稿补存和会话释放之后），接管前的失败由路由释放。Redis 故障或 staging / production 没配 Redis 时放行，不用进程内计数拒绝请求；首次初始化和数据丢失没有等待窗口。只续租当前任务，不批量写回其他任务，避免已释放任务被旧快照复活。故障恢复和首次混合版本发布期间可能暂时超出 1 个，这是优先保障写作可用性的取舍。[account-two-tasks][n-account-tasks]
 - SSE 事件类型见 `core/events.py` 的 `EventType`。
 
 ## 上下文与跨轮记忆

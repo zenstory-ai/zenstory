@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
+from agent.tools.tool_context import AgentRequestContext
 
 
 class TestConcurrentIsolation:

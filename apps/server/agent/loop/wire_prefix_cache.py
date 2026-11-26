@@ -26,6 +26,7 @@ import json
 import os
 import time
 import zlib
+from dataclasses import dataclass
 from typing import Any
 
 from config import agent_runtime
@@ -47,9 +48,38 @@ _REDIS_RETRY_AFTER_S = 30.0
 _redis_down_until = 0.0
 
 
+@dataclass
+class WirePrefixEntry:
+    """Validated Redis wire-prefix cache hit with optional history & context metadata."""
+
+    items: list[dict[str, Any]]
+    history_meta: dict[str, Any] | None = None
+    context_fingerprints: dict[str, Any] | None = None
+
+
 def system_prompt_sha256(system_prompt: str) -> str:
     """Deterministic SHA-256 hex digest of the static system prompt."""
     return hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()
+
+
+def tools_schema_sha256(tools: Any | None = None) -> str:
+    """Deterministic SHA-256 hex digest of the registered SDK tool schemas."""
+    if tools is None:
+        from agent.tools.registry import get_exposed_tools
+
+        tools = get_exposed_tools()
+    serialized = json.dumps(tools, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def effective_reasoning_effort(provider: Any | None = None) -> str:
+    """Normalized reasoning effort identity for wire-prefix cache validation."""
+    requested = agent_runtime.AGENT_REASONING_EFFORT
+    resolver = getattr(provider, "reasoning_effort_for", None)
+    effort = resolver(requested) if callable(resolver) else requested
+    if isinstance(effort, str) and effort.strip():
+        return effort.strip().lower()
+    return "default"
 
 
 def provider_cache_key(provider: Any) -> str | None:
@@ -178,7 +208,7 @@ def _decode_wire_prefix_payload(raw: Any) -> tuple[str, int] | None:
     return raw_str, stored_bytes
 
 
-def load_wire_prefix(
+def load_wire_prefix_entry(
     *,
     session_id: str,
     project_id: str,
@@ -186,13 +216,16 @@ def load_wire_prefix(
     last_message_id: str,
     system_prompt: str,
     provider_key: str,
+    tools_sha256: str | None = None,
+    reasoning_effort: str | None = None,
     ttl_seconds: int | None = None,
-) -> list[dict[str, Any]] | None:
-    """Load and strictly validate the cached SDK wire-prefix items for ``session_id``.
+) -> WirePrefixEntry | None:
+    """Load and strictly validate the cached SDK wire-prefix envelope for ``session_id``.
 
-    Seamlessly reads both new ``zsgz1:`` gzip+base64 entries and legacy plain-JSON entries
-    during rolling deploys. Returns ``None`` on any miss, validation mismatch, disabled
-    config, corruption, or Redis error.
+    Validates schema version, project/user scope, latest DB message id, static system prompt
+    SHA-256, provider/model/key_slot identity, registered SDK tool schema SHA-256, and
+    reasoning effort. Returns ``None`` on any miss, validation mismatch, disabled config,
+    corruption, or Redis error (fail-open to ``load_loop_history``).
     """
     if _effective_ttl(ttl_seconds) <= 0:
         return None
@@ -234,6 +267,13 @@ def load_wire_prefix(
     if not isinstance(envelope, dict):
         return None
 
+    expected_tools_sha = tools_sha256 if isinstance(tools_sha256, str) and tools_sha256 else tools_schema_sha256()
+    expected_effort = (
+        reasoning_effort.strip().lower()
+        if isinstance(reasoning_effort, str) and reasoning_effort.strip()
+        else effective_reasoning_effort()
+    )
+
     mismatch: str | None = None
     if type(envelope.get("schema_version")) is not int or envelope["schema_version"] != WIRE_PREFIX_CACHE_SCHEMA_VERSION:
         mismatch = "schema_version"
@@ -245,6 +285,10 @@ def load_wire_prefix(
         mismatch = "system_prompt"
     elif envelope.get("provider_key") != provider_key:
         mismatch = "provider_key"
+    elif envelope.get("tools_sha256") != expected_tools_sha:
+        mismatch = "tools_sha256"
+    elif envelope.get("reasoning_effort") != expected_effort:
+        mismatch = "reasoning_effort"
 
     if mismatch is not None:
         log_with_context(
@@ -260,6 +304,11 @@ def load_wire_prefix(
     if not is_well_formed_wire_prefix(items):
         return None
 
+    raw_history_meta = envelope.get("history_meta")
+    history_meta = raw_history_meta if isinstance(raw_history_meta, dict) else None
+    raw_fingerprints = envelope.get("context_fingerprints")
+    context_fingerprints = raw_fingerprints if isinstance(raw_fingerprints, dict) else None
+
     log_with_context(
         logger,
         20,  # INFO
@@ -268,7 +317,38 @@ def load_wire_prefix(
         item_count=len(items),
         payload_bytes=stored_bytes,
     )
-    return items
+    return WirePrefixEntry(
+        items=items,
+        history_meta=history_meta,
+        context_fingerprints=context_fingerprints,
+    )
+
+
+def load_wire_prefix(
+    *,
+    session_id: str,
+    project_id: str,
+    user_id: str,
+    last_message_id: str,
+    system_prompt: str,
+    provider_key: str,
+    tools_sha256: str | None = None,
+    reasoning_effort: str | None = None,
+    ttl_seconds: int | None = None,
+) -> list[dict[str, Any]] | None:
+    """Load and strictly validate the cached SDK wire-prefix items for ``session_id``."""
+    entry = load_wire_prefix_entry(
+        session_id=session_id,
+        project_id=project_id,
+        user_id=user_id,
+        last_message_id=last_message_id,
+        system_prompt=system_prompt,
+        provider_key=provider_key,
+        tools_sha256=tools_sha256,
+        reasoning_effort=reasoning_effort,
+        ttl_seconds=ttl_seconds,
+    )
+    return entry.items if entry is not None else None
 
 
 def store_wire_prefix(
@@ -280,6 +360,10 @@ def store_wire_prefix(
     system_prompt: str,
     provider_key: str,
     items: list[Any],
+    tools_sha256: str | None = None,
+    reasoning_effort: str | None = None,
+    history_meta: dict[str, Any] | None = None,
+    context_fingerprints: dict[str, Any] | None = None,
     ttl_seconds: int | None = None,
     max_bytes: int | None = None,
 ) -> bool:
@@ -295,15 +379,30 @@ def store_wire_prefix(
     if not _redis_available():
         return False
 
-    envelope = {
+    resolved_tools_sha = (
+        tools_sha256 if isinstance(tools_sha256, str) and tools_sha256 else tools_schema_sha256()
+    )
+    resolved_effort = (
+        reasoning_effort.strip().lower()
+        if isinstance(reasoning_effort, str) and reasoning_effort.strip()
+        else effective_reasoning_effort()
+    )
+
+    envelope: dict[str, Any] = {
         "schema_version": WIRE_PREFIX_CACHE_SCHEMA_VERSION,
         "project_id": project_id,
         "user_id": user_id,
         "last_assistant_message_id": last_assistant_message_id,
         "system_prompt_sha256": system_prompt_sha256(system_prompt),
         "provider_key": provider_key,
+        "tools_sha256": resolved_tools_sha,
+        "reasoning_effort": resolved_effort,
         "items": items,
     }
+    if isinstance(history_meta, dict):
+        envelope["history_meta"] = history_meta
+    if isinstance(context_fingerprints, dict) and context_fingerprints:
+        envelope["context_fingerprints"] = context_fingerprints
     try:
         encoded, payload_bytes, raw_bytes = _encode_wire_prefix_payload(envelope)
     except (TypeError, ValueError) as exc:
@@ -360,6 +459,11 @@ def invalidate_wire_prefix(session_id: str | None) -> bool:
     except Exception as exc:  # noqa: BLE001 - fail open
         _mark_redis_down("delete", session_id, exc)
         return False
+
+
+async def aload_wire_prefix_entry(**kwargs: Any) -> WirePrefixEntry | None:
+    """Async wrapper around ``load_wire_prefix_entry`` offloaded from the event loop."""
+    return await asyncio.to_thread(load_wire_prefix_entry, **kwargs)
 
 
 async def aload_wire_prefix(**kwargs: Any) -> list[dict[str, Any]] | None:

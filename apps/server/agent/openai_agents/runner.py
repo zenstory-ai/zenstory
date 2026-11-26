@@ -58,6 +58,30 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 MessageList = list[dict[str, Any]]
+_BACKGROUND_ACLOSE_TIMEOUT_S = 2.0
+_background_aclose_tasks: set[asyncio.Task[Any]] = set()
+
+
+def _schedule_background_aclose(
+    aclose: Callable[[], Any],
+    *,
+    timeout_s: float = _BACKGROUND_ACLOSE_TIMEOUT_S,
+) -> None:
+    """Schedule bounded async-generator cleanup without awaiting inside a ``GeneratorExit`` finally block."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    async def _run_close() -> None:
+        with contextlib.suppress(Exception):
+            res = aclose()
+            if inspect.isawaitable(res):
+                await asyncio.wait_for(res, timeout=max(0.0, timeout_s))
+
+    task = loop.create_task(_run_close())
+    _background_aclose_tasks.add(task)
+    task.add_done_callback(_background_aclose_tasks.discard)
 
 # 工具失败熔断后 MESSAGE_END 的 stop_reason（随 assistant 消息元数据落库）。
 TOOL_FAILURE_STOP_REASON = "tool_failure_circuit_open"
@@ -1015,6 +1039,7 @@ async def run_openai_agents_streaming_agent(
             )
 
         sdk_events = result.stream_events()
+        exiting_via_generator_exit = False
         try:
             async for sdk_event in sdk_events:
                 if (
@@ -1249,13 +1274,20 @@ async def run_openai_agents_streaming_agent(
         except MaxTurnsExceeded:
             # 轮数耗尽的对外事件放到熔断/无进展判定之后统一发出（见下方）。
             max_turns_exhausted = True
+        except GeneratorExit:
+            exiting_via_generator_exit = True
+            _safe_cancel(result, "immediate")
+            raise
         except BaseException:
             _safe_cancel(result, "immediate")
             raise
         finally:
             aclose = getattr(sdk_events, "aclose", None)
             if callable(aclose):
-                await aclose()
+                if exiting_via_generator_exit:
+                    _schedule_background_aclose(aclose)
+                else:
+                    await aclose()
 
         if repetition_stopped:
             # 与无进展停止同一个收尾：先让 usage 入账，再以 ERROR 结束整条工作流。StreamAdapter 收到
@@ -1488,7 +1520,6 @@ async def run_openai_agents_streaming_agent(
                         "这一轮的时间快用完了，AI 先写下了阶段总结。"
                         "任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": None,
                 }
             elif budget_landed:
                 exhausted_data = {
@@ -1499,7 +1530,6 @@ async def run_openai_agents_streaming_agent(
                         f"这一轮的模型调用次数快到上限（{run_meter.max_model_calls} 次），"
                         "AI 先写下了阶段总结。任务可能还没做完，回复「继续」就能接着做。"
                     ),
-                    "last_agent": None,
                 }
             else:
                 exhausted_data = {
@@ -1510,7 +1540,6 @@ async def run_openai_agents_streaming_agent(
                         f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
                         "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
                     ),
-                    "last_agent": None,
                 }
             # 前端据此选卡片文案：时限收尾时模型可能已经做完，只是收尾提醒让它写了总结。
             exhausted_data["limit"] = (

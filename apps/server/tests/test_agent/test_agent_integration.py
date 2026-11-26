@@ -71,8 +71,8 @@ class TestMCPTools:
 
     async def test_create_file_tool(self, db_session: Session, test_user_with_project):
         """Test create_file tool execution (async)."""
-        from agent.core.request_context import AgentRequestContext
         from agent.tools.mcp_tools import create_file
+        from agent.tools.tool_context import AgentRequestContext
 
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
@@ -107,8 +107,8 @@ class TestMCPTools:
 
     async def test_query_files_tool(self, db_session: Session, test_user_with_project):
         """Test query_files tool execution (async)."""
-        from agent.core.request_context import AgentRequestContext
         from agent.tools.mcp_tools import query_files
+        from agent.tools.tool_context import AgentRequestContext
 
         project = test_user_with_project["project"]
         user = test_user_with_project["user"]
@@ -140,8 +140,8 @@ class TestMCPTools:
 
     async def test_edit_file_tool(self, db_session: Session, test_user_with_project):
         """Test edit_file tool execution (async)."""
-        from agent.core.request_context import AgentRequestContext
         from agent.tools.mcp_tools import edit_file
+        from agent.tools.tool_context import AgentRequestContext
 
         draft_file = test_user_with_project["draft_file"]
         user = test_user_with_project["user"]

@@ -616,7 +616,7 @@ class TestProcessEventIterationExhausted:
         assert events[0].type == EventType.ITERATION_EXHAUSTED
         assert events[0].data["layer"] == "tool_call"
         assert events[0].data["iterations_used"] == 10
-        assert events[0].data["last_agent"] == "writer"
+        assert "last_agent" not in events[0].data
 
 
 class TestProcessEventPassthrough:
@@ -2061,8 +2061,12 @@ async def test_sse_tool_result_slims_query_files_while_preserving_db_payload():
     assert by_tool["delete_file"] == delete_payload["data"]
     assert by_tool["update_project"] == update_proj_payload["data"]
 
-    # DB persistence pops the unslimmed payload so DB & history replay remain 100% untouched
+    # DB persistence slims oversized query_files (> 4,000 chars) with content_sha256 + archived_note
+    from services.features.file_version_service import content_sha256
+
     persisted_qf = adapter.pop_persisted_tool_result("call-qf", by_tool["query_files"])
-    assert persisted_qf[0]["content"] == heavy_body
+    assert "content" not in persisted_qf[0]
+    assert persisted_qf[0]["content_sha256"] == content_sha256(heavy_body)
+    assert persisted_qf[0]["archived_note"]
     # Non-target tools fall back directly to SSE payload
     assert adapter.pop_persisted_tool_result("call-edit", by_tool["edit_file"]) == edit_payload["data"]

@@ -302,6 +302,8 @@ def test_gzip_compression_fits_large_session_under_max_bytes_and_reads_legacy_pl
             "last_assistant_message_id": "m-legacy",
             "system_prompt_sha256": wire_prefix_cache.system_prompt_sha256("sys"),
             "provider_key": "minimax:MiniMax-M3.1-Flash:primary",
+            "tools_sha256": wire_prefix_cache.tools_schema_sha256(),
+            "reasoning_effort": wire_prefix_cache.effective_reasoning_effort(),
             "items": legacy_items,
         },
         ensure_ascii=False,
@@ -2484,17 +2486,17 @@ async def test_turn_n_plus_1_wire_prefix_round_trip_on_default_responses_api_and
 
             assert cache_key in fake_redis.store
 
-            # Spy on aload_wire_prefix to confirm Turn 2 actually hits Redis wire cache.
-            orig_aload = wire_prefix_cache.aload_wire_prefix
+            # Spy on load_wire_prefix_entry to confirm Turn 2 actually hits Redis wire cache.
+            orig_load = wire_prefix_cache.load_wire_prefix_entry
             load_hits: list[int] = []
 
-            async def _spy_aload(*args, **kwargs):
-                res = await orig_aload(*args, **kwargs)
+            def _spy_load(*args, **kwargs):
+                res = orig_load(*args, **kwargs)
                 if res is not None:
-                    load_hits.append(len(res))
+                    load_hits.append(len(res.items))
                 return res
 
-            monkeypatch.setattr("agent.service.aload_wire_prefix", _spy_aload)
+            monkeypatch.setattr("agent.service.load_wire_prefix_entry", _spy_load)
 
             # Turn 2
             async for _frame in service.process_stream(

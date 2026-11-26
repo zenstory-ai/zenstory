@@ -25,6 +25,7 @@ from typing import Any
 from sqlalchemy import desc
 from sqlmodel import Session, and_, select
 
+from config import agent_runtime
 from config.agent_runtime import AGENT_LOOP_RUN_HISTORY_MAX_TOKENS
 from config.datetime_utils import utcnow
 from database import create_session
@@ -66,7 +67,14 @@ from .core.steering import (
 )
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .core.writing_state import WritingState
-from .loop.compaction import compact_history, should_compact, skipped_record
+from .loop.compaction import (
+    CompactionOutcome,
+    ToolArchiveResult,
+    archive_old_tool_results,
+    compact_history,
+    should_compact,
+    skipped_record,
+)
 from .loop.engine import run_loop_agent_streaming
 from .loop.history import (
     LOOP_ENGINE_METADATA_VALUE,
@@ -75,19 +83,23 @@ from .loop.history import (
     effective_history_provider_tokens,
     estimate_provider_items_tokens,
     estimate_provider_text_tokens,
+    is_tool_archive_compaction,
     load_loop_history,
     row_metadata,
     valid_compaction,
+    valid_tool_archive_compaction,
 )
 from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .loop.ui_actions import UIAction
 from .loop.wire_prefix_cache import (
     ainvalidate_wire_prefix,
-    aload_wire_prefix,
     astore_wire_prefix,
+    effective_reasoning_effort,
     invalidate_wire_prefix,
     is_well_formed_wire_prefix,
+    load_wire_prefix_entry,
     provider_cache_key,
+    tools_schema_sha256,
 )
 from .openai_agents.runner import MAX_TURNS_STOP_REASON
 from .skills import get_skill_context_injector, resolve_selected_skills
@@ -133,6 +145,176 @@ def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -
         if card.get("unfinishedFiles") or card.get("rolledBackFiles"):
             return True
     return False
+
+
+_FINGERPRINT_MUTATION_TOOLS = frozenset(
+    {"edit_file", "write_chapter", "create_file", "delete_file", "rename_file"}
+)
+
+
+def _applied_file_mutations_for_fingerprints(
+    tool_calls: list[dict[str, Any]],
+) -> tuple[set[str], bool]:
+    """Return ``(mutated_file_ids, any_file_mutation)`` for tool calls that mutated files this turn.
+
+    Used before storing ``wire_prefix_cache`` so pre-turn ``context_fingerprints`` for
+    mutated files (and the project manifest / author_edits block) are invalidated: if the
+    author reverts a file back to its pre-turn text before the next turn, the next turn
+    will re-emit full content instead of a stale ``unchanged`` pointer.
+    """
+    mutated_ids: set[str] = set()
+    any_mutation = False
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        name = str(tc.get("name") or "").strip()
+        if name not in _FINGERPRINT_MUTATION_TOOLS:
+            continue
+        status = str(tc.get("status") or "").strip().lower()
+        if status not in ("success", "partial"):
+            continue
+        res = tc.get("result")
+        if isinstance(res, str):
+            with contextlib.suppress(Exception):
+                res = json.loads(res)
+        res_data = res.get("data") if isinstance(res, dict) and isinstance(res.get("data"), dict) else res
+        if res is False or res_data is False:
+            continue
+        if isinstance(res_data, dict):
+            if res_data.get("mutation_applied") is False or res_data.get("all_failed") is True:
+                continue
+            if res_data.get("body_saved") is False and res_data.get("action") == "replaced":
+                continue
+            for key in ("id", "file_id"):
+                val = res_data.get(key)
+                if isinstance(val, str) and val.strip():
+                    mutated_ids.add(val.strip())
+            deleted_ids = res_data.get("deleted_ids")
+            if isinstance(deleted_ids, list):
+                for val in deleted_ids:
+                    if isinstance(val, str) and val.strip():
+                        mutated_ids.add(val.strip())
+        args = tc.get("arguments")
+        if isinstance(args, dict):
+            for key in ("file_id", "id"):
+                val = args.get(key)
+                if isinstance(val, str) and val.strip():
+                    mutated_ids.add(val.strip())
+        any_mutation = True
+    return mutated_ids, any_mutation
+
+
+def _read_file_hashes_for_fingerprints(
+    tool_calls: list[dict[str, Any]],
+) -> tuple[dict[str, str], set[str]]:
+    """Return ``(full_read_hashes, all_read_file_ids)`` for successful ``query_files`` calls this turn.
+
+    Used before storing ``wire_prefix_cache`` so:
+    - Path A: any file read via ``query_files`` updates (or evicts, for partial/truncated/short reads)
+      ``cached_file_hashes[fid]`` even when no write tool ran, preventing a later author revert
+      (V1 -> V2 -> V1) from emitting a stale ``unchanged`` pointer while the model last saw V2.
+    - Path B: if any file alerted in ``<author_edits>`` was read this turn, ``author_edits_sha256``
+      is cleared so a subsequent manual edit (V2 -> V3) never emits ``<author_edits unchanged="true"/>``.
+    """
+    from agent.loop.turn_context import _WARM_DEDUP_FILE_MIN_CHARS
+    from services.features.file_version_service import content_sha256
+
+    full_read_hashes: dict[str, str] = {}
+    all_read_ids: set[str] = set()
+
+    def _visit(node: Any, depth: int = 0) -> None:
+        if depth > 4:
+            return
+        if isinstance(node, list):
+            for elem in node:
+                _visit(elem, depth + 1)
+        elif isinstance(node, dict):
+            raw_fid = node.get("id") or node.get("file_id")
+            if isinstance(raw_fid, str) and raw_fid.strip() and node.get("file_type") != "folder":
+                fid = raw_fid.strip()
+                all_read_ids.add(fid)
+                is_partial = bool(node.get("content_truncated") or node.get("content_partial"))
+                content = node.get("content")
+                raw_sha = node.get("content_sha256")
+                if not is_partial and isinstance(content, str):
+                    if len(content) >= _WARM_DEDUP_FILE_MIN_CHARS:
+                        full_read_hashes[fid] = content_sha256(content)
+                    else:
+                        full_read_hashes.pop(fid, None)
+                elif not is_partial and isinstance(raw_sha, str) and raw_sha.strip():
+                    full_read_hashes[fid] = raw_sha.strip()
+                else:
+                    full_read_hashes.pop(fid, None)
+            for container_key in ("data", "files", "items", "results"):
+                nested = node.get(container_key)
+                if isinstance(nested, (list, dict)):
+                    _visit(nested, depth + 1)
+
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        if str(tc.get("name") or "").strip() != "query_files":
+            continue
+        if str(tc.get("status") or "").strip().lower() != "success":
+            continue
+        res = tc.get("result")
+        if isinstance(res, str):
+            with contextlib.suppress(Exception):
+                res = json.loads(res)
+        if isinstance(res, (list, dict)):
+            _visit(res)
+
+    return full_read_hashes, all_read_ids
+
+
+def _wire_prefix_slimmed_only_file_ids(items: list[dict[str, Any]]) -> set[str]:
+    """Identify files whose latest ``query_files`` entry in cached wire items is persist-slimmed
+    (``archived_note`` without ``content``), e.g. from a prior cold replay -> warm cache hop."""
+    slimmed_only: set[str] = set()
+
+    def _visit(node: Any, depth: int = 0) -> None:
+        if depth > 4:
+            return
+        if isinstance(node, list):
+            for elem in node:
+                _visit(elem, depth + 1)
+        elif isinstance(node, dict):
+            raw_fid = node.get("id") or node.get("file_id")
+            if isinstance(raw_fid, str) and raw_fid.strip() and node.get("file_type") != "folder":
+                fid = raw_fid.strip()
+                content = node.get("content")
+                has_content = isinstance(content, str) and bool(content)
+                has_note = isinstance(node.get("archived_note"), str) and bool(node["archived_note"].strip())
+                if has_note and not has_content:
+                    slimmed_only.add(fid)
+                elif (
+                    has_content
+                    and not node.get("content_truncated")
+                    and not node.get("content_partial")
+                ):
+                    slimmed_only.discard(fid)
+            for container_key in ("data", "files", "items", "results"):
+                nested = node.get(container_key)
+                if isinstance(nested, (list, dict)):
+                    _visit(nested, depth + 1)
+
+    for item in items:
+        if not isinstance(item, dict) or item.get("type") != "function_call_output":
+            continue
+        output = item.get("output")
+        if not isinstance(output, str) or '"archived_note"' not in output:
+            if isinstance(output, str) and '"content"' in output and slimmed_only:
+                with contextlib.suppress(Exception):
+                    parsed = json.loads(output)
+                    if isinstance(parsed, (list, dict)):
+                        _visit(parsed)
+            continue
+        with contextlib.suppress(Exception):
+            parsed = json.loads(output)
+            if isinstance(parsed, (list, dict)):
+                _visit(parsed)
+
+    return slimmed_only
 
 
 # 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
@@ -621,6 +803,50 @@ class AgentService:
             )
             return False
 
+    @staticmethod
+    def _history_from_wire_prefix_meta(
+        *,
+        items: list[dict[str, Any]],
+        last_message_id: str,
+        history_meta: dict[str, Any],
+    ) -> LoopHistory | None:
+        """Reconstruct ``LoopHistory`` from compact metadata stored in ``wire_prefix_cache``."""
+        raw_prompt_tokens = history_meta.get("last_prompt_tokens")
+        raw_author_messages = history_meta.get("author_messages")
+        if not isinstance(raw_prompt_tokens, int) or raw_prompt_tokens < 0:
+            return None
+        if not isinstance(raw_author_messages, list) or not all(
+            isinstance(m, str) for m in raw_author_messages
+        ):
+            return None
+        raw_skipped_tokens = history_meta.get("compaction_skipped_at_tokens", 0)
+        raw_skipped_reason = history_meta.get("compaction_skipped_reason")
+        raw_truncations = history_meta.get("trailing_output_truncations", 0)
+        raw_archived_calls = history_meta.get("archived_call_ids") or []
+        raw_archived_files = history_meta.get("archived_file_ids") or []
+        if not isinstance(raw_skipped_tokens, int) or raw_skipped_tokens < 0:
+            return None
+        if not isinstance(raw_truncations, int) or raw_truncations < 0:
+            return None
+        if not isinstance(raw_archived_calls, list) or not isinstance(raw_archived_files, list):
+            return None
+        return LoopHistory(
+            items=items,
+            last_prompt_tokens=raw_prompt_tokens,
+            last_message_id=last_message_id,
+            compacted=bool(history_meta.get("compacted", False)),
+            author_messages=list(raw_author_messages),
+            compaction_skipped_at_tokens=raw_skipped_tokens,
+            compaction_skipped_reason=(
+                raw_skipped_reason
+                if isinstance(raw_skipped_reason, str) and raw_skipped_reason
+                else None
+            ),
+            trailing_output_truncations=raw_truncations,
+            archived_call_ids={str(cid) for cid in raw_archived_calls if isinstance(cid, str) and cid},
+            archived_file_ids={str(fid) for fid in raw_archived_files if isinstance(fid, str) and fid},
+        )
+
     def _prepare_loop_turn(
         self,
         session: Session,
@@ -636,30 +862,114 @@ class AgentService:
         cancel_event: threading.Event | None = None,
         ui_action: UIAction | None = None,
         selected_text: str | None = None,
+        expected_provider_key: str | None = None,
+        expected_tools_sha256: str | None = None,
+        expected_reasoning_effort: str | None = None,
     ) -> tuple[LoopHistory, LoopTurnContext, list[dict[str, Any]], str]:
-        """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。"""
-        from models import ChatSession
+        """单循环 agent 这一轮的输入：跨轮历史、本轮上下文、作者选的技能、系统提示。
+
+        温缓存优先路径（P0-3）：在触发 ``load_loop_history`` 扫库解压 ``chat_message`` TOAST 之前，
+        先用 3 列索引查询（``id, role, created_at``）取最新消息 id 并查询 ``wire_prefix_cache``；
+        命中且携带完整 ``history_meta`` 时直接复用缓存历史，完全跳过 ``load_loop_history`` 扫库。
+        """
+        from models import ChatMessage, ChatSession
 
         history = LoopHistory()
         owned_session_id: str | None = None
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), [], ""
+        selected_skills = self._resolve_selected_skills(
+            session, user_id=user_id, selected_skill_ids=selected_skill_ids
+        )
+        if cancel_event is not None and cancel_event.is_set():
+            return history, LoopTurnContext(), selected_skills, ""
+        skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
+        system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
+            session=session, language=language, skill_catalog=skill_catalog
+        )
+        if cancel_event is not None and cancel_event.is_set():
+            return history, LoopTurnContext(), selected_skills, system_prompt
+
+        prior_context_fingerprints: dict[str, Any] | None = None
+        wire_prefix_hit = False
         if user_id and chat_session_id:
             chat_session = session.get(ChatSession, chat_session_id)
             if chat_session is not None and chat_session.user_id == user_id and chat_session.project_id == project_id:
                 owned_session_id = chat_session_id
-                history = load_loop_history(
-                    session,
-                    project_id=project_id,
-                    user_id=user_id,
-                    chat_session_id=chat_session_id,
-                    carried_metadata=carried_compaction,
-                )
+                cached_entry = None
+                latest_message_id: str | None = None
+                if not carried_compaction and expected_provider_key:
+                    latest_row = session.exec(
+                        select(ChatMessage.id, ChatMessage.role, ChatMessage.created_at)
+                        .where(
+                            and_(
+                                ChatMessage.session_id == chat_session_id,
+                                ChatMessage.role.in_(("user", "assistant")),
+                            )
+                        )
+                        .order_by(desc(ChatMessage.created_at), desc(ChatMessage.id))
+                        .limit(1)
+                    ).first()
+                    latest_message_id = str(latest_row[0]) if latest_row is not None else None
+                    if latest_message_id:
+                        cached_entry = load_wire_prefix_entry(
+                            session_id=chat_session_id,
+                            project_id=project_id,
+                            user_id=user_id,
+                            last_message_id=latest_message_id,
+                            system_prompt=system_prompt,
+                            provider_key=expected_provider_key,
+                            tools_sha256=expected_tools_sha256,
+                            reasoning_effort=expected_reasoning_effort,
+                        )
+
+                warm_history: LoopHistory | None = None
+                if cached_entry is not None and latest_message_id is not None and cached_entry.history_meta is not None:
+                    warm_history = self._history_from_wire_prefix_meta(
+                        items=cached_entry.items,
+                        last_message_id=latest_message_id,
+                        history_meta=cached_entry.history_meta,
+                    )
+
+                if warm_history is not None:
+                    history = warm_history
+                    wire_prefix_hit = True
+                    prior_context_fingerprints = cached_entry.context_fingerprints if cached_entry else None
+                else:
+                    history = load_loop_history(
+                        session,
+                        project_id=project_id,
+                        user_id=user_id,
+                        chat_session_id=chat_session_id,
+                        carried_metadata=carried_compaction,
+                    )
+                    if cached_entry is not None and history.last_message_id == latest_message_id:
+                        history.items = cached_entry.items
+                        wire_prefix_hit = True
+                        prior_context_fingerprints = cached_entry.context_fingerprints
+                if wire_prefix_hit:
+                    # Guard against a prior cold-replay -> warm-cache hop where cached wire items
+                    # themselves contain persist-slimmed archived_note entries without full content.
+                    slimmed_only_fids = _wire_prefix_slimmed_only_file_ids(history.items)
+                    if slimmed_only_fids:
+                        history.archived_file_ids.update(slimmed_only_fids)
+                    # Defense-in-depth: never allow prior full_file_hashes to emit an "unchanged"
+                    # pointer for any file whose history text is already archived/slimmed out.
+                    if history.archived_file_ids and isinstance(prior_context_fingerprints, dict):
+                        prior_hashes = prior_context_fingerprints.get("full_file_hashes")
+                        if isinstance(prior_hashes, dict) and any(
+                            fid in prior_hashes for fid in history.archived_file_ids
+                        ):
+                            prior_context_fingerprints = {
+                                **prior_context_fingerprints,
+                                "full_file_hashes": {
+                                    k: v
+                                    for k, v in prior_hashes.items()
+                                    if k not in history.archived_file_ids
+                                },
+                            }
         if cancel_event is not None and cancel_event.is_set():
-            return history, LoopTurnContext(), [], ""
-        selected_skills = self._resolve_selected_skills(
-            session, user_id=user_id, selected_skill_ids=selected_skill_ids
-        )
+            return history, LoopTurnContext(), selected_skills, system_prompt
         turn = build_loop_turn_context(
             session,
             project_id=project_id,
@@ -674,12 +984,8 @@ class AgentService:
             cancel_event=cancel_event,
             ui_action=ui_action,
             selected_text=selected_text,
-        )
-        if cancel_event is not None and cancel_event.is_set():
-            return history, turn, selected_skills, ""
-        skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
-        system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
-            session=session, language=language, skill_catalog=skill_catalog
+            prior_context_fingerprints=prior_context_fingerprints,
+            allow_slimmed_read_snapshots=wire_prefix_hit,
         )
         return history, turn, selected_skills, system_prompt
 
@@ -835,6 +1141,8 @@ class AgentService:
 
         # 本轮开始前写下的压缩点，随本轮 assistant 行落库（agent/loop/compaction.py）。
         loop_compaction_record: dict[str, Any] | None = None
+        # 本轮 Stage 1 tool_archive 归档的文件 id（写回 wire_prefix_cache history_meta 使用）。
+        stage1_archived_file_ids: set[str] = set()
         # 本轮没压缩成时的记录：下一轮据此退避，不每轮重付摘要调用。
         loop_compaction_skipped: dict[str, Any] | None = None
         # 重试时删掉的那条作者消息上的压缩记录：本轮历史照它重建，没有新记录时随本轮落库。
@@ -1220,6 +1528,19 @@ class AgentService:
             yield thinking_event(
                 "Assembling context..." if force_en else "正在组装上下文..."
             ).to_sse()
+            expected_provider_key: str | None = None
+            expected_tools_sha = tools_schema_sha256()
+            expected_reasoning_effort = effective_reasoning_effort()
+            if user_id and session_id and not retry_carried_compaction:
+                try:
+                    ordered_providers = await llm_failover.aordered_providers(session_id)
+                    if ordered_providers:
+                        expected_provider_key = provider_cache_key(ordered_providers[0])
+                        expected_reasoning_effort = effective_reasoning_effort(ordered_providers[0])
+                        if run_report is not None and not run_meter.last_served_model and ordered_providers[0].model:
+                            run_report["model"] = ordered_providers[0].model
+                except Exception:  # noqa: BLE001 - fail open to DB history
+                    expected_provider_key = None
             loop_kwargs: dict[str, Any] = {
                 "project_id": project_id,
                 "user_id": user_id,
@@ -1232,6 +1553,9 @@ class AgentService:
                 "cancel_event": prepare_cancel_event,
                 "ui_action": ui_action,
                 "selected_text": selected_text,
+                "expected_provider_key": expected_provider_key,
+                "expected_tools_sha256": expected_tools_sha,
+                "expected_reasoning_effort": expected_reasoning_effort,
             }
             if should_offload_session_work(session):
                 loop_history, loop_turn, selected_skills, system_prompt = await asyncio.to_thread(
@@ -1241,27 +1565,6 @@ class AgentService:
                 loop_history, loop_turn, selected_skills, system_prompt = self._prepare_loop_turn(
                     session, **loop_kwargs
                 )
-            if user_id and session_id and loop_history.last_message_id and not retry_carried_compaction:
-                expected_provider_key: str | None = None
-                try:
-                    ordered_providers = await llm_failover.aordered_providers(session_id)
-                    if ordered_providers:
-                        expected_provider_key = provider_cache_key(ordered_providers[0])
-                        if run_report is not None and not run_meter.last_served_model and ordered_providers[0].model:
-                            run_report["model"] = ordered_providers[0].model
-                except Exception:  # noqa: BLE001 - fail open to DB history
-                    expected_provider_key = None
-                if expected_provider_key:
-                    cached_items = await aload_wire_prefix(
-                        session_id=session_id,
-                        project_id=project_id,
-                        user_id=user_id,
-                        last_message_id=loop_history.last_message_id,
-                        system_prompt=system_prompt,
-                        provider_key=expected_provider_key,
-                    )
-                    if cached_items is not None:
-                        loop_history.items = cached_items
             if loop_turn.items:
                 yield context_event(items=loop_turn.items, token_count=0).to_sse()
             for selected in selected_skills:
@@ -1280,16 +1583,51 @@ class AgentService:
             ):
                 first_message_project_type = await self._lookup_project_type(session, project_id) or ""
 
-            user_content = message
+            base_user_content = message
             if selected_text:
-                user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
+                base_user_content += f"\n\n{'Selected text' if force_en else '选中的文本'}:\n{selected_text}"
             if first_message_project_type is not None:
-                user_content += (
+                base_user_content += (
                     f"\n\n{'Context' if force_en else '上下文'}:\n"
                     + first_message_hint(first_message_project_type, force_en)
                 )
-            if loop_turn.text:
-                user_content = SessionLoader.attach_working_set_to_user_content(user_content, loop_turn.text)
+            user_content = (
+                SessionLoader.attach_working_set_to_user_content(base_user_content, loop_turn.text)
+                if loop_turn.text
+                else base_user_content
+            )
+            effective_context_fingerprints = (
+                {
+                    "project_files_sha256": loop_turn.context_fingerprints.get("project_files_sha256", ""),
+                    "full_file_hashes": dict(loop_turn.context_fingerprints.get("full_file_hashes") or {}),
+                    "author_edits_sha256": loop_turn.context_fingerprints.get("author_edits_sha256", ""),
+                    "_author_edits_file_ids": list(
+                        loop_turn.context_fingerprints.get("_author_edits_file_ids") or ()
+                    ),
+                }
+                if loop_turn.context_fingerprints
+                else {}
+            )
+
+            def _restore_full_turn_context() -> None:
+                """Stage 2 摘要或历史滑窗截断清掉前几轮 <turn_context> 时，恢复本轮完整上下文。"""
+                nonlocal user_content, effective_context_fingerprints
+                if loop_turn.full_text:
+                    user_content = SessionLoader.attach_working_set_to_user_content(
+                        base_user_content, loop_turn.full_text
+                    )
+                    writing_state["user_message"] = user_content
+                if loop_turn.context_fingerprints:
+                    effective_context_fingerprints = {
+                        "project_files_sha256": loop_turn.context_fingerprints.get("project_files_sha256", ""),
+                        "full_file_hashes": dict(
+                            loop_turn.context_fingerprints.get("_current_full_file_hashes") or {}
+                        ),
+                        "author_edits_sha256": loop_turn.context_fingerprints.get("author_edits_sha256", ""),
+                        "_author_edits_file_ids": list(
+                            loop_turn.context_fingerprints.get("_author_edits_file_ids") or ()
+                        ),
+                    }
             message_manager = MessageManager(project_id=project_id, user_id=user_id)
 
             yield thinking_event(
@@ -1335,6 +1673,12 @@ class AgentService:
                 # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。
                 inflight_tool_writes=run_outcome.inflight_tool_writes if run_outcome is not None else None,
             )
+            # 此前轮次经 Stage 1 tool_archive 归档且未再重新读/写的文件，撤销跨轮会话快照结转，
+            # 防止 edit_file 误以为已归档的旧章节全文仍在模型视野内。
+            if loop_history.archived_file_ids and loop_turn.session_carried_snapshot_ids:
+                request_context.drop_initial_read_snapshots(
+                    loop_history.archived_file_ids & loop_turn.session_carried_snapshot_ids
+                )
             # 显式选择的技能预登记进单轮技能加载门禁：selected_skills 与 load_skill / read_skill_resource
             # 合计每请求最多 3 个不同技能，同时允许对已选技能继续读取其资源文件。
             for selected in selected_skills:
@@ -1385,38 +1729,154 @@ class AgentService:
                     compaction_usage: dict[str, int] | None = None
                     current_turn_tokens = estimate_provider_text_tokens(user_content)
                     if should_compact(loop_history, extra_tokens=current_turn_tokens):
-                        # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
-                        # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
-                        # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
-                        # 没压缩成时只发一条收起它的进度提示，不落库。
-                        yield thinking_event(
-                            "Compacting conversation…" if force_en else "正在压缩对话…",
-                            step=HISTORY_COMPACTION_STEP,
-                        ).to_sse()
-                        from services.usage.cost_budget import on_model_transport_start
-
-                        transport_scope = (
-                            on_model_transport_start(run_outcome.mark_provider_attempted)
-                            if run_outcome is not None
-                            else contextlib.nullcontext()
-                        )
-                        with run_meter.measure_stage("compaction"), transport_scope:
-                            outcome = await compact_history(
+                        # 两阶段轮间压缩（不在工具循环中途）：
+                        # Stage 1（零 LLM 确定性 tool_archive）：优先归档早于最近 N 轮的大体积只读工具输出；
+                        # 满足节省量与阈值准入时零延迟放行，不触发摘要模型调用也不发阻塞式「正在压缩对话…」卡片。
+                        # Stage 2（LLM 交接摘要）：Stage 1 未达准入时兜底，并把 Stage 1 已归档的更小历史送入摘要调用。
+                        pre_archive: ToolArchiveResult | None = None
+                        outcome: CompactionOutcome | None = None
+                        effective_turn_tokens = current_turn_tokens
+                        if agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_ENABLED:
+                            stage1_started = time.monotonic()
+                            pre_archive = archive_old_tool_results(
                                 loop_history,
-                                system_prompt=system_prompt,
-                                session_id=session_id,
-                                run_meter=run_meter,
-                                request_context=request_context,
+                                turn_input_tokens=current_turn_tokens,
                             )
+                            if pre_archive.admitted and pre_archive.record is not None:
+                                # 若 Stage 1 归档命中的文件在本轮被指纹去重省略，接受 Stage 1 后会立即恢复
+                                # loop_turn.full_text；按恢复后的真实输入量重新核验准入，避免下轮连续抖动压缩。
+                                stage1_current_full_ids = set(
+                                    (loop_turn.context_fingerprints or {}).get("_current_full_file_hashes") or ()
+                                )
+                                would_restore_full_text = bool(
+                                    loop_turn.full_text
+                                    and (
+                                        pre_archive.archived_unidentified_query_files
+                                        or (pre_archive.archived_file_ids & stage1_current_full_ids)
+                                    )
+                                )
+                                if would_restore_full_text:
+                                    restored_user_content = SessionLoader.attach_working_set_to_user_content(
+                                        base_user_content, loop_turn.full_text
+                                    )
+                                    restored_turn_tokens = estimate_provider_text_tokens(restored_user_content)
+                                    effective_turn_tokens = max(current_turn_tokens, restored_turn_tokens)
+                                    if (
+                                        pre_archive.projected_after_tokens + restored_turn_tokens
+                                        > agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS
+                                    ):
+                                        pre_archive.admitted = False
+                                        pre_archive.record = None
+                            if pre_archive.admitted and pre_archive.record is not None:
+                                run_meter.record_stage(
+                                    "compaction", (time.monotonic() - stage1_started) * 1000
+                                )
+                                outcome = CompactionOutcome(
+                                    record=pre_archive.record,
+                                    items=pre_archive.items,
+                                    usage=None,
+                                    archived_file_ids=set(pre_archive.archived_file_ids),
+                                    archived_unidentified_query_files=pre_archive.archived_unidentified_query_files,
+                                )
+                                log_with_context(
+                                    logger,
+                                    20,  # INFO
+                                    "Loop history compacted via Stage 1 tool_archive (zero LLM calls)",
+                                    session_id=session_id,
+                                    archived_count=pre_archive.archived_count,
+                                    before_tokens=pre_archive.before_tokens,
+                                    after_tokens=pre_archive.after_tokens,
+                                    projected_after_tokens=pre_archive.projected_after_tokens,
+                                    saved_tokens=pre_archive.saved_tokens,
+                                    turn_input_tokens=effective_turn_tokens,
+                                )
+
+                        emitted_compaction_progress = False
+                        if outcome is None:
+                            # Stage 2 摘要前发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
+                            # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
+                            # 没压缩成时只发一条收起它的进度提示，不落库。
+                            yield thinking_event(
+                                "Compacting conversation…" if force_en else "正在压缩对话…",
+                                step=HISTORY_COMPACTION_STEP,
+                            ).to_sse()
+                            emitted_compaction_progress = True
+                            from services.usage.cost_budget import on_model_transport_start
+
+                            transport_scope = (
+                                on_model_transport_start(run_outcome.mark_provider_attempted)
+                                if run_outcome is not None
+                                else contextlib.nullcontext()
+                            )
+                            with run_meter.measure_stage("compaction"), transport_scope:
+                                outcome = await compact_history(
+                                    loop_history,
+                                    system_prompt=system_prompt,
+                                    session_id=session_id,
+                                    run_meter=run_meter,
+                                    request_context=request_context,
+                                    turn_input_tokens=effective_turn_tokens,
+                                    pre_archive=pre_archive,
+                                )
+
                         compaction_usage = outcome.usage
                         if outcome.record is not None and outcome.items is not None:
                             loop_compaction_record = outcome.record
                             writing_state["history_items"] = outcome.items
-                            # 压缩成功后前几轮的工具结果已折叠进摘要，撤销仅来自此前轮次的会话快照结转。
-                            if loop_turn.session_carried_snapshot_ids:
-                                request_context.drop_initial_read_snapshots(loop_turn.session_carried_snapshot_ids)
-                            assistant_display_events.append({"type": "history_compacted", "data": {}})
-                            yield history_compacted_event(outcome.record["summary"]).to_sse()
+                            if is_tool_archive_compaction(outcome.record):
+                                if outcome.archived_file_ids:
+                                    stage1_archived_file_ids.update(outcome.archived_file_ids)
+                                # Stage 1 折叠了旧轮次的只读工具结果：若本轮 <turn_context> 对被归档文件做了
+                                # 指纹去重省略，立即恢复 full_text 避免模型上下文彻底失去正文；同时从
+                                # effective_context_fingerprints["full_file_hashes"] 驱逐被归档文件，
+                                # 防止下轮对已归档的 query_files 正文发出陈旧 unchanged 指针。
+                                current_full_ids = set(
+                                    (loop_turn.context_fingerprints or {}).get("_current_full_file_hashes") or ()
+                                )
+                                if outcome.archived_unidentified_query_files:
+                                    _restore_full_turn_context()
+                                elif outcome.archived_file_ids:
+                                    restored_for_stage1 = bool(
+                                        loop_turn.full_text and (outcome.archived_file_ids & current_full_ids)
+                                    )
+                                    if restored_for_stage1:
+                                        _restore_full_turn_context()
+                                    if effective_context_fingerprints and isinstance(
+                                        effective_context_fingerprints.get("full_file_hashes"), dict
+                                    ):
+                                        evict_ids = (
+                                            outcome.archived_file_ids - current_full_ids
+                                            if restored_for_stage1
+                                            else outcome.archived_file_ids
+                                        )
+                                        for fid in evict_ids:
+                                            effective_context_fingerprints["full_file_hashes"].pop(fid, None)
+                                # Stage 1 只折叠了旧轮次的只读工具结果：仅撤销被归档文件的跨轮快照结转；
+                                # 仅当存在未能提取具体 id 的 query_files 归档时才保守全撤，绝不因归档技能而误撤近期文件快照。
+                                if loop_turn.session_carried_snapshot_ids:
+                                    if outcome.archived_unidentified_query_files:
+                                        to_drop = loop_turn.session_carried_snapshot_ids
+                                    else:
+                                        archived_ids = outcome.archived_file_ids or set()
+                                        to_drop = archived_ids & loop_turn.session_carried_snapshot_ids
+                                    if to_drop:
+                                        request_context.drop_initial_read_snapshots(to_drop)
+                                yield thinking_event(
+                                    "Archived earlier read results to free context; continuing…"
+                                    if force_en
+                                    else "已归档较早的只读上下文以释放空间，继续生成…",
+                                    step=HISTORY_COMPACTION_SKIPPED_STEP if emitted_compaction_progress else None,
+                                ).to_sse()
+                            else:
+                                # Stage 2 压缩成功后前几轮的工具结果与 <turn_context> 已折叠进摘要，
+                                # 撤销全部会话快照结转并恢复本轮完整上下文。
+                                _restore_full_turn_context()
+                                if loop_turn.session_carried_snapshot_ids:
+                                    request_context.drop_initial_read_snapshots(
+                                        loop_turn.session_carried_snapshot_ids
+                                    )
+                                assistant_display_events.append({"type": "history_compacted", "data": {}})
+                                yield history_compacted_event(outcome.record["summary"]).to_sse()
                         else:
                             if outcome.skipped:
                                 loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
@@ -1426,14 +1886,46 @@ class AgentService:
                                 else "未能压缩对话，按原样继续",
                                 step=HISTORY_COMPACTION_SKIPPED_STEP,
                             ).to_sse()
-                    # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库，之后的轮次照样读到。
+                    # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库；
+                    # 若重试轮本身又触发了新的 Stage 1 tool_archive，合并被删作者行结转的 archived_call_ids 防丢失。
                     carried_record = valid_compaction(retry_carried_compaction)
-                    if loop_compaction_record is None and carried_record is not None and loop_history.compacted:
-                        loop_compaction_record = carried_record
+                    carried_archive = valid_tool_archive_compaction(retry_carried_compaction)
+                    if loop_compaction_record is None:
+                        if carried_record is not None and loop_history.compacted:
+                            loop_compaction_record = carried_record
+                        elif carried_archive is not None and loop_history.archived_call_ids:
+                            loop_compaction_record = carried_archive
+                    elif is_tool_archive_compaction(loop_compaction_record) and carried_archive is not None:
+                        merged_call_ids = list(
+                            dict.fromkeys(
+                                [
+                                    *carried_archive["archived_call_ids"],
+                                    *(loop_compaction_record.get("archived_call_ids") or []),
+                                ]
+                            )
+                        )
+                        merged_occ: dict[str, list[int]] = {}
+                        for src in (carried_archive, loop_compaction_record):
+                            raw_occ = src.get("archived_call_occurrences")
+                            if isinstance(raw_occ, dict):
+                                for cid, indices in raw_occ.items():
+                                    if isinstance(cid, str) and cid and isinstance(indices, list):
+                                        merged_occ.setdefault(cid, [])
+                                        for idx_val in indices:
+                                            if isinstance(idx_val, int) and idx_val not in merged_occ[cid]:
+                                                merged_occ[cid].append(idx_val)
+                        loop_compaction_record = {
+                            **loop_compaction_record,
+                            "archived_call_ids": merged_call_ids,
+                            "archived_count": len(merged_call_ids),
+                        }
+                        if merged_occ:
+                            loop_compaction_record["archived_call_occurrences"] = merged_occ
                     if (
                         loop_compaction_record is None
                         and loop_compaction_skipped is None
                         and carried_record is None
+                        and carried_archive is None
                         and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
                     ):
                         loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
@@ -1453,6 +1945,7 @@ class AgentService:
                             if folded_history is not run_history:
                                 writing_state["history_items"] = folded_history
                                 run_history = folded_history
+                                _restore_full_turn_context()
                             bounded_history = bound_history_for_provider(
                                 loop_history, run_history, history_max_tokens
                             )
@@ -1466,6 +1959,7 @@ class AgentService:
                                     kept_tokens=estimate_provider_items_tokens(bounded_history),
                                 )
                                 writing_state["history_items"] = bounded_history
+                                _restore_full_turn_context()
                     workflow_events = self._loop_events(
                         writing_state,
                         get_steering_messages=get_steering_messages,
@@ -1700,6 +2194,127 @@ class AgentService:
                             wire_prefix_skip_reason = "no_provider_key"
 
                         if wire_prefix_skip_reason is None:
+                            stage2_compacted = bool(
+                                loop_compaction_record is not None
+                                and not is_tool_archive_compaction(loop_compaction_record)
+                            )
+                            stage1_archived = bool(
+                                loop_compaction_record is not None
+                                and is_tool_archive_compaction(loop_compaction_record)
+                            )
+                            turn_author_msgs = [
+                                text
+                                for text in (message, *consumed_steering)
+                                if isinstance(text, str) and text.strip()
+                            ]
+                            if stage2_compacted and isinstance(loop_compaction_record, dict):
+                                kept_prior = loop_compaction_record.get("kept_author_messages")
+                                next_author_messages = [
+                                    *(kept_prior if isinstance(kept_prior, list) else []),
+                                    *turn_author_msgs,
+                                ]
+                                next_archived_call_ids: set[str] = set()
+                                next_archived_file_ids: set[str] = set()
+                            else:
+                                next_author_messages = [*loop_history.author_messages, *turn_author_msgs]
+                                next_archived_call_ids = set(loop_history.archived_call_ids)
+                                next_archived_file_ids = set(loop_history.archived_file_ids)
+                                if stage1_archived and isinstance(loop_compaction_record, dict):
+                                    next_archived_call_ids.update(
+                                        str(cid)
+                                        for cid in (loop_compaction_record.get("archived_call_ids") or [])
+                                        if isinstance(cid, str) and cid
+                                    )
+                                    if stage1_archived_file_ids:
+                                        next_archived_file_ids.update(stage1_archived_file_ids)
+                                # If this turn re-read any archived file in full, discard it from archived_file_ids.
+                                from agent.loop.history import query_result_full_file_ids
+
+                                for tc in all_tool_calls:
+                                    if tc.get("name") == "query_files" and str(tc.get("status") or "").lower() == "success":
+                                        for fid in query_result_full_file_ids(
+                                            tc.get("result"), include_slimmed_sha256=True
+                                        ):
+                                            next_archived_file_ids.discard(fid)
+                            if isinstance(loop_compaction_skipped, dict) and isinstance(
+                                loop_compaction_skipped.get("at_prompt_tokens"), int
+                            ):
+                                next_skipped_at = max(0, loop_compaction_skipped["at_prompt_tokens"])
+                                raw_skip_reason = loop_compaction_skipped.get("reason")
+                                next_skipped_reason = (
+                                    raw_skip_reason
+                                    if isinstance(raw_skip_reason, str) and raw_skip_reason
+                                    else None
+                                )
+                            elif loop_compaction_record is not None:
+                                next_skipped_at = 0
+                                next_skipped_reason = None
+                            else:
+                                next_skipped_at = loop_history.compaction_skipped_at_tokens
+                                next_skipped_reason = loop_history.compaction_skipped_reason
+
+                            next_history_meta: dict[str, Any] = {
+                                "last_prompt_tokens": int(
+                                    run_meter.last_prompt_tokens
+                                    or (0 if loop_compaction_record is not None else loop_history.last_prompt_tokens)
+                                ),
+                                "compacted": stage2_compacted or (loop_history.compacted and not stage2_compacted),
+                                "compaction_skipped_at_tokens": next_skipped_at,
+                                "compaction_skipped_reason": next_skipped_reason,
+                                "trailing_output_truncations": 0,
+                                "archived_call_ids": sorted(next_archived_call_ids),
+                                "archived_file_ids": sorted(next_archived_file_ids),
+                                "author_messages": next_author_messages,
+                            }
+                            # P1-1 / P0-2: Before storing wire_prefix_cache fingerprints:
+                            # 1) Update/evict cached_file_hashes for every file read via successful query_files
+                            #    in this turn (even when no write tool ran!) so a subsequent author revert
+                            #    (V1 -> V2 -> V1) never emits a stale unchanged pointer while model last saw V2.
+                            # 2) Evict mutated files and clear project_files/author_edits on any file mutation.
+                            # 3) Clear author_edits_sha256 whenever any alerted file was read this turn so a
+                            #    second author edit (V2 -> V3) never emits <author_edits unchanged="true"/>.
+                            cached_fingerprints: dict[str, Any] | None = None
+                            if effective_context_fingerprints:
+                                from agent.loop.turn_context import _WARM_DEDUP_MAX_TRACKED_FILES
+
+                                read_file_hashes, read_file_ids = _read_file_hashes_for_fingerprints(
+                                    all_tool_calls
+                                )
+                                mutated_ids, any_file_mutation = _applied_file_mutations_for_fingerprints(
+                                    all_tool_calls
+                                )
+                                cached_file_hashes = dict(
+                                    effective_context_fingerprints.get("full_file_hashes") or {}
+                                )
+                                for fid in read_file_ids:
+                                    if fid in read_file_hashes:
+                                        cached_file_hashes[fid] = read_file_hashes[fid]
+                                    else:
+                                        cached_file_hashes.pop(fid, None)
+                                for fid in mutated_ids:
+                                    cached_file_hashes.pop(fid, None)
+                                if len(cached_file_hashes) > _WARM_DEDUP_MAX_TRACKED_FILES:
+                                    trimmed_keys = list(cached_file_hashes)[-_WARM_DEDUP_MAX_TRACKED_FILES:]
+                                    cached_file_hashes = {k: cached_file_hashes[k] for k in trimmed_keys}
+                                alerted_author_edit_ids = {
+                                    str(fid)
+                                    for fid in (effective_context_fingerprints.get("_author_edits_file_ids") or ())
+                                    if isinstance(fid, str) and fid
+                                }
+                                any_alerted_file_read = bool(read_file_ids & alerted_author_edit_ids)
+                                cached_fingerprints = {
+                                    "project_files_sha256": (
+                                        ""
+                                        if any_file_mutation
+                                        else effective_context_fingerprints.get("project_files_sha256", "")
+                                    ),
+                                    "full_file_hashes": cached_file_hashes,
+                                    "author_edits_sha256": (
+                                        ""
+                                        if (any_file_mutation or any_alerted_file_read)
+                                        else effective_context_fingerprints.get("author_edits_sha256", "")
+                                    ),
+                                }
                             stored_wire_prefix = await astore_wire_prefix(
                                 session_id=session_id,
                                 project_id=project_id,
@@ -1708,6 +2323,10 @@ class AgentService:
                                 system_prompt=system_prompt,
                                 provider_key=run_meter.last_served_provider_key,
                                 items=completed_wire_items,
+                                tools_sha256=expected_tools_sha,
+                                reasoning_effort=run_meter.last_served_reasoning_effort or expected_reasoning_effort,
+                                history_meta=next_history_meta,
+                                context_fingerprints=cached_fingerprints,
                             )
                         else:
                             log_with_context(

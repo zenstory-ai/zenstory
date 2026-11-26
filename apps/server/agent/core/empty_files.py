@@ -156,6 +156,80 @@ def rollback_unfinished_empty_files(
         return set()
 
 
+def soft_delete_empty_file_if_unchanged(
+    session: Any,
+    *,
+    file_id: str,
+    project_id: str | None,
+    expected_updated_at: str | None,
+    require_no_children: bool = False,
+    for_update: bool = False,
+) -> tuple[bool, str]:
+    """Conditionally soft-delete a still-empty, still-unchanged file and advance ``updated_at``.
+
+    Shared by ``empty_files._soft_delete_verified_empty_files`` and
+    ``round_outcome.remove_empty_placeholders`` so both paths keep identical version-check,
+    timestamp-advancement, and safety semantics. Returns ``(deleted, title)``.
+    """
+    from sqlalchemy import update
+    from sqlmodel import select
+
+    from config.datetime_utils import advance_timestamp, utcnow
+    from models import File
+
+    if not file_id or not expected_updated_at:
+        return False, ""
+
+    query = select(
+        File.id,
+        File.title,
+        File.file_type,
+        File.content,
+        File.is_deleted,
+        File.project_id,
+        File.updated_at,
+    ).where(File.id == file_id)
+    if for_update:
+        query = query.with_for_update(key_share=True)
+    row = session.exec(query).first()
+    if row is None:
+        return False, ""
+    _row_id, title, file_type, content, is_deleted, row_project_id, updated_at = row
+    if (
+        row_project_id != project_id
+        or is_deleted
+        or file_type == "folder"
+        or str(content or "").strip()
+        or updated_at is None
+        or updated_at.isoformat() != expected_updated_at
+    ):
+        return False, ""
+    if require_no_children:
+        has_children = session.exec(
+            select(File.id).where(File.parent_id == file_id, File.is_deleted.is_(False))
+        ).first()
+        if has_children is not None:
+            return False, ""
+
+    now = utcnow()
+    result = session.exec(
+        update(File)
+        .where(
+            File.id == file_id,
+            File.project_id == project_id,
+            File.is_deleted.is_(False),
+            File.content == content,
+            File.updated_at == updated_at,
+        )
+        .values(
+            is_deleted=True,
+            deleted_at=now,
+            updated_at=advance_timestamp(updated_at, now=now),
+        )
+    )
+    return result.rowcount == 1, str(title or "")
+
+
 def _soft_delete_verified_empty_files(
     session: Any,
     entries: list[dict[str, str]],
@@ -163,51 +237,18 @@ def _soft_delete_verified_empty_files(
     project_id: str | None = None,
 ) -> set[str]:
     """在给定 session 上软删除仍为空、版本仍是建好时那个的文件；失败时回滚并抛出。"""
-    from sqlalchemy import update
-    from sqlmodel import select
-
-    from config.datetime_utils import utcnow
-    from models import File
-
     try:
         rolled_back: set[str] = set()
         with session.begin_nested():
             for entry in entries:
                 file_id = entry["file_id"]
-                # Read scalar columns rather than an ORM identity-map object,
-                # then include the observed content and version in the UPDATE
-                # predicate. If a user/other run writes (body, title, metadata)
-                # between verification and rollback, rowcount becomes zero and
-                # their write is preserved.
-                row = session.exec(
-                    select(File.content, File.is_deleted, File.project_id, File.updated_at).where(
-                        File.id == file_id
-                    )
-                ).first()
-                if row is None:
-                    continue
-                content, is_deleted, row_project_id, updated_at = row
-                if (
-                    row_project_id != project_id
-                    or is_deleted
-                    or str(content or "").strip()
-                    or updated_at is None
-                    or updated_at.isoformat() != entry["updated_at"]
-                ):
-                    continue
-
-                result = session.exec(
-                    update(File)
-                    .where(
-                        File.id == file_id,
-                        File.project_id == project_id,
-                        File.is_deleted.is_(False),
-                        File.content == content,
-                        File.updated_at == updated_at,
-                    )
-                    .values(is_deleted=True, deleted_at=utcnow())
+                deleted, _title = soft_delete_empty_file_if_unchanged(
+                    session,
+                    file_id=file_id,
+                    project_id=project_id,
+                    expected_updated_at=entry.get("updated_at"),
                 )
-                if result.rowcount == 1:
+                if deleted:
                     rolled_back.add(file_id)
         if rolled_back:
             session.commit()

@@ -592,6 +592,56 @@ def test_settle_cancelled_stream_never_relaxes_material_trial_guard(db_session):
     assert after_trial_units == before_trial_units
 
 
+@pytest.mark.asyncio
+async def test_w3_p1_3_prestream_timeout_or_cancel_settles_cost_reservation(db_session, monkeypatch):
+    """P1-3: Pre-stream TimeoutError or CancelledError during streaming responses.create /
+    chat.completions.create must settle the worst-case reserved output headroom conservatively
+    so Phase-1 failover does not double-charge the free ¥15 daily cost backstop."""
+    import asyncio
+
+    from services.usage.model_call_guard import drain_pending_cost_settlements, install_async_cost_guard
+
+    account = user(db_session)
+    monkeypatch.setattr(budget, "utcnow", lambda: NOW)
+
+    async def timed_out_responses(**_kwargs):
+        raise TimeoutError("Phase-1 first_event timeout before response headers")
+
+    async def cancelled_chat(**_kwargs):
+        raise asyncio.CancelledError()
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=cancelled_chat)),
+        responses=SimpleNamespace(create=timed_out_responses),
+    )
+    install_async_cost_guard(client)
+
+    resp_req = {
+        "model": "MiniMax-M3.1-Flash",
+        "instructions": "系统提示",
+        "input": [{"role": "user", "content": "写第一章" * 50}],
+        "max_output_tokens": 65_536,
+        "stream": True,
+    }
+    chat_req = {**payload(65_536), "stream": True}
+
+    with budget.budget_attribution(LLMUsageAttribution(user_id=account.id, source="agent")):
+        with pytest.raises(TimeoutError):
+            await client.responses.create(**resp_req)
+        with pytest.raises(asyncio.CancelledError):
+            await client.chat.completions.create(**chat_req)
+        await drain_pending_cost_settlements()
+
+    db_session.expire_all()
+    rows = db_session.exec(select(AICostReservation)).all()
+    assert len(rows) == 2
+    for row in rows:
+        assert row.settled_units is not None
+        assert row.settled_units < row.reserved_units
+    daily_bucket = db_session.exec(select(AICostDailyBudget)).one()
+    assert daily_bucket.charged_units == sum(row.settled_units for row in rows)
+
+
 def test_cost_budget_exhaustion_copy_never_leaks_internal_cap_details():
     """User-facing copy for ERR_QUOTA_AI_DAILY_COST_EXCEEDED must never expose ¥15, cost, or percentages."""
     from core.error_codes import get_error_message

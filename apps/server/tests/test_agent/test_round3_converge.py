@@ -326,8 +326,8 @@ def test_file_edit_end_event_has_failure_fields_in_schema():
 @pytest.mark.unit
 def test_stream_adapter_clears_only_the_targeted_pending_file(db_session: Session):
     """同时存在多个待写空文件时，一份写完不得把其余的标记一起清光。"""
-    from agent.core.request_context import AgentRequestContext
     from agent.stream_adapter import StreamAdapter, StreamAdapterConfig
+    from agent.tools.tool_context import AgentRequestContext
 
     req_ctx = AgentRequestContext(session=db_session, user_id="u1", project_id="p1", session_id="s1")
     try:

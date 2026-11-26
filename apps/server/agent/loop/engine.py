@@ -108,56 +108,54 @@ _BODY_CUT_CONTEXT_EN = (
     "sentences; report this chapter's word count from new_word_count in the last edit_file result after continuing. "
     "Keep the author's language."
 )
+# 正文写完后自查的精简 3 项高信号清单（由四种续跑模板共用，避免长清单诱发冗余深度思考和反复微调）。
+_BODY_SAVED_SELF_CHECK = (
+    "现在直接对照上方刚写完的正文做一次快速自查（只写资料文件时跳过；不要调 query_files 重读刚写完的章节）：\n"
+    "- 事实与连贯：核对关键人名字形、称谓设定、时间线与大纲要点是否一致，有无提前剧透后续情节；\n"
+    "- 完整性与字面硬伤：检查是否完整收束无截断、有无明显错别字或误混外文词；\n"
+    "- 仅在确凿硬伤时改一次：合并进单次 edit_file（continue_on_error=true）修正后即停，"
+    "切勿为凑近似字数、润色措辞或顺手改大纲调用 edit_file，也不能再调 write_chapter 重写本章。"
+)
+_BODY_SAVED_SELF_CHECK_EN = (
+    "Do one quick self-check directly against the newly written text above "
+    "(skip if only notes files were written; do not call query_files to re-read it):\n"
+    "- Facts & continuity: verify key names, timeline, outline beats, and no premature spoilers;\n"
+    "- Completeness & clear errors: check for a clean ending (no truncation), typos, or stray foreign words;\n"
+    "- Fix hard errors at most once: batch concrete fixes into one edit_file (continue_on_error=true) then stop; "
+    "never call edit_file for approximate word-count churn, micro-polishing, or outline tweaks, and do not re-call write_chapter on this chapter."
+)
 # 正文写完、回复停在 </file> 上时的续跑说明（相当于工具结果）：保存的文件与真实字数由调用方附在后面。
 _BODY_SAVED_CONTEXT = (
-    "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。"
-    "现在先按「工作方式」直接对照上方刚写完的正文做一次快速自查（只写了大纲、人物等资料文件时不用自查，直接继续；不要为自查再调用 query_files 重读刚写完的章节）："
-    "逐字核对主角及关键人物姓名字形（防同音错字），对照大纲里这一章和前后章的条目、前一章结尾和角色卡，核对称谓、身份与设定、"
-    "时间线、数值和物品状态是否连续（含同章内时间/场合是否自洽），大纲要求这一章发生的关键情节有没有写到，有没有提前写出后面章节才有的情节或揭示，以及有无混入外文词或错别字。"
-    "只有发现确凿的事实、连贯、错字或外文词硬伤时，才对这一章调用至多一次 edit_file（多处独立修正合并进同一 edits 列表并传 continue_on_error=true）集中修正；"
-    "这一次 edit_file 完成后立刻停止修改（除非定位报错可补改一次），绝不再调 query_files 或再次调用 edit_file 反复挑刺；没有硬伤时不要调用 edit_file"
-    "（本轮已保存的这一章不能再调用 write_chapter 整章重写，系统会直接拒绝；也绝不要为了凑近近似字数、卡字数、润色措辞或顺手改大纲去调用 edit_file）。"
-    "作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先给它补大纲条目时先补，再调用 write_chapter）；"
+    "[系统提醒] 上一次回复写完的正文已保存：{titles}。这是系统的续跑说明，不是作者的新消息。\n"
+    f"{_BODY_SAVED_SELF_CHECK}\n"
+    "作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先补大纲条目时先补，再调用 write_chapter）；"
     "全部完成后用一到三句话回复作者，字数只报下面的真实字数。"
 )
 _BODY_SAVED_CONTEXT_EN = (
-    "[System note] The body written in the previous response is saved: {titles}. This is a system continuation, "
-    "not a new author message. First do one quick self-check directly against the newly written chapter text above (skip this when only notes files were written; do not call query_files to re-read the chapter you just wrote) against the outline entries for this and the "
-    "adjacent chapters, the end of the previous chapter and the character files: names (including exact spelling), forms of address, identities "
-    "and settings, timeline, numbers and object states; whether the key events the outline sets for this chapter "
-    "happen; whether anything the outline places in later chapters was revealed early; and any stray foreign-language words or typos. "
-    "Only if you find a concrete factual, continuity, typo, or stray-foreign-word error, call edit_file at most ONCE on this chapter (combine independent fixes in one edits list with continue_on_error=true) to fix those spots, then stop editing immediately (do not re-read or make follow-up micro-edits); if none are found, do NOT call edit_file (do not call write_chapter again on a chapter already saved this turn—the system will reject it; "
-    "never call edit_file to pad, trim, polish prose toward an approximate word count, or tweak the outline). "
-    "If chapters the author asked for this turn "
-    "are still unwritten, continue with the next one (if the working rules call for its outline entry first, add it, then call "
-    "write_chapter); when everything is done, reply to the author in one to "
-    "three sentences, reporting only the real word counts below. Keep the author's language."
+    "[System note] The body written in the previous response is saved: {titles}. "
+    "This is a system continuation, not a new author message.\n"
+    f"{_BODY_SAVED_SELF_CHECK_EN}\n"
+    "If chapters the author asked for this turn are still unwritten, continue with the next one "
+    "(add its outline entry first if needed, then call write_chapter); when everything is done, reply to the author "
+    "in one to three sentences, reporting only the real word counts below. Keep the author's language."
 )
 # 正文之后已经给作者写过总结时的续跑说明（这次运行没有停在 </file> 上）：照样自查，但不重复那段总结。
 _BODY_SAVED_REPLIED_CONTEXT = (
-    "[系统提醒] 上一次回复写完的正文已保存：{titles}，你也已经回复过作者。这是系统的续跑说明，不是作者的新消息。"
-    "现在先按「工作方式」直接对照上方刚写完的正文做一次快速自查（不要为自查再调用 query_files 重读刚写完的章节）：对照大纲里这一章和前后章的条目、前一章结尾和角色卡，核对人名（含字形）、称谓、身份与设定、"
-    "时间线、数值和物品状态是否连续，大纲要求这一章发生的关键情节有没有写到，有没有提前写出后面章节才有的情节或揭示，以及有无混入外文词或错别字。"
-    "只有发现确凿的事实、连贯、错字或外文词硬伤时，才对这一章调用至多一次 edit_file（多处独立修正合并进同一 edits 列表并传 continue_on_error=true）集中修正；"
-    "这一次 edit_file 完成后立刻停止修改，绝不再调 query_files 或反复调用 edit_file；没有硬伤时不要调用 edit_file"
-    "（本轮已保存的这一章不能再调用 write_chapter 整章重写，系统会直接拒绝；也绝不要为了凑近近似字数、润色措辞或顺手改大纲调用 edit_file）。"
-    "作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先给它补大纲条目时先补，再调用 write_chapter）。"
-    "不要重复刚才给作者的总结：改了正文或又写了新章节时，最后用一两句话只说改了哪里、新写了哪一章，字数只报下面的真实字数；"
+    "[系统提醒] 上一次回复写完的正文已保存：{titles}，你也已经回复过作者。这是系统的续跑说明，不是作者的新消息。\n"
+    f"{_BODY_SAVED_SELF_CHECK}\n"
+    "作者这一轮要求的章节还没写完就接着写下一章（按「工作方式」需要先补大纲条目时先补，再调用 write_chapter）。"
+    "不要重复刚才给作者的总结：改了正文或又写了新章节时，用一两句话只说改了哪里、新写了哪一章，字数只报下面的真实字数；"
     "什么都没改、也没有要接着写的，只回复一句「自查过了，没有需要改的地方。」"
 )
 _BODY_SAVED_REPLIED_CONTEXT_EN = (
     "[System note] The body written in the previous response is saved: {titles}, and you have already replied to the "
-    "author. This is a system continuation, not a new author message. Do one quick self-check directly against the newly written chapter text above (do not call query_files to re-read it) against "
-    "the outline entries for this and the adjacent chapters, the end of the previous chapter and the character files: "
-    "names, forms of address, identities and settings, timeline, numbers and object states; whether the key events the "
-    "outline sets for this chapter happen; whether anything the outline places in later chapters was revealed early; and any stray foreign-language words or typos. "
-    "Only if you find a concrete factual, continuity, typo, or stray-foreign-word error, call edit_file at most ONCE on this chapter (combine independent fixes in one edits list with continue_on_error=true) to fix those spots, then stop editing immediately (do not re-read or make follow-up micro-edits; do not "
-    "call write_chapter again on a chapter already saved this turn—the system will reject it; and never call edit_file to pad, trim, or polish prose toward an approximate word count). If chapters the author "
-    "asked for this turn are still unwritten, continue with the next one (if the working rules call for its outline "
-    "entry first, add it, then call write_chapter). Do not repeat your earlier summary: if you changed text or wrote "
-    "another chapter, end with one or two sentences saying only what changed or which chapter is new, reporting only the "
-    "real word counts below; if nothing changed and nothing is left to write, reply with one sentence saying the "
-    "self-check found nothing to fix. Keep the author's language."
+    "author. This is a system continuation, not a new author message.\n"
+    f"{_BODY_SAVED_SELF_CHECK_EN}\n"
+    "If chapters the author asked for this turn are still unwritten, continue with the next one "
+    "(add its outline entry first if needed, then call write_chapter). Do not repeat your earlier summary: if you "
+    "changed text or wrote another chapter, end with one or two sentences saying only what changed or which chapter "
+    "is new, reporting only the real word counts below; otherwise reply with one sentence saying the self-check found "
+    "nothing to fix. Keep the author's language."
 )
 # 自查过的文件又写了一遍之后的续跑说明：不再自查，接着做剩下的事或回复作者。
 _BODY_RESAVED_CONTEXT = (
@@ -205,24 +203,45 @@ def _armed_replacement_id(result: Any) -> str:
     return ""
 
 
-def _word_count_note(file_ids: list[str], req_ctx: AgentRequestContext) -> str:
+def _format_titles(titles: Sequence[str], *, english: bool, fallback: str) -> str:
+    cleaned = [t for t in titles if t]
+    if not cleaned:
+        return fallback
+    if english:
+        return ", ".join(f'"{t}"' for t in cleaned)
+    return "、".join(f"《{t}》" for t in cleaned)
+
+
+async def _word_count_note(
+    file_ids: list[str], req_ctx: AgentRequestContext, *, english: bool = False
+) -> str:
     """续跑说明里附上本请求写过的正文落库后的字数，模型给作者报真实字数。"""
+    if not file_ids:
+        return ""
     try:
-        counts = run_support.collect_body_word_counts(file_ids, request_context=req_ctx)
+        counts = await asyncio.to_thread(
+            run_support.collect_body_word_counts, file_ids, request_context=req_ctx
+        )
     except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
         logger.debug(f"Word counts for the continuation note failed: {type(exc).__name__}")
         return ""
-    return run_support.format_body_word_counts(counts)
+    return run_support.format_body_word_counts(counts, english=english)
 
 
-def _cut_word_count_note(file_ids: list[str], req_ctx: AgentRequestContext) -> str:
+async def _cut_word_count_note(
+    file_ids: list[str], req_ctx: AgentRequestContext, *, english: bool = False
+) -> str:
     """截断续写说明里附上截断处的落库字数，明确标为截断时的数（续写后会变）。"""
+    if not file_ids:
+        return ""
     try:
-        counts = run_support.collect_body_word_counts(file_ids, request_context=req_ctx)
+        counts = await asyncio.to_thread(
+            run_support.collect_body_word_counts, file_ids, request_context=req_ctx
+        )
     except Exception as exc:  # noqa: BLE001 - 读不到字数不影响续跑
         logger.debug(f"Word counts for the cut continuation note failed: {type(exc).__name__}")
         return ""
-    return run_support.format_cut_body_word_counts(counts)
+    return run_support.format_cut_body_word_counts(counts, english=english)
 
 
 async def _drain_boundary_steering(get_steering_messages: Any) -> list[dict[str, str]]:
@@ -329,12 +348,13 @@ async def _body_cut_followup(
         titles[file_id] = tail[0]
     title = titles[file_id] or ("this chapter" if english else "这一章")
     template = _BODY_CUT_CONTEXT_EN if english else _BODY_CUT_CONTEXT
-    followup = template.format(title=title, file_id=file_id, tail=tail[1] if tail else "") + _cut_word_count_note(
-        list(cut_bodies), req_ctx
-    )
-    joiner = ", " if english else "、"
-    named = joiner.join((f'"{t}"' if english else f"《{t}》") for t in titles.values() if t) or (
-        "This chapter" if english else "这一章"
+    followup = template.format(
+        title=title, file_id=file_id, tail=tail[1] if tail else ""
+    ) + await _cut_word_count_note(list(cut_bodies), req_ctx, english=english)
+    named = _format_titles(
+        list(titles.values()),
+        english=english,
+        fallback="This chapter" if english else "这一章",
     )
     log_with_context(
         logger,
@@ -416,7 +436,6 @@ async def _empty_file_card(
             ),
             "unfinished_files": unresolved,
             "rolled_back_files": [entry for entry in unfinished if entry["file_id"] in rolled_back],
-            "last_agent": None,
         },
     )
 
@@ -549,7 +568,6 @@ async def run_loop_agent_streaming(
                         "iterations_used": runs,
                         "max_iterations": max_runs,
                         "reason": run_support.WRAP_UP_CARD_REASON_EN if english else run_support.WRAP_UP_CARD_REASON,
-                        "last_agent": None,
                         "limit": WALL_CLOCK_LIMIT,
                     },
                 )
@@ -763,7 +781,6 @@ async def run_loop_agent_streaming(
                         "iterations_used": runs,
                         "max_iterations": max_runs,
                         "reason": _UNEXECUTED_TOOL_TEXT_REASON_EN if english else _UNEXECUTED_TOOL_TEXT_REASON,
-                        "last_agent": None,
                     },
                 )
 
@@ -808,13 +825,21 @@ async def run_loop_agent_streaming(
                     newly_unsaved = unsaved_written
                 if newly_unsaved:
                     reported_unsaved_ids |= {fid for fid, _ in newly_unsaved}
-                    unsaved_titles = "、".join(f"《{t}》" for _, t in newly_unsaved if t) or (
-                        "this chapter" if english else "这一章"
+                    unsaved_titles = _format_titles(
+                        [t for _, t in newly_unsaved],
+                        english=english,
+                        fallback="this chapter" if english else "这一章",
                     )
                     template = _REPLACE_UNSAVED_CONTEXT_EN if english else _REPLACE_UNSAVED_CONTEXT
-                    followup = template.format(titles=unsaved_titles) + _word_count_note(list(saved), req_ctx)
+                    followup = template.format(titles=unsaved_titles) + await _word_count_note(
+                        list(saved), req_ctx, english=english
+                    )
                 else:
-                    titles = "、".join(f"《{t}》" for t in saved.values() if t) or "（见下）"
+                    titles = _format_titles(
+                        list(saved.values()),
+                        english=english,
+                        fallback="(see below)" if english else "（见下）",
+                    )
                     written_ids = set(saved)
                     if (written_ids - self_checked_ids or not written_ids) and new_saved and not ended_on_file:
                         # 正文之后作者已经看到一段回复（这次运行没停在 </file> 上）：自查，但不再重复总结。
@@ -824,7 +849,9 @@ async def run_loop_agent_streaming(
                     else:
                         template = _BODY_RESAVED_CONTEXT_EN if english else _BODY_RESAVED_CONTEXT
                     self_checked_ids |= written_ids
-                    followup = template.format(titles=titles) + _word_count_note(list(saved), req_ctx)
+                    followup = template.format(titles=titles) + await _word_count_note(
+                        list(saved), req_ctx, english=english
+                    )
                     if (
                         new_saved
                         and not unsaved_ids
@@ -889,7 +916,6 @@ async def run_loop_agent_streaming(
                         f"这一轮已连续运行 {max_runs} 次，先停在这里。"
                         "任务可能未完全完成，您可以继续对话让 AI 完成剩余工作。"
                     ),
-                    "last_agent": None,
                 },
             )
     except Exception as exc:

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import threading
 from dataclasses import dataclass, field
@@ -27,7 +28,16 @@ logger = get_logger(__name__)
 
 PROJECT_FILES_OPEN = "<project_files>"
 PROJECT_FILES_CLOSE = "</project_files>"
+PROJECT_FILES_UNCHANGED_MARKER = '<project_files unchanged="true"/>'
+AUTHOR_EDITS_UNCHANGED_MARKER = '<author_edits unchanged="true"/>'
 PROJECT_FILES_MANIFEST_MAX_FILES = 150
+# 仅对达到一定长度的全文文件做温缓存跨轮去重，避免替几十字短条目标注占位符反而增加冗余。
+_WARM_DEDUP_FILE_MIN_CHARS = 500
+_WARM_DEDUP_MAX_TRACKED_FILES = 20
+_UNCHANGED_FILE_POINTER_ZH = "（与本会话近期上下文中已提供的全文一致，未变更；沿用前文全文，无需重复读取）"
+_UNCHANGED_FILE_POINTER_EN = (
+    "(Unchanged since the full text provided earlier in this session; reuse that text without re-reading)"
+)
 # 参考资料优先于大批量正文分章，确保超大长篇封顶时大纲/角色/设定不被数百章正文挤出索引。
 _MANIFEST_TYPE_ORDER: dict[str, int] = {
     "outline": 0,
@@ -50,15 +60,23 @@ _PREAMBLE_EN = (
 )
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 @dataclass
 class LoopTurnContext:
     text: str = ""
+    # 当本轮基于温缓存指纹做了去重省略时，保留未省略的完整 <turn_context>（供 Stage 2 压缩或历史截断回退）。
+    full_text: str = ""
     # 以全文给模型看的项目文件正文（file_id → 正文）：edit_file 的陈旧检查以它为起点。
     read_snapshots: dict[str, str] = field(default_factory=dict)
     # 仅从本会话此前轮次结转、未在当前 <turn_context> 全文给出的文件 id（轮间压缩成功时撤销）。
     session_carried_snapshot_ids: set[str] = field(default_factory=set)
     # 前端 context 事件的条目（与图同一个形状）。
     items: list[dict[str, Any]] = field(default_factory=list)
+    # 本轮上下文轻量指纹（写入 wire_prefix_cache 供下一温缓存轮次去重，0 KV 前缀破坏）。
+    context_fingerprints: dict[str, Any] = field(default_factory=dict)
 
 
 def build_loop_turn_context(
@@ -76,6 +94,8 @@ def build_loop_turn_context(
     cancel_event: threading.Event | None = None,
     ui_action: UIAction | None = None,
     selected_text: str | None = None,
+    prior_context_fingerprints: dict[str, Any] | None = None,
+    allow_slimmed_read_snapshots: bool = False,
 ) -> LoopTurnContext:
     from agent.context import get_context_assembler
     from agent.tools.permissions import ForbiddenError, NotFoundError, check_project_ownership
@@ -132,15 +152,44 @@ def build_loop_turn_context(
     )
 
     project_status = assembler.get_project_status(session, project_id)
-    rendered = assembler.format_context(items, None, project_status)
+
+    prior_fp = prior_context_fingerprints if isinstance(prior_context_fingerprints, dict) else None
+    prior_file_hashes: dict[str, str] = (
+        {
+            str(k): str(v)
+            for k, v in prior_fp.get("full_file_hashes", {}).items()
+            if isinstance(k, str) and isinstance(v, str)
+        }
+        if prior_fp and isinstance(prior_fp.get("full_file_hashes"), dict)
+        else {}
+    )
 
     loaded_word_counts: dict[str, int] = {}
+    current_full_file_hashes: dict[str, str] = {}
+    in_context_full_ids: set[str] = set()
+    render_items: list[Any] = []
+    deduped_any = False
+    pointer_text = _UNCHANGED_FILE_POINTER_EN if force_en else _UNCHANGED_FILE_POINTER_ZH
+
     for item in items:
         file_id = assembler.item_file_id(item)
         if file_id and not item.is_truncated and isinstance(item.content, str):
             loaded_word_counts[file_id] = count_words(item.content)
+            in_context_full_ids.add(file_id)
+            if len(item.content) >= _WARM_DEDUP_FILE_MIN_CHARS:
+                f_hash = _sha256_text(item.content)
+                current_full_file_hashes[file_id] = f_hash
+                if prior_file_hashes.get(file_id) == f_hash:
+                    deduped_any = True
+                    if hasattr(item, "model_copy"):
+                        render_items.append(item.model_copy(update={"content": pointer_text}))
+                    else:
+                        render_items.append(item)
+                    continue
+        render_items.append(item)
 
-    parts: list[str] = [TURN_CONTEXT_OPEN, _PREAMBLE_EN if force_en else _PREAMBLE, "", rendered.strip()]
+    rendered = assembler.format_context(render_items, None, project_status)
+
     project_files = _project_files_block(
         session,
         project_id=project_id,
@@ -148,35 +197,90 @@ def build_loop_turn_context(
         loaded_word_counts=loaded_word_counts,
         cancel_event=cancel_event,
     )
-    if project_files:
-        parts.extend(["", project_files])
-    author_edits = _author_edits_block(
+    project_files_sha = _sha256_text(project_files) if project_files else ""
+    emitted_project_files = project_files
+    if project_files and prior_fp and prior_fp.get("project_files_sha256") == project_files_sha:
+        emitted_project_files = PROJECT_FILES_UNCHANGED_MARKER
+        deduped_any = True
+
+    author_edits, author_edit_states, author_edits_failed = _author_edits_block(
         session,
         project_id=project_id,
         user_id=user_id,
         chat_session_id=chat_session_id,
-        primary_ids=[fid for fid in (assembler.item_file_id(item) for item in items) if fid],
+        in_context_full_ids=in_context_full_ids,
+        force_en=force_en,
         cancel_event=cancel_event,
     )
-    if author_edits:
-        parts.extend(["", author_edits])
-    parts.extend(manager._build_metadata_section(metadata, force_en))
-    if selected_skill_lines:
-        parts.extend(selected_skill_lines)
-    if ui_action is not None and focus_file is not None:
-        parts.extend(
-            build_ui_action_turn_section(
-                session,
-                ui_action=ui_action,
-                force_en=force_en,
-                focus_file_id=focus_file.id,
-                focus_file_title=focus_file.title,
-                focus_file_type=focus_file.file_type,
-                has_selected_text=bool((selected_text or "").strip()),
+    author_edits_sha = (
+        _sha256_text(
+            json.dumps(
+                {
+                    "block": author_edits,
+                    "states": [list(state) for state in author_edit_states],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
             )
         )
-    parts.append(TURN_CONTEXT_CLOSE)
-    result.text = "\n".join(parts)
+        if author_edits and not author_edits_failed
+        else ""
+    )
+    emitted_author_edits = author_edits
+    if author_edits_sha and prior_fp and prior_fp.get("author_edits_sha256") == author_edits_sha:
+        emitted_author_edits = AUTHOR_EDITS_UNCHANGED_MARKER
+        deduped_any = True
+
+    metadata_section = manager._build_metadata_section(metadata, force_en)
+    selected_skill_section = selected_skill_lines
+    ui_action_section = (
+        build_ui_action_turn_section(
+            session,
+            ui_action=ui_action,
+            force_en=force_en,
+            focus_file_id=focus_file.id,
+            focus_file_title=focus_file.title,
+            focus_file_type=focus_file.file_type,
+            has_selected_text=bool((selected_text or "").strip()),
+        )
+        if ui_action is not None and focus_file is not None
+        else []
+    )
+
+    def _assemble_turn_text(rendered_ctx: str, pf_block: str, ae_block: str) -> str:
+        assembled: list[str] = [TURN_CONTEXT_OPEN, _PREAMBLE_EN if force_en else _PREAMBLE, "", rendered_ctx.strip()]
+        if pf_block:
+            assembled.extend(["", pf_block])
+        if ae_block:
+            assembled.extend(["", ae_block])
+        assembled.extend(metadata_section)
+        assembled.extend(selected_skill_section)
+        assembled.extend(ui_action_section)
+        assembled.append(TURN_CONTEXT_CLOSE)
+        return "\n".join(assembled)
+
+    result.text = _assemble_turn_text(rendered, emitted_project_files, emitted_author_edits)
+    if deduped_any:
+        full_rendered = assembler.format_context(items, None, project_status) if render_items != items else rendered
+        result.full_text = _assemble_turn_text(full_rendered, project_files, author_edits)
+
+    # Carry forward recent full-file hashes (bounded) + overwrite with this turn's hashes.
+    merged_file_hashes: dict[str, str] = {}
+    if prior_file_hashes:
+        merged_file_hashes.update(prior_file_hashes)
+    merged_file_hashes.update(current_full_file_hashes)
+    if len(merged_file_hashes) > _WARM_DEDUP_MAX_TRACKED_FILES:
+        trimmed_keys = list(merged_file_hashes)[-_WARM_DEDUP_MAX_TRACKED_FILES:]
+        merged_file_hashes = {k: merged_file_hashes[k] for k in trimmed_keys}
+    result.context_fingerprints = {
+        "project_files_sha256": project_files_sha,
+        "full_file_hashes": merged_file_hashes,
+        "author_edits_sha256": author_edits_sha,
+        # 记录本轮实际按完整正文发出的指纹（供 Stage 2 压缩回退到 full_text 时重置指纹使用）。
+        "_current_full_file_hashes": current_full_file_hashes,
+        # 记录本轮 <author_edits> 提醒到的 file_id，若本轮 query_files 读过其中任一文件则清空 author_edits_sha256。
+        "_author_edits_file_ids": [fid for fid, _ts, _ver, _chars in author_edit_states],
+    }
 
     for item in items:
         file_id = assembler.item_file_id(item)
@@ -191,6 +295,7 @@ def build_loop_turn_context(
             chat_session_id=chat_session_id,
             exclude_ids=set(result.read_snapshots),
             cancel_event=cancel_event,
+            allow_slimmed_read_sha256=allow_slimmed_read_snapshots,
         )
         for file_id, content in carried.items():
             if file_id not in result.read_snapshots:
@@ -358,45 +463,54 @@ def _author_edits_block(
     project_id: str,
     user_id: str | None,
     chat_session_id: str | None,
-    primary_ids: list[str],
+    in_context_full_ids: set[str],
+    force_en: bool = False,
     cancel_event: threading.Event | None = None,
-) -> str:
-    """焦点 / 附加文件在前，再是本会话 AI 写过的正文文件：作者在 AI 写过之后亲手改了哪几处。
+) -> tuple[str, list[tuple[str, str, int, int]], bool]:
+    """本会话 AI 写过但不在本轮全文上下文中的正文文件：若在最近 AI 写入后被作者手改，给 1 行提醒。
 
-    增益信息：算不出来时不影响本轮（块里明说，或整块不附）。
+    返回 ``(rendered_block, [(file_id, updated_at_iso, version_number, char_count), ...], failed)``。
+    焦点与附加文件已在本轮 ``<turn_context>`` 里给出最新全文，无需重复提醒；
+    增益信息：算不出来时不影响本轮。
     """
     from agent.core.session_loader import AUTHOR_EDITS_MAX_FILES, SessionLoader
 
-    if not user_id or (cancel_event is not None and cancel_event.is_set()):
-        return ""
+    if not user_id or not chat_session_id or (cancel_event is not None and cancel_event.is_set()):
+        return "", [], False
     loader = SessionLoader(project_id=project_id, user_id=user_id)
     try:
-        written: list[str] = []
-        if chat_session_id:
-            # 先按本项目、未删除的正文文件筛，再计名额：大纲、设定等文件不挤掉 AI 写过的章节。
-            written = loader.session_written_file_ids(
-                session,
-                chat_session_id=chat_session_id,
-                limit=AUTHOR_EDITS_MAX_FILES,
-                file_types=_BODY_FILE_TYPES,
-                cancel_event=cancel_event,
-            )
-        if cancel_event is not None and cancel_event.is_set():
-            return ""
-        ordered = list(dict.fromkeys([*primary_ids, *written]))
-        if not ordered:
-            return ""
-        block, _edited, _files = loader.author_edits_for_files(
-            session, ordered, {}, cancel_event=cancel_event
+        # 先按本项目、未删除的正文文件筛，再计名额：大纲、设定等文件不挤掉 AI 写过的章节。
+        written = loader.session_written_file_ids(
+            session,
+            chat_session_id=chat_session_id,
+            limit=AUTHOR_EDITS_MAX_FILES,
+            file_types=_BODY_FILE_TYPES,
+            cancel_event=cancel_event,
         )
-        return block
+        if cancel_event is not None and cancel_event.is_set():
+            return "", [], False
+        non_context_written = [fid for fid in written if fid not in in_context_full_ids]
+        if not non_context_written:
+            return "", [], False
+        alert_states: list[tuple[str, str, int, int]] = []
+        failed_flags: list[bool] = []
+        block, _edited, _files = loader.author_edits_for_files(
+            session,
+            non_context_written,
+            {},
+            force_en=force_en,
+            cancel_event=cancel_event,
+            alert_state_out=alert_states,
+            failed_out=failed_flags,
+        )
+        return block, alert_states, bool(failed_flags)
     except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
         with contextlib.suppress(Exception):
             session.rollback()
         log_with_context(
             logger, 30, "Loop author edits build failed", project_id=project_id, error_type=type(exc).__name__
         )
-        return ""
+        return "", [], True
 
 
 def _session_read_snapshots(
@@ -407,6 +521,7 @@ def _session_read_snapshots(
     chat_session_id: str,
     exclude_ids: set[str],
     cancel_event: threading.Event | None = None,
+    allow_slimmed_read_sha256: bool = False,
 ) -> dict[str, str]:
     """结转本会话此前轮次读/写过且未变更的文件快照（增益信息，失败不影响本轮）。"""
     from agent.core.session_loader import SESSION_SNAPSHOT_MAX_FILES, SessionLoader
@@ -421,6 +536,7 @@ def _session_read_snapshots(
             exclude_ids=exclude_ids,
             limit=SESSION_SNAPSHOT_MAX_FILES,
             cancel_event=cancel_event,
+            allow_slimmed_read_sha256=allow_slimmed_read_sha256,
         )
     except Exception as exc:  # noqa: BLE001 - 增益信息，失败不影响本轮
         with contextlib.suppress(Exception):

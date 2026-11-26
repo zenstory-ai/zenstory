@@ -13,11 +13,10 @@ from agent.context.assembler import ContextAssembler
 from agent.service import AgentService
 from agent.suggest_service import SuggestService
 from agent.tools import mcp_tools
-from agent.tools.file_ops.edit import attach_author_edits_for_agent
 from agent.tools.file_ops.project import TITLE_SOURCE_UNAVAILABLE, ProjectOperations
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from models import Character, File, Novel, Project, User
+from models import Character, Novel, Project, User
 
 
 class _InMemoryBoard:
@@ -219,41 +218,6 @@ def test_current_title_source_savepoint_protects_locked_project_update(db_sessio
     refreshed = db_session.get(Project, project.id)
     assert refreshed.summary == "新的项目简介"
     assert refreshed.name == "我的小说"
-
-
-def test_attach_author_edits_for_agent_discloses_incomplete_on_error(
-    monkeypatch: pytest.MonkeyPatch,
-    db_session: Session,
-) -> None:
-    """If author_changes fails, query_files must disclose incomplete author_edits and keep session clean."""
-    user, project = _seed_user_and_project(db_session)
-    file = File(project_id=project.id, title="第1章", content="正文", file_type="draft")
-    db_session.add(file)
-    db_session.commit()
-
-    def boom_author_changes(_session: Session, _file: File):
-        raise RuntimeError("blame query exploded")
-
-    monkeypatch.setattr("agent.tools.author_changes.author_changes", boom_author_changes)
-    req_ctx = mcp_tools.AgentRequestContext(
-        session=db_session,
-        user_id=user.id,
-        project_id=project.id,
-        session_id="sess-edits",
-        read_snapshots={},
-    )
-    try:
-        row: dict = {"id": file.id}
-        attach_author_edits_for_agent(db_session, file, row, request_context=req_ctx)
-    finally:
-        req_ctx.clear()
-
-    assert row["author_edits"] == {
-        "note": "作者手改没算出来，改之前请核对全文。",
-        "changes": [],
-        "complete": False,
-    }
-    assert db_session.get(File, file.id) is not None
 
 
 @pytest.mark.asyncio

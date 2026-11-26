@@ -828,7 +828,7 @@ async def test_reused_episode_body_survives_truncated_stream(
     这里不给 MESSAGE_END，流直接结束，走 process_workflow_events 尾部的
     finalize_on_stream_end 收尾分支。
     """
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
     from models import File
 
     file_id = _seed_finished_episode(db_session, _e2e_project)
@@ -864,7 +864,7 @@ async def test_reused_episode_normal_stream_still_persists(
     防止后续把拒绝条件放宽成"只看 original_content_length > 0"而漏掉
     auto_completed —— 那样正常的整集重写也会被守卫拦下。
     """
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
     from models import File
 
     file_id = _seed_finished_episode(db_session, _e2e_project)
@@ -897,7 +897,7 @@ async def test_truncated_overwrite_guard_covers_agent_boundary_path(
     断言警告文本出现在第二个 agent 的叙述**之前**，以此证明收尾确实发生在
     agent 边界上，而不是被推迟到流结束。
     """
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
     from models import File
 
     file_id = _seed_finished_episode(db_session, _e2e_project)

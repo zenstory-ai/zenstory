@@ -389,7 +389,7 @@ def test_runtime_budget_defaults_bound_runaway_cost():
     assert (
         10 * 60
         <= agent_runtime.AGENT_RUN_WALL_CLOCK_TIMEOUT_S
-        <= agent_runtime.RAILWAY_HTTP_CONNECTION_LIMIT_S - 120
+        <= 900 - 120
     )
     assert 5 <= agent_runtime.AGENT_SSE_HEARTBEAT_INTERVAL_S <= 30
 

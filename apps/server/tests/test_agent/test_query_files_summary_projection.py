@@ -24,7 +24,7 @@ from sqlalchemy import event
 from sqlmodel import Session, SQLModel, create_engine
 
 from agent.tools import mcp_tools
-from agent.tools.file_ops.executor import FileToolExecutor
+from agent.tools.file_ops import FileToolExecutor
 from agent.tools.registry import TOOL_FUNCTIONS
 from models import File, Project, User
 from utils.text_metrics import count_words
@@ -471,7 +471,7 @@ def test_actual_product_import_provenance():
         mcp_tools,
         sys.modules["agent.tools.file_ops.crud"],
         sys.modules["agent.tools.file_ops.serialization"],
-        sys.modules["agent.tools.file_ops.executor"],
+        sys.modules["agent.tools.file_ops"],
         sys.modules["agent.tools.permissions"],
     ]
     records = []

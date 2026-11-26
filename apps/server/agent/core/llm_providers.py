@@ -17,8 +17,15 @@ configuration:
   its whole length, and ``weight=0`` switches back to primary immediately.
 - ``MINIMAX_REASONING_EFFORT`` (default ``high``): MiniMax defaults to ``max``
   when the request names no effort.
-- read timeout (longest silence between bytes, including the wait for the first byte):
-  ``MINIMAX_CLIENT_TIMEOUT_S`` (default 120), ``DEEPSEEK_CLIENT_TIMEOUT_S`` (default 45).
+- stream / read timeouts:
+  - Phase-1 first-event timeout (wait for the first meaningful output/terminal event;
+    ``0`` disables): ``MINIMAX_FIRST_EVENT_TIMEOUT_S`` (default 95),
+    ``DEEPSEEK_FIRST_EVENT_TIMEOUT_S`` (default 65). Setting this higher than
+    ``*_CLIENT_TIMEOUT_S`` (or ``0``) is still bounded on zero-byte TCP silence by
+    ``httpx``'s ``read_timeout_s()``.
+  - Phase-2 stream idle timeout (longest silence between meaningful events; ``0`` disables
+    the stream idle guard while the HTTP client socket timeout keeps the positive default):
+    ``MINIMAX_CLIENT_TIMEOUT_S`` (default 120), ``DEEPSEEK_CLIENT_TIMEOUT_S`` (default 90).
 
 A model name must have a price in ``services/usage/pricing.py``; the free-user
 cost budget refuses calls to unpriced models.
@@ -29,6 +36,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import math
 import os
 import threading
 import time
@@ -73,6 +81,18 @@ _KEY_ROUTE_REDIS_MIN_TTL_S = 60
 _KEY_ROUTE_REDIS_RETRY_AFTER_S = 30.0
 
 
+def _get_non_negative_float_env(name: str, default: float) -> float:
+    """Read a finite float >= 0 env var (``0`` explicitly disables a stream timeout tier)."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if math.isfinite(value) and value >= 0 else default
+
+
 @dataclass(frozen=True)
 class ProviderKind:
     """What differs between providers' OpenAI-compatible endpoints."""
@@ -92,16 +112,29 @@ class ProviderKind:
     # Env var naming the effort sent when the caller names none (None: send nothing).
     reasoning_effort_env: str | None = None
     default_reasoning_effort: str | None = None
-    # Longest silence between bytes before a call counts as timed out. Includes the wait for the
-    # first byte, which grows with uncached input length.
+    # Longest silence between bytes before a call counts as timed out, and Phase-2 stream idle
+    # timeout between meaningful events (0 disables Phase-2 stream guard).
     read_timeout_env: str = "DEEPSEEK_CLIENT_TIMEOUT_S"
-    default_read_timeout_s: float = 45.0
+    default_read_timeout_s: float = 90.0
+    # Phase-1 stream timeout before the first meaningful event arrives (0 disables Phase-1 guard).
+    first_event_timeout_env: str = "DEEPSEEK_FIRST_EVENT_TIMEOUT_S"
+    default_first_event_timeout_s: float = 65.0
     # API surface for the writing agent loop and compaction: "responses" or "chat_completions".
     api_surface_env: str | None = None
     default_api_surface: str = API_SURFACE_CHAT_COMPLETIONS
 
     def read_timeout_s(self) -> float:
         return get_positive_float_env(self.read_timeout_env, self.default_read_timeout_s)
+
+    def stream_idle_timeout_s(self) -> float:
+        """Phase-2 stream idle timeout between meaningful events (0 disables)."""
+        return _get_non_negative_float_env(self.read_timeout_env, self.default_read_timeout_s)
+
+    def first_event_timeout_s(self) -> float:
+        """Phase-1 stream timeout before the first meaningful event (0 disables)."""
+        return _get_non_negative_float_env(
+            self.first_event_timeout_env, self.default_first_event_timeout_s
+        )
 
 
 DEEPSEEK = ProviderKind(
@@ -113,6 +146,12 @@ DEEPSEEK = ProviderKind(
     can_disable_thinking=True,
     reasoning_efforts=frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"}),
     requires_tool_turn_reasoning=True,
+    # Keep httpx socket read timeout (90s) cleanly above Phase-1 first_event timeout (65s)
+    # so silent TCP stalls trigger Phase-1 first_event timeout & non-blocking teardown first.
+    read_timeout_env="DEEPSEEK_CLIENT_TIMEOUT_S",
+    default_read_timeout_s=90.0,
+    first_event_timeout_env="DEEPSEEK_FIRST_EVENT_TIMEOUT_S",
+    default_first_event_timeout_s=65.0,
 )
 
 MINIMAX = ProviderKind(
@@ -128,9 +167,13 @@ MINIMAX = ProviderKind(
     reasoning_effort_env="MINIMAX_REASONING_EFFORT",
     default_reasoning_effort="high",
     # Measured 2026-10-22: ~49s before the first byte on a ~320k-character uncached input;
-    # production inputs reach 260k tokens.
+    # production inputs reach 300k tokens. Phase-1 first_event timeout (95s) bounds dead-node
+    # waits cleanly above measured max TTFT without falsely tripping the circuit breaker while
+    # keeping Phase-2 idle timeout at 120s.
     read_timeout_env="MINIMAX_CLIENT_TIMEOUT_S",
     default_read_timeout_s=120.0,
+    first_event_timeout_env="MINIMAX_FIRST_EVENT_TIMEOUT_S",
+    default_first_event_timeout_s=95.0,
     # Instant env-only rollback to /v1/chat/completions via MINIMAX_API_SURFACE=chat_completions.
     api_surface_env="MINIMAX_API_SURFACE",
     default_api_surface=API_SURFACE_RESPONSES,
@@ -167,6 +210,15 @@ class ModelProvider:
     # Safe credential identity for diagnostics. Never log ``api_key`` itself.
     key_slot: str = KEY_SLOT_PRIMARY
     api_surface: str = API_SURFACE_CHAT_COMPLETIONS
+    # Resolved per-attempt stream timeouts (0 disables that phase; negative sentinel resolves from kind).
+    first_event_timeout_s: float = -1.0
+    stream_idle_timeout_s: float = -1.0
+
+    def __post_init__(self) -> None:
+        if self.first_event_timeout_s < 0:
+            object.__setattr__(self, "first_event_timeout_s", self.kind.first_event_timeout_s())
+        if self.stream_idle_timeout_s < 0:
+            object.__setattr__(self, "stream_idle_timeout_s", self.kind.stream_idle_timeout_s())
 
     @property
     def name(self) -> str:
@@ -422,6 +474,8 @@ def _build_provider(
         reasoning_effort=effort,
         key_slot=key_slot,
         api_surface=surface,
+        first_event_timeout_s=kind.first_event_timeout_s(),
+        stream_idle_timeout_s=kind.stream_idle_timeout_s(),
     )
 
 

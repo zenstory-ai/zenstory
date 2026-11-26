@@ -468,12 +468,8 @@ def remove_empty_placeholders(
     """
     if not candidates:
         return []
-    from sqlalchemy import update
-    from sqlmodel import select
-
-    from config.datetime_utils import advance_timestamp, utcnow
+    from agent.core.empty_files import soft_delete_empty_file_if_unchanged
     from database import create_session, is_postgres
-    from models import File
     from services.file_tree_rules import lock_project_for_files
 
     removed: list[dict[str, str]] = []
@@ -484,41 +480,16 @@ def remove_empty_placeholders(
                 file_id = candidate.get("id")
                 if not file_id:
                     continue
-                query = select(File).where(File.id == file_id)
-                if is_postgres:
-                    query = query.with_for_update(key_share=True)
-                file = session.exec(query.execution_options(populate_existing=True)).first()
-                created_version = candidate.get("updated_at")
-                if (
-                    file is None
-                    or file.project_id != project_id
-                    or file.is_deleted
-                    or file.file_type == "folder"
-                    or (file.content or "").strip()
-                    or not created_version
-                    or file.updated_at is None
-                    or file.updated_at.isoformat() != created_version
-                ):
-                    continue
-                has_children = session.exec(
-                    select(File.id).where(File.parent_id == file.id, File.is_deleted == False)  # noqa: E712
-                ).first()
-                if has_children is not None:
-                    continue
-                now = utcnow()
-                result = session.exec(
-                    update(File)
-                    .where(
-                        File.id == file.id,
-                        File.project_id == project_id,
-                        File.is_deleted.is_(False),
-                        File.content == file.content,
-                        File.updated_at == file.updated_at,
-                    )
-                    .values(is_deleted=True, deleted_at=now, updated_at=advance_timestamp(file.updated_at, now=now))
+                deleted, title = soft_delete_empty_file_if_unchanged(
+                    session,
+                    file_id=file_id,
+                    project_id=project_id,
+                    expected_updated_at=candidate.get("updated_at"),
+                    require_no_children=True,
+                    for_update=is_postgres,
                 )
-                if result.rowcount == 1:
-                    removed.append({"id": file.id, "title": file.title or candidate.get("title", "")})
+                if deleted:
+                    removed.append({"id": file_id, "title": title or candidate.get("title", "")})
             session.commit()
     except Exception as exc:
         log_with_context(

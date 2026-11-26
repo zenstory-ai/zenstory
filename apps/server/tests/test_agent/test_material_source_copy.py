@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
 from agent.tools.mcp_tools import create_file
+from agent.tools.tool_context import AgentRequestContext
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 

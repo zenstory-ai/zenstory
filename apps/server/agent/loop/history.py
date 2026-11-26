@@ -4,8 +4,7 @@
   的顺序还原成 SDK 输入项：回复文字是 assistant 消息，工具调用是成对的 function_call /
   function_call_output（每个调用都有输出，不会留下孤立的 tool_call_id）。思考内容只在一次
   run 内回放，这里不带。
-- 多 agent 图写下的旧行没有 engine 标记，照旧按 ``SessionLoader._format_chat_message_for_history``
-  折叠成文字（正文 + 状态卡摘要 + 工具面包屑），旧会话照常续写。
+- 旧格式历史行没有 engine 标记时，回退为简洁的纯文本 ``row.content`` 摘要。
 - 压缩点（某条 assistant 行的 ``message_metadata.compaction``）：它覆盖到
   ``covers_through_message_id`` 那一行为止。重建结果是 压缩点之前最近的作者原话（预算内原文）
   → 一条以「【上下文已压缩】」开头的 user 消息（交接摘要）→ 那一行之后的全部行。
@@ -18,6 +17,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -66,6 +66,28 @@ SKILL_REPLAY_RECENT_TURNS = 3
 _SkillRehydrator = Callable[[str, Any, Any], dict[str, Any] | None]
 _FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的具体原因与候选没有保留，重试前先重新读取相关文件。"
 
+# Stage 1 零 LLM 确定性归档压缩（tool_archive）的共享常量与收据构造。
+# compaction.py 与 history.py 共用同一纯函数，确保实时压缩与冷库回放逐字节一致。
+COMPACTION_MODE_TOOL_ARCHIVE = "tool_archive"
+ARCHIVABLE_READ_TOOLS: frozenset[str] = frozenset(
+    {"query_files", "read_skill_resource", "load_skill"}
+)
+_TOOL_ARCHIVE_NOTES: dict[str, str] = {
+    "query_files": (
+        "该只读查询结果已在历史归档中折叠以节省上下文；"
+        "如需原文细节，请按文件 id 重新调用 query_files(id=...) 读取。"
+    ),
+    "load_skill": (
+        "该技能正文已在历史归档中折叠以节省上下文；"
+        "如需按该技能执行，请重新调用 load_skill 读取。"
+    ),
+    "read_skill_resource": (
+        "该技能参考资源已在历史归档中折叠以节省上下文；"
+        "如需原文，请重新调用 read_skill_resource 读取。"
+    ),
+}
+_MAX_ARCHIVE_FILE_REFS = 50
+
 
 @dataclass
 class LoopHistory:
@@ -76,7 +98,7 @@ class LoopHistory:
     last_prompt_tokens: int = 0
     # 会话里最新一行的 id：本轮若压缩，压缩覆盖到这一行为止。
     last_message_id: str | None = None
-    # 是否用到了已有的压缩点。
+    # 是否用到了已有的 LLM 摘要压缩点。
     compacted: bool = False
     # 历史里作者的原话（按时间先后，不含系统插入的摘要消息）：本轮压缩时从中保留最近的几条。
     author_messages: list[str] = field(default_factory=list)
@@ -85,6 +107,10 @@ class LoopHistory:
     compaction_skipped_reason: str | None = None
     # 会话末尾连续几轮停在输出上限（stop_reason=output_truncated）。
     trailing_output_truncations: int = 0
+    # 最近一次摘要压缩点之后由 Stage 1 tool_archive 归档的 call_id 集合。
+    archived_call_ids: set[str] = field(default_factory=set)
+    # 被 Stage 1 tool_archive 归档且后续未被非归档调用重新读/写的文件 id 集合。
+    archived_file_ids: set[str] = field(default_factory=set)
 
 
 def bounded_items(items: list[dict[str, Any]], max_tokens: int) -> list[dict[str, Any]]:
@@ -200,13 +226,146 @@ def _parse_json(value: Any) -> Any:
     return value
 
 
+def parse_tool_json(value: Any) -> Any:
+    """解析工具输出 JSON 字符串；解析失败返回 None。"""
+    return _parse_json(value)
+
+
 def row_metadata(row: Any) -> dict[str, Any]:
     payload = _parse_json(getattr(row, "message_metadata", None))
     return payload if isinstance(payload, dict) else {}
 
 
+def is_tool_archive_compaction(record: Any) -> bool:
+    """记录是否为 Stage 1 零 LLM ``tool_archive`` 压缩记录。"""
+    return isinstance(record, dict) and record.get("mode") == COMPACTION_MODE_TOOL_ARCHIVE
+
+
+def valid_tool_archive_compaction(metadata: dict[str, Any]) -> dict[str, Any] | None:
+    """assistant / user 行上可用的 Stage 1 ``tool_archive`` 压缩记录。"""
+    compaction = metadata.get("compaction")
+    if not isinstance(compaction, dict):
+        return None
+    if compaction.get("mode") != COMPACTION_MODE_TOOL_ARCHIVE:
+        return None
+    archived_through = compaction.get("archived_through_message_id")
+    call_ids = compaction.get("archived_call_ids")
+    if (
+        not isinstance(archived_through, str)
+        or not archived_through
+        or not isinstance(call_ids, list)
+        or not call_ids
+        or not all(isinstance(cid, str) and cid for cid in call_ids)
+    ):
+        return None
+    return compaction
+
+
+def is_successful_archivable_payload(parsed: Any) -> bool:
+    """判定已解析的工具结果 JSON 是否为可安全归档的成功只读载荷（绝不归档错误或已归档结果）。"""
+    if not isinstance(parsed, dict):
+        return False
+    if parsed.get("archived") is True:
+        return False
+    status = parsed.get("status")
+    if not isinstance(status, str) or status.strip().lower() != "success":
+        return False
+    if parsed.get("error") or parsed.get("error_type"):
+        return False
+    data = parsed.get("data")
+    if isinstance(data, dict):
+        nested_status = data.get("status")
+        if isinstance(nested_status, str) and nested_status.strip().lower() in {
+            "error",
+            "failed",
+            "failure",
+            "unknown",
+        }:
+            return False
+        if data.get("error") or data.get("error_type"):
+            return False
+    return True
+
+
+def extract_archived_file_refs(parsed: Any) -> list[dict[str, str]]:
+    """从 ``query_files``（或常见文件结果结构）提取紧凑确定性的 ``{id, title}`` 列表。"""
+    refs: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def _visit(node: Any, depth: int = 0) -> None:
+        if depth > 4 or len(refs) >= _MAX_ARCHIVE_FILE_REFS:
+            return
+        if isinstance(node, list):
+            for elem in node:
+                _visit(elem, depth + 1)
+        elif isinstance(node, dict):
+            fid = node.get("id") or node.get("file_id")
+            title = node.get("title")
+            fid_str = fid.strip() if isinstance(fid, str) and fid.strip() else ""
+            title_str = title.strip() if isinstance(title, str) and title.strip() else ""
+            if fid_str or title_str:
+                key = (fid_str, title_str)
+                if key not in seen:
+                    seen.add(key)
+                    entry: dict[str, str] = {}
+                    if fid_str:
+                        entry["id"] = fid_str
+                    if title_str:
+                        entry["title"] = title_str
+                    refs.append(entry)
+            for container_key in ("data", "files", "items", "results"):
+                nested = node.get(container_key)
+                if isinstance(nested, (list, dict)):
+                    _visit(nested, depth + 1)
+
+    _visit(parsed)
+    return refs
+
+
+def build_tool_archive_receipt(
+    tool_name: str,
+    output_str: str,
+    parsed: dict[str, Any] | None = None,
+) -> tuple[str, list[str]]:
+    """构造紧凑、确定性的只读工具归档回执 JSON，返回 ``(receipt_json, file_ids)``。
+
+    ``compaction.py`` 与 ``history.py`` 共用本函数：给定同一 ``(tool_name, output_str)`` 时，
+    实时 Stage 1 归档与冷库回放输出逐字节一致。
+    """
+    payload_obj = parsed if isinstance(parsed, dict) else _parse_json(output_str)
+    receipt: dict[str, Any] = {
+        "status": "success",
+        "archived": True,
+        "tool_name": tool_name,
+    }
+    file_ids: list[str] = []
+    if tool_name == "query_files":
+        refs = extract_archived_file_refs(payload_obj)
+        if refs:
+            receipt["files"] = refs
+            file_ids = [ref["id"] for ref in refs if ref.get("id")]
+    elif tool_name in ("load_skill", "read_skill_resource"):
+        data = payload_obj.get("data") if isinstance(payload_obj, dict) else None
+        if isinstance(data, dict):
+            skill_id = data.get("skill_id")
+            skill_name = data.get("skill_name")
+            path = data.get("path")
+            if isinstance(skill_id, str) and skill_id.strip():
+                receipt["skill_id"] = skill_id.strip()
+            if isinstance(skill_name, str) and skill_name.strip():
+                receipt["skill_name"] = skill_name.strip()
+            if tool_name == "read_skill_resource" and isinstance(path, str) and path.strip():
+                receipt["path"] = path.strip()
+    receipt["original_chars"] = len(output_str)
+    receipt["note"] = _TOOL_ARCHIVE_NOTES.get(
+        tool_name,
+        "该只读工具结果已在历史归档中折叠以节省上下文；如需原文请重新调用该工具读取。",
+    )
+    return json.dumps(receipt, ensure_ascii=False, separators=(",", ":")), file_ids
+
+
 def valid_compaction(metadata: dict[str, Any]) -> dict[str, Any] | None:
-    """assistant 行上可用的压缩点：摘要非空、不含泄漏工具协议、覆盖到的行 id 非空。"""
+    """assistant 行上可用的 LLM 摘要压缩点：摘要非空、不含泄漏工具协议、覆盖到的行 id 非空。"""
     compaction = metadata.get("compaction")
     if not isinstance(compaction, dict):
         return None
@@ -409,15 +568,24 @@ def client_tool_calls(raw: str | None) -> str | None:
 
 
 def client_message_metadata(raw: str | None) -> str | None:
-    """发给浏览器的 message_metadata：去掉压缩点里只给模型回放的作者原话（可达上万 token，前端不用）。
-
+    """发给浏览器的 message_metadata：
+    - LLM 摘要压缩点：去掉只给模型回放的作者原话（``kept_author_messages``，可达上万 token，前端不用）；
+    - Stage 1 ``tool_archive`` 压缩记录：仅用于服务端跨轮回放，无前端展示摘要，移除 ``compaction`` 键；
     其余行原样返回同一个字符串。
     """
-    if not raw or '"kept_author_messages"' not in raw:
+    if not raw or (
+        '"kept_author_messages"' not in raw
+        and f'"{COMPACTION_MODE_TOOL_ARCHIVE}"' not in raw
+    ):
         return raw
     payload = _parse_json(raw)
     compaction = payload.get("compaction") if isinstance(payload, dict) else None
-    if not isinstance(compaction, dict) or "kept_author_messages" not in compaction:
+    if not isinstance(compaction, dict):
+        return raw
+    if compaction.get("mode") == COMPACTION_MODE_TOOL_ARCHIVE:
+        cleaned = {key: value for key, value in payload.items() if key != "compaction"}
+        return json.dumps(cleaned, ensure_ascii=False)
+    if "kept_author_messages" not in compaction:
         return raw
     payload["compaction"] = {key: value for key, value in compaction.items() if key != "kept_author_messages"}
     return json.dumps(payload, ensure_ascii=False)
@@ -489,10 +657,71 @@ def _tool_output_text(
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
+def query_result_full_file_ids(result: Any, *, include_slimmed_sha256: bool = False) -> list[str]:
+    """提取非归档 ``query_files`` 结果里实际携带完整非空 ``content`` 的非文件夹文件 id。
+
+    严格排除范围读取（``content_partial=True``）、超长截断（``content_truncated=True``）
+    与文件夹条目，口径与 ``SessionLoader.session_read_snapshots`` 保持一致。
+    ``include_slimmed_sha256=True`` 时同时识别落库瘦身保留了 ``content_sha256`` 的全文读结果。
+    """
+    found: list[str] = []
+
+    def _visit(node: Any, depth: int = 0) -> None:
+        if depth > 4:
+            return
+        if isinstance(node, list):
+            for elem in node:
+                _visit(elem, depth + 1)
+        elif isinstance(node, dict):
+            fid = node.get("id") or node.get("file_id")
+            content = node.get("content")
+            sha = node.get("content_sha256") if include_slimmed_sha256 else None
+            has_full_body = (isinstance(content, str) and bool(content)) or (
+                isinstance(sha, str) and bool(sha.strip())
+            )
+            if (
+                isinstance(fid, str)
+                and fid.strip()
+                and has_full_body
+                and not node.get("content_truncated")
+                and not node.get("content_partial")
+                and node.get("file_type") != "folder"
+            ):
+                found.append(fid.strip())
+            for container_key in ("data", "files", "items", "results"):
+                nested = node.get(container_key)
+                if isinstance(nested, (list, dict)):
+                    _visit(nested, depth + 1)
+
+    _visit(result)
+    return found
+
+
+def _is_persist_slimmed_query_payload(payload: Any, *, depth: int = 0) -> bool:
+    """判定 ``query_files`` 结果是否已在落库期被瘦身（存在 ``archived_note`` 且无完整正文 ``content``）。"""
+    if depth > 4:
+        return False
+    if isinstance(payload, list):
+        return any(_is_persist_slimmed_query_payload(elem, depth=depth + 1) for elem in payload)
+    if isinstance(payload, dict):
+        has_note = isinstance(payload.get("archived_note"), str) and bool(payload["archived_note"].strip())
+        has_content = isinstance(payload.get("content"), str) and bool(payload["content"])
+        if has_note and not has_content:
+            return True
+        for container_key in ("data", "files", "items", "results"):
+            nested = payload.get(container_key)
+            if isinstance(nested, (list, dict)) and _is_persist_slimmed_query_payload(nested, depth=depth + 1):
+                return True
+    return False
+
+
 def _loop_row_items(
     row: Any,
     metadata: dict[str, Any],
     *,
+    archived_call_ids: set[str] | None = None,
+    archived_file_ids: set[str] | None = None,
+    archive_matcher: Any | None = None,
     skill_rehydrator: _SkillRehydrator | None = None,
 ) -> list[dict[str, Any]]:
     """一条单循环 assistant 行 → SDK 输入项（文字与成对的工具调用，按显示顺序）。"""
@@ -515,20 +744,61 @@ def _loop_row_items(
         used.add(index)
         call = calls[index]
         call_id = f"h{row.id}_{index}"
+        orig_call_id = str(call.get("id") or "").strip()
+        tool_name = str(call.get("name") or "")
         arguments = call.get("arguments")
         if not isinstance(arguments, str):
             arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False, separators=(",", ":"))
+        if archive_matcher is not None:
+            should_archive = archive_matcher(call_id, orig_call_id, tool_name)
+        else:
+            should_archive = bool(
+                archived_call_ids
+                and tool_name in ARCHIVABLE_READ_TOOLS
+                and (call_id in archived_call_ids or (orig_call_id and orig_call_id in archived_call_ids))
+            )
+        # 已归档的技能调用跳过冷回放水合，避免无谓查询 DB 后再被归档丢弃。
+        output_text = _tool_output_text(
+            call,
+            skill_rehydrator=None if should_archive else skill_rehydrator,
+        )
+        was_archived = False
+        if should_archive:
+            parsed_output = _parse_json(output_text)
+            if is_successful_archivable_payload(parsed_output):
+                receipt_text, fids = build_tool_archive_receipt(tool_name, output_text, parsed_output)
+                already_persist_slimmed = (
+                    tool_name == "query_files" and _is_persist_slimmed_query_payload(parsed_output)
+                )
+                if len(receipt_text) < len(output_text):
+                    output_text = receipt_text
+                    was_archived = True
+                    if archived_file_ids is not None:
+                        archived_file_ids.update(fids)
+                elif already_persist_slimmed:
+                    # 落库期已被瘦身为 ~220 字符 archived_note 的条目，即使回执长度未更短，
+                    # 仍必须无条件登记 archived_file_ids 以撤销跨轮快照结转。
+                    was_archived = True
+                    if archived_file_ids is not None:
+                        archived_file_ids.update(fids)
+                elif tool_name in _SKILL_CONTENT_NOT_KEPT:
+                    # 落库的技能工具卡片不含正文且已跳过水合，统一转为归档回执。
+                    output_text = receipt_text
+                    was_archived = True
+        if not was_archived and archived_file_ids is not None and tool_name == "query_files":
+            # 只有后续非归档的 query_files 再次返回了完整、未截断、非范围读取的正文，该文件才重新进入模型视野；
+            # edit_file / summary / partial / truncated 查询不提供全文，不能清除已归档标记。
+            status = str(call.get("status") or "").strip().lower()
+            if status == "success":
+                for fid in query_result_full_file_ids(call.get("result")):
+                    archived_file_ids.discard(fid)
         items.append({
             "type": "function_call",
             "call_id": call_id,
-            "name": str(call.get("name") or ""),
+            "name": tool_name,
             "arguments": arguments,
         })
-        items.append({
-            "type": "function_call_output",
-            "call_id": call_id,
-            "output": _tool_output_text(call, skill_rehydrator=skill_rehydrator),
-        })
+        items.append({"type": "function_call_output", "call_id": call_id, "output": output_text})
 
     if isinstance(events, list) and events:
         for event in events:
@@ -552,16 +822,10 @@ def _loop_row_items(
     return items
 
 
-def _legacy_row_items(loader: Any, row: Any, *, latest_assistant: bool = False) -> list[dict[str, Any]]:
-    """多 agent 图写下的行：沿用原有的文字折叠（正文 + 状态卡摘要 + 工具面包屑）。
-
-    latest_assistant：这是会话里最新的 assistant 行，旧加载器据此附上未执行的审稿返修要求。
-    """
-    from agent.openai_agents.runner import normalize_messages_for_openai_agents
-
-    return normalize_messages_for_openai_agents(
-        [loader._format_chat_message_for_history(row, latest_assistant=latest_assistant)]
-    )
+def _legacy_row_items(row: Any) -> list[dict[str, Any]]:
+    """旧版非单循环助手行的精简纯文本回放兜底。"""
+    content = str(getattr(row, "content", "") or "").strip()
+    return [{"role": "assistant", "content": content}] if content else []
 
 
 # 这些 stop_reason 已有「这一轮没做完」的说明，同一原因的工具轮数卡（layer=tool_call）不再重复。
@@ -581,7 +845,9 @@ def _row_items(
     loader: Any,
     row: Any,
     *,
-    latest_assistant: bool = False,
+    archived_call_ids: set[str] | None = None,
+    archived_file_ids: set[str] | None = None,
+    archive_matcher: Any | None = None,
     skill_rehydrator: _SkillRehydrator | None = None,
 ) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
@@ -589,8 +855,15 @@ def _row_items(
         return [{"role": "user", "content": content}] if content.strip() else []
     metadata = row_metadata(row)
     if metadata.get("engine") != LOOP_ENGINE_METADATA_VALUE:
-        return _legacy_row_items(loader, row, latest_assistant=latest_assistant)
-    items = _loop_row_items(row, metadata, skill_rehydrator=skill_rehydrator)
+        return _legacy_row_items(row)
+    items = _loop_row_items(
+        row,
+        metadata,
+        archived_call_ids=archived_call_ids,
+        archived_file_ids=archived_file_ids,
+        archive_matcher=archive_matcher,
+        skill_rehydrator=skill_rehydrator,
+    )
     stop_reason = metadata.get("stop_reason")
     status_cards = metadata.get("status_cards")
     if isinstance(status_cards, list):
@@ -666,7 +939,15 @@ def _fetch_message_page_desc(
     chat_session_id: str,
     cursor: tuple[Any, Any] | None,
 ) -> list[Any]:
-    stmt = select(model).where(
+    # 显式 6 列投影（排除未用的 reasoning_content 列，避免 PostgreSQL TOAST 解压开销）。
+    stmt = select(
+        model.id,
+        model.role,
+        model.content,
+        model.tool_calls,
+        model.message_metadata,
+        model.created_at,
+    ).where(
         and_(
             model.session_id == chat_session_id,
             model.role.in_(("user", "assistant")),
@@ -850,6 +1131,10 @@ def load_loop_history(
     before_rows: list[Any] = []  # 压缩点覆盖范围内的行（新 → 旧），只取作者原话
     compaction: dict[str, Any] | None = None
     stored_kept: list[str] | None = None
+    archived_call_ids: set[str] = set()
+    # 每条 tool_archive 记录按其 archived_through_message_id 限定作用范围，避免未来轮次同名 call_id 误伤。
+    # 元素为 (record_row_id_or_None_if_carried, archived_through_message_id, call_ids_tuple, occ_map)。
+    tool_archive_scopes: list[tuple[str | None, str, tuple[str, ...], dict[str, frozenset[int]]]] = []
     covered_reached = False
     kept_tokens_seen = 0
     measured_seen = False
@@ -858,9 +1143,25 @@ def load_loop_history(
     skip_seen = False
     truncation_streak_open = True
 
-    def note_compaction(metadata: dict[str, Any]) -> None:
+    def note_compaction(metadata: dict[str, Any], *, row_id: str | None = None) -> None:
         nonlocal compaction, stored_kept, skip_seen
         if compaction is not None:
+            return
+        tool_archive = valid_tool_archive_compaction(metadata)
+        if tool_archive is not None:
+            call_tuple = tuple(tool_archive["archived_call_ids"])
+            raw_occ = tool_archive.get("archived_call_occurrences")
+            occ_map: dict[str, frozenset[int]] = {}
+            if isinstance(raw_occ, dict):
+                for cid, indices in raw_occ.items():
+                    if isinstance(cid, str) and cid and isinstance(indices, list):
+                        valid_indices = frozenset(i for i in indices if isinstance(i, int) and not isinstance(i, bool) and i >= 0)
+                        if valid_indices:
+                            occ_map[cid] = valid_indices
+            archived_call_ids.update(call_tuple)
+            tool_archive_scopes.append((row_id, str(tool_archive["archived_through_message_id"]), call_tuple, occ_map))
+            # 成功的 Stage 1 归档压缩覆盖其之前的退避记录，但不会截断会话行，继续往前扫描。
+            skip_seen = True
             return
         if not skip_seen:
             skipped = metadata.get("compaction_skipped")
@@ -874,9 +1175,16 @@ def load_loop_history(
         compaction = valid_compaction(metadata)
         if compaction is not None:
             stored_kept = stored_kept_messages(compaction)
+            skip_seen = True
 
     if carried_metadata:
-        note_compaction(carried_metadata)
+        note_compaction(carried_metadata, row_id=None)
+        if (
+            valid_compaction(carried_metadata) is not None
+            or valid_tool_archive_compaction(carried_metadata) is not None
+        ):
+            # 重试接过未回复作者行上的压缩记录：其之前的实测 prompt_tokens 属于压缩前，不再往前取。
+            measured_seen = True
 
     for row in _iter_session_messages_desc(session, chat_session_id=chat_session_id):
         if result.last_message_id is None:
@@ -911,13 +1219,16 @@ def load_loop_history(
                 if isinstance(tokens, int) and tokens > 0:
                     measured_seen = True
                     result.last_prompt_tokens = tokens + unmeasured_tokens
-        if not measured_seen and valid_compaction(metadata) is not None:
-            # 压缩点之前的读数是压缩前的上下文大小，不再往前取。
+        if not measured_seen and (
+            valid_compaction(metadata) is not None
+            or valid_tool_archive_compaction(metadata) is not None
+        ):
+            # 压缩点（含 Stage 1 tool_archive）之前的读数是压缩前的上下文大小，不再往前取。
             measured_seen = True
         if not measured_seen:
             unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
         # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
-        note_compaction(metadata)
+        note_compaction(metadata, row_id=row.id)
 
     items: list[dict[str, Any]] = []
     if compaction is not None and covered_reached:
@@ -939,7 +1250,29 @@ def load_loop_history(
             "Loop history compaction anchor not found; replaying the full session",
             chat_session_id=chat_session_id,
         )
-    latest_assistant_id = next((row.id for row in after_rows if row.role == "assistant"), None)
+    result.archived_call_ids = archived_call_ids
+    chronological_rows = list(reversed(after_rows))
+    row_positions = {row.id: pos for pos, row in enumerate(chronological_rows)}
+    # (cutoff_pos, call_set, remaining_orig_counts, occ_map)
+    scoped_archives: list[tuple[int, frozenset[str], Counter[str], dict[str, frozenset[int]]]] = []
+    for record_row_id, anchor_id, call_tuple, occ_map in tool_archive_scopes:
+        anchor_pos = row_positions.get(anchor_id)
+        if anchor_pos is not None:
+            cutoff_pos = anchor_pos
+        elif record_row_id is not None and record_row_id in row_positions:
+            # 锚点行被删时仍严格限定在记录行之前，绝不向后误伤新轮次。
+            cutoff_pos = row_positions[record_row_id] - 1
+        elif record_row_id is None:
+            cutoff_pos = len(chronological_rows) - 1
+        else:
+            continue
+        if cutoff_pos >= 0:
+            scoped_archives.append((cutoff_pos, frozenset(call_tuple), Counter(call_tuple), occ_map))
+
+    # 跨行按时间序追踪每个 orig_call_id 的 0-based 出现序号，确保复用 call_id（如 call_0）在冷回放中
+    # 精准命中被归档的那次调用，绝不误归档保护窗口内同名的后续读调用或写工具。
+    orig_call_occurrence_counts: dict[str, int] = {}
+
     recent_skill_row_ids = _recent_skill_replay_row_ids(after_rows) if user_id else set()
     active_skills_by_id: dict[str, Any] | None = None
 
@@ -966,13 +1299,42 @@ def load_loop_history(
             call_arguments=call_arguments,
         )
 
-    for row in reversed(after_rows):
+    for pos, row in enumerate(chronological_rows):
+        active_scopes = [scope for scope in scoped_archives if pos <= scope[0]] if scoped_archives else []
+
+        def _match_archive(
+            call_id: str,
+            orig_call_id: str,
+            tool_name: str,
+            *,
+            _scopes: list[tuple[int, frozenset[str], Counter[str], dict[str, frozenset[int]]]] = active_scopes,
+        ) -> bool:
+            occ_idx: int | None = None
+            if orig_call_id:
+                occ_idx = orig_call_occurrence_counts.get(orig_call_id, 0)
+                orig_call_occurrence_counts[orig_call_id] = occ_idx + 1
+            if not _scopes or tool_name not in ARCHIVABLE_READ_TOOLS:
+                return False
+            matched = False
+            for _cutoff, call_set, remaining_counts, occ_map in _scopes:
+                if call_id in call_set:
+                    matched = True
+                elif orig_call_id:
+                    if orig_call_id in occ_map:
+                        if occ_idx is not None and occ_idx in occ_map[orig_call_id]:
+                            matched = True
+                    elif orig_call_id in call_set and remaining_counts[orig_call_id] > 0:
+                        remaining_counts[orig_call_id] -= 1
+                        matched = True
+            return matched
+
         rehydrator = rehydrate_skill_call if row.id in recent_skill_row_ids else None
         items.extend(
             _row_items(
                 loader,
                 row,
-                latest_assistant=row.id == latest_assistant_id,
+                archived_file_ids=result.archived_file_ids,
+                archive_matcher=_match_archive if scoped_archives else None,
                 skill_rehydrator=rehydrator,
             )
         )

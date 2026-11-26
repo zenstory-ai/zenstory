@@ -544,35 +544,6 @@ def stage_pre_ai_write_backup(session: Session, file_id: str, current_content: s
         return False
 
 
-def attach_author_edits_for_agent(
-    session: Session,
-    file: Any,
-    row: dict[str, Any],
-    *,
-    request_context: Any | None = None,
-) -> None:
-    """应用内 agent 按 id 读全文时，在返回行里附上作者在 AI 之后的手改（agent/tools/author_changes.py）。
-
-    只在请求上下文里有快照容器（应用内对话）时算，外部 Agent API 与列表查询不受影响；
-    核对失败时回滚 savepoint 并如实附上未算出的 author_edits 说明。
-    """
-    tracks_reads = getattr(request_context, "tracks_reads", None)
-    if not callable(tracks_reads) or not tracks_reads() or not str(getattr(file, "id", "") or ""):
-        return
-    from agent.tools.author_changes import AuthorChanges, author_changes, author_edits_payload
-
-    try:
-        with session.begin_nested() as nested:
-            changes = author_changes(session, file)
-            if changes is not None and changes.failed:
-                nested.rollback()
-    except Exception as exc:
-        logger.debug("Failed to attach author edits", extra={"file_id": getattr(file, "id", ""), "error": str(exc)})
-        changes = AuthorChanges(hunks=[], complete=False, failed=True)
-    if changes is not None:
-        row["author_edits"] = author_edits_payload(changes)
-
-
 @contextmanager
 def written_snapshot_for_commit(
     file_id: str,
@@ -930,7 +901,7 @@ class FileEditor:
         read_snapshot_fn: Callable[[], str | None] | None = None,
         exact_only: bool = False,
         seen_spans: Sequence[tuple[int, int]] | None = None,
-        report_author_edits: bool = False,
+        report_author_edits: bool = False,  # noqa: ARG002 - kept for caller compatibility
         body_guards: bool = False,
     ) -> dict[str, Any]:
         # Get file. On PostgreSQL take a row lock so concurrent edit_file tasks
@@ -941,15 +912,6 @@ class FileEditor:
         # UPDATE) so the version snapshot's FK insert from its independent
         # session (KEY SHARE on this row) is not blocked by the held lock.
         from database import is_postgres
-
-        # 作者在 AI 之后亲手写的段落（改到了要如实告诉模型和作者）；只在本应用的 agent 写入时算。
-        # 回放版本链较慢，放在加锁之前，不拖长同一文件上其它写入的等待；锁内正文变了再重算。
-        author_blame = None
-        blamed_content: str | None = None
-        if report_author_edits:
-            blamed_content = self.session.exec(select(File.content).where(File.id == id)).first()
-            if blamed_content is not None:
-                author_blame = self._author_blame(id, blamed_content)
 
         if is_postgres:
             file = self.session.exec(
@@ -993,8 +955,6 @@ class FileEditor:
         read_snapshot = read_snapshot_fn() if read_snapshot_fn is not None else None
         if read_snapshot is not None and read_snapshot != old_content:
             raise StaleContentError(read_snapshot, old_content)
-        if report_author_edits and blamed_content != old_content:
-            author_blame = self._author_blame(file.id, old_content)
         content = old_content
         active_spans: list[tuple[int, int]] | None = (
             [(int(s), int(e)) for s, e in seen_spans if e > s]
@@ -1267,12 +1227,6 @@ class FileEditor:
         }
         if undo is not None:
             result["undo"] = undo
-        if content != old_content and author_blame is not None:
-            from agent.tools.author_changes import touched_author_text
-
-            touched = touched_author_text(author_blame, old_content, content)
-            if touched:
-                result["author_edits_touched"] = touched
         return result
 
     def _commit_ai_content(
@@ -1514,20 +1468,6 @@ class FileEditor:
         if undo is not None:
             result["undo"] = undo
         return result
-
-    def _author_blame(self, file_id: str, content: str) -> Any:
-        """content 每一段是谁写的；出错时返回 None（只是少了「改到了作者的字」的提示）。
-
-        在 savepoint 里读：可选信息的查询出错不能让写事务失效。
-        """
-        try:
-            from agent.tools.author_changes import line_blame
-
-            with self.session.begin_nested():
-                return line_blame(self.session, file_id, content)
-        except Exception:
-            logger.warning("Author blame failed; edit continues without it", exc_info=True, extra={"file_id": file_id})
-            return None
 
     @staticmethod
     def _normalize_placed_spans(content: str, spans: list[tuple[int, int]], quote_style: str | None) -> str:

@@ -16,11 +16,6 @@ import pytest
 from sqlmodel import Session
 
 from agent.core.message_manager import MessageManager
-from agent.core.session_loader import SessionLoader
-from agent.openai_agents.runner import (
-    extract_text_from_message_content,
-    normalize_messages_for_openai_agents,
-)
 from models import ChatMessage, ChatSession, File, Project, User
 
 # ---------------------------------------------------------------------------
@@ -67,128 +62,14 @@ CLARIFICATION_CARD = {
     "details": ["叙事视角", "时态"],
 }
 
-ITERATION_CARD = {
-    "type": "iteration_exhausted",
-    "layer": "workflow",
-    "iterationsUsed": 8,
-    "maxIterations": 8,
-    "reason": "max_iterations_reached",
-    "lastAgent": "writer",
-}
-
-
-def _assistant_message(
-    *,
-    content: str,
-    reasoning_content: str | None,
-    status_cards: list[dict] | None,
-) -> ChatMessage:
-    """构造一条未落库的 assistant ChatMessage（仅用于格式化逻辑单测）。"""
-    metadata = json.dumps({"status_cards": status_cards}) if status_cards else None
-    return ChatMessage(
-        session_id="round3-fake-session",
-        role="assistant",
-        content=content,
-        reasoning_content=reasoning_content,
-        message_metadata=metadata,
-    )
-
-
-def _loader() -> SessionLoader:
-    return SessionLoader(project_id="round3-project", user_id="round3-user")
-
-
-@pytest.mark.unit
-def test_status_cards_survive_reasoning_content():
-    """有 reasoning_content 时，状态卡摘要仍必须进入会被回放的正文，且不混入思考内容。"""
-    msg = _assistant_message(
-        content="",
-        reasoning_content="模型的一大段思考",
-        status_cards=[CLARIFICATION_CARD],
-    )
-
-    msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
-
-    content = msg_data["content"]
-    assert isinstance(content, str)
-    assert "模型的一大段思考" not in content
-
-    replayed = extract_text_from_message_content(content)
-    assert "clarification_needed" in replayed
-    assert "主角视角用第一人称还是第三人称？" in replayed
-
-
-@pytest.mark.unit
-def test_status_only_turn_with_reasoning_is_not_dropped_from_replay():
-    """整条 assistant 消息不得在 normalize 阶段被剔除（缺陷的最终危害）。"""
-    msg = _assistant_message(
-        content="",
-        reasoning_content="思考",
-        status_cards=[CLARIFICATION_CARD],
-    )
-    msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
-
-    normalized = normalize_messages_for_openai_agents(
-        [{"role": "user", "content": "继续"}, msg_data]
-    )
-
-    assert [m["role"] for m in normalized] == ["user", "assistant"]
-    assert "clarification_needed" in normalized[-1]["content"]
-
-
-@pytest.mark.unit
-def test_iteration_exhausted_card_survives_reasoning_content():
-    """iteration_exhausted 状态卡同样不能被 reasoning 分支吃掉。"""
-    msg = _assistant_message(
-        content="",
-        reasoning_content="思考",
-        status_cards=[ITERATION_CARD],
-    )
-    msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
-
-    replayed = extract_text_from_message_content(msg_data["content"])
-    assert "iteration_exhausted" in replayed
-    assert "max_iterations_reached" in replayed
-
-
-@pytest.mark.unit
-def test_status_cards_without_reasoning_still_plain_string():
-    """对照组：没有 reasoning 时保持字符串形态（原有行为不回退）。"""
-    msg = _assistant_message(
-        content="",
-        reasoning_content=None,
-        status_cards=[CLARIFICATION_CARD],
-    )
-    msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
-
-    assert isinstance(msg_data["content"], str)
-    assert "clarification_needed" in msg_data["content"]
-
-
-@pytest.mark.unit
-def test_only_clarification_cards_are_appended_when_turn_has_real_text():
-    """有正文的轮次不追加其他状态卡摘要，但补问卡的问题和选项仍要进回放（只追加一次）。"""
-    msg = _assistant_message(
-        content="已经写完第一章。",
-        reasoning_content="思考",
-        status_cards=[ITERATION_CARD, CLARIFICATION_CARD],
-    )
-    msg_data = _loader()._format_chat_message_for_history(msg)  # noqa: SLF001
-
-    replayed = extract_text_from_message_content(msg_data["content"])
-    assert replayed.startswith("已经写完第一章。")
-    assert "iteration_exhausted" not in replayed
-    assert replayed.count("主角视角用第一人称还是第三人称？") == 1
-    assert "叙事视角; 时态" in replayed
-
 
 @pytest.mark.unit
 def test_load_loop_history_replays_status_only_turn_with_reasoning(
     db_session: Session,
     round3_user: User,
 ):
-    """端到端：落库 → load_loop_history，澄清问题必须仍在历史里。"""
-    from agent.loop.history import load_loop_history
+    """端到端：落库 → load_loop_history，单循环状态卡轮次即使有 reasoning_content 也必须仍在历史里。"""
+    from agent.loop.history import LOOP_ENGINE_METADATA_VALUE, load_loop_history
 
     project = _make_project(db_session, round3_user.id, "novel")
     chat_session = ChatSession(
@@ -210,9 +91,10 @@ def test_load_loop_history_replays_status_only_turn_with_reasoning(
             session_id=chat_session.id,
             role="assistant",
             content="",
-            # 生产配置下模型是 reasoning 模型，正常轮次 reasoning_content 都非空
             reasoning_content="用户没说视角，需要先问清楚。",
-            message_metadata=json.dumps({"status_cards": [CLARIFICATION_CARD]}),
+            message_metadata=json.dumps(
+                {"engine": LOOP_ENGINE_METADATA_VALUE, "status_cards": [CLARIFICATION_CARD]}
+            ),
         )
     )
     db_session.commit()
@@ -222,6 +104,7 @@ def test_load_loop_history_replays_status_only_turn_with_reasoning(
     )
     assert [m["role"] for m in loaded.items] == ["user", "assistant"]
     assert "主角视角用第一人称还是第三人称？" in loaded.items[-1]["content"]
+    assert "用户没说视角" not in str(loaded.items)
 
 
 # ---------------------------------------------------------------------------
@@ -417,11 +300,14 @@ def test_folder_ids_still_recover_unrecognizable_legacy_folder(
     assert folder_ids["draft"] == f"{project.id}-draft-folder"
 
 
-def test_folder_ids_prefer_actively_used_folder_when_both_are_canonical(
+def test_folder_ids_use_stable_created_at_id_tie_break_when_both_are_canonical(
     db_session: Session,
     round3_user: User,
 ):
-    """两个目录都规范（确定性 id vs 同名旧目录）时，仍由子文件计数裁决。"""
+    """两个目录都规范（确定性 id vs 同名旧目录）时，按不可变的 (created_at, id) 决胜，
+    不受中途写入/移动子文件影响，避免翻转 folder_ids 击穿 system_prompt_sha256。"""
+    from datetime import datetime, timedelta
+
     project = _make_project(db_session, round3_user.id, "novel")
     _add_novel_root_folders(db_session, project.id)
 
@@ -434,23 +320,28 @@ def test_folder_ids_prefer_actively_used_folder_when_both_are_canonical(
             file_type="folder",
             parent_id=None,
             order=9,
-        )
-    )
-    db_session.commit()
-
-    db_session.add(
-        File(
-            id="legacy-character-child",
-            project_id=project.id,
-            title="李妍",
-            file_type="character",
-            parent_id=legacy_id,
-            order=0,
+            created_at=datetime(2020, 1, 1, 0, 0, 0),
         )
     )
     db_session.commit()
 
     manager = MessageManager(project_id=project.id, user_id=round3_user.id)
+    assert manager._get_folder_ids(session=db_session, project_type="novel")["character"] == legacy_id  # noqa: SLF001
+
+    # Adding children to the later-created deterministic folder must not flip the winner.
+    db_session.add(
+        File(
+            id="det-character-child",
+            project_id=project.id,
+            title="李妍",
+            file_type="character",
+            parent_id=f"{project.id}-character-folder",
+            order=0,
+            created_at=datetime(2026, 1, 1, 0, 0, 0) + timedelta(minutes=1),
+        )
+    )
+    db_session.commit()
+
     folder_ids = manager._get_folder_ids(  # noqa: SLF001
         session=db_session,
         project_type="novel",

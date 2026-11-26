@@ -13,7 +13,7 @@ import pytest
 from sqlmodel import Session, select
 
 from agent.context.assembler import ContextAssembler
-from agent.core.request_context import AgentRequestContext
+from agent.tools.tool_context import AgentRequestContext
 from models import ChatMessage, ChatSession, File, Project, User
 from services.core.auth_service import hash_password
 

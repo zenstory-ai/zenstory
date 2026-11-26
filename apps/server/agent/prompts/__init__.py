@@ -11,7 +11,11 @@ from core.error_codes import ErrorCode
 from core.error_handler import APIException
 from database import sync_engine
 
-from .base import get_base_prompt
+from .base import (
+    get_base_prompt,
+    get_base_prompt_project_suffix,
+    get_base_prompt_static_prefix,
+)
 from .suggestions import get_suggestion_prompt
 
 # In-memory cache for database configurations
@@ -115,6 +119,42 @@ def _load_configs_from_engine(engine) -> tuple[dict[str, dict[str, Any]], int]:
     return configs, max_version
 
 
+def get_prompt_parts_for_project_type(
+    project_type: str,
+    project_id: str,
+    folder_ids: dict[str, str],
+) -> tuple[str, str]:
+    """
+    Return ``(static_prefix, project_suffix)`` for a project type.
+
+    ``static_prefix`` contains only cross-project static rules (base protocols,
+    DB type config, and in-code genre norms) so callers can append global loop
+    rules and skill catalogs before the project-specific UUID suffix.
+
+    Missing or inactive configurations fail explicitly; no cross-type fallback.
+    """
+    db_configs = _load_db_configs()
+    config = db_configs.get(project_type)
+
+    if config is None:
+        raise APIException(
+            error_code=ErrorCode.SERVICE_UNAVAILABLE,
+            status_code=503,
+            detail={
+                "message": "Writing configuration is unavailable. An administrator must configure and reload this project type.",
+                "project_type": project_type,
+            },
+        )
+
+    static_prefix = get_base_prompt_static_prefix(config)
+    genre_norms = get_genre_norms(project_type)
+    if genre_norms:
+        static_prefix = f"{static_prefix}\n\n{genre_norms}"
+
+    project_suffix = get_base_prompt_project_suffix(project_id, folder_ids, config)
+    return static_prefix, project_suffix
+
+
 def get_prompt_for_project_type(
     project_type: str,
     project_id: str,
@@ -133,26 +173,10 @@ def get_prompt_for_project_type(
     Returns:
         Complete system prompt string
     """
-    db_configs = _load_db_configs()
-    config = db_configs.get(project_type)
-
-    if config is None:
-        raise APIException(
-            error_code=ErrorCode.SERVICE_UNAVAILABLE,
-            status_code=503,
-            detail={
-                "message": "Writing configuration is unavailable. An administrator must configure and reload this project type.",
-                "project_type": project_type,
-            },
-        )
-
-    # Get base prompt with common sections
-    base_prompt = get_base_prompt(project_id, folder_ids, config)
-
-    genre_norms = get_genre_norms(project_type)
-    if genre_norms:
-        return f"{base_prompt}\n\n{genre_norms}"
-    return base_prompt
+    static_prefix, project_suffix = get_prompt_parts_for_project_type(
+        project_type, project_id, folder_ids
+    )
+    return f"{static_prefix}\n\n{project_suffix}"
 
 
 def reload_prompts() -> dict[str, int | str]:
@@ -174,8 +198,10 @@ def reload_prompts() -> dict[str, int | str]:
 
 __all__ = [
     "GENRE_NORMS",
+    "get_base_prompt",
     "get_genre_norms",
     "get_prompt_for_project_type",
+    "get_prompt_parts_for_project_type",
     "get_suggestion_prompt",
     "reload_prompts",
 ]

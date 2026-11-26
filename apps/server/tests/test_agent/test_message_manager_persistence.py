@@ -85,8 +85,14 @@ def test_save_returns_committed_id_without_reloading_message(
         expected_metadata = {"stop_reason": "end_turn", "usage": {"total_tokens": 3}}
         if full:
             expected_metadata.update(status_cards=status_cards, display_events=display_events)
-        # These JSON strings are exposed unchanged by the history API.
-        assert assistant.message_metadata == json.dumps(expected_metadata)
+        # These JSON strings are exposed unchanged by the history API, stored as compact UTF-8.
+        assert assistant.message_metadata == json.dumps(
+            expected_metadata, ensure_ascii=False, separators=(",", ":")
+        )
+        if full:
+            assert "\\u" not in (assistant.message_metadata or "")
+            assert "\\u" not in (assistant.tool_calls or "")
+            assert "正文" in (assistant.message_metadata or "")
     else:
         assert assistant_id is None
     assert db_session.get(ChatSession, chat_id).message_count == len(messages)

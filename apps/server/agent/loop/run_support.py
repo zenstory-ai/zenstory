@@ -98,6 +98,11 @@ _BODY_WORD_COUNT_NOTE = (
     "以上是编辑器统计的实际字数；交接说明和对话里写的字数是写作时的估计，"
     "回复作者时只报这里的真实字数，不要为了凑近近似字数调用 edit_file 反复增删。"
 )
+BODY_WORD_COUNT_HEADER_EN = "[Saved body word counts]"
+_BODY_WORD_COUNT_NOTE_EN = (
+    "These are the real editor word counts; counts estimated while writing are only rough. "
+    "Report only these real counts to the author, and never call edit_file to pad or trim toward an approximate word count."
+)
 
 
 def collect_body_word_counts(
@@ -148,9 +153,14 @@ def read_body_tail(
         return file.title or "", content[-chars:]
 
 
-def format_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
+def format_body_word_counts(counts: list[tuple[str, int]] | None, *, english: bool = False) -> str:
     if not counts:
         return ""
+    if english:
+        lines = "\n".join(
+            f'- "{title}": {words} words' if title else f"- {words} words" for title, words in counts
+        )
+        return f"\n\n{BODY_WORD_COUNT_HEADER_EN}\n{lines}\n{_BODY_WORD_COUNT_NOTE_EN}"
     lines = "\n".join(f"- 《{title}》{words} 字" if title else f"- {words} 字" for title, words in counts)
     return f"\n\n{BODY_WORD_COUNT_HEADER}\n{lines}\n{_BODY_WORD_COUNT_NOTE}"
 
@@ -160,12 +170,22 @@ _CUT_BODY_WORD_COUNT_NOTE = (
     "这是截断处落库正文的字数，续写之后会变；回复作者时这一章的字数报最后一次 edit_file 结果里的 new_word_count，"
     "不要报这里的数。"
 )
+CUT_BODY_WORD_COUNT_HEADER_EN = "[Saved word counts at cut]"
+_CUT_BODY_WORD_COUNT_NOTE_EN = (
+    "These are the word counts saved at the cut and will change after continuing; "
+    "report new_word_count from the last edit_file result instead of the numbers here."
+)
 
 
-def format_cut_body_word_counts(counts: list[tuple[str, int]] | None) -> str:
+def format_cut_body_word_counts(counts: list[tuple[str, int]] | None, *, english: bool = False) -> str:
     """被输出上限截断、待续写的正文在截断处的字数：标明是截断时的数，最终字数以续写的 edit_file 结果为准。"""
     if not counts:
         return ""
+    if english:
+        lines = "\n".join(
+            f'- "{title}": {words} words' if title else f"- {words} words" for title, words in counts
+        )
+        return f"\n\n{CUT_BODY_WORD_COUNT_HEADER_EN}\n{lines}\n{_CUT_BODY_WORD_COUNT_NOTE_EN}"
     lines = "\n".join(f"- 《{title}》{words} 字" if title else f"- {words} 字" for title, words in counts)
     return f"\n\n{CUT_BODY_WORD_COUNT_HEADER}\n{lines}\n{_CUT_BODY_WORD_COUNT_NOTE}"
 

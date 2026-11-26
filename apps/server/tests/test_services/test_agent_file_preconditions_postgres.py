@@ -811,29 +811,6 @@ def _ai_then_author(session: Session, suffix: str) -> tuple[str, str]:
     return user_id, file_id
 
 
-def test_author_blame_failure_does_not_poison_the_locked_postgres_edit(pg_engine, monkeypatch):
-    """作者手改归属是可选信息：它的查询在加锁的写事务里出错，只回滚自己的 savepoint，修改照常提交。"""
-    from sqlalchemy import text
-
-    import agent.tools.author_changes as author_changes_module
-
-    with Session(pg_engine) as setup:
-        user_id, file_id = _ai_then_author(setup, "blame-read-error")
-
-    def failing_blame(session, *_args, **_kwargs):
-        session.exec(text("select 1 / 0"))
-
-    monkeypatch.setattr(author_changes_module, "line_blame", failing_blame)
-    monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    with Session(pg_engine) as session:
-        result = FileEditor(session, user_id).edit_file(
-            file_id, [{"op": "append", "text": "\n苏晚关了灯。"}], report_author_edits=True
-        )
-    assert "author_edits_touched" not in result
-    with Session(pg_engine) as verify:
-        assert verify.get(File, file_id).content.endswith("苏晚关了灯。")
-
-
 def test_stale_read_is_refused_on_postgres_without_a_version(pg_engine, monkeypatch):
     """模型读到的是作者改之前的正文：锁内重读后不一致，不写、不建版本。"""
     from agent.tools.file_ops.edit import StaleContentError
@@ -853,27 +830,13 @@ def test_stale_read_is_refused_on_postgres_without_a_version(pg_engine, monkeypa
         assert len(verify.exec(select(FileVersion).where(FileVersion.file_id == file_id)).all()) == versions_before
 
 
-def test_edit_reports_touching_the_authors_line_on_postgres(pg_engine, monkeypatch):
-    with Session(pg_engine) as setup:
-        user_id, file_id = _ai_then_author(setup, "touched")
-    monkeypatch.setattr(files_api.activation_event_service, "record_ai_write_accepted", lambda *_a, **_kw: None)
-    with Session(pg_engine) as session:
-        result = FileEditor(session, user_id).edit_file(
-            file_id,
-            [{"op": "replace", "old": "顾寒川：苏晚，你也配问这个？", "new": "顾寒川：滚。"}],
-            read_snapshot_fn=lambda: "雨下了一整夜。\n顾寒川：苏晚，你也配问这个？\n苏晚：好。",
-            report_author_edits=True,
-        )
-    assert result["author_edits_touched"] == [{"before": "顾寒川：苏晚，你也配问这个？", "after": "顾寒川：滚。"}]
-
-
 def test_parallel_writes_to_one_file_do_not_see_each_other_as_stale(pg_engine, monkeypatch):
     """同一请求里两个并行写入改同一文件：第一个提交即放锁，第二个立刻在锁内比对快照。
 
     快照必须在提交前就更新成第一个写下的正文；提交后才记，第二个会把同请求的写入误判为
     「作者改了」。顺序靠包住第一个会话的 commit 控制：它一提交完，第二个写入就整段执行。
     """
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
 
     with Session(pg_engine) as setup:
         user_id, file_id = _ai_then_author(setup, "parallel-own-writes")

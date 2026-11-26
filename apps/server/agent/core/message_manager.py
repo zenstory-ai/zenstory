@@ -9,17 +9,17 @@ Handles:
 
 import asyncio
 import json as json_module
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel import Session, select
 
-from config.datetime_utils import utcnow
+from config.datetime_utils import normalize_datetime_to_utc, utcnow
 from database import create_session
 from utils.logger import get_logger, log_with_context
 
 from ..constants import should_offload_session_work
-from ..prompts import get_prompt_for_project_type
+from ..prompts import get_prompt_parts_for_project_type
 from .chat_storage import (
     archive_pre_compaction_tool_calls_safe,
     display_events_have_thinking_content,
@@ -32,6 +32,27 @@ TURN_CONTEXT_OPEN = "<turn_context>"
 TURN_CONTEXT_CLOSE = "</turn_context>"
 # 本次运行的系统指令（作为 agent 运行输入的最后一条消息，例如截断后的交付说明）的开头。
 AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
+
+
+# 落库时单个 thinking_content / reasoning_content 块的字符上限（直播 SSE 思考流不受影响），
+# 防止 200k–400k 字的深度思考块永久膨胀 PostgreSQL TOAST。
+PERSISTED_THINKING_MAX_CHARS = 8_000
+PERSISTED_THINKING_TRUNCATION_MARKER = "\n…（思考过程过长，已截断保存）"
+
+
+def truncate_persisted_thinking(
+    content: str,
+    *,
+    max_chars: int = PERSISTED_THINKING_MAX_CHARS,
+) -> str:
+    """Bound persisted thinking text to ``max_chars`` with a short truncation marker."""
+    if not content or len(content) <= max_chars:
+        return content
+    marker = PERSISTED_THINKING_TRUNCATION_MARKER
+    if max_chars <= len(marker):
+        return content[:max_chars]
+    head = content[: max_chars - len(marker)].rstrip()
+    return f"{head}{marker}"
 
 
 def normalize_assistant_content(content: str | None) -> str:
@@ -47,7 +68,8 @@ def normalize_assistant_content(content: str | None) -> str:
 def normalize_assistant_display_events(
     display_events: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
-    """清理待落库的有序展示事件：移除孤立的纯空白文本段，首个非空 content 段剥离首部换行，内部文本段逐字保留。"""
+    """清理待落库的有序展示事件：移除孤立的纯空白文本段，首个非空 content 段剥离首部换行，
+    单块 thinking_content 限制在 PERSISTED_THINKING_MAX_CHARS 内，内部正文段逐字保留。"""
     if not display_events or not isinstance(display_events, list):
         return None
     normalized: list[dict[str, Any]] = []
@@ -63,12 +85,39 @@ def normalize_assistant_display_events(
             if event_type == "content" and not seen_content:
                 cleaned = raw.lstrip("\r\n")
                 seen_content = True
+            elif event_type == "thinking_content":
+                cleaned = truncate_persisted_thinking(raw)
             else:
                 cleaned = raw
             normalized.append(event if cleaned == event["content"] else {**event, "content": cleaned})
             continue
         normalized.append(event)
     return normalized or None
+
+
+def dedupe_single_content_display_events(
+    display_events: list[dict[str, Any]] | None,
+    assistant_message: str,
+    *,
+    tool_calls: list | None = None,
+    status_cards: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]] | None:
+    """当展示时间线仅含单个 content 段且与 chat_message.content 逐字相同时省略落库，避免双写正文。
+
+    前端 parseChatDisplayEvents 在无 display_events 时返回 undefined，MessageList 直接渲染
+    message.content；后端 loop/history._loop_row_items 同样回退到 row.content，零行为差异。
+    """
+    if (
+        display_events
+        and len(display_events) == 1
+        and not tool_calls
+        and not status_cards
+        and isinstance(display_events[0], dict)
+        and display_events[0].get("type") == "content"
+        and display_events[0].get("content") == assistant_message
+    ):
+        return None
+    return display_events
 
 
 def has_substantive_display_events(display_events: list[dict[str, Any]] | None) -> bool:
@@ -324,17 +373,27 @@ class MessageManager:
                 or (reasoning_content or "").strip()
             ):
                 tool_calls_json = self._serialize_tool_calls(tool_calls)
+                persisted_display_events = dedupe_single_content_display_events(
+                    assistant_display_events,
+                    assistant_message,
+                    tool_calls=tool_calls,
+                    status_cards=assistant_status_cards,
+                )
                 assistant_metadata_json = self._serialize_message_metadata(
                     stop_reason=assistant_stop_reason,
                     usage=assistant_usage,
                     status_cards=assistant_status_cards,
-                    display_events=assistant_display_events,
+                    display_events=persisted_display_events,
                     extra_metadata=assistant_extra_metadata,
                 )
                 persisted_reasoning_content = (
                     None
                     if display_events_have_thinking_content(assistant_display_events)
-                    else reasoning_content
+                    else (
+                        truncate_persisted_thinking(reasoning_content)
+                        if isinstance(reasoning_content, str)
+                        else reasoning_content
+                    )
                 )
                 assistant_chat_message = ChatMessage(
                     session_id=chat_session.id,
@@ -422,7 +481,7 @@ class MessageManager:
             for tc in tool_calls
             if isinstance(tc, dict) and "name" in tc
         ]
-        return json_module.dumps(serialized_calls)
+        return json_module.dumps(serialized_calls, ensure_ascii=False, separators=(",", ":"))
 
     def _serialize_message_metadata(
         self,
@@ -450,7 +509,7 @@ class MessageManager:
         if not payload:
             return None
 
-        return json_module.dumps(payload)
+        return json_module.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     def build_system_prompt(
         self,
@@ -518,10 +577,13 @@ class MessageManager:
             project_type=project_type,
         )
 
-        # Get prompt from template
-        prompt = get_prompt_for_project_type(project_type, self.project_id, folder_ids)
+        # Strictly separate Global Static Prefix -> Project Static Suffix so
+        # project/folder UUIDs sit at the very end and never fragment cross-project KV cache.
+        static_prefix, project_suffix = get_prompt_parts_for_project_type(
+            project_type, self.project_id, folder_ids
+        )
 
-        parts = [prompt]
+        parts = [static_prefix]
 
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
@@ -533,6 +595,9 @@ class MessageManager:
         # Add skill catalog (L1: name + description only; instructions via load_skill)
         if skill_catalog:
             parts.extend(self._build_skill_catalog_section(skill_catalog))
+
+        if project_suffix:
+            parts.extend(["", project_suffix])
 
         return "\n".join(parts)
 
@@ -678,12 +743,18 @@ class MessageManager:
         Returns:
             Dict mapping folder types to their IDs
         """
-        from sqlalchemy import func, or_
+        from sqlalchemy import or_
 
         from models import File
 
         def _norm(text: str | None) -> str:
             return "".join((text or "").split()).strip().lower()
+
+        def _stable_sort_key(folder: File) -> tuple[int, datetime, str]:
+            created_at = getattr(folder, "created_at", None)
+            if isinstance(created_at, datetime):
+                return (0, normalize_datetime_to_utc(created_at), str(folder.id))
+            return (1, datetime.max.replace(tzinfo=UTC), str(folder.id))
 
         # Folder specs: (placeholder_key, deterministic_suffix, title_aliases)
         # - Deterministic ids come from current project template: {project_id}-{suffix}
@@ -728,27 +799,31 @@ class MessageManager:
         ).all()
 
         root_ids = [f.id for f in root_folders if f.id]
-        child_counts: dict[str, int] = {}
-        child_type_counts: dict[str, dict[str, int]] = {}
-        if root_ids:
-            typed_rows = session.exec(
-                select(File.parent_id, File.file_type, func.count(File.id))
-                .where(
-                    File.project_id == self.project_id,
-                    File.is_deleted.is_(False),
-                    File.parent_id.in_(root_ids),
-                )
-                .group_by(File.parent_id, File.file_type)
-            ).all()
-            for parent_id, file_type, count in typed_rows:
-                if not parent_id:
-                    continue
-                parent_key = str(parent_id)
-                child_counts[parent_key] = child_counts.get(parent_key, 0) + int(count or 0)
-                if not file_type:
-                    continue
-                bucket = child_type_counts.setdefault(parent_key, {})
-                bucket[str(file_type)] = int(count or 0)
+        # Lazily populated only when a folder key has NO canonical root match (legacy
+        # unrecognized-title fallback). Avoids a GROUP BY query on normal projects and
+        # avoids mutable child counts ever influencing canonical tie-breaking.
+        folders_by_child_type: dict[str, set[str]] | None = None
+
+        def _folders_with_child_type(expected_child_type: str) -> set[str]:
+            nonlocal folders_by_child_type
+            if not expected_child_type or not root_ids:
+                return set()
+            if folders_by_child_type is None:
+                folders_by_child_type = {}
+                typed_rows = session.exec(
+                    select(File.parent_id, File.file_type)
+                    .where(
+                        File.project_id == self.project_id,
+                        File.is_deleted.is_(False),
+                        File.parent_id.in_(root_ids),
+                    )
+                    .distinct()
+                ).all()
+                for parent_id, file_type in typed_rows:
+                    if not parent_id or not file_type:
+                        continue
+                    folders_by_child_type.setdefault(str(file_type), set()).add(str(parent_id))
+            return folders_by_child_type.get(expected_child_type, set())
 
         def _pick_folder_id(key: str, suffix: str, aliases: list[str]) -> str:
             deterministic_id = f"{self.project_id}-{suffix}"
@@ -770,48 +845,28 @@ class MessageManager:
                     return False
                 return any(alias and alias in title_norm for alias in alias_norms)
 
-            # 统一打分：**先看这个根目录是不是本类型的规范目录**（id 命中模板
-            # 确定性 id，或标题命中别名），子文件类型计数只用来做平局裁决。
-            #
-            # 历史缺陷：类型计数原本是一票否决式的第一优先级，且
-            # `typed_count <= 0` 的目录直接被 continue 掉——只要任意别的根目录里
-            # 躺着 1 个该类型的散落文件，空的规范目录（计数 0）就必败，
-            # 系统提示里的 {character_folder_id} 等占位符被永久劫持，
-            # AI 一直把新文件建到那个错误目录里；错误目录的计数只增不减，
-            # 形成自我强化闭环（用户手动把文件拖回去也没用，只要错误目录里
-            # 还剩一个同类型文件，下一轮又会建回去）。
-            # 现在规范目录即便是空的，也稳压只含杂散文件的非规范目录。
-            best: File | None = None
-            best_score: tuple[int, int, int, int, str] | None = None
-            for folder in root_folders:
-                folder_id = str(folder.id)
-                is_deterministic = folder_id == deterministic_id
-                # 确定性 id 与标题别名同级：两者都命中时由下面的子文件计数裁决，
-                # 从而保留「模板目录空着、旧项目的同名目录才是真正在用的那个」的行为。
-                canonical_match = 1 if (is_deterministic or _title_matches(folder)) else 0
-                typed_count = (
-                    child_type_counts.get(folder_id, {}).get(expected_child_type, 0)
-                    if expected_child_type
-                    else 0
-                )
-                total_children = child_counts.get(folder_id, 0)
-                score = (
-                    canonical_match,
-                    typed_count,
-                    total_children,
-                    1 if is_deterministic else 0,
-                    folder_id,
-                )
-                if best_score is None or score > best_score:
-                    best_score = score
-                    best = folder
-
-            # 既不是规范目录、也不含任何该类型的子文件 => 没有可信信号，
-            # 回退到模板的确定性 id（该目录可能尚未创建）。
-            # 注意这里保留了「标题完全不可识别、但确实堆着该类型文件」的旧项目
-            # 兜底路径：canonical_match=0 但 typed_count>0 时仍然认它。
-            if best is None or (best_score[0] == 0 and best_score[1] == 0):
-                return deterministic_id
+            # 稳定排序：规范目录（确定性 id 或标题命中别名）一律按不可变的
+            # (created_at ASC, id ASC) 决胜，不依赖会随写入/移动波动的子文件计数，
+            # 防止会话中途新建或移动文件翻转 folder_ids、击穿 system_prompt_sha256。
+            canonical_candidates = [
+                folder
+                for folder in root_folders
+                if str(folder.id) == deterministic_id or _title_matches(folder)
+            ]
+            if canonical_candidates:
+                best = min(canonical_candidates, key=_stable_sort_key)
+                resolved_by_title_only = str(best.id) != deterministic_id
+            else:
+                # 兜底路径：没有任何规范目录时，仍识别「装着该类型文件」的旧目录，
+                # 同样按不可变的 (created_at ASC, id ASC) 稳定排序。
+                matching_parents = _folders_with_child_type(expected_child_type)
+                typed_candidates = [
+                    folder for folder in root_folders if str(folder.id) in matching_parents
+                ]
+                if not typed_candidates:
+                    return deterministic_id
+                best = min(typed_candidates, key=_stable_sort_key)
+                resolved_by_title_only = False
 
             resolved_id = str(best.id)
             if resolved_id != deterministic_id:
@@ -826,9 +881,7 @@ class MessageManager:
                     resolved_folder_id=resolved_id,
                     deterministic_folder_id=deterministic_id,
                     resolved_title=getattr(best, "title", ""),
-                    resolved_child_count=child_counts.get(resolved_id, 0),
-                    resolved_typed_child_count=best_score[1],
-                    resolved_by_title_only=best_score[0] == 1 and best_score[3] == 0,
+                    resolved_by_title_only=resolved_by_title_only,
                 )
 
             return resolved_id

@@ -66,6 +66,8 @@ class AgentRunMeter:
     on_served_model: Callable[[str], None] | None = field(default=None, repr=False)
     # 最近一次模型调用的 provider:model:key_slot 标识，用于校验跨轮 wire-prefix 缓存归属。
     last_served_provider_key: str | None = None
+    # 最近一次模型调用实际使用的 reasoning_effort（用于 wire_prefix_cache 校验）。
+    last_served_reasoning_effort: str | None = None
     # 请求开始的时刻（monotonic）：到 wrap_up_after_s 就提醒收尾、不再开新的 agent run。
     started_at: float = field(default_factory=time.monotonic)
     wrap_up_after_s: float = AGENT_RUN_WRAP_UP_AFTER_S
@@ -119,11 +121,12 @@ class AgentRunMeter:
             self.on_served_model(model)
 
     def record_served_provider(self, provider: Any) -> None:
-        from agent.loop.wire_prefix_cache import provider_cache_key
+        from agent.loop.wire_prefix_cache import effective_reasoning_effort, provider_cache_key
 
         key = provider_cache_key(provider)
         if key is not None:
             self.last_served_provider_key = key
+        self.last_served_reasoning_effort = effective_reasoning_effort(provider)
 
     def record_agent_run(
         self,

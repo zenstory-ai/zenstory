@@ -14,7 +14,7 @@ from agents import RunContextWrapper
 from openai.types.responses import ResponseOutputMessage, ResponseOutputText, ResponseReasoningItem
 from openai.types.responses.response_reasoning_item import Summary
 
-from agent.core.request_context import AgentRequestContext
+from agent.tools.tool_context import AgentRequestContext
 
 
 def _message(text: str) -> ResponseOutputMessage:

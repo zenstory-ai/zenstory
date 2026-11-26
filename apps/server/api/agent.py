@@ -183,18 +183,22 @@ async def wait_for_stream_cleanup(timeout_s: float) -> None:
     """关机前等后台的退还、终态写回与部分历史保存落定（有上限）。"""
     from agent.service import AgentService
 
-    tasks = {
-        task
-        for task in (
-            *_detached_refund_tasks,
-            *_round_outcome_tasks,
-            *_round_metric_tasks,
-            *AgentService.background_cleanup_tasks,
-        )
-        if not task.done()
-    }
-    if tasks and timeout_s > 0:
-        await asyncio.wait(tasks, timeout=timeout_s)
+    deadline = time.monotonic() + max(0.0, timeout_s)
+    while True:
+        tasks = {
+            task
+            for task in (
+                *_detached_refund_tasks,
+                *_round_outcome_tasks,
+                *_round_metric_tasks,
+                *AgentService.background_cleanup_tasks,
+            )
+            if not task.done()
+        }
+        remaining = deadline - time.monotonic()
+        if not tasks or remaining <= 0:
+            break
+        await asyncio.wait(tasks, timeout=remaining)
 
 # 认识停止约定（/stop、quota_refunded.removed_files、断线终态）的前端在 /stream 请求上带
 # 这个头。发布前打开的旧标签页不带：它断线时照旧只补存部分历史，不移除空白文件、
@@ -416,6 +420,59 @@ async def _refund_quota(
 
 
 
+async def _refund_quota_independent(
+    user_id: str,
+    period_start: datetime,
+    reservation_id: str,
+    **log_fields: Any,
+) -> bool:
+    """在独立 DB session 中退还额度（不触碰可能已关闭的请求级 session）。"""
+    try:
+        return await asyncio.to_thread(
+            _release_ai_conversation_sync,
+            user_id,
+            period_start,
+            reservation_id,
+        )
+    except Exception as refund_error:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Failed to refund AI conversation quota after stream error",
+            user_id=user_id,
+            error=str(refund_error),
+            error_type=type(refund_error).__name__,
+            **log_fields,
+        )
+        return False
+
+
+def _schedule_detached_refund_independent(
+    user_id: str,
+    period_start: datetime,
+    reservation_id: str,
+    **log_fields: Any,
+) -> asyncio.Task[bool] | None:
+    """在后台通过独立 ``create_session()`` 退还额度（不触碰已关闭的请求级 session）。"""
+    try:
+        task = asyncio.get_running_loop().create_task(
+            _refund_quota_independent(user_id, period_start, reservation_id, **log_fields)
+        )
+    except RuntimeError as exc:
+        log_with_context(
+            logger,
+            30,  # WARNING
+            "Could not schedule quota refund after disconnect",
+            user_id=user_id,
+            error=str(exc),
+            **log_fields,
+        )
+        return None
+    _detached_refund_tasks.add(task)
+    task.add_done_callback(_detached_refund_tasks.discard)
+    return task
+
+
 def _schedule_detached_refund(
     session: Session,
     user_id: str,
@@ -424,6 +481,14 @@ def _schedule_detached_refund(
     **log_fields: Any,
 ) -> asyncio.Task[bool] | None:
     """在后台退还额度（断线路径不能 await）；返回排上的任务（没排上为 None）。"""
+    # 在创建后台任务前同步判定是否需切独立 Session：避免双重取消提前关闭请求级 session 后才检查。
+    if should_offload_session_work(session):
+        return _schedule_detached_refund_independent(
+            user_id,
+            period_start,
+            reservation_id,
+            **log_fields,
+        )
     try:
         task = asyncio.get_running_loop().create_task(
             _refund_quota(session, user_id, period_start, reservation_id, **log_fields)
@@ -621,7 +686,6 @@ class _AgentStreamSettlement:
                     iterations_used=max(1, self.run_outcome.runs_started),
                     max_iterations=AGENT_COLLABORATION_MAX_ITERATIONS,
                     reason=DEADLINE_PAUSE_REASON_EN if english else DEADLINE_PAUSE_REASON,
-                    last_agent=None,
                     limit=WALL_CLOCK_LIMIT,
                 )
                 self.deadline_pause_card = dict(card.data)
@@ -1341,6 +1405,8 @@ async def stream_request(
 
     # 预扣额度前检查账号任务名额；明确满额才拒绝，Redis 故障由名额层放行。
     account_slot = await _acquire_account_slot(user_id, body.project_id)
+    charged_period_start: datetime | None = None
+    prestream_refunded = False
     try:
         # Reserve one quota unit before streaming to avoid concurrent overrun.
         # We may compensate (refund) in finally when the stream fails internally.
@@ -1348,12 +1414,37 @@ async def stream_request(
         client_ip = get_client_ip(request)
         try:
             if should_offload_session_work(session):
-                charged_period_start = await asyncio.to_thread(
-                    _reserve_ai_conversation_sync,
-                    current_user.id,
-                    client_ip,
-                    agent_run_id,
+                reserve_task = asyncio.create_task(
+                    asyncio.to_thread(
+                        _reserve_ai_conversation_sync,
+                        current_user.id,
+                        client_ip,
+                        agent_run_id,
+                    )
                 )
+                try:
+                    charged_period_start = await asyncio.shield(reserve_task)
+                except asyncio.CancelledError:
+                    # 持有强引用并纳入 wait_for_stream_cleanup 关机等待，避免 GC 丢回调或 SIGTERM 漏退额度；
+                    # 回调通过独立 create_session() 退还，绝不触碰已随请求关闭的 session。
+                    _detached_refund_tasks.add(reserve_task)
+
+                    def _undo_cancelled_reserve(fut: asyncio.Task[datetime | None]) -> None:
+                        try:
+                            if not fut.cancelled() and fut.exception() is None:
+                                period = fut.result()
+                                if period is not None:
+                                    _schedule_detached_refund_independent(
+                                        user_id,
+                                        period,
+                                        agent_run_id,
+                                        billing_reason="prestream_aborted",
+                                    )
+                        finally:
+                            _detached_refund_tasks.discard(fut)
+
+                    reserve_task.add_done_callback(_undo_cancelled_reserve)
+                    raise
             else:
                 charged_period_start = quota_service.reserve_ai_conversation(
                     session,
@@ -1429,7 +1520,24 @@ async def stream_request(
             first_event = None
             await account_slot.release()
         except SteeringSessionBusyError as exc:
-            await _refund_quota(session, user_id, charged_period_start, agent_run_id)
+            prestream_refunded = True
+            refund_task = _schedule_detached_refund(
+                session,
+                user_id,
+                charged_period_start,
+                agent_run_id,
+                billing_reason="session_busy",
+            )
+            if refund_task is not None:
+                await asyncio.shield(refund_task)
+            else:
+                await _refund_quota(
+                    session,
+                    user_id,
+                    charged_period_start,
+                    agent_run_id,
+                    billing_reason="session_busy",
+                )
             await account_slot.release()
             log_with_context(
                 logger,
@@ -1446,8 +1554,35 @@ async def stream_request(
         finally:
             reset_request_context(prime_ctx_tokens)
     except BaseException:
+        # 还没交给响应流（SSEStreamPump 尚未接管）：若额度已预扣且尚未退还
+        # （例如 priming 阶段客户端断线触发 CancelledError 或未预期的 BaseException），
+        # 必须防取消退还本次预扣（含同 IP 共享额度），避免配额永久泄漏。
+        if charged_period_start is not None and not prestream_refunded:
+            prestream_refunded = True
+            refund_task = _schedule_detached_refund(
+                session,
+                user_id,
+                charged_period_start,
+                agent_run_id,
+                billing_reason="prestream_aborted",
+            )
+            if refund_task is not None:
+                with contextlib.suppress(BaseException):
+                    await asyncio.shield(refund_task)
+            else:
+                with contextlib.suppress(BaseException):
+                    await asyncio.shield(
+                        _refund_quota(
+                            session,
+                            user_id,
+                            charged_period_start,
+                            agent_run_id,
+                            billing_reason="prestream_aborted",
+                        )
+                    )
         # 还没交给响应流：process_stream 没接管（或已自己收尾）时由这里放回名额。
-        await account_slot.release()
+        with contextlib.suppress(asyncio.CancelledError):
+            await account_slot.release()
         raise
 
     async def _primed_stream():

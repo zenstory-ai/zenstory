@@ -15,8 +15,9 @@ or written. With a backup (see ``agent/core/llm_providers.py``):
   After output has started the error propagates as before. Request errors
   (400/413/422, context too long), the free-user cost budget and
   cancellation never fail over.
-- A successful call on a slot other than the session's pin re-pins the session
-  to it, so a session does not bounce between providers (prefix cache).
+- A successful call on a slot other than the session's order pins the session
+  to it, and subsequent successes on a pinned session refresh its sliding TTL
+  so an active chat window does not bounce between providers (prefix cache).
 - With two credentials on a provider, a rate limit or account error is that key's
   problem: only that key cools for ``LLM_KEY_COOLDOWN_S`` and later calls use the
   other key, with no circuit count or session pin. The failing call itself still goes
@@ -48,7 +49,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 300)
+LLM_SESSION_PIN_TTL_S = get_int_env("LLM_SESSION_PIN_TTL_S", 1200)
 LLM_CIRCUIT_FAILURE_THRESHOLD = get_int_env("LLM_CIRCUIT_FAILURE_THRESHOLD", 3)
 LLM_CIRCUIT_FAILURE_WINDOW_S = get_int_env("LLM_CIRCUIT_FAILURE_WINDOW_S", 60)
 LLM_CIRCUIT_OPEN_S = get_int_env("LLM_CIRCUIT_OPEN_S", 120)
@@ -310,6 +311,14 @@ class _MemoryStore:
                 self._values = {k: v for k, v in self._values.items() if v[1] > now}
             self._values[key] = (value, now + ttl_s)
 
+    def set_if_exists(self, key: str, value: str, ttl_s: int) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            if self._get(key, now) is None:
+                return False
+            self._values[key] = (value, now + ttl_s)
+            return True
+
     def count_failure(self, key: str, window_s: int) -> int:
         now = time.monotonic()
         with self._lock:
@@ -336,6 +345,9 @@ class _RedisStore:
 
     def set(self, key: str, value: str, ttl_s: int) -> None:
         self._client().set(key, value, ex=ttl_s)
+
+    def set_if_exists(self, key: str, value: str, ttl_s: int) -> bool:
+        return bool(self._client().set(key, value, ex=ttl_s, xx=True))
 
     def count_failure(self, key: str, window_s: int) -> int:
         client = self._client()
@@ -519,11 +531,43 @@ def record_failure(provider: ModelProvider, session_id: str | None, exc: BaseExc
     return False
 
 
-def record_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
-    """Pin the session to the slot that served it when that differs from its order."""
-    if not session_id or len(ordered) == 1 or provider.slot == ordered[0].slot:
+def _refresh_existing_pin(store: Any, key: str, slot: str, ttl_s: int) -> bool:
+    set_if_exists = getattr(store, "set_if_exists", None)
+    if callable(set_if_exists):
+        return bool(set_if_exists(key, slot, ttl_s))
+    if store.get_many([key])[0] is None:
+        return False
+    store.set(key, slot, ttl_s)
+    return True
+
+
+def record_success(
+    provider: ModelProvider,
+    session_id: str | None,
+    ordered: list[ModelProvider],
+    *,
+    thinking_enabled: bool = True,
+) -> None:
+    """Pin the session on failover, or refresh an existing pin's sliding TTL.
+
+    Also pins a ``thinking_enabled=True`` session to a non-primary slot when the
+    primary's circuit is open so the conversation does not bounce back to the
+    primary mid-session when the short circuit window expires.
+    """
+    if not session_id or len(ordered) == 1:
         return
-    _with_store(lambda store: store.set(_pin_key(session_id), provider.slot, LLM_SESSION_PIN_TTL_S))
+    key = _pin_key(session_id)
+    if provider.slot != ordered[0].slot:
+        _with_store(lambda store: store.set(key, provider.slot, LLM_SESSION_PIN_TTL_S))
+        return
+
+    def _refresh_or_pin(store: Any) -> None:
+        if _refresh_existing_pin(store, key, provider.slot, LLM_SESSION_PIN_TTL_S):
+            return
+        if thinking_enabled and provider.slot != "primary" and store.get_many([_open_key("primary")])[0]:
+            store.set(key, provider.slot, LLM_SESSION_PIN_TTL_S)
+
+    _with_store(_refresh_or_pin)
 
 
 async def aordered_providers(session_id: str | None = None, *, thinking_enabled: bool = True) -> list[ModelProvider]:
@@ -562,9 +606,21 @@ async def apin_session_to_other(provider: ModelProvider, session_id: str | None)
         await asyncio.to_thread(pin_session_to_other, provider, session_id)
 
 
-async def arecord_success(provider: ModelProvider, session_id: str | None, ordered: list[ModelProvider]) -> None:
-    if session_id and len(ordered) > 1 and provider.slot != ordered[0].slot:
-        await asyncio.to_thread(record_success, provider, session_id, ordered)
+async def arecord_success(
+    provider: ModelProvider,
+    session_id: str | None,
+    ordered: list[ModelProvider],
+    *,
+    thinking_enabled: bool = True,
+) -> None:
+    if session_id and len(ordered) > 1:
+        await asyncio.to_thread(
+            record_success,
+            provider,
+            session_id,
+            ordered,
+            thinking_enabled=thinking_enabled,
+        )
 
 
 def log_failover(
@@ -712,7 +768,7 @@ async def acreate_chat_completion(
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
         if not key_cooled:
-            await arecord_success(provider, session_id, ordered)
+            await arecord_success(provider, session_id, ordered, thinking_enabled=thinking_enabled)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 
@@ -753,6 +809,14 @@ _STREAM_COLLECT_PROGRESS_EVENTS = frozenset({
     "response.incomplete",
     "response.failed",
     "error",
+    "response.error",
+})
+_STREAM_COLLECT_TERMINAL_EVENTS = frozenset({
+    "response.completed",
+    "response.incomplete",
+    "response.failed",
+    "error",
+    "response.error",
 })
 _STREAM_COLLECT_REASONING_EVENTS = frozenset({
     "response.reasoning_text.delta",
@@ -763,6 +827,35 @@ _STREAM_COLLECT_ANSWER_EVENTS = frozenset({
     "response.refusal.delta",
     "response.function_call_arguments.delta",
 })
+_STREAM_COLLECT_MISSING = object()
+
+
+def _is_meaningful_collect_progress(event: Any) -> bool:
+    event_type = getattr(event, "type", None)
+    if event_type in _STREAM_COLLECT_TERMINAL_EVENTS:
+        return True
+    if event_type not in _STREAM_COLLECT_PROGRESS_EVENTS:
+        return False
+    delta = getattr(event, "delta", _STREAM_COLLECT_MISSING)
+    return delta is _STREAM_COLLECT_MISSING or (isinstance(delta, str) and delta != "")
+
+
+def _build_collect_timeout_error(provider: ModelProvider, *, phase: str, timeout_s: float) -> TimeoutError:
+    log_with_context(
+        logger,
+        30,  # WARNING
+        "LLM stream timeout",
+        provider=provider.name,
+        timeout_phase=phase,
+        timeout_s=timeout_s,
+    )
+    if phase == "first_event":
+        return TimeoutError(
+            f"{provider.name} stream produced no output before first_event for {timeout_s:g}s (first_event timeout)"
+        )
+    return TimeoutError(
+        f"{provider.name} stream produced no output for {timeout_s:g}s (idle timeout)"
+    )
 
 
 def _responses_failed_event_error(event: Any, provider: ModelProvider) -> Exception:
@@ -810,53 +903,122 @@ class _StreamCollectError(Exception):
         self.reasoning_started = reasoning_started
 
 
+# Bounded timeout for detached/inline teardown of timed-out or wedged compaction streams.
+_STREAM_COLLECT_TEARDOWN_TIMEOUT_S = 2.0
+_pending_stream_collect_teardowns: set[asyncio.Task[Any]] = set()
+
+
+def _schedule_stream_collect_teardown(
+    aiter: Any,
+    raw_stream: Any,
+    *,
+    timeout_s: float | None = None,
+) -> asyncio.Task[Any] | None:
+    """Detach and close a timed-out/wedged compaction stream in a bounded background task."""
+    aclose = getattr(aiter, "aclose", None)
+    has_aclose = callable(aclose)
+    close = (
+        getattr(raw_stream, "close", None)
+        if raw_stream is not None and (raw_stream is not aiter or not has_aclose)
+        else None
+    )
+    has_close = callable(close)
+    if not has_aclose and not has_close:
+        return None
+
+    effective_timeout = _STREAM_COLLECT_TEARDOWN_TIMEOUT_S if timeout_s is None else timeout_s
+
+    async def _teardown() -> None:
+        deadline = time.monotonic() + max(0.0, effective_timeout)
+        if has_aclose:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                with contextlib.suppress(Exception):
+                    res = aclose()
+                    if inspect.isawaitable(res):
+                        await asyncio.wait_for(res, timeout=remaining)
+        if has_close:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                with contextlib.suppress(Exception):
+                    res = close()
+                    if inspect.isawaitable(res):
+                        await asyncio.wait_for(res, timeout=remaining)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+    task = loop.create_task(_teardown())
+    _pending_stream_collect_teardowns.add(task)
+    task.add_done_callback(_pending_stream_collect_teardowns.discard)
+    return task
+
+
 async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) -> Any:
     """Drain a streaming ``responses.create(stream=True)`` call into its terminal ``Response``.
 
     Avoids non-streaming read timeouts on long cached-prefill generations (such as
-    300k-token loop compaction) while enforcing the provider's idle-delta timeout and
-    preserving pre-answer failover semantics.
+    300k-token loop compaction) while enforcing the provider's two-tier first-event / idle
+    stream timeouts (``0`` disables each phase) and preserving pre-answer failover semantics
+    with bounded non-blocking teardown on timeout.
     """
     if not hasattr(raw_stream, "__aiter__"):
         return raw_stream
     import httpx
     import openai
 
-    idle_timeout_s = provider.kind.read_timeout_s()
-    idle_deadline = time.monotonic() + idle_timeout_s
+    first_event_timeout_s = provider.first_event_timeout_s
+    idle_timeout_s = provider.stream_idle_timeout_s
+    received_first_meaningful = False
+    deadline: float | None = (
+        time.monotonic() + first_event_timeout_s if first_event_timeout_s > 0 else None
+    )
     answer_started = False
     reasoning_started = False
+    timed_out = False
     final_response: Any = None
     aiter = raw_stream.__aiter__()
     try:
         while True:
-            remaining = idle_deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(f"{provider.name} stream produced no output for {idle_timeout_s:g}s")
-            cm = asyncio.timeout(remaining)
-            try:
-                async with cm:
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    phase = "idle" if received_first_meaningful else "first_event"
+                    timeout_s = idle_timeout_s if received_first_meaningful else first_event_timeout_s
+                    raise _build_collect_timeout_error(provider, phase=phase, timeout_s=timeout_s)
+                cm = asyncio.timeout(remaining)
+                try:
+                    async with cm:
+                        event = await aiter.__anext__()
+                except StopAsyncIteration:
+                    break
+                except TimeoutError:
+                    if cm.expired():
+                        timed_out = True
+                        phase = "idle" if received_first_meaningful else "first_event"
+                        timeout_s = idle_timeout_s if received_first_meaningful else first_event_timeout_s
+                        raise _build_collect_timeout_error(
+                            provider, phase=phase, timeout_s=timeout_s
+                        ) from None
+                    raise
+            else:
+                try:
                     event = await aiter.__anext__()
-            except StopAsyncIteration:
-                break
-            except TimeoutError:
-                if cm.expired():
-                    raise TimeoutError(
-                        f"{provider.name} stream produced no output for {idle_timeout_s:g}s"
-                    ) from None
-                raise
+                except StopAsyncIteration:
+                    break
             event_type = getattr(event, "type", None)
-            delta = getattr(event, "delta", None)
-            if event_type in _STREAM_COLLECT_PROGRESS_EVENTS and (
-                event_type in {"response.completed", "response.incomplete", "response.failed", "error"}
-                or delta != ""
-            ):
-                idle_deadline = time.monotonic() + idle_timeout_s
-            if event_type in _STREAM_COLLECT_REASONING_EVENTS and delta != "":
+            delta = getattr(event, "delta", _STREAM_COLLECT_MISSING)
+            has_delta = delta is _STREAM_COLLECT_MISSING or (isinstance(delta, str) and delta != "")
+            if _is_meaningful_collect_progress(event):
+                received_first_meaningful = True
+                deadline = time.monotonic() + idle_timeout_s if idle_timeout_s > 0 else None
+            if event_type in _STREAM_COLLECT_REASONING_EVENTS and has_delta:
                 reasoning_started = True
-            if event_type in _STREAM_COLLECT_ANSWER_EVENTS and delta != "":
+            if event_type in _STREAM_COLLECT_ANSWER_EVENTS and has_delta:
                 answer_started = True
-            if event_type in {"response.failed", "error"}:
+            if event_type in {"response.failed", "error", "response.error"}:
                 raise _responses_failed_event_error(event, provider)
             if event_type in {"response.completed", "response.incomplete"}:
                 final_response = getattr(event, "response", None)
@@ -868,18 +1030,30 @@ async def _collect_responses_stream(raw_stream: Any, provider: ModelProvider) ->
             exc, answer_started=answer_started, reasoning_started=reasoning_started
         ) from exc
     finally:
-        aclose = getattr(aiter, "aclose", None)
-        if callable(aclose):
-            with contextlib.suppress(Exception):
-                res = aclose()
-                if inspect.isawaitable(res):
-                    await res
-        close = getattr(raw_stream, "close", None)
-        if callable(close):
-            with contextlib.suppress(Exception):
-                res = close()
-                if inspect.isawaitable(res):
-                    await res
+        if timed_out:
+            _schedule_stream_collect_teardown(aiter, raw_stream)
+        else:
+            close_deadline = time.monotonic() + _STREAM_COLLECT_TEARDOWN_TIMEOUT_S
+            aclose = getattr(aiter, "aclose", None)
+            aclose_completed = False
+            try:
+                if callable(aclose):
+                    remaining = close_deadline - time.monotonic()
+                    if remaining > 0:
+                        with contextlib.suppress(Exception):
+                            res = aclose()
+                            if inspect.isawaitable(res):
+                                await asyncio.wait_for(res, timeout=remaining)
+                            aclose_completed = True
+            finally:
+                close = getattr(raw_stream, "close", None)
+                if callable(close) and (raw_stream is not aiter or not aclose_completed):
+                    remaining = close_deadline - time.monotonic()
+                    if remaining > 0:
+                        with contextlib.suppress(Exception):
+                            res = close()
+                            if inspect.isawaitable(res):
+                                await asyncio.wait_for(res, timeout=remaining)
     if final_response is None:
         url = f"{provider.base_url.rstrip('/')}/responses" if provider.base_url else "https://responses.local/v1/responses"
         raise _StreamCollectError(
@@ -998,7 +1172,7 @@ async def acreate_response(
             continue
         _meter_attempt(usage_attribution, provider, attempt_started, usage=getattr(response, "usage", None))
         if not key_cooled:
-            await arecord_success(provider, session_id, ordered)
+            await arecord_success(provider, session_id, ordered, thinking_enabled=thinking_enabled)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 
@@ -1038,7 +1212,7 @@ def create_chat_completion(
             log_failover(provider, ordered[index + 1], call_site=call_site)
             continue
         if not key_cooled:
-            record_success(provider, session_id, ordered)
+            record_success(provider, session_id, ordered, thinking_enabled=thinking_enabled)
         return response, provider
     raise AssertionError("unreachable: configured_providers() is never empty")
 

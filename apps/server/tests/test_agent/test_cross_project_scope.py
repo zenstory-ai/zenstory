@@ -18,10 +18,10 @@ from uuid import uuid4
 
 import pytest
 
-from agent.core.request_context import AgentRequestContext
 from agent.tools.file_ops import FileToolExecutor
 from agent.tools.mcp_tools import delete_file, edit_file
 from agent.tools.permissions import NotFoundError
+from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 
 # ========== Fixtures ==========

@@ -390,7 +390,7 @@ async def test_an_empty_normal_completion_is_a_success(chunk_endpoints):
 @pytest.mark.parametrize(
     ("env", "expected"),
     [
-        ({}, {"minimax": 120.0, "deepseek": 45.0}),
+        ({}, {"minimax": 120.0, "deepseek": 90.0}),
         ({"MINIMAX_CLIENT_TIMEOUT_S": "90", "DEEPSEEK_CLIENT_TIMEOUT_S": "30"}, {"minimax": 90.0, "deepseek": 30.0}),
     ],
 )
@@ -1175,7 +1175,7 @@ def test_an_input_the_sdk_cannot_convert_keeps_the_existing_failover(monkeypatch
 @pytest.fixture
 def request_tools():
     """A request context with the pending-file state the file_body_pending guard reads."""
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
 
     req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:
@@ -1509,6 +1509,9 @@ async def test_agent_stream_closes_inner_generator_immediately_on_caller_aclose(
     assert closed is False
 
     await stream.aclose()
+    # P0-6: GeneratorExit schedules background teardown instead of awaiting inline in finally.
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
     assert closed is True
 
 

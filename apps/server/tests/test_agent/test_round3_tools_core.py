@@ -115,7 +115,7 @@ async def test_concurrent_empty_create_file_is_atomic(db_session, monkeypatch):
     两个调用同时通过检查，各自建出空文件，后置位的把先置位的覆盖掉 ——
     先建的那个空文件从此没有任何指针。
     """
-    from agent.tools.file_ops.executor import FileToolExecutor
+    from agent.tools.file_ops import FileToolExecutor
 
     user, project = _make_user_project(db_session, "atomic")
 

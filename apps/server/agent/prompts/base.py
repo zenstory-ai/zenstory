@@ -8,22 +8,8 @@ regardless of whether they are novels, short stories, or screenplays.
 from typing import Any
 
 
-def get_base_prompt(
-    project_id: str,
-    folder_ids: dict[str, str],
-    config: dict[str, Any],
-) -> str:
-    """
-    Build the complete system prompt using base components and type-specific config.
-
-    Args:
-        project_id: Project ID
-        folder_ids: Dict mapping folder types to IDs
-        config: Type-specific prompt configuration
-
-    Returns:
-        Complete prompt string
-    """
+def get_base_prompt_static_prefix(config: dict[str, Any]) -> str:
+    """Build the cross-project static prefix of the base prompt (no project or folder UUIDs)."""
     parts = []
 
     # 1. 顶层上下文 (Context)
@@ -64,16 +50,46 @@ def get_base_prompt(
     # 6. 固定参考 (Reference)
     parts.append(IMPACT_ANALYSIS_EXAMPLES)
 
-    # 项目资料集中在末尾，让目录 UUID 不再打断固定协议和写作指导的公共前缀。
-    parts.append("")
-    parts.append(get_folder_reference(folder_ids))
-    parts.append("")
-    parts.append(_format_directory_structure(config["directory_structure"], folder_ids))
-    parts.append("")
-    parts.append(config.get("character_detection", get_default_character_detection(folder_ids)))
-    parts.append(f"## 当前项目 ID: {project_id}")
-
     return "\n".join(parts)
+
+
+def get_base_prompt_project_suffix(
+    project_id: str,
+    folder_ids: dict[str, str],
+    config: dict[str, Any],
+) -> str:
+    """Build the project-specific suffix containing folder UUIDs and project ID."""
+    parts = [
+        get_folder_reference(folder_ids),
+        "",
+        _format_directory_structure(config["directory_structure"], folder_ids),
+        "",
+        config.get("character_detection", get_default_character_detection(folder_ids)),
+        f"## 当前项目 ID: {project_id}",
+    ]
+    return "\n".join(parts)
+
+
+def get_base_prompt(
+    project_id: str,
+    folder_ids: dict[str, str],
+    config: dict[str, Any],
+) -> str:
+    """
+    Build the complete system prompt using base components and type-specific config.
+
+    Args:
+        project_id: Project ID
+        folder_ids: Dict mapping folder types to IDs
+        config: Type-specific prompt configuration
+
+    Returns:
+        Complete prompt string
+    """
+    # 项目资料集中在末尾，让目录 UUID 不再打断固定协议和写作指导的公共前缀。
+    static_prefix = get_base_prompt_static_prefix(config)
+    project_suffix = get_base_prompt_project_suffix(project_id, folder_ids, config)
+    return f"{static_prefix}\n\n{project_suffix}"
 
 
 class _KeepUnknownPlaceholders(dict):
@@ -114,7 +130,7 @@ UNIFIED_EXECUTION_PROTOCOL = """## 统一执行协议
 - 纠正自己记错或写错的内容时只删改错的那部分，不顺手补一条新的论断；拿不准某条内容是作者说的还是 AI 写的，就问作者。
 - 存在实质冲突、需要改动已确认故事事实时，先说明影响并澄清；信息足够时直接完成，不为常规下一步反复追问。
 - 只修改作者本轮请求合理涵盖的作品范围：「这一章」「全书统一」「把两稿合成一章」等自然表达都有效，不要求作者逐个报文件名或 ID。续写第三章不包括顺手修改第二章；范围外的问题用一句话指出，不直接改。只有存在多个合理目标、选错会造成实质改动时才先问。
-- 作者手动改过的写法（人名、称呼、用词、情节）就是最新设定，以作者为准，新写的内容沿用，不当成笔误改回去；<author_edits> 列出了作者在 AI 写过之后具体改了哪几处（edit_file 改到了作者写的段落时，结果里有 author_edits_touched；其中 restored_deleted 表示把作者删掉的段落原样放了回去，作者这一轮没要求恢复时在回复里说明）。作者这一轮明确要改这些地方或这个文件时，直接按作者的新要求改，不再问一遍，也不要让作者照着念某句话；只有拿不准作者要不要动这些地方时才问。
+- 作者手动改过的写法（人名、称呼、用词、情节）就是最新设定，以作者为准，新写的内容沿用，不当成笔误改回去；焦点或附加文件已在上下文里给出最新全文，若本会话先前写过的其他文件在 `<author_edits>` 中提示已被作者手动修改，引用或续写前先用 `query_files(id=...)` 读取最新版。作者这一轮明确要改这些地方或这个文件时，直接按作者的新要求改，不再问一遍，也不要让作者照着念某句话；只有拿不准作者要不要动这些地方时才问。
 - 要求太笼统、看不出改哪部分或想要什么效果（如「帮我优化一下」「改改」），又可能牵涉多个文件时，先用一句话问作者改哪里、想达到什么效果，给 2–3 个具体选项，不直接动文件。
 - 作者要的大纲、分章/分集规划、人设、设定通过工具写进对应目录的文件，对话里只说写在哪个文件和一两句要点，不只贴在对话里。
 - 不追加作者没要的产出（如分镜表、拍摄执行版、额外的说明文档）。

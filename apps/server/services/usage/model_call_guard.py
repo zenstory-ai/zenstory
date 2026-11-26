@@ -116,6 +116,35 @@ def _sanitize_responses_kwargs(kwargs: dict[str, Any]) -> None:
         kwargs["input"] = sanitize_responses_input(kwargs["input"])
 
 
+def _schedule_cancelled_stream_settlement(
+    reservation: Any,
+    *,
+    streamed_output_bytes: int = 0,
+) -> asyncio.Task[Any] | None:
+    """Schedule conservative cancelled-stream settlement in a tracked background task.
+
+    Non-awaiting so it is safe to call inside ``except BaseException`` / ``GeneratorExit``
+    / ``finally`` blocks without blocking teardown or leaking worst-case reserved headroom.
+    """
+    if reservation is None:
+        return None
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        settle_cancelled_stream_call(reservation, streamed_output_bytes=streamed_output_bytes)
+        return None
+    task = loop.create_task(
+        asyncio.to_thread(
+            settle_cancelled_stream_call,
+            reservation,
+            streamed_output_bytes=streamed_output_bytes,
+        )
+    )
+    _pending_cancelled_settlements.add(task)
+    task.add_done_callback(_pending_cancelled_settlements.discard)
+    return task
+
+
 class _BudgetedAsyncStream:
     def __init__(self, stream: Any, reservation: Any):
         self._stream = stream
@@ -137,23 +166,14 @@ class _BudgetedAsyncStream:
             return None
         if self._cancelled_settlement_task is not None:
             return self._cancelled_settlement_task
-        output_bytes = self._streamed_output_bytes
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            settle_cancelled_stream_call(self._reservation, streamed_output_bytes=output_bytes)
+        task = _schedule_cancelled_stream_settlement(
+            self._reservation,
+            streamed_output_bytes=self._streamed_output_bytes,
+        )
+        if task is None:
             self._usage_settled = True
             return None
-        task = loop.create_task(
-            asyncio.to_thread(
-                settle_cancelled_stream_call,
-                self._reservation,
-                streamed_output_bytes=output_bytes,
-            )
-        )
         self._cancelled_settlement_task = task
-        _pending_cancelled_settlements.add(task)
-        task.add_done_callback(_pending_cancelled_settlements.discard)
         return task
 
     def __aiter__(self):
@@ -201,7 +221,12 @@ class _BudgetedAsyncAPIResponse:
         return getattr(self._api_response, name)
 
     async def parse(self, *args, **kwargs):
-        parsed = await self._api_response.parse(*args, **kwargs)
+        try:
+            parsed = await self._api_response.parse(*args, **kwargs)
+        except BaseException:
+            if self._stream:
+                _schedule_cancelled_stream_settlement(self._reservation, streamed_output_bytes=0)
+            raise
         if self._stream or hasattr(parsed, "__aiter__"):
             return _BudgetedAsyncStream(parsed, self._reservation)
         await asyncio.to_thread(settle_model_call, self._reservation, getattr(parsed, "usage", None))
@@ -238,7 +263,12 @@ class _BudgetedAsyncStreamingResponseCM:
             ).responses.with_streaming_response.create
         notify_model_transport_start()
         self._cm = transport_create(*self._args, **self._kwargs)
-        api_response = await self._cm.__aenter__()
+        try:
+            api_response = await self._cm.__aenter__()
+        except BaseException:
+            if _is_stream_requested(self._kwargs):
+                _schedule_cancelled_stream_settlement(reservation, streamed_output_bytes=0)
+            raise
         return _BudgetedAsyncAPIResponse(
             api_response,
             reservation,
@@ -315,7 +345,12 @@ def _install_async_responses_guard(client: Any, original_with_options: Any) -> N
             if reservation is not None and callable(original_with_options):
                 transport = original_with_options(max_retries=0).responses.create
             notify_model_transport_start()
-            response = await transport(*args, **kwargs)
+            try:
+                response = await transport(*args, **kwargs)
+            except BaseException:
+                if _is_stream_requested(kwargs):
+                    _schedule_cancelled_stream_settlement(reservation, streamed_output_bytes=0)
+                raise
             if _is_stream_requested(kwargs):
                 return _BudgetedAsyncStream(response, reservation)
             await asyncio.to_thread(settle_model_call, reservation, getattr(response, "usage", None))
@@ -387,7 +422,12 @@ def install_async_cost_guard(client: Any) -> Any:
                 # Automatic transport retries can incur unknown duplicate billing.
                 transport = original_with_options(max_retries=0).chat.completions.create
             notify_model_transport_start()
-            response = await transport(*args, **kwargs)
+            try:
+                response = await transport(*args, **kwargs)
+            except BaseException:
+                if _is_stream_requested(kwargs):
+                    _schedule_cancelled_stream_settlement(reservation, streamed_output_bytes=0)
+                raise
             if _is_stream_requested(kwargs):
                 return _BudgetedAsyncStream(response, reservation)
             await asyncio.to_thread(settle_model_call, reservation, getattr(response, "usage", None))

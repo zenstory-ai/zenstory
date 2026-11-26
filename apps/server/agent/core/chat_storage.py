@@ -29,6 +29,9 @@ from utils.logger import get_logger, log_with_context
 logger = get_logger(__name__)
 
 ARCHIVED_QUERY_CONTENT_NOTE = "历史查询正文已归档，需要时请重新用 query_files 读取"
+# 落库前对超大 query_files 载荷直接瘦身的阈值（字符）：短设定/角色卡原样落库供冷回放使用，
+# 整章或多章大体积正文剥离正文并保留 content_sha256 + updated_at（供 session_read_snapshots 核验）。
+PERSISTED_QUERY_FILES_MAX_CHARS = 4_000
 
 # 仅剥离查询结果里的大体积正文/片段载荷，保留 id/title/file_type/status/error/error_type/
 # user_message/count/match_count/word_count/content_length 等轻量字段。
@@ -75,16 +78,54 @@ def metadata_has_thinking_display_events(raw_metadata: str | None) -> bool:
     return display_events_have_thinking_content(payload.get("display_events"))
 
 
-def _slim_query_file_dict(item: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+def _slim_query_file_dict(item: dict[str, Any], *, keep_content_sha256: bool = False) -> tuple[dict[str, Any], bool]:
     """剥离单个查询结果 dict 中的重载荷键并附加 ``archived_note``；无重载荷时原样返回。"""
     if not any(key in item for key in _HEAVY_QUERY_FILE_KEYS):
         return item, False
     slimmed = {key: value for key, value in item.items() if key not in _HEAVY_QUERY_FILE_KEYS}
+    if keep_content_sha256:
+        content = item.get("content")
+        if (
+            isinstance(content, str)
+            and content
+            and item.get("file_type") != "folder"
+            and not item.get("content_truncated")
+            and not item.get("content_partial")
+        ):
+            from services.features.file_version_service import content_sha256
+
+            slimmed["content_sha256"] = content_sha256(content)
+            slimmed.setdefault("content_length", len(content))
     slimmed["archived_note"] = ARCHIVED_QUERY_CONTENT_NOTE
     return slimmed, True
 
 
-def _slim_query_result_payload(payload: Any, *, depth: int = 0) -> tuple[Any, bool]:
+def _heavy_query_payload_chars(payload: Any, *, depth: int = 0) -> int:
+    """Estimate serialized character length of heavy fields inside a query_files payload."""
+    if depth > 4:
+        return 0
+    if isinstance(payload, list):
+        return sum(_heavy_query_payload_chars(elem, depth=depth + 1) for elem in payload)
+    if isinstance(payload, dict):
+        total = 0
+        for key, value in payload.items():
+            if key in _HEAVY_QUERY_FILE_KEYS and value is not None:
+                if isinstance(value, str):
+                    total += len(value)
+                else:
+                    try:
+                        total += len(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+                    except (TypeError, ValueError):
+                        total += len(str(value))
+            elif key in _QUERY_CONTAINER_KEYS and isinstance(value, list | dict):
+                total += _heavy_query_payload_chars(value, depth=depth + 1)
+        return total
+    return 0
+
+
+def _slim_query_result_payload(
+    payload: Any, *, depth: int = 0, keep_content_sha256: bool = False
+) -> tuple[Any, bool]:
     """归档 ``query_files``（或只读查询子任务）的 result 载荷，保持原有 list/dict 外形不变。"""
     if depth > 4:
         return payload, False
@@ -93,7 +134,9 @@ def _slim_query_result_payload(payload: Any, *, depth: int = 0) -> tuple[Any, bo
         new_items: list[Any] = []
         for element in payload:
             if isinstance(element, dict):
-                slimmed, item_changed = _slim_query_file_dict(element)
+                slimmed, item_changed = _slim_query_file_dict(
+                    element, keep_content_sha256=keep_content_sha256
+                )
                 if item_changed:
                     changed = True
                 new_items.append(slimmed)
@@ -107,19 +150,41 @@ def _slim_query_result_payload(payload: Any, *, depth: int = 0) -> tuple[Any, bo
         for container_key in _QUERY_CONTAINER_KEYS:
             nested = updated.get(container_key)
             if isinstance(nested, list | dict):
-                slimmed_nested, nested_changed = _slim_query_result_payload(nested, depth=depth + 1)
+                slimmed_nested, nested_changed = _slim_query_result_payload(
+                    nested, depth=depth + 1, keep_content_sha256=keep_content_sha256
+                )
                 if nested_changed:
                     updated[container_key] = slimmed_nested
                     changed = True
 
         if any(key in updated for key in _HEAVY_QUERY_FILE_KEYS):
-            updated = {key: value for key, value in updated.items() if key not in _HEAVY_QUERY_FILE_KEYS}
-            updated["archived_note"] = ARCHIVED_QUERY_CONTENT_NOTE
+            slimmed_self, _ = _slim_query_file_dict(updated, keep_content_sha256=keep_content_sha256)
+            updated = slimmed_self
             changed = True
 
         return (updated, True) if changed else (payload, False)
 
     return payload, False
+
+
+def slim_query_files_result_for_persistence(
+    payload: Any,
+    *,
+    max_chars: int = PERSISTED_QUERY_FILES_MAX_CHARS,
+) -> Any:
+    """落库前瘦身超大 ``query_files`` 结果，防止整章全文永久膨胀 PostgreSQL TOAST。
+
+    - 重载荷总字符数 <= ``max_chars`` 时原样返回（短设定/小卡片在冷回放时仍可直接复用）；
+    - 超出阈值时剥离 ``content`` / ``content_preview`` / ``matches`` 等大字段，保留卡片字段、
+      ``updated_at`` 与全文 ``content_sha256``（供 ``SessionLoader.session_read_snapshots``
+      在不落库正文的情况下仍能精确核验文件是否未变更）。
+    """
+    if payload is None or max_chars < 0:
+        return payload
+    if _heavy_query_payload_chars(payload) <= max_chars:
+        return payload
+    slimmed, changed = _slim_query_result_payload(payload, keep_content_sha256=True)
+    return slimmed if changed else payload
 
 
 def _slim_parallel_tasks_list(tasks: list[Any]) -> tuple[list[Any], bool]:

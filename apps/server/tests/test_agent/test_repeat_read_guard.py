@@ -810,7 +810,7 @@ def test_whole_chapter_replacement_target_resets_reads_of_that_chapter():
 @pytest.mark.unit
 def test_body_saved_by_the_stream_resets_reads_made_before_the_save():
     """同一批里定位后又读过一次、正文随后落库：落库之后再读是在看新正文，不算重复。"""
-    from agent.core.request_context import AgentRequestContext
+    from agent.tools.tool_context import AgentRequestContext
 
     req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
     try:

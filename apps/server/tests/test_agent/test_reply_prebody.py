@@ -15,11 +15,11 @@ from agents import RunContextWrapper
 from openai.types.responses import ResponseOutputMessage, ResponseOutputText
 
 from agent.core.events import EventType
-from agent.core.request_context import AgentRequestContext
 from agent.core.stream_processor import StreamProcessor, extract_reply_prebody
 from agent.core.workflow_events import StreamEvent as WorkflowStreamEvent
 from agent.core.workflow_events import StreamEventType
 from agent.tools.mcp_tools import create_file
+from agent.tools.tool_context import AgentRequestContext
 
 
 def _reply(text: str) -> SimpleNamespace:

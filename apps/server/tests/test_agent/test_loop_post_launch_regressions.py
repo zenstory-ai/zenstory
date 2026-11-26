@@ -502,13 +502,17 @@ def test_stream_processor_strips_leaked_minimax_tool_call_blocks_from_chat():
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_compaction_folds_untrimmed_db_tool_payloads_and_escapes_960k_skip_deadlock():
+async def test_compaction_folds_untrimmed_db_tool_payloads_and_escapes_960k_skip_deadlock(monkeypatch):
     """库内未折叠工具载荷 > 115 万真实 token、但上一轮内存折叠后 last_prompt_tokens 仅 32~76 万（甚至 skipped=960k）时：
     1) should_compact 不会卡死在 960k + 100k > 1M；
     2) compact_history 先折叠超预算旧工具载荷，保留第 0 轮起的作者消息，不把 >1M 原始载荷直接发给供应商；
     3) bound_history_for_provider 对未折叠原始历史也会按真实估算兜底裁剪。
     """
     from agent.loop.history import bound_history_for_provider, estimate_provider_items_tokens
+    from config import agent_runtime
+
+    # 显式关闭 Stage 1 tool_archive，专门验证 Stage 2 LLM 摘要在 >1M 未折叠历史下的自愈路径。
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_ENABLED", False)
 
     big_read = json.dumps({"status": "success", "data": {"content": "章节设定与正文片段" * 3500}}, ensure_ascii=False)
     items: list[dict[str, Any]] = []

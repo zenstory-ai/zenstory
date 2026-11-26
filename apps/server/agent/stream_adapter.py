@@ -7,6 +7,7 @@ Reuses StreamProcessor for handling <file> markers in text content.
 
 import asyncio
 import contextlib
+import inspect
 from collections import deque
 from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass, field
@@ -20,6 +21,7 @@ from utils.text_metrics import count_words
 
 from .constants import coerce_bool
 from .core.author_facing_text import rewrite_not_saved_notice
+from .core.chat_storage import slim_query_files_result_for_persistence
 from .core.events import (
     WALL_CLOCK_LIMIT,
     content_end_event,
@@ -215,8 +217,8 @@ class StreamAdapter:
         # 文件级回执只说「这个文件存过」，不能拿来证明后一次替换也存了。
         self._replacement_receipts: dict[str, int | None] = {}
         self._replacement_card_updates: dict[str, dict[str, Any]] = {}
-        # 仅对发往浏览器的 SSE 帧做了线缆瘦身（query_files / parallel_execute）的工具结果：
-        # 暂存瘦身前的完整结果供 AgentService 落库，保证 DB 与 loop/history 回放原样不变。
+        # 对发往浏览器的 SSE 帧做了线缆瘦身（query_files）的工具结果：
+        # 暂存经落库瘦身（保留小载荷原文，大载荷剥离正文并附 content_sha256）后的结果供 AgentService 落库。
         self._persisted_tool_results: dict[str, Any] = {}
         self._persisted_tool_results_anonymous: deque[Any] = deque()
         # 停止时补存的残稿属于哪一次整章替换（tool_use_id），没有则为 None。
@@ -265,6 +267,30 @@ class StreamAdapter:
         if not key and self._persisted_tool_results_anonymous:
             return self._persisted_tool_results_anonymous.popleft()
         return fallback
+
+    _BACKGROUND_ACLOSE_TIMEOUT_S = 2.0
+
+    @staticmethod
+    def _schedule_background_aclose(
+        aclose: Callable[[], Any],
+        *,
+        timeout_s: float = _BACKGROUND_ACLOSE_TIMEOUT_S,
+    ) -> None:
+        """Schedule bounded upstream generator aclose() in a tracked background task on GeneratorExit."""
+
+        async def _close_quietly() -> None:
+            with contextlib.suppress(Exception):
+                res = aclose()
+                if inspect.isawaitable(res):
+                    await asyncio.wait_for(res, timeout=max(0.0, timeout_s))
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(_close_quietly())
+        _ABORT_SAVE_TASKS.add(task)
+        task.add_done_callback(_ABORT_SAVE_TASKS.discard)
 
     def set_pending_file_write(
         self,
@@ -349,6 +375,7 @@ class StreamAdapter:
         Yields:
             SSE StreamEvent objects for frontend consumption
         """
+        exiting_via_generator_exit = False
         try:
             async for event in events:
                 if self._fatal_stream_error or self._stop_after_refused_replace:
@@ -361,7 +388,11 @@ class StreamAdapter:
                         break
                 if self._fatal_stream_error or self._stop_after_refused_replace:
                     break
-        except (asyncio.CancelledError, GeneratorExit):
+        except GeneratorExit:
+            exiting_via_generator_exit = True
+            self._persist_active_capture_in_background()
+            raise
+        except asyncio.CancelledError:
             # 用户按停止 / 断线 / 请求级时限到期：正在 <file> 捕获中的正文只在
             # 内存缓冲里，不收尾就整段丢失，只留下 create_file 建的空文件。
             # 这里不能再 await（取消会再次打断；GeneratorExit 期间挂起会让收尾
@@ -372,10 +403,15 @@ class StreamAdapter:
             # Deterministically close the upstream generator (e.g. when we break
             # early on a fatal stream error) so the runner's finally — which
             # cancels its background pump task — runs now instead of at GC time.
+            # Never await aclose() on GeneratorExit (raises RuntimeError: async
+            # generator ignored GeneratorExit); schedule background close instead.
             aclose = getattr(events, "aclose", None)
-            if aclose is not None:
-                with contextlib.suppress(Exception):
-                    await aclose()
+            if callable(aclose):
+                if exiting_via_generator_exit:
+                    self._schedule_background_aclose(aclose)
+                else:
+                    with contextlib.suppress(Exception):
+                        await aclose()
 
         if self._stop_after_refused_replace:
             await self._roll_back_files_created_ahead()
@@ -578,7 +614,6 @@ class StreamAdapter:
                 iterations_used=data.get("iterations_used", 0),
                 max_iterations=data.get("max_iterations", 0),
                 reason=data.get("reason", ""),
-                last_agent=data.get("last_agent"),
                 limit=data.get("limit"),
                 unfinished_files=_card_files(data.get("unfinished_files")),
                 rolled_back_files=_card_files(data.get("rolled_back_files")),
@@ -671,13 +706,19 @@ class StreamAdapter:
             if failure_hints:
                 emit_data = {**emit_data, **failure_hints} if isinstance(emit_data, dict) else failure_hints
 
-            # query_files / parallel_execute 只对发往浏览器的 SSE 帧瘦身（不改动模型上下文与落库结果）。
+            # query_files 对发往浏览器的 SSE 帧做全量线缆瘦身；落库侧在超阈值时剥离整章正文
+            # （保留 content_sha256 + updated_at 供跨轮快照核验），防止 chat_message TOAST 膨胀。
             wire_data = slim_client_tool_result(tool_name, emit_data)
             if wire_data is not emit_data:
+                persisted_data = (
+                    slim_query_files_result_for_persistence(emit_data)
+                    if tool_name == "query_files"
+                    else emit_data
+                )
                 if tool_use_id:
-                    self._persisted_tool_results[tool_use_id] = emit_data
+                    self._persisted_tool_results[tool_use_id] = persisted_data
                 else:
-                    self._persisted_tool_results_anonymous.append(emit_data)
+                    self._persisted_tool_results_anonymous.append(persisted_data)
 
             async for sse_event in self._end_reply_text():
                 yield sse_event
