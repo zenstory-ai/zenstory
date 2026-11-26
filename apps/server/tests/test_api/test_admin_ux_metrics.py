@@ -1169,7 +1169,21 @@ def test_ux_health_and_summary_count_batch_replace_files_undo_cards(db_session: 
     from services.usage.chat_message_ux_summary_backfill import _PG_INSERT_BATCH_SQL
 
     assert '"batch_replace_files"' in _TOOL_CARD_MARKERS
-    assert '"batch_replace_files"' in str(_PG_INSERT_BATCH_SQL)
+    backfill_sql = str(_PG_INSERT_BATCH_SQL)
+    assert '"batch_replace_files"' in backfill_sql
+    assert "COALESCE(" in backfill_sql and "THEN (d.data->>'modified_files')::numeric <> 0" in backfill_sql
+
+    # Omitted dry_run / modified_files keys must still count files[].undo cleanly (matches COALESCE/CASE SQL).
+    assert count_tool_cards(
+        [
+            {
+                "id": "tc-batch-minimal",
+                "name": "batch_replace_files",
+                "status": "success",
+                "result": {"files": [{"id": "f-min", "undo": {"before_version_number": 1, "undone": False}}]},
+            }
+        ]
+    ) == (1, 0, 0, 0)
 
     # Unit check: normal (2 files, 1 undone) + partial (1 file, not undone) + dry_run (excluded) + modified_files=0 (excluded)
     calls = [
@@ -1267,4 +1281,3 @@ def test_ux_health_and_summary_count_batch_replace_files_undo_cards(db_session: 
     assert fallback["ai_edit_cards"] == 3
     assert fallback["ai_edit_undone"] == 1
     assert fallback["ai_edit_undo_rate"] == round(1 / 3, 4)
-

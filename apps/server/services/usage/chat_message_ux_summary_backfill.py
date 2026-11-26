@@ -299,8 +299,17 @@ _PG_INSERT_BATCH_SQL = text(
                     WHEN json_typeof(elem->'name') = 'string'
                          AND (elem->>'name') = 'batch_replace_files'
                          AND json_typeof(d.data) = 'object'
-                         AND NOT (json_typeof(d.data->'dry_run') = 'boolean' AND (d.data->>'dry_run') = 'true')
-                         AND NOT (json_typeof(d.data->'modified_files') = 'number' AND (d.data->>'modified_files')::numeric = 0)
+                         AND NOT COALESCE(
+                             json_typeof(d.data->'dry_run') = 'boolean' AND (d.data->>'dry_run') = 'true',
+                             FALSE
+                         )
+                         AND (
+                             CASE
+                                 WHEN json_typeof(d.data->'modified_files') = 'number'
+                                 THEN (d.data->>'modified_files')::numeric <> 0
+                                 ELSE TRUE
+                             END
+                         )
                          AND json_typeof(d.data->'files') = 'array'
                     THEN (
                         SELECT COUNT(*)::int
@@ -321,8 +330,17 @@ _PG_INSERT_BATCH_SQL = text(
                     WHEN json_typeof(elem->'name') = 'string'
                          AND (elem->>'name') = 'batch_replace_files'
                          AND json_typeof(d.data) = 'object'
-                         AND NOT (json_typeof(d.data->'dry_run') = 'boolean' AND (d.data->>'dry_run') = 'true')
-                         AND NOT (json_typeof(d.data->'modified_files') = 'number' AND (d.data->>'modified_files')::numeric = 0)
+                         AND NOT COALESCE(
+                             json_typeof(d.data->'dry_run') = 'boolean' AND (d.data->>'dry_run') = 'true',
+                             FALSE
+                         )
+                         AND (
+                             CASE
+                                 WHEN json_typeof(d.data->'modified_files') = 'number'
+                                 THEN (d.data->>'modified_files')::numeric <> 0
+                                 ELSE TRUE
+                             END
+                         )
                          AND json_typeof(d.data->'files') = 'array'
                     THEN (
                         SELECT COUNT(*)::int

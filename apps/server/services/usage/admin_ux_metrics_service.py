@@ -550,8 +550,17 @@ def _query_tool_card_metrics_postgres_for_ids(
                                 WHEN json_typeof(elem->'name') = 'string'
                                      AND (elem->>'name') = 'batch_replace_files'
                                      AND json_typeof(data) = 'object'
-                                     AND NOT (json_typeof(data->'dry_run') = 'boolean' AND (data->>'dry_run') = 'true')
-                                     AND NOT (json_typeof(data->'modified_files') = 'number' AND (data->>'modified_files')::numeric = 0)
+                                     AND NOT COALESCE(
+                                         json_typeof(data->'dry_run') = 'boolean' AND (data->>'dry_run') = 'true',
+                                         FALSE
+                                     )
+                                     AND (
+                                         CASE
+                                             WHEN json_typeof(data->'modified_files') = 'number'
+                                             THEN (data->>'modified_files')::numeric <> 0
+                                             ELSE TRUE
+                                         END
+                                     )
                                      AND json_typeof(data->'files') = 'array'
                                 THEN (
                                     SELECT COUNT(*)::int
@@ -572,8 +581,17 @@ def _query_tool_card_metrics_postgres_for_ids(
                                 WHEN json_typeof(elem->'name') = 'string'
                                      AND (elem->>'name') = 'batch_replace_files'
                                      AND json_typeof(data) = 'object'
-                                     AND NOT (json_typeof(data->'dry_run') = 'boolean' AND (data->>'dry_run') = 'true')
-                                     AND NOT (json_typeof(data->'modified_files') = 'number' AND (data->>'modified_files')::numeric = 0)
+                                     AND NOT COALESCE(
+                                         json_typeof(data->'dry_run') = 'boolean' AND (data->>'dry_run') = 'true',
+                                         FALSE
+                                     )
+                                     AND (
+                                         CASE
+                                             WHEN json_typeof(data->'modified_files') = 'number'
+                                             THEN (data->>'modified_files')::numeric <> 0
+                                             ELSE TRUE
+                                         END
+                                     )
                                      AND json_typeof(data->'files') = 'array'
                                 THEN (
                                     SELECT COUNT(*)::int
