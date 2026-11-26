@@ -79,6 +79,47 @@ describe('undoBlockedByLaterWrite', () => {
     const blocked = undoBlockedByLaterWrite(collectUndoCardRefs([{ toolCalls: [replace, armed] }], new Set()));
     expect(blocked.size).toBe(0);
   });
+
+  it('tracks per-file undo anchors from real batch_replace_files writes and ignores dry_run', () => {
+    const batchWrite: ToolCall = {
+      id: 'br-1',
+      tool_name: 'batch_replace_files',
+      arguments: {},
+      status: 'success',
+      result: {
+        data: {
+          dry_run: false,
+          modified_files: 1,
+          files: [
+            { id: 'f1', title: '第一章', replacements: 2, undo: { before_version_number: 4, expected_after_updated_at: '2026-11-16T10:00:05Z' } },
+          ],
+        },
+      },
+    };
+    const batchDryRun: ToolCall = {
+      id: 'br-dry',
+      tool_name: 'batch_replace_files',
+      arguments: {},
+      status: 'success',
+      result: {
+        data: {
+          dry_run: true,
+          matched_files: 1,
+          modified_files: 0,
+          files: [
+            { id: 'f1', title: '第一章', replacements: 2, undo: { before_version_number: 5, expected_after_updated_at: '2026-11-16T11:00:00Z' } },
+          ],
+        },
+      },
+    };
+
+    const blockedByReal = undoBlockedByLaterWrite(collectUndoCardRefs([{ toolCalls: [edit, batchWrite] }], new Set()));
+    expect(blockedByReal.has(key('f1', 3, '2026-11-16T10:00:00.000002+00:00'))).toBe(true);
+    expect(blockedByReal.has(key('f1', 4, '2026-11-16T10:00:05Z'))).toBe(false);
+
+    const blockedByDryRun = undoBlockedByLaterWrite(collectUndoCardRefs([{ toolCalls: [edit, batchDryRun] }], new Set()));
+    expect(blockedByDryRun.size).toBe(0);
+  });
 });
 
 describe('readFileEditUndoTarget', () => {

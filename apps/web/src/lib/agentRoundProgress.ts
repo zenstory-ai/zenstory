@@ -99,6 +99,15 @@ export function isWriteToolResult(
     if (typeof payload?.edits_applied === 'number') return payload.edits_applied > 0;
     return true;
   }
+  if (toolName === 'batch_replace_files') {
+    if (payload?.dry_run === true) return false;
+    if (typeof payload?.mutation_applied === 'boolean') return payload.mutation_applied;
+    if (typeof payload?.files_modified === 'number') return payload.files_modified > 0;
+    if (typeof payload?.modified_files === 'number') return payload.modified_files > 0;
+    if (Array.isArray(payload?.files)) return payload.files.length > 0;
+    if (Array.isArray(payload?.modified_files)) return payload.modified_files.length > 0;
+    return false;
+  }
   if (toolName === 'delete_file') return true;
   if (toolName === 'rename_file') return payload?.mutation_applied === true;
   if (toolName === 'update_project') {

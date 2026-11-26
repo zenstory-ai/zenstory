@@ -886,6 +886,38 @@ describe('useChatStreaming', () => {
         expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
       })
 
+      it('refreshes tree and affected open editor for non-dry-run batch_replace_files, but not for dry_run or zero-change results', () => {
+        const { result } = renderHook(() => useChatStreaming())
+        const deps: UseChatStreamingDependencies = {
+          ...createMockDeps(),
+          getCurrentSelectedItem: vi.fn(() => ({ id: 'f-open', type: 'draft', title: '第一章' })),
+        }
+        const callbacks = result.current.getStreamCallbacks(deps)
+
+        act(() => {
+          callbacks.onToolResult('batch_replace_files', 'success', {
+            data: { dry_run: true, files_matched: 2, files_modified: 0, modified_files: [{ id: 'f-open', title: '第一章', replacements: 1 }] },
+          })
+          callbacks.onToolResult('batch_replace_files', 'success', {
+            data: { dry_run: false, files_matched: 0, files_modified: 0, modified_files: [] },
+          })
+          vi.advanceTimersByTime(200)
+        })
+
+        expect(deps.triggerFileTreeRefresh).not.toHaveBeenCalled()
+        expect(deps.triggerEditorRefresh).not.toHaveBeenCalled()
+
+        act(() => {
+          callbacks.onToolResult('batch_replace_files', 'success', {
+            data: { dry_run: false, matched_files: 2, modified_files: 2, mutation_applied: true, files: [{ id: 'f-open', title: '第一章', replacements: 2 }, { id: 'f-2', title: '第二章', replacements: 1 }] },
+          })
+          vi.advanceTimersByTime(200)
+        })
+
+        expect(deps.triggerFileTreeRefresh).toHaveBeenCalled()
+        expect(deps.triggerEditorRefresh).toHaveBeenCalledWith('f-open')
+      })
+
       it('dispatches project status update event on update_project success', () => {
         const { result } = renderHook(() => useChatStreaming())
         const deps = createMockDeps()

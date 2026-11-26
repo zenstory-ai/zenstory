@@ -126,6 +126,38 @@ export const readAiWriteUndoTarget = (call: ToolCall): FileEditUndoTarget | null
   return null;
 };
 
+/** Undo targets attached to a successful AI write card (`edit_file`, `write_chapter`, or `batch_replace_files`). */
+export const readAiWriteUndoTargets = (
+  call: ToolCall,
+): Array<{ target: FileEditUndoTarget; recordedUndone: boolean }> => {
+  if (call.status !== 'success') return [];
+  const data = cardData(call.result);
+  if (!data) return [];
+  if (call.tool_name === 'batch_replace_files') {
+    if (data.dry_run === true) return [];
+    const entries = Array.isArray(data.files)
+      ? data.files
+      : Array.isArray(data.modified_files)
+        ? data.modified_files
+        : [];
+    if (entries.length === 0) return [];
+    const results: Array<{ target: FileEditUndoTarget; recordedUndone: boolean }> = [];
+    for (const item of entries) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const entry = item as Record<string, unknown>;
+      const target = readFileEditUndoTarget(entry, undefined, undefined);
+      if (!target) continue;
+      const recordedUndone = (entry.undo as Record<string, unknown> | undefined)?.undone === true;
+      results.push({ target, recordedUndone });
+    }
+    return results;
+  }
+  const single = readAiWriteUndoTarget(call);
+  if (!single) return [];
+  const recordedUndone = (data.undo as Record<string, unknown> | undefined)?.undone === true;
+  return [{ target: single, recordedUndone }];
+};
+
 /** The parts of a chat message that can carry tool cards. */
 export interface ToolCardSource {
   toolCalls?: ToolCall[];
@@ -151,12 +183,11 @@ export const collectUndoCardRefs = (
 ): UndoCardRef[] => {
   const refs = new Map<string, UndoCardRef>();
   const visit = (call: ToolCall) => {
-    const target = readAiWriteUndoTarget(call);
-    if (!target) return;
-    const key = undoneEditKey(target);
-    const recorded = (cardData(call.result)?.undo as Record<string, unknown> | undefined)?.undone === true;
-    const undone = recorded || undoneEdits.has(key) || refs.get(key)?.undone === true;
-    refs.set(key, { key, fileId: target.fileId, expectedAfterUpdatedAt: target.expectedAfterUpdatedAt, undone });
+    for (const { target, recordedUndone } of readAiWriteUndoTargets(call)) {
+      const key = undoneEditKey(target);
+      const undone = recordedUndone || undoneEdits.has(key) || refs.get(key)?.undone === true;
+      refs.set(key, { key, fileId: target.fileId, expectedAfterUpdatedAt: target.expectedAfterUpdatedAt, undone });
+    }
   };
   for (const source of sources) {
     source.toolCalls?.forEach(visit);

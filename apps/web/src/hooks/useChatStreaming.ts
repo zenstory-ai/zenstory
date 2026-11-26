@@ -994,6 +994,34 @@ export function useChatStreaming(): UseChatStreamingReturn {
             roundWroteFilesRef.current = true;
           }
 
+          if (status === "success" && toolName === "batch_replace_files") {
+            const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
+            const isDryRun = payload?.dry_run === true;
+            const modifiedFiles = Array.isArray(payload?.files)
+              ? (payload.files as Array<Record<string, unknown>>)
+              : Array.isArray(payload?.modified_files)
+                ? (payload.modified_files as Array<Record<string, unknown>>)
+                : [];
+            const filesModified = typeof payload?.files_modified === "number"
+              ? payload.files_modified
+              : typeof payload?.modified_files === "number"
+                ? payload.modified_files
+                : modifiedFiles.length;
+            const mutated = !isDryRun && (payload?.mutation_applied === true || filesModified > 0);
+            if (mutated) {
+              scheduleFileTreeRefresh();
+              roundWroteFilesRef.current = true;
+              const selectedId = getCurrentSelectedItem?.()?.id;
+              if (
+                selectedId &&
+                (modifiedFiles.length === 0 ||
+                  modifiedFiles.some((file) => file?.id === selectedId))
+              ) {
+                triggerEditorRefresh(selectedId);
+              }
+            }
+          }
+
           if (status === "success" && toolName === "delete_file") {
             roundMayDeleteFilesRef.current = true;
             const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
