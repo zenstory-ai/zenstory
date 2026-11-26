@@ -2,7 +2,6 @@ export type UpgradePromptSurface = "modal" | "toast" | "page";
 
 export type UpgradePromptScenario =
   | "chat_quota_blocked"
-  | "inspiration_copy_quota_blocked"
   | "project_quota_blocked"
   | "file_version_quota_blocked"
   | "export_format_quota_blocked"
@@ -23,12 +22,6 @@ const UPGRADE_PROMPT_DEFINITIONS: Record<UpgradePromptScenario, UpgradePromptDef
   chat_quota_blocked: {
     surface: "modal",
     source: "chat_quota_blocked",
-    billingPath: "/dashboard/billing",
-    pricingPath: "/pricing",
-  },
-  inspiration_copy_quota_blocked: {
-    surface: "modal",
-    source: "inspiration_copy_quota_blocked",
     billingPath: "/dashboard/billing",
     pricingPath: "/pricing",
   },

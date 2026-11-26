@@ -8,7 +8,7 @@ import { logger } from "../../lib/logger";
 import type { SkillResource } from "../../types";
 
 /** Mirrors the backend import/upsert rules (agent/skills/package.py). */
-const RESOURCE_PATH_PREFIXES = ["references/", "assets/"];
+const RESOURCE_PATH_PREFIXES = ["references/", "assets/", "examples/", "templates/"];
 const RESOURCE_EXTENSIONS = [".md", ".txt", ".json", ".yaml", ".yml", ".csv"];
 const MAX_RESOURCE_PATH_LENGTH = 255;
 const MAX_RESOURCE_BYTES = 64 * 1024;
@@ -54,7 +54,7 @@ interface EditorState {
 }
 
 /**
- * Resource files (references/, assets/) bundled with a skill.
+ * Resource files (references/, assets/, examples/, templates/) bundled with a skill.
  *
  * - Own skills: list, view/edit text content, add new, delete.
  * - Added (public) skills: read-only list + viewer; hidden entirely when empty.

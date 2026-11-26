@@ -7,6 +7,7 @@
 """
 
 import difflib
+import json
 from dataclasses import dataclass
 
 from sqlmodel import Session, select
@@ -15,6 +16,32 @@ from models import PublicSkill, SkillResource, UserAddedSkill, UserSkill
 
 # 显式选择的技能数上限（与前端 SkillTriggerContext 一致）
 MAX_SELECTED_SKILLS = 3
+
+
+def parse_skill_triggers(raw: str | None) -> tuple[str, ...]:
+    """安全解析技能触发词 JSON 数组；格式异常时静默退回空元组。"""
+    if not raw or not isinstance(raw, str):
+        return ()
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return ()
+    if not isinstance(parsed, list):
+        return ()
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for item in parsed:
+        if not isinstance(item, str):
+            continue
+        text = " ".join(item.split())
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+    return tuple(cleaned)
 
 
 @dataclass(frozen=True)
@@ -29,6 +56,8 @@ class ActiveSkill:
     source: str  # "user" | "added"
     # 已添加技能在 GET /skills 列表里的 ID（UserAddedSkill.id）
     added_id: str | None = None
+    # 触发场景提示（自建技能来自 UserSkill.triggers，公共技能来自 PublicSkill.tags）
+    triggers: tuple[str, ...] = ()
 
     @property
     def user_skill_id(self) -> str | None:
@@ -59,6 +88,7 @@ def load_active_skills(session: Session, user_id: str) -> list[ActiveSkill]:
             description=skill.description or "",
             instructions=skill.instructions or "",
             source="user",
+            triggers=parse_skill_triggers(skill.triggers),
         ))
 
     added_stmt = select(UserAddedSkill, PublicSkill).join(
@@ -69,6 +99,7 @@ def load_active_skills(session: Session, user_id: str) -> list[ActiveSkill]:
         PublicSkill.status == "approved",
     ).order_by(UserAddedSkill.added_at, UserAddedSkill.id)
     for added, public in session.exec(added_stmt).all():
+        # 公共技能的 tags 列承载触发词（与 api/skills.py 及 skill_package_service.py 一致）
         skills.append(ActiveSkill(
             id=public.id,
             name=added.custom_name or public.name,
@@ -76,6 +107,7 @@ def load_active_skills(session: Session, user_id: str) -> list[ActiveSkill]:
             instructions=public.instructions or "",
             source="added",
             added_id=added.id,
+            triggers=parse_skill_triggers(public.tags),
         ))
 
     return skills

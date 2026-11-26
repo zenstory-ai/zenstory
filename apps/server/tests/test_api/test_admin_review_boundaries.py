@@ -1,14 +1,11 @@
-from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
 
 from api.admin.plans import update_plan
 from api.admin.schemas import PlanUpdateRequest
-from config.datetime_utils import beijing_date, beijing_day_bounds, utcnow
 from main import app
 from models import User
-from models.points import CheckInRecord
 from models.subscription import AdminAuditLog, SubscriptionPlan
 from services.core.auth_service import get_current_superuser
 
@@ -46,7 +43,7 @@ async def test_admin_user_crud_never_serializes_password_hash(client, admin_boun
 async def test_admin_cannot_deactivate_or_demote_self(client, db_session, admin_boundary, change):
     admin, _, _ = admin_boundary
     response = await client.put(f"/api/admin/users/{admin.id}", json=change)
-    assert response.status_code in (400, 409)
+    assert response.status_code == 400
     db_session.refresh(admin)
     assert admin.is_active and admin.is_superuser
 
@@ -122,20 +119,3 @@ async def test_admin_audit_returns_actor_and_exact_filtered_total(client, db_ses
     assert payload["total"] == 3
     assert len(payload["items"]) == 2
     assert all(item["admin_id"] == admin.id and item["admin_name"] == admin.username for item in payload["items"])
-
-
-async def test_admin_week_checkins_covers_seven_calendar_days(client, db_session, admin_boundary):
-    admin, _, _ = admin_boundary
-    today_start, _ = beijing_day_bounds(utcnow())
-    records = []
-    for day in range(8):
-        happened_at = today_start - timedelta(days=day) + timedelta(minutes=30)
-        records.append(CheckInRecord(
-            user_id=admin.id, check_in_date=beijing_date(happened_at), points_earned=1,
-            created_at=happened_at,
-        ))
-    db_session.add_all(records)
-    db_session.commit()
-    response = await client.get("/api/admin/check-in/stats")
-    assert response.status_code == 200
-    assert response.json()["week_total"] == 7

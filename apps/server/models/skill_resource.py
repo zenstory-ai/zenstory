@@ -2,7 +2,7 @@
 Skill resource database model.
 
 Stores the text files that ship with a standard skill package
-(`references/*`, `assets/*`). Exactly one owner: a UserSkill or a PublicSkill.
+(`references/*`, `assets/*`, `examples/*`, `templates/*`). Exactly one owner: a UserSkill or a PublicSkill.
 Scripts and binary files are never stored (zenstory never executes skill code).
 """
 

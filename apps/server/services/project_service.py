@@ -9,8 +9,6 @@ Web 端 `POST /api/v1/projects` 与 Agent API `POST /api/v1/agent/projects` 都�
 而不是留给每个入口各写一遍：Agent API 早期版本就漏掉了上限检查，外部 Agent 可以无限建项目。
 入口只负责鉴权和把其它异常翻译成自己的错误契约（配额的 APIException 需原样放行）。
 项目行与默认文件夹在同一个事务里：文件夹初始化失败时项目行也不会落库。
-
-复制灵感（api/inspirations.py）不走这里，它自己做一次上限检查。
 """
 
 import logging

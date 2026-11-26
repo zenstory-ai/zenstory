@@ -234,7 +234,7 @@ async def _iter_with_stream_timeouts(
                 with contextlib.suppress(Exception):
                     res = aclose()
                     if inspect.isawaitable(res):
-                        await res
+                        await asyncio.wait_for(res, timeout=_STREAM_TEARDOWN_TIMEOUT_S)
 
 
 async def _iter_with_idle_timeout(
@@ -261,7 +261,7 @@ async def _iter_with_idle_timeout(
             _schedule_stream_teardown(guarded)
         else:
             with contextlib.suppress(Exception):
-                await guarded.aclose()
+                await asyncio.wait_for(guarded.aclose(), timeout=_STREAM_TEARDOWN_TIMEOUT_S)
 
 
 def _replay_reasoning_content(_context: Any) -> bool:
@@ -716,7 +716,7 @@ class FailoverChatModel:
                     if (
                         ttft_ms is None
                         and event_type in _FIRST_OUTPUT_EVENT_TYPES
-                        and getattr(event, "delta", None) != ""
+                        and _is_meaningful_stream_progress(event)
                     ):
                         from services.usage.llm_usage_service import elapsed_ms
 

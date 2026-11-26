@@ -18,7 +18,6 @@ vi.hoisted(() => {
 import { ProjectStatusDialog } from '../ProjectStatusDialog'
 import { dispatchProjectStatusUpdated } from '../../lib/projectStatusEvents'
 import { subscribeToast, type ToastEvent } from '../../lib/toast'
-import { inspirationsConfig } from '../../config/inspirations'
 import i18n from '../../lib/i18n'
 import { logger } from '../../lib/logger'
 import { authorNotesText } from '../../lib/projectNotes'
@@ -559,9 +558,8 @@ for (const strict of [false, true]) {
       expect(requests).toHaveLength(finalCount)
     })
 
-    it('control: disabled inspiration feature makes no inspiration action or navigation available', async () => {
+    it('control: retired inspiration feature makes no inspiration action or navigation available', async () => {
       await initial(strict)
-      expect(inspirationsConfig.enabled).toBe(false)
       const dialog = within(screen.getByRole('dialog'))
       expect(dialog.queryByRole('button', { name: 'Submit to Inspiration Library' })).not.toBeInTheDocument()
       expect(dialog.queryByRole('button', { name: 'View Inspiration Library' })).not.toBeInTheDocument()

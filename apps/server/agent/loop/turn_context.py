@@ -134,8 +134,22 @@ def build_loop_turn_context(
         if focus is not None and not focus.is_deleted and focus.project_id == project_id and focus.file_type != "folder":
             focus_file = focus
             items.append(assembler.file_to_context_item(focus, is_focus=True))
+    from agent.loop.history import estimate_provider_text_tokens, valid_compaction
+
+    manager = MessageManager(project_id=project_id, user_id=user_id)
+    selected_skill_lines = (
+        manager._build_selected_skill_section(selected_skills, force_en) if selected_skills else []
+    )
+    selected_skill_tokens = (
+        estimate_provider_text_tokens("\n".join(selected_skill_lines)) if selected_skill_lines else 0
+    )
+
     items = assembler.deduplicate_items(items)
-    items = _bound_turn_context_items(items, assembler)
+    items = _bound_turn_context_items(
+        items,
+        assembler,
+        reserved_provider_tokens=selected_skill_tokens,
+    )
 
     project_status = assembler.get_project_status(session, project_id)
 
@@ -176,7 +190,6 @@ def build_loop_turn_context(
 
     rendered = assembler.format_context(render_items, None, project_status)
 
-    manager = MessageManager(project_id=project_id, user_id=user_id)
     project_files = _project_files_block(
         session,
         project_id=project_id,
@@ -219,9 +232,7 @@ def build_loop_turn_context(
         deduped_any = True
 
     metadata_section = manager._build_metadata_section(metadata, force_en)
-    selected_skill_section = (
-        manager._build_selected_skill_section(selected_skills, force_en) if selected_skills else []
-    )
+    selected_skill_section = selected_skill_lines
     ui_action_section = (
         build_ui_action_turn_section(
             session,
@@ -270,8 +281,6 @@ def build_loop_turn_context(
         # 记录本轮 <author_edits> 提醒到的 file_id，若本轮 query_files 读过其中任一文件则清空 author_edits_sha256。
         "_author_edits_file_ids": [fid for fid, _ts, _ver, _chars in author_edit_states],
     }
-
-    from agent.loop.history import valid_compaction
 
     for item in items:
         file_id = assembler.item_file_id(item)
@@ -411,8 +420,10 @@ def _bound_turn_context_items(
     items: list[Any],
     assembler: Any,
     max_provider_tokens: int | None = None,
+    *,
+    reserved_provider_tokens: int = 0,
 ) -> list[Any]:
-    """限制单轮焦点/附加文件与素材的总预算，常态多章附加原样给全文，数十万字长卷自动截断并引导 query_files。"""
+    """限制单轮焦点/附加文件与素材的总预算，扣除显式技能占用；常态多章附加原样给全文，超大卷宗自动截断并引导 query_files。"""
     if not items:
         return items
     from agent.context.budget import TokenBudget
@@ -420,12 +431,15 @@ def _bound_turn_context_items(
     from config.agent_runtime import AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS
 
     limit = AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS if max_provider_tokens is None else max_provider_tokens
+    effective_limit = max(0, limit - max(0, int(reserved_provider_tokens or 0)))
+    if effective_limit <= 0:
+        return []
     budget = TokenBudget(
-        max_tokens=limit,
+        max_tokens=effective_limit,
         item_overhead=assembler.item_render_overhead_tokens,
         token_estimator=estimate_provider_text_tokens,
     )
-    if sum(budget.estimate_item_tokens(item) for item in items) <= limit:
+    if sum(budget.estimate_item_tokens(item) for item in items) <= effective_limit:
         return items
 
     # 优先保住引用与当前打开的焦点文件全文（使 edit_file 快照可用），超大附加参考稿在剩余额度内截断。

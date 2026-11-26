@@ -3,7 +3,6 @@ import type {
   SubscriptionCatalogTier,
   SubscriptionStatusResponse,
 } from "../types/subscription";
-import { inspirationsConfig } from "../config/inspirations";
 import { formatBeijingPeriodDate } from "./dateUtils";
 
 type TranslateFn = (
@@ -204,26 +203,9 @@ export function getEntitlementMetricDefinitions(
       value: (plan) => withUnit(plan.entitlements.file_versions_per_file, versionsUnit),
       compareValue: (plan) => plan.entitlements.file_versions_per_file,
     },
-    {
-      key: "inspiration_copies_monthly",
-      label: translate(
-        t,
-        "dashboard:billing.metricInspirationCopies",
-        "复制灵感",
-      ),
-      outcome: translate(
-        t,
-        "dashboard:billing.metricInspirationCopiesOutcome",
-        "把灵感库中的灵感复制成你的项目",
-      ),
-      value: (plan) => formatMonthly(plan.entitlements.inspiration_copies_monthly),
-      compareValue: (plan) => plan.entitlements.inspiration_copies_monthly,
-    },
   ];
 
-  return definitions.filter(
-    (definition) => inspirationsConfig.enabled || definition.key !== "inspiration_copies_monthly",
-  );
+  return definitions;
 }
 
 export interface YearlySavings {
@@ -331,13 +313,6 @@ export function getSubscriptionFeatureRows(
       label: translate(t, "dashboard:billing.metricCustomSkills", "自定义技能"),
       value: withUnit(numberOf("custom_skills"), skillsUnit) ?? "",
     },
-    inspirationsConfig.enabled
-      ? {
-          key: "inspiration_copies_monthly",
-          label: translate(t, "dashboard:billing.metricInspirationCopies", "复制灵感"),
-          value: withUnit(numberOf("inspiration_copies_monthly"), monthUnit) ?? "",
-        }
-      : null,
     {
       key: "file_versions_per_file",
       label: translate(t, "dashboard:billing.metricFileVersions", "每个文件保留的历史版本"),

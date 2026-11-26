@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { TEST_USERS } from './config';
+import { config, TEST_USERS } from './config';
 
 /**
  * E2E Tests for Admin Functionality
@@ -274,52 +274,77 @@ test.describe('Admin Functionality', () => {
       await expect(page.locator(USER_EDIT_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
     });
 
-    test('admin can deactivate user', async ({ page }) => {
+    test('admin can deactivate user', async ({ page }, testInfo) => {
       // Wait for table to load
       await expect(page.locator(USER_MANAGEMENT.table)).toBeVisible({ timeout: 10000 });
 
-      // Target standard E2E user for deterministic behavior
-      const targetRow = page.locator('table tbody tr').filter({ hasText: USER_EMAIL }).first();
-      if (await targetRow.count() === 0) {
+      const adminToken = await page.evaluate(() => localStorage.getItem('access_token'));
+      expect(adminToken).toBeTruthy();
+      const adminHeaders = {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': 'application/json',
+      };
+
+      // Prefer an isolated disposable user so the shared seed user is never
+      // deactivated even if an assertion fails mid-test.
+      const disposableEmail = `admin-deact-${Date.now()}-${testInfo.workerIndex}@example.com`;
+      const inviteCode = process.env.E2E_TEST_INVITE_CODE || 'E2E1-TST1';
+      const registerResp = await page.request.post(`${config.apiBaseUrl}/api/auth/register`, {
+        data: {
+          email: disposableEmail,
+          password: 'DisposableUser123!',
+          invite_code: inviteCode,
+        },
+      });
+
+      const targetEmail = registerResp.ok() ? disposableEmail : USER_EMAIL;
+      const listResp = await page.request.get(
+        `${config.apiBaseUrl}/api/admin/users?search=${encodeURIComponent(targetEmail)}`,
+        { headers: adminHeaders }
+      );
+      expect(listResp.ok()).toBe(true);
+      const listPayload = (await listResp.json()) as {
+        items?: Array<{ id: string; email: string; is_active?: boolean }>;
+      };
+      const targetUser = (listPayload.items ?? []).find((u) => u.email === targetEmail);
+      if (!targetUser) {
         test.skip();
         return;
       }
 
-      const targetEmail = (await targetRow.locator('td').nth(1).textContent())?.trim();
+      const originalActive = targetUser.is_active ?? true;
 
-      // Click edit on the target user
-      await targetRow.locator(USER_MANAGEMENT.editButton).click();
+      // Search for the exact target user so the row does not depend on page-1 ordering.
+      const searchInput = page.locator(USER_MANAGEMENT.searchInput);
+      await searchInput.fill(targetEmail);
+      const searchResponse = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/users') && resp.request().method() === 'GET'
+      );
+      await page.click(USER_MANAGEMENT.searchButton);
+      await searchResponse;
 
-      // Wait for edit dialog
-      await expect(page.locator(USER_EDIT_DIALOG.overlay)).toBeVisible({ timeout: 5000 });
+      const targetRow = page.locator('table tbody tr').filter({ hasText: targetEmail }).first();
+      await expect(targetRow).toBeVisible({ timeout: 10000 });
 
-      // Find checkbox for is_active (using TouchCheckbox or regular checkbox)
-      const checkbox = page.locator('button[role="checkbox"], input[type="checkbox"]').first();
+      try {
+        await targetRow.locator(USER_MANAGEMENT.editButton).click();
+        await expect(page.locator(USER_EDIT_DIALOG.overlay)).toBeVisible({ timeout: 5000 });
 
-      // Toggle checkbox
-      await checkbox.click();
+        const checkbox = page.locator('button[role="checkbox"], input[type="checkbox"]').first();
+        await checkbox.click();
 
-      // Save
-      await page.click(USER_EDIT_DIALOG.saveButton);
-
-      // Wait for dialog to close
-      await expect(page.locator(USER_EDIT_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
-
-      // Revert to original state to avoid affecting subsequent tests
-      if (targetEmail) {
-        let revertRow = page.locator('table tbody tr').filter({ hasText: targetEmail }).first();
-        if (await revertRow.count() === 0) {
-          await gotoWithRetry(page, '/admin/users');
-          await expect(page.locator(USER_MANAGEMENT.table)).toBeVisible({ timeout: 10000 });
-          revertRow = page.locator('table tbody tr').filter({ hasText: targetEmail }).first();
-        }
-        if (await revertRow.count() > 0) {
-          await revertRow.locator(USER_MANAGEMENT.editButton).click();
-          await expect(page.locator(USER_EDIT_DIALOG.overlay)).toBeVisible({ timeout: 5000 });
-          await page.locator('button[role="checkbox"], input[type="checkbox"]').first().click();
-          await page.click(USER_EDIT_DIALOG.saveButton);
-          await expect(page.locator(USER_EDIT_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
-        }
+        const updateResponse = page.waitForResponse(
+          (resp) => resp.url().includes(`/api/admin/users/${targetUser.id}`) && resp.request().method() === 'PUT'
+        );
+        await page.click(USER_EDIT_DIALOG.saveButton);
+        expect((await updateResponse).ok()).toBe(true);
+        await expect(page.locator(USER_EDIT_DIALOG.overlay)).not.toBeVisible({ timeout: 5000 });
+      } finally {
+        // Always restore active status via admin API so no user state leaks across tests.
+        await page.request.put(`${config.apiBaseUrl}/api/admin/users/${targetUser.id}`, {
+          headers: adminHeaders,
+          data: { is_active: originalActive },
+        });
       }
     });
 
@@ -466,18 +491,14 @@ test.describe('Admin Functionality', () => {
     });
 
     test('admin can reload prompts from database', async ({ page }) => {
-      // Click reload button
+      const reloadResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/prompts/reload') && resp.request().method() === 'POST'
+      );
       await page.click(PROMPT_MANAGEMENT.reloadButton);
+      const reloadResponse = await reloadResponsePromise;
+      expect(reloadResponse.ok()).toBe(true);
 
-      // Wait for reload to complete (check for loading state)
-      await waitForNetworkSettled(page);
-
-      // Check for success toast
-      const successToast = page.locator('.fixed.bottom-20:has-text("成功"), .bg-green-500');
-      const hasSuccessToast = await successToast.isVisible().catch(() => false);
-
-      // Test passes if toast appears or no error
-      expect(hasSuccessToast || true).toBeTruthy();
+      await expect(page.locator(PROMPT_MANAGEMENT.reloadButton)).toBeEnabled({ timeout: 5000 });
     });
 
     test('prompt cards show version info', async ({ page }) => {
@@ -487,15 +508,13 @@ test.describe('Admin Functionality', () => {
       const promptCards = page.locator(PROMPT_MANAGEMENT.promptCard);
       const cardCount = await promptCards.count();
 
-      if (cardCount > 0) {
-        const firstCard = promptCards.first();
-
-        // Check for version text
-        const versionText = firstCard.locator('text=版本, text=Version');
-        const hasVersionInfo = await versionText.isVisible().catch(() => false);
-
-        expect(hasVersionInfo || true).toBeTruthy();
+      if (cardCount === 0) {
+        test.skip();
+        return;
       }
+
+      const firstCard = promptCards.first();
+      await expect(firstCard.getByText(/版本|Version/i)).toBeVisible({ timeout: 5000 });
     });
   });
 

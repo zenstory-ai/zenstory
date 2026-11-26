@@ -48,8 +48,8 @@ describe("upgradeExperience", () => {
   });
 
   it("preserves existing query params when building upgrade URL", () => {
-    const url = buildUpgradeUrl("/pricing?plan=pro", "inspiration_copy_quota_blocked");
-    expect(url).toBe("/pricing?plan=pro&source=inspiration_copy_quota_blocked");
+    const url = buildUpgradeUrl("/pricing?plan=pro", "project_quota_blocked");
+    expect(url).toBe("/pricing?plan=pro&source=project_quota_blocked");
   });
 
   it("overrides existing source query param when rebuilding upgrade URL", () => {

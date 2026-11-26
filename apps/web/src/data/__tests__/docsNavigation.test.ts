@@ -23,7 +23,7 @@ describe('docsNavigation', () => {
   it('flattens the nested docs tree in parent-first order', () => {
     const flattened = flattenDocs(docsNavigation)
 
-    expect(flattened).toHaveLength(29)
+    expect(flattened).toHaveLength(28)
     expect(flattened[0]?.path).toBe('/docs/getting-started')
     expect(flattened.at(-1)?.path).toBe('/docs/troubleshooting/error-messages')
 

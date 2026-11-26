@@ -42,9 +42,11 @@ def test_provider_timeout_defaults_and_env_overrides(monkeypatch):
     assert minimax.first_event_timeout_s == 95.0
     assert minimax.stream_idle_timeout_s == 120.0
     assert minimax.kind.read_timeout_s() == 120.0
+    assert minimax.first_event_timeout_s < minimax.kind.read_timeout_s()
     assert deepseek.first_event_timeout_s == 65.0
-    assert deepseek.stream_idle_timeout_s == 45.0
-    assert deepseek.kind.read_timeout_s() == 45.0
+    assert deepseek.stream_idle_timeout_s == 90.0
+    assert deepseek.kind.read_timeout_s() == 90.0
+    assert deepseek.first_event_timeout_s < deepseek.kind.read_timeout_s()
 
     # Custom positive overrides
     monkeypatch.setenv("MINIMAX_FIRST_EVENT_TIMEOUT_S", "60.5")
@@ -661,6 +663,8 @@ async def test_w3_p1_3_collect_responses_stream_nonblocking_teardown_on_timeout(
             reasoning_efforts=frozenset({"high"}),
             read_timeout_env="TEST_W3_COLLECT_TIMEOUT_S",
             default_read_timeout_s=0.05,
+            first_event_timeout_env="TEST_W3_COLLECT_FIRST_EVENT_TIMEOUT_S",
+            default_first_event_timeout_s=0.05,
         ),
         model="MiniMax-M3.1-Flash",
         api_key="sk-test",
@@ -710,3 +714,224 @@ async def test_w3_p1_3_background_aclose_in_runner_and_stream_adapter_is_bounded
 
     assert not any(not t.done() for t in runner_mod._background_aclose_tasks)
     assert not any(not t.done() for t in adapter_mod._ABORT_SAVE_TASKS)
+
+
+# ---------------------------------------------------------------------------
+# PR #491 Review Fixes: M2 (compaction stream two-tier timeouts & CancelledError), L1 (bounded cancel aclose)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_m2_collect_responses_stream_honors_two_tier_timeouts_and_zero_disable(caplog):
+    """M2: _collect_responses_stream enforces first_event_timeout_s -> stream_idle_timeout_s and =0 disable."""
+
+    def _make_provider(first_s: float, idle_s: float) -> llm_providers.ModelProvider:
+        return llm_providers.ModelProvider(
+            slot="primary",
+            kind=llm_providers.MINIMAX,
+            model="MiniMax-M3.1-Flash",
+            api_key="sk-test",
+            base_url="https://api.minimaxi.com/v1",
+            reasoning_effort="high",
+            first_event_timeout_s=first_s,
+            stream_idle_timeout_s=idle_s,
+        )
+
+    # 1) Phase-1 first_event fires before idle_timeout_s even with keepalive/empty deltas
+    async def keepalive_only():
+        yield _ev("response.created")
+        for _ in range(10):
+            await asyncio.sleep(0.015)
+            yield _ev("response.output_text.delta", "")
+
+    with caplog.at_level("WARNING"), pytest.raises(llm_failover._StreamCollectError) as exc_info:
+        await llm_failover._collect_responses_stream(keepalive_only(), _make_provider(0.05, 0.5))
+    assert isinstance(exc_info.value.exc, TimeoutError)
+    assert "first_event" in str(exc_info.value.exc)
+    timeout_logs = [r.custom_fields for r in caplog.records if r.getMessage() == "LLM stream timeout"]
+    assert timeout_logs and timeout_logs[-1]["timeout_phase"] == "first_event"
+
+    # 2) Phase-1 -> Phase-2 handoff: gap after first meaningful delta exceeds first_event but fits idle
+    terminal_resp = SimpleNamespace(id="resp-ok", output=[], usage=None)
+
+    async def handoff_ok():
+        yield _ev("response.created")
+        await asyncio.sleep(0.015)
+        yield _ev("response.reasoning_text.delta", "思考")
+        await asyncio.sleep(0.09)
+        yield SimpleNamespace(type="response.completed", response=terminal_resp)
+
+    got = await llm_failover._collect_responses_stream(handoff_ok(), _make_provider(0.05, 0.25))
+    assert got is terminal_resp
+
+    # 3) Phase-1 disabled (=0) allows slow TTFT, then Phase-2 idle still fires
+    async def slow_ttft_then_stall():
+        yield _ev("response.created")
+        await asyncio.sleep(0.09)
+        yield _ev("response.output_text.delta", "首字")
+        await asyncio.sleep(0.25)
+
+    with pytest.raises(llm_failover._StreamCollectError) as idle_exc:
+        await llm_failover._collect_responses_stream(slow_ttft_then_stall(), _make_provider(0.0, 0.05))
+    assert isinstance(idle_exc.value.exc, TimeoutError)
+    assert "idle timeout" in str(idle_exc.value.exc)
+
+    # 4) Both disabled (=0) completes without artificial timeout
+    async def slow_both():
+        await asyncio.sleep(0.06)
+        yield _ev("response.output_text.delta", "摘要")
+        await asyncio.sleep(0.06)
+        yield SimpleNamespace(type="response.completed", response=terminal_resp)
+
+    got2 = await llm_failover._collect_responses_stream(slow_both(), _make_provider(0.0, 0.0))
+    assert got2 is terminal_resp
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_m2_teardown_helpers_do_not_swallow_cancelled_error():
+    """M2: Background teardown helpers in llm_failover, runner, and stream_adapter propagate CancelledError."""
+    from agent import stream_adapter as adapter_mod
+    from agent.openai_agents import runner as runner_mod
+
+    # 1) llm_failover._schedule_stream_collect_teardown
+    lf_started = asyncio.Event()
+    lf_close_called = False
+
+    class _Inner:
+        async def aclose(self):
+            lf_started.set()
+            await asyncio.sleep(10.0)
+
+    class _Outer:
+        async def close(self):
+            nonlocal lf_close_called
+            lf_close_called = True
+
+    lf_task = llm_failover._schedule_stream_collect_teardown(_Inner(), _Outer(), timeout_s=5.0)
+    assert lf_task is not None
+    await asyncio.wait_for(lf_started.wait(), timeout=0.5)
+    lf_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await lf_task
+    assert lf_close_called is False
+
+    # 2) runner._schedule_background_aclose
+    r_started = asyncio.Event()
+
+    async def r_hung():
+        r_started.set()
+        await asyncio.sleep(10.0)
+
+    before_r = set(runner_mod._background_aclose_tasks)
+    runner_mod._schedule_background_aclose(r_hung, timeout_s=5.0)
+    r_task = next(iter(runner_mod._background_aclose_tasks - before_r))
+    await asyncio.wait_for(r_started.wait(), timeout=0.5)
+    r_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await r_task
+
+    # 3) StreamAdapter._schedule_background_aclose
+    a_started = asyncio.Event()
+
+    async def a_hung():
+        a_started.set()
+        await asyncio.sleep(10.0)
+
+    before_a = set(adapter_mod._ABORT_SAVE_TASKS)
+    adapter_mod.StreamAdapter._schedule_background_aclose(a_hung, timeout_s=5.0)
+    a_task = next(iter(adapter_mod._ABORT_SAVE_TASKS - before_a))
+    await asyncio.wait_for(a_started.wait(), timeout=0.5)
+    a_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await a_task
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_m2_collect_responses_stream_closes_raw_stream_when_aclose_cancelled():
+    """M2: If aiter.aclose() receives CancelledError in finally, raw_stream.close() must still run."""
+    aclose_started = asyncio.Event()
+    raw_closed = False
+
+    class _CancelOnAcloseIter:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+        async def aclose(self):
+            aclose_started.set()
+            await asyncio.sleep(10.0)
+
+    class _RawStreamWithClose:
+        def __aiter__(self):
+            return _CancelOnAcloseIter()
+
+        async def close(self):
+            nonlocal raw_closed
+            raw_closed = True
+
+    provider = llm_providers.ModelProvider(
+        slot="primary",
+        kind=llm_providers.MINIMAX,
+        model="MiniMax-M3.1-Flash",
+        api_key="sk-test",
+        base_url="https://api.minimaxi.com/v1",
+        reasoning_effort="high",
+    )
+
+    task = asyncio.create_task(llm_failover._collect_responses_stream(_RawStreamWithClose(), provider))
+    await asyncio.wait_for(aclose_started.wait(), timeout=0.5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert raw_closed is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_l1_cancelled_stream_bounds_inline_aclose_timeout(monkeypatch):
+    """L1: Caller CancelledError during iteration bounds inline aiter.aclose() to _STREAM_TEARDOWN_TIMEOUT_S."""
+    monkeypatch.setattr(sdk_model, "_STREAM_TEARDOWN_TIMEOUT_S", 0.08)
+    in_anext = asyncio.Event()
+    aclose_started = asyncio.Event()
+    aclose_cancelled = asyncio.Event()
+
+    class _WedgedOnCancelStream:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            in_anext.set()
+            await asyncio.sleep(10.0)
+
+        async def aclose(self):
+            aclose_started.set()
+            try:
+                await asyncio.sleep(10.0)
+            except asyncio.CancelledError:
+                aclose_cancelled.set()
+                raise
+
+    async def _consume():
+        async for _ in sdk_model._iter_with_stream_timeouts(
+            _WedgedOnCancelStream(),
+            first_event_timeout_s=5.0,
+            idle_timeout_s=5.0,
+            provider_name="minimax",
+        ):
+            pass
+
+    task = asyncio.create_task(_consume())
+    await asyncio.wait_for(in_anext.wait(), timeout=0.5)
+    started = time.monotonic()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    elapsed = time.monotonic() - started
+    assert elapsed < 0.5, f"CancelledError hung behind wedged aclose(): took {elapsed:.3f}s"
+    assert aclose_started.is_set()
+    assert aclose_cancelled.is_set()

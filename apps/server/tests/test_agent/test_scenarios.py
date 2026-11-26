@@ -650,29 +650,6 @@ class TestEndToEndScenarios:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Requires real LLM API key")
-    async def test_full_writing_workflow(
-        self,
-        db_session: Session,
-        test_project: Project,
-        test_user: User,
-        create_chat_session,
-    ):
-        """
-        Test a complete writing workflow from planning to review.
-
-        This test is skipped by default as it requires a real API key.
-        Enable it for manual integration testing.
-        """
-        # This would test the full workflow:
-        # 1. User requests to write a chapter
-        # 2. Router selects appropriate agents
-        # 3. Planner creates outline
-        # 4. Writer generates content
-        # 5. Reviewer checks quality
-        pass
-
-    @pytest.mark.asyncio
     async def test_context_assembly_with_all_material_types(
         self,
         db_session: Session,

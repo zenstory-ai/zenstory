@@ -818,6 +818,102 @@ def test_build_loop_turn_context_bounds_oversize_attachments_while_preserving_fo
 
 
 @pytest.mark.unit
+def test_build_loop_turn_context_subtracts_selected_skills_from_attachment_budget(db_session):
+    """selected_skills 占用从 _bound_turn_context_items 预算扣除：保留技能全文，附加文件主动让位。"""
+    from agent.loop.history import estimate_provider_text_tokens
+    from agent.loop.turn_context import build_loop_turn_context
+    from models import File, Project, User
+
+    user = User(username="turn_skill_cap", email="turn_skill_cap@example.test", hashed_password="x", email_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    project = Project(name="技能预算项目", owner_id=user.id)
+    db_session.add(project)
+    db_session.flush()
+
+    focus_body = "　　当前正在改写的第四章内容，保持简洁紧凑。\n\n" * 10
+    focus = File(project_id=project.id, title="第4章 焦点", content=focus_body, file_type="draft")
+    # 约 100k 字符（~65k provider tokens），单看附加文件远低于 120k，但叠加 3 个 50k 技能会飙到 160k+
+    att_body = "　　长篇卷宗设定与旧稿合集，风起青萍之末，江湖暗潮涌动。\n" * 3_500
+    att = File(project_id=project.id, title="前卷合集", content=att_body, file_type="draft")
+    db_session.add_all([focus, att])
+    db_session.commit()
+
+    skill_body = ("先立悬念再落情绪，每一场戏都要有因果推进与伏笔呼应。" * 2_000)[:50_000]
+    selected_skills = [
+        {"id": f"sk-{idx}", "name": f"长技能{idx}", "instructions": f"SKILL_{idx}:{skill_body[8:]}", "resources": []}
+        for idx in range(3)
+    ]
+
+    # 没有 selected_skills 时，att 全文在 120k 预算内，原样保留
+    turn_without_skills = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id, "attached_file_ids": [att.id]},
+        language="zh-CN",
+    )
+    assert att.id in turn_without_skills.read_snapshots
+
+    # 带上 3 个满长 selected_skills（~98k provider tokens）后，附加文件自动截断让出预算，技能全文完整保留
+    turn_with_skills = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id, "attached_file_ids": [att.id]},
+        language="zh-CN",
+        selected_skills=selected_skills,
+    )
+
+    assert estimate_provider_text_tokens(turn_with_skills.text) <= 135_000
+    for idx in range(3):
+        assert selected_skills[idx]["instructions"] in turn_with_skills.text
+    assert turn_with_skills.read_snapshots.get(focus.id) == focus_body
+    assert att.id not in turn_with_skills.read_snapshots
+    assert "已截断" in turn_with_skills.text
+    assert f'query_files(id="{att.id}")' in turn_with_skills.text
+
+
+@pytest.mark.unit
+def test_build_loop_turn_context_handles_selected_skills_exceeding_budget_gracefully(db_session, monkeypatch):
+    """即便 selected_skills 单独超出单轮上下文预算，也不报错，保留完整技能并体面让出附加文件。"""
+    from agent.loop.turn_context import build_loop_turn_context
+    from models import File, Project, User
+
+    user = User(username="turn_skill_over", email="turn_skill_over@example.test", hashed_password="x", email_verified=True)
+    db_session.add(user)
+    db_session.flush()
+    project = Project(name="超限技能预算项目", owner_id=user.id)
+    db_session.add(project)
+    db_session.flush()
+
+    focus = File(project_id=project.id, title="第1章", content="第一章正文。" * 100, file_type="draft")
+    db_session.add(focus)
+    db_session.commit()
+
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS", 500)
+    selected_skills = [
+        {"id": "sk-big", "name": "大技能", "instructions": "完整核心方法说明。" * 400, "resources": ["references/a.md"]}
+    ]
+
+    turn = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id},
+        language="zh-CN",
+        selected_skills=selected_skills,
+    )
+
+    assert selected_skills[0]["instructions"] in turn.text
+    assert "- references/a.md" in turn.text
+    assert turn.items == []
+    assert focus.id not in turn.read_snapshots
+    # 项目文件索引仍保留，模型按需可调 query_files
+    assert focus.id in turn.text
+
+
+@pytest.mark.unit
 def test_billing_tracker_treats_empty_replaced_chapter_as_pending_body_on_failure():
     """已有 0 字空章走 write_chapter(replaced, original_content_length=0) 时，导语后保存失败或中断应按未交付退费。"""
     from agent.core.stream_billing import StreamBillingTracker

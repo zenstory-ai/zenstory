@@ -1,11 +1,12 @@
 """
-Referral system models.
+Referral system models (DORMANT).
 
-Defines all SQLModel entities for the referral/invite system:
-- InviteCode: Invitation codes for user registration
-- Referral: Referral relationships between users
-- UserReward: User rewards from referrals
-- UserStats: User invitation statistics
+Retained strictly for Alembic metadata compatibility and historical data
+preservation (no DROP TABLE). Runtime code no longer reads or writes:
+- InviteCode
+- Referral
+- UserReward
+- UserStats
 """
 
 from datetime import datetime

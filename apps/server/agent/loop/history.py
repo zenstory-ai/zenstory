@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +61,9 @@ _SKILL_CONTENT_NOT_KEPT = {
     "load_skill": "技能方法正文没有保留在历史里；这一轮要按这个技能做，先重新调用 load_skill 读取。",
     "read_skill_resource": "资源正文没有保留在历史里；这一轮要用它，先重新调用 read_skill_resource 读取。",
 }
+# 冷回放仅对最近 N 个用户轮次内的技能工具调用重新水合正文，避免过早的轮次膨胀冷回放输入。
+SKILL_REPLAY_RECENT_TURNS = 3
+_SkillRehydrator = Callable[[str, Any, Any], dict[str, Any] | None]
 _FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的具体原因与候选没有保留，重试前先重新读取相关文件。"
 
 # Stage 1 零 LLM 确定性归档压缩（tool_archive）的共享常量与收据构造。
@@ -591,7 +595,11 @@ def summary_message(summary: str) -> dict[str, Any]:
     return {"role": "user", "content": f"{SUMMARY_PREFIX}{summary.strip()}"}
 
 
-def _tool_output_text(call: dict[str, Any]) -> str:
+def _tool_output_text(
+    call: dict[str, Any],
+    *,
+    skill_rehydrator: _SkillRehydrator | None = None,
+) -> str:
     """持久化的工具结果（前端卡片口径）还原成交给模型的结果文字。"""
     status = str(call.get("status") or "")
     name = str(call.get("name") or "")
@@ -603,6 +611,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+    rehydrated_skill = False
     if name == "edit_file" and isinstance(result, dict):
         from agent.tools.file_ops.edit import slim_edit_file_result_for_llm
 
@@ -626,6 +635,16 @@ def _tool_output_text(call: dict[str, Any]) -> str:
             result["body_saved"] = saved if has_receipt else True
             if has_receipt and not saved:
                 result["result"] = _CREATE_NOT_SAVED_NOTE
+    elif (
+        skill_rehydrator is not None
+        and (status or "success") == "success"
+        and name in _SKILL_CONTENT_NOT_KEPT
+        and isinstance(result, dict)
+    ):
+        hydrated = skill_rehydrator(name, result, call.get("arguments"))
+        if hydrated is not None:
+            result = hydrated
+            rehydrated_skill = True
     payload: dict[str, Any] = {"status": status or "success"}
     if result is not None:
         payload["data"] = result
@@ -633,7 +652,7 @@ def _tool_output_text(call: dict[str, Any]) -> str:
         payload["error"] = error
     if status == "error":
         payload["note"] = _FAILED_CALL_NOTE
-    elif name in _SKILL_CONTENT_NOT_KEPT:
+    elif name in _SKILL_CONTENT_NOT_KEPT and not rehydrated_skill:
         payload["note"] = _SKILL_CONTENT_NOT_KEPT[name]
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
@@ -703,6 +722,7 @@ def _loop_row_items(
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
     archive_matcher: Any | None = None,
+    skill_rehydrator: _SkillRehydrator | None = None,
 ) -> list[dict[str, Any]]:
     """一条单循环 assistant 行 → SDK 输入项（文字与成对的工具调用，按显示顺序）。"""
     raw_calls = _parse_json(getattr(row, "tool_calls", None))
@@ -729,8 +749,6 @@ def _loop_row_items(
         arguments = call.get("arguments")
         if not isinstance(arguments, str):
             arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False, separators=(",", ":"))
-        output_text = _tool_output_text(call)
-        was_archived = False
         if archive_matcher is not None:
             should_archive = archive_matcher(call_id, orig_call_id, tool_name)
         else:
@@ -739,6 +757,12 @@ def _loop_row_items(
                 and tool_name in ARCHIVABLE_READ_TOOLS
                 and (call_id in archived_call_ids or (orig_call_id and orig_call_id in archived_call_ids))
             )
+        # 已归档的技能调用跳过冷回放水合，避免无谓查询 DB 后再被归档丢弃。
+        output_text = _tool_output_text(
+            call,
+            skill_rehydrator=None if should_archive else skill_rehydrator,
+        )
+        was_archived = False
         if should_archive:
             parsed_output = _parse_json(output_text)
             if is_successful_archivable_payload(parsed_output):
@@ -757,6 +781,10 @@ def _loop_row_items(
                     was_archived = True
                     if archived_file_ids is not None:
                         archived_file_ids.update(fids)
+                elif tool_name in _SKILL_CONTENT_NOT_KEPT:
+                    # 落库的技能工具卡片不含正文且已跳过水合，统一转为归档回执。
+                    output_text = receipt_text
+                    was_archived = True
         if not was_archived and archived_file_ids is not None and tool_name == "query_files":
             # 只有后续非归档的 query_files 再次返回了完整、未截断、非范围读取的正文，该文件才重新进入模型视野；
             # edit_file / summary / partial / truncated 查询不提供全文，不能清除已归档标记。
@@ -820,6 +848,7 @@ def _row_items(
     archived_call_ids: set[str] | None = None,
     archived_file_ids: set[str] | None = None,
     archive_matcher: Any | None = None,
+    skill_rehydrator: _SkillRehydrator | None = None,
 ) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
@@ -833,6 +862,7 @@ def _row_items(
         archived_call_ids=archived_call_ids,
         archived_file_ids=archived_file_ids,
         archive_matcher=archive_matcher,
+        skill_rehydrator=skill_rehydrator,
     )
     stop_reason = metadata.get("stop_reason")
     status_cards = metadata.get("status_cards")
@@ -852,6 +882,34 @@ def _row_items(
     elif isinstance(stop_reason, str) and stop_reason in _INTERRUPTED_ROUND_NOTES:
         items.append({"role": "assistant", "content": _INTERRUPTED_ROUND_NOTES[stop_reason]})
     return items
+
+
+def _recent_skill_replay_row_ids(
+    after_rows: list[Any],
+    *,
+    recent_turns: int = SKILL_REPLAY_RECENT_TURNS,
+) -> set[Any]:
+    """选出最近 ``recent_turns`` 个用户轮次内的 assistant 行 id（``after_rows`` 按新→旧排列）。
+
+    同一轮内由 steering 产生的连续多条 user 行合并计作 1 个用户轮次。
+    """
+    if recent_turns <= 0:
+        return set()
+    eligible: set[Any] = set()
+    user_turns_seen = 0
+    prev_was_user = False
+    for row in after_rows:
+        if row.role == "user":
+            if not prev_was_user:
+                user_turns_seen += 1
+                prev_was_user = True
+            continue
+        prev_was_user = False
+        if row.role == "assistant":
+            if user_turns_seen >= recent_turns:
+                break
+            eligible.add(row.id)
+    return eligible
 
 
 def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list[dict[str, Any]]:
@@ -1079,6 +1137,32 @@ def load_loop_history(
     # 精准命中被归档的那次调用，绝不误归档保护窗口内同名的后续读调用或写工具。
     orig_call_occurrence_counts: dict[str, int] = {}
 
+    recent_skill_row_ids = _recent_skill_replay_row_ids(after_rows) if user_id else set()
+    active_skills_by_id: dict[str, Any] | None = None
+
+    def rehydrate_skill_call(
+        tool_name: str,
+        result_data: Any,
+        call_arguments: Any,
+    ) -> dict[str, Any] | None:
+        nonlocal active_skills_by_id
+        if not user_id:
+            return None
+        if active_skills_by_id is None:
+            from agent.skills.active_skills import load_active_skills
+            from agent.skills.replay import index_active_skills
+
+            active_skills_by_id = index_active_skills(load_active_skills(session, user_id))
+        from agent.skills.replay import rehydrate_skill_tool_result
+
+        return rehydrate_skill_tool_result(
+            active_skills_by_id,
+            session,
+            tool_name,
+            result_data,
+            call_arguments=call_arguments,
+        )
+
     for pos, row in enumerate(chronological_rows):
         active_scopes = [scope for scope in scoped_archives if pos <= scope[0]] if scoped_archives else []
 
@@ -1108,12 +1192,14 @@ def load_loop_history(
                         matched = True
             return matched
 
+        rehydrator = rehydrate_skill_call if row.id in recent_skill_row_ids else None
         items.extend(
             _row_items(
                 loader,
                 row,
                 archived_file_ids=result.archived_file_ids,
                 archive_matcher=_match_archive if scoped_archives else None,
+                skill_rehydrator=rehydrator,
             )
         )
         if row.role == "user" and str(row.content or "").strip():

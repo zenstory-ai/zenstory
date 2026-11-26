@@ -104,7 +104,6 @@ from .loop.wire_prefix_cache import (
 from .openai_agents.runner import MAX_TURNS_STOP_REASON
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
-from .skills.content_budget import split_selected_budget
 from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
 from .tools.tool_context import AgentRequestContext
 
@@ -736,17 +735,11 @@ class AgentService:
 
         selected: list[dict[str, Any]] = []
         skills = resolve_selected_skills(session, user_id, selected_skill_ids)
-        # 显式选择的正文进 system prompt，会被每轮迭代重复发送：合计不超过技能内容预算的
-        # 显式选择份额，超出部分截断，并提示模型用 read_skill_resource 分段续读。
-        segments = split_selected_budget([skill.instructions for skill in skills])
-        for skill, segment in zip(skills, segments, strict=True):
+        for skill in skills:
             selected.append({
                 "id": skill.id,
                 "name": skill.name,
-                "instructions": segment.text,
-                "instructions_tokens": segment.tokens,
-                "instructions_next_offset": segment.next_offset,
-                "instructions_total_chars": segment.total_chars,
+                "instructions": skill.instructions,
                 "source": skill.source,
                 "resources": [
                     resource.path for resource in list_active_skill_resources(session, skill)
@@ -1656,10 +1649,6 @@ class AgentService:
                 project_id=project_id,
                 session_id=session_id,
                 create_session_func=create_session,
-                # 显式选择的正文已占用的技能内容预算
-                skill_tokens_used=sum(
-                    int(selected.get("instructions_tokens") or 0) for selected in selected_skills
-                ),
                 # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,
@@ -1677,6 +1666,12 @@ class AgentService:
                 request_context.drop_initial_read_snapshots(
                     loop_history.archived_file_ids & loop_turn.session_carried_snapshot_ids
                 )
+            # 显式选择的技能预登记进单轮技能加载门禁：selected_skills 与 load_skill / read_skill_resource
+            # 合计每请求最多 3 个不同技能，同时允许对已选技能继续读取其资源文件。
+            for selected in selected_skills:
+                selected_id = str(selected.get("id") or "").strip()
+                if selected_id:
+                    request_context.skill_content_budget.admit_skill(selected_id)
 
             # Build WritingState for workflow execution
             writing_state: WritingState = {
@@ -1727,12 +1722,38 @@ class AgentService:
                         # Stage 2（LLM 交接摘要）：Stage 1 未达准入时兜底，并把 Stage 1 已归档的更小历史送入摘要调用。
                         pre_archive: ToolArchiveResult | None = None
                         outcome: CompactionOutcome | None = None
+                        effective_turn_tokens = current_turn_tokens
                         if agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_ENABLED:
                             stage1_started = time.monotonic()
                             pre_archive = archive_old_tool_results(
                                 loop_history,
                                 turn_input_tokens=current_turn_tokens,
                             )
+                            if pre_archive.admitted and pre_archive.record is not None:
+                                # 若 Stage 1 归档命中的文件在本轮被指纹去重省略，接受 Stage 1 后会立即恢复
+                                # loop_turn.full_text；按恢复后的真实输入量重新核验准入，避免下轮连续抖动压缩。
+                                stage1_current_full_ids = set(
+                                    (loop_turn.context_fingerprints or {}).get("_current_full_file_hashes") or ()
+                                )
+                                would_restore_full_text = bool(
+                                    loop_turn.full_text
+                                    and (
+                                        pre_archive.archived_unidentified_query_files
+                                        or (pre_archive.archived_file_ids & stage1_current_full_ids)
+                                    )
+                                )
+                                if would_restore_full_text:
+                                    restored_user_content = SessionLoader.attach_working_set_to_user_content(
+                                        base_user_content, loop_turn.full_text
+                                    )
+                                    restored_turn_tokens = estimate_provider_text_tokens(restored_user_content)
+                                    effective_turn_tokens = max(current_turn_tokens, restored_turn_tokens)
+                                    if (
+                                        pre_archive.projected_after_tokens + restored_turn_tokens
+                                        > agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS
+                                    ):
+                                        pre_archive.admitted = False
+                                        pre_archive.record = None
                             if pre_archive.admitted and pre_archive.record is not None:
                                 run_meter.record_stage(
                                     "compaction", (time.monotonic() - stage1_started) * 1000
@@ -1754,7 +1775,7 @@ class AgentService:
                                     after_tokens=pre_archive.after_tokens,
                                     projected_after_tokens=pre_archive.projected_after_tokens,
                                     saved_tokens=pre_archive.saved_tokens,
-                                    turn_input_tokens=current_turn_tokens,
+                                    turn_input_tokens=effective_turn_tokens,
                                 )
 
                         emitted_compaction_progress = False
@@ -1781,7 +1802,7 @@ class AgentService:
                                     session_id=session_id,
                                     run_meter=run_meter,
                                     request_context=request_context,
-                                    turn_input_tokens=current_turn_tokens,
+                                    turn_input_tokens=effective_turn_tokens,
                                     pre_archive=pre_archive,
                                 )
 

@@ -481,6 +481,14 @@ def _schedule_detached_refund(
     **log_fields: Any,
 ) -> asyncio.Task[bool] | None:
     """在后台退还额度（断线路径不能 await）；返回排上的任务（没排上为 None）。"""
+    # 在创建后台任务前同步判定是否需切独立 Session：避免双重取消提前关闭请求级 session 后才检查。
+    if should_offload_session_work(session):
+        return _schedule_detached_refund_independent(
+            user_id,
+            period_start,
+            reservation_id,
+            **log_fields,
+        )
     try:
         task = asyncio.get_running_loop().create_task(
             _refund_quota(session, user_id, period_start, reservation_id, **log_fields)

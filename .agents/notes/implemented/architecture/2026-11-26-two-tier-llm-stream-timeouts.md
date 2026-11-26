@@ -15,8 +15,8 @@ Status: implemented
 
 1. **供应商级两阶段流超时配置**（`apps/server/agent/core/llm_providers.py`）：
    - 在 `ProviderKind` 新增 `first_event_timeout_env`、`default_first_event_timeout_s`，以及 `first_event_timeout_s()` / `stream_idle_timeout_s()` 解析方法；在 `ModelProvider` 解析并持久化 `first_event_timeout_s: float` 与 `stream_idle_timeout_s: float`（默认值由 `kind` 兜底，兼容直接构造 `ModelProvider` 的测试）。
-   - **MiniMax**：`MINIMAX_FIRST_EVENT_TIMEOUT_S` 默认 `75.0`s（高于实测 320k 无缓存最大 TTFT ~49s，留足裕量）；`MINIMAX_CLIENT_TIMEOUT_S` 默认 `120.0`s 作为 Phase-2 `stream_idle_timeout_s`。
-   - **DeepSeek**：`DEEPSEEK_FIRST_EVENT_TIMEOUT_S` 默认 `45.0`s；`DEEPSEEK_CLIENT_TIMEOUT_S` 默认 `45.0`s 作为 Phase-2 `stream_idle_timeout_s`。
+   - **MiniMax**：`MINIMAX_FIRST_EVENT_TIMEOUT_S` 默认 `95.0`s（高于实测 320k 无缓存最大 TTFT ~49s，在 300k 线上上下文下留足裕量、避免误触熔断）；`MINIMAX_CLIENT_TIMEOUT_S` 默认 `120.0`s 作为 Phase-2 `stream_idle_timeout_s` 与 `httpx` 读超时。
+   - **DeepSeek**：`DEEPSEEK_FIRST_EVENT_TIMEOUT_S` 默认 `65.0`s；`DEEPSEEK_CLIENT_TIMEOUT_S` 默认 `90.0`s 作为 Phase-2 `stream_idle_timeout_s` 与 `httpx` 读超时（高于 Phase-1 `65.0`s，确保首包前静默 TCP 挂死先命中 Phase-1 `first_event` 超时与非阻塞释放）。
    - 两个流超时环境变量均支持设为 `0` 以显式关闭对应阶段超时；负数、非数字或 `nan`/`inf` 安全回退默认值。底层 HTTP 客户端的 `read_timeout_s()` 维持正数解析，避免把 `0` 传给 `httpx.Timeout` 引发立即断连。
 2. **两阶段监控与诊断区分**（`apps/server/agent/openai_agents/model.py`）：
    - 将 `_iter_with_idle_timeout` 升级为 `_iter_with_stream_timeouts(stream, *, first_event_timeout_s, idle_timeout_s, provider_name)`，保留 `_iter_with_idle_timeout` 作为薄兼容包装。
@@ -46,7 +46,7 @@ Status: implemented
 ## Consequences
 
 - **收益**：
-  - MiniMax 节点在首包前静默挂死时，检测与切换时间从 120s 缩短至 75s，且不会被挂死的 TCP `aclose()` 进一步拖延。
+  - MiniMax 节点在首包前静默挂死时，检测与切换时间从 120s 缩短至 95s，且不会被挂死的 TCP `aclose()` 进一步拖延。
   - 日志与异常明确区分 `first_event` 与 `idle`，便于排查上游 TTFT 退化与流中卡顿。
   - 支持通过 `MINIMAX_FIRST_EVENT_TIMEOUT_S=0` / `MINIMAX_CLIENT_TIMEOUT_S=0` 按阶段灵活降级，无需改代码发版。
 - **代价与权衡**：

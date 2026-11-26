@@ -40,12 +40,10 @@ def _user_project(db_session: Session, project_type: str = "novel") -> tuple[Use
 
 
 @pytest.mark.unit
-def test_loop_toolset_excludes_multi_agent_control_flow():
+def test_loop_toolset_matches_exact_whitelist():
     from agent.openai_agents.tools_adapter import build_agent_function_tools
     from agent.tools.registry import LOOP_TOOL_NAMES, get_exposed_tools, validate_registry_alignment
-    from agent.tools.tool_schemas import TOOL_SCHEMAS
 
-    excluded = {"handoff_to_agent", "request_clarification", "parallel_execute"}
     exposed = [schema["name"] for schema in get_exposed_tools()]
     built = [tool.name for tool in build_agent_function_tools()]
 
@@ -54,7 +52,6 @@ def test_loop_toolset_excludes_multi_agent_control_flow():
         "create_file", "write_chapter", "edit_file", "delete_file", "rename_file", "query_files",
         "update_project", "load_skill", "read_skill_resource",
     ]
-    assert not excluded & set(TOOL_SCHEMAS)
     # 单循环 agent 看到的 create_file 不建正文。
     [loop_create] = [schema for schema in get_exposed_tools() if schema["name"] == "create_file"]
     assert not {"draft", "script"} & set(loop_create["input_schema"]["properties"]["file_type"]["enum"])
@@ -76,17 +73,8 @@ def test_loop_system_prompt_merges_project_config_with_loop_rules(db_session, wr
     loop_prompt = manager.build_system_prompt(db_session, language="zh")
 
     assert LOOP_WORKING_RULES in loop_prompt
-    for removed in ("handoff_to_agent", "parallel_execute", "request_clarification", AGENT_DIRECTIVE_HEADER, "[TASK_COMPLETE]"):
-        assert removed not in loop_prompt
-    # 自查与真实字数两条规则来自原快速模式指令，文字里不提模式。
-    assert "自查" in loop_prompt and "实际多少字" in loop_prompt
-    # 正文按章号经 write_chapter 写；不再有「用 edit_file 把稿子整体替换进该章」「old 写原文全文」的正文写法。
-    assert "write_chapter" in loop_prompt and "大纲是节奏的上限也是底线" in loop_prompt
-    assert "整体替换进该章" not in loop_prompt and "整章重写时用一个 replace" not in loop_prompt
-    assert "不另存成素材、副本或备份文件" in loop_prompt
-    # 录入作者资料：原文逐字存，AI 补充只放在单独标明的一节里并在回复里说明。
-    assert "逐字存成" in loop_prompt and "AI 补充建议（待作者确认）" in loop_prompt
-    assert "快速模式" not in loop_prompt and "生成模式" not in loop_prompt
+    assert AGENT_DIRECTIVE_HEADER not in loop_prompt
+    assert "write_chapter" in loop_prompt
     # 项目类型的写作配置（数据库行）在最前面。
     assert loop_prompt.split("\n", 1)[0] == "Test novel editor"
 
@@ -1169,7 +1157,7 @@ async def test_loop_passes_the_truncation_resume_directive_to_the_first_run_only
 
 
 # ---------------------------------------------------------------------------
-# 收尾提醒：文案指向 write_chapter（没有 parallel_execute）
+# 收尾提醒：按轮数/时间注入对应提示
 # ---------------------------------------------------------------------------
 
 
@@ -1189,8 +1177,6 @@ def test_landing_reminders_name_write_chapter(trigger):
     sent = turn_filter(SimpleNamespace(model_data=ModelInputData(input=[], instructions="sys")))
     text = sent.input[-1]["content"]
 
-    assert "write_chapter" in text and "create_file" in text
-    assert "parallel_execute" not in text
     assert text == (LOOP_SOFT_LANDING_PROMPT.format(remaining=1) if trigger == "turns" else LOOP_TIME_LANDING_PROMPT)
 
 

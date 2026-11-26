@@ -51,7 +51,6 @@ def test_old_email_operations_share_a_real_account_gate(monkeypatch, first, seco
     verify = AsyncMock(return_value=(True, None))
     sender = AsyncMock(side_effect=send_code)
     monkeypatch.setattr("api.verification.verify_code", verify)
-    monkeypatch.setattr("api.verification.complete_pending_referral_for_invitee", AsyncMock())
     monkeypatch.setattr(verification_service, "send_verification_code", sender)
     monkeypatch.setattr("api.verification.send_verification_code", sender)
     monkeypatch.setattr(verification_service, "delete_verification_code", MagicMock(side_effect=lambda email: codes.pop(email, None) is not None))

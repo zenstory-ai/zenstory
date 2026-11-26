@@ -7,19 +7,12 @@ import pytest
 import api.oauth as oauth_module
 
 
-def test_sanitize_invite_code_normalizes_and_truncates():
-    assert oauth_module._sanitize_invite_code(" abcd1234 ") == "ABCD-1234"
-    assert oauth_module._sanitize_invite_code("邀请码: abcd-1234 !!!") == "ABCD-1234"
-    assert oauth_module._sanitize_invite_code("") is None
-    assert oauth_module._sanitize_invite_code("x" * 64) == ("X" * 32)
-
-
 def test_decode_state_and_redirect_allowlist(monkeypatch):
-    encoded = oauth_module._encode_oauth_state({"redirect": "https://zenstory.ai/app", "code": "ABCD-1234"})
+    encoded = oauth_module._encode_oauth_state({"redirect": "https://zenstory.ai/app"})
 
     monkeypatch.setattr(oauth_module, "SSO_ALLOWED_REDIRECT_DOMAINS", ["zenstory.ai"])
 
-    assert oauth_module._decode_oauth_state(encoded) == {"redirect": "https://zenstory.ai/app", "code": "ABCD-1234"}
+    assert oauth_module._decode_oauth_state(encoded) == {"redirect": "https://zenstory.ai/app"}
     assert oauth_module._decode_oauth_state("not-valid-base64") is None
     assert oauth_module._is_allowed_redirect_url("https://zenstory.ai/app") is True
     assert oauth_module._is_allowed_redirect_url("https://user:pass@zenstory.ai/evil") is False
@@ -34,7 +27,6 @@ def test_redirect_to_frontend_register_keeps_only_safe_redirect(monkeypatch):
     response = oauth_module._redirect_to_frontend_register(
         error_code="ERR_OAUTH_STATE_INVALID",
         redirect="https://frontend.example/dashboard",
-        invite_code="ABCD-1234",
     )
 
     parsed = urlparse(response.headers["location"])
@@ -43,7 +35,6 @@ def test_redirect_to_frontend_register_keeps_only_safe_redirect(monkeypatch):
     assert parsed.scheme == "https"
     assert parsed.netloc == "frontend.example"
     assert params["error_code"] == ["ERR_OAUTH_STATE_INVALID"]
-    assert params["code"] == ["ABCD-1234"]
     assert params["redirect"] == ["https://frontend.example/dashboard"]
 
 

@@ -592,7 +592,6 @@ def test_settle_cancelled_stream_never_relaxes_material_trial_guard(db_session):
     assert after_trial_units == before_trial_units
 
 
-
 @pytest.mark.asyncio
 async def test_w3_p1_3_prestream_timeout_or_cancel_settles_cost_reservation(db_session, monkeypatch):
     """P1-3: Pre-stream TimeoutError or CancelledError during streaming responses.create /
@@ -641,3 +640,15 @@ async def test_w3_p1_3_prestream_timeout_or_cancel_settles_cost_reservation(db_s
         assert row.settled_units < row.reserved_units
     daily_bucket = db_session.exec(select(AICostDailyBudget)).one()
     assert daily_bucket.charged_units == sum(row.settled_units for row in rows)
+
+
+def test_cost_budget_exhaustion_copy_never_leaks_internal_cap_details():
+    """User-facing copy for ERR_QUOTA_AI_DAILY_COST_EXCEEDED must never expose ¥15, cost, or percentages."""
+    from core.error_codes import get_error_message
+
+    for lang in ("zh", "en"):
+        msg = get_error_message(budget.COST_LIMIT_CODE, lang)
+        lowered = msg.lower()
+        assert msg.strip(), f"Empty error message for {lang}"
+        for forbidden in ("15", "¥", "cny", "rmb", "budget", "cost", "%", "元"):
+            assert forbidden not in lowered, f"Leaked {forbidden!r} in {lang} error copy: {msg}"
