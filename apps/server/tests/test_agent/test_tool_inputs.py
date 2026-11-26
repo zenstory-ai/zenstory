@@ -180,6 +180,9 @@ def test_exported_schemas_preserve_required_properties_constraints_and_open_meta
     rsr_schema = TOOL_SCHEMAS["read_skill_resource"]["input_schema"]
     assert rsr_schema["required"] == ["name", "path"]
     assert rsr_schema["properties"]["offset"]["minimum"] == 0
+    path_desc = rsr_schema["properties"]["path"]["description"]
+    for root in ("references/", "assets/", "examples/", "templates/", "SKILL.md"):
+        assert root in path_desc
 
 
 # ---------------------------------------------------------------------------

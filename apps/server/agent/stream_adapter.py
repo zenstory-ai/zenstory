@@ -823,11 +823,16 @@ class StreamAdapter:
             }
         if tool_name == "read_skill_resource":
             content = data.get("content")
-            return {
+            payload: dict[str, Any] = {
+                "skill_id": data.get("skill_id"),
                 "skill_name": data.get("skill_name"),
                 "path": data.get("path"),
                 "size": len(content.encode("utf-8")) if isinstance(content, str) else 0,
             }
+            offset = data.get("offset")
+            if isinstance(offset, int) and not isinstance(offset, bool) and offset > 0:
+                payload["offset"] = offset
+            return payload
         return data
 
     def _parse_tool_result_payload(self, raw_result: Any) -> Any:

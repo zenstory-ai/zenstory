@@ -92,7 +92,6 @@ from .loop.wire_prefix_cache import (
 from .openai_agents.runner import MAX_TURNS_STOP_REASON
 from .skills import get_skill_context_injector, resolve_selected_skills
 from .skills.active_skills import list_active_skill_resources
-from .skills.content_budget import split_selected_budget
 from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
 from .tools.tool_context import AgentRequestContext
 
@@ -554,17 +553,11 @@ class AgentService:
 
         selected: list[dict[str, Any]] = []
         skills = resolve_selected_skills(session, user_id, selected_skill_ids)
-        # 显式选择的正文进 system prompt，会被每轮迭代重复发送：合计不超过技能内容预算的
-        # 显式选择份额，超出部分截断，并提示模型用 read_skill_resource 分段续读。
-        segments = split_selected_budget([skill.instructions for skill in skills])
-        for skill, segment in zip(skills, segments, strict=True):
+        for skill in skills:
             selected.append({
                 "id": skill.id,
                 "name": skill.name,
-                "instructions": segment.text,
-                "instructions_tokens": segment.tokens,
-                "instructions_next_offset": segment.next_offset,
-                "instructions_total_chars": segment.total_chars,
+                "instructions": skill.instructions,
                 "source": skill.source,
                 "resources": [
                     resource.path for resource in list_active_skill_resources(session, skill)
@@ -1318,10 +1311,6 @@ class AgentService:
                 project_id=project_id,
                 session_id=session_id,
                 create_session_func=create_session,
-                # 显式选择的正文已占用的技能内容预算
-                skill_tokens_used=sum(
-                    int(selected.get("instructions_tokens") or 0) for selected in selected_skills
-                ),
                 # 作者原话标识应用内对话并提供上下文，不授予删除、整份覆盖或改名权限。
                 author_message=message,
                 author_steering=consumed_steering,

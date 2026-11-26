@@ -82,9 +82,10 @@ agent/
 │   └── suggestions.py      # 建议生成提示
 ├── schemas/context.py      # 上下文数据模型
 ├── skills/                 # 技能系统（标准 SKILL.md，渐进式加载，永不执行脚本）
-│   ├── active_skills.py    # 当前用户启用中的技能视图
-│   ├── context_injector.py # L1 技能目录（名称 + 用途）
-│   ├── content_budget.py   # 技能正文 token 预算
+│   ├── active_skills.py    # 当前用户启用中的技能视图（含触发词解析）
+│   ├── context_injector.py # L1 技能目录（名称 + 用途 + 触发场景提示）
+│   ├── content_budget.py   # 单轮技能加载门禁（最多 3 个不同技能，不做人为正文截断）
+│   ├── replay.py           # 服务端冷回放技能水合（仅模型输入，绝不泄露到浏览器/API）
 │   └── package.py          # SKILL.md 解析、zip 导入安全检查、导出
 ├── tools/                  # 工具
 │   ├── tool_inputs.py      # Pydantic v2 工具入参模型（TOOL_INPUT_MODELS）、紧凑 schema 导出与统一中文校验错误
