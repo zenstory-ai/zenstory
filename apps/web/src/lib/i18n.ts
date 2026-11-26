@@ -56,6 +56,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { LocaleBundleBackend } from './localeBundleBackend';
+import { CORE_LOCALE_NAMESPACES } from './localeNamespaces';
 
 /** Search and link-preview crawlers: they keep the Chinese default so each indexed page stays in one language. */
 const CRAWLER_USER_AGENT = /bot|crawl|spider|slurp|facebookexternalhit|inspectiontool/i;
@@ -114,10 +115,12 @@ i18n
     ...languageOptionsFor(navigator.userAgent),
 
     /**
-     * Translation namespaces for organizing content.
-     * Each namespace corresponds to a separate JSON file per language.
+     * Core translation namespaces loaded upfront on initial boot.
+     * Heavy/route-specific namespaces (admin, privacy, materials, skills,
+     * inspirations, docs) are loaded lazily on demand by LocaleBundleBackend
+     * when their routes or Suspense-wrapped panes mount.
      */
-    ns: ['common', 'auth', 'dashboard', 'editor', 'chat', 'settings', 'home', 'privacy', 'errors', 'project', 'versions', 'admin', 'announcements', 'skills', 'materials', 'points', 'referral', 'onboarding', 'inspirations', 'docs'],
+    ns: [...CORE_LOCALE_NAMESPACES],
 
     /** Default namespace when not specified in useTranslation() */
     defaultNS: 'common',

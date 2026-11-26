@@ -1,5 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { FirstWorkOpenTracker } from "../components/FirstWorkGuidance";
 import { Layout } from "../components/Layout";
@@ -15,6 +16,7 @@ import { ApiError } from "../lib/apiClient";
 import { logger } from "../lib/logger";
 import { trackEvent } from "../lib/analytics";
 import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "../lib/lastOpenedFile";
+import { seedPreloadedFile } from "../lib/preloadedFileCache";
 import type { SelectedItem, TreeNodeType } from "../types";
 
 function toSelectedItem(file: { id: string; title: string; file_type: string }): SelectedItem {
@@ -29,6 +31,7 @@ export default function ProjectEditor() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = React.useContext(QueryClientContext);
   const { setCurrentProjectId, currentProject, loading, error, refreshProjects, projects, selectedItem, setSelectedItem } = useProject();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -103,6 +106,7 @@ export default function ProjectEditor() {
         }
         // The author may have opened something while this was loading.
         if (selectedItemRef.current) return;
+        seedPreloadedFile(queryClient, userId, projectId, file);
         setSelectedItem(toSelectedItem(file));
       } catch (err) {
         if (cancelled) return;
@@ -130,7 +134,7 @@ export default function ProjectEditor() {
         restoreAttemptedRef.current = null;
       }
     };
-  }, [isRouteProjectActive, location.search, projectId, setSelectedItem, userId]);
+  }, [isRouteProjectActive, location.search, projectId, queryClient, setSelectedItem, userId]);
 
   // Select target file from query parameter: /project/:projectId?file=:fileId
   React.useEffect(() => {
@@ -167,6 +171,7 @@ export default function ProjectEditor() {
           return;
         }
 
+        seedPreloadedFile(queryClient, userId, projectId, file);
         setSelectedItem(toSelectedItem(file));
         selectedFromQueryRef.current = fileId;
       } catch (err) {
@@ -183,7 +188,7 @@ export default function ProjectEditor() {
     return () => {
       cancelled = true;
     };
-  }, [currentProject, location.search, projectId, setSelectedItem]);
+  }, [currentProject, location.search, projectId, queryClient, setSelectedItem, userId]);
 
   // Ensure project exists in ProjectContext before rendering editor
   React.useEffect(() => {
@@ -193,6 +198,12 @@ export default function ProjectEditor() {
       if (!projectId) return;
 
       setCurrentProjectId(projectId);
+
+      // ProjectProvider is already fetching the project list (or just surfaced an error):
+      // wait for it rather than cancelling and duplicating GET /api/v1/projects.
+      if (loading || error) {
+        return;
+      }
 
       const exists = projects.some((p) => p.id === projectId);
       if (exists) {
@@ -227,7 +238,7 @@ export default function ProjectEditor() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, projects, refreshProjects, setCurrentProjectId]);
+  }, [projectId, projects, loading, error, refreshProjects, setCurrentProjectId]);
 
   // Show loading state while projects are being fetched or ensuring project exists
   if (loading || isEnsuring) {

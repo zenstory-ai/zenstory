@@ -208,3 +208,39 @@ export function createBodyWriteProgress(): BodyWriteProgress {
     },
   };
 }
+
+/**
+ * Normalizes a live status line (e.g. tool-argument preparation progress emitted
+ * as a `thinking` SSE event) into a clean single-line string for display.
+ * Returns null when empty or whitespace-only so callers fall back cleanly.
+ */
+export function normalizeStreamStatusText(status: string | null | undefined): string | null {
+  if (typeof status !== 'string') return null;
+  const normalized = status.replace(/\s+/g, ' ').trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+/**
+ * Extracts the active live status text from the tail of a round's stream items.
+ * Only returns a status when the latest non-empty item is a `thinking_status`
+ * (so completed statuses are never re-shown once tools or prose follow them).
+ */
+export function getActiveStreamStatusText(
+  items: ReadonlyArray<{ type: string; content?: string; transient?: boolean }> | null | undefined,
+): string | null {
+  if (!items || items.length === 0) return null;
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (item.type === 'thinking_status') {
+      const normalized = normalizeStreamStatusText(item.content);
+      if (normalized) return normalized;
+      continue;
+    }
+    if (item.type === 'content' || item.type === 'thinking_content') {
+      if (typeof item.content === 'string' && item.content.trim().length > 0) return null;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}

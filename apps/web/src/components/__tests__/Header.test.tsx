@@ -467,6 +467,13 @@ describe('Header', () => {
   })
 
   describe('Settings Dialog', () => {
+    it('does not mount SettingsDialog or FeedbackDialog while closed', () => {
+      render(<Header />)
+
+      expect(screen.queryByTestId('settings-dialog')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('feedback-dialog')).not.toBeInTheDocument()
+    })
+
     it('shows settings dialog when settings button is clicked', async () => {
       render(<Header />)
 

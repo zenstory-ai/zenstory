@@ -96,14 +96,14 @@ describe('route-scoped workbench providers', () => {
     expect(state.getLibrary).toHaveBeenCalledTimes(0);
   });
 
-  it('still initializes workbench data on the dashboard', async () => {
+  it('initializes project workbench data on the dashboard while keeping MaterialLibraryProvider deferred', async () => {
     renderAt('/dashboard');
     expect(await screen.findByText('Dashboard page')).toBeInTheDocument();
     await waitFor(() => {
       expect(state.getProjects).toHaveBeenCalledTimes(1);
-      expect(state.getSubscription).toHaveBeenCalledTimes(1);
-      expect(state.getLibrary).toHaveBeenCalledTimes(1);
     });
+    expect(state.getSubscription).toHaveBeenCalledTimes(0);
+    expect(state.getLibrary).toHaveBeenCalledTimes(0);
   });
 
   it('keeps the real admin permission guard without initializing workbench data', async () => {

@@ -372,4 +372,38 @@ describe('Editor: 整篇覆盖写的两条入口都不得丢用户输入', () =>
       clearPreview: mockClearPreview,
     }
   })
+
+  it('lazy-loads MaterialPreview and ImportMaterialDialog when previewing and importing a material', async () => {
+    vi.mocked(api.fileApi.getTree).mockResolvedValueOnce({ tree: [] })
+    mockMaterialLibrary = {
+      preview: {
+        title: 'Hero Profile',
+        markdown: 'Hero bio',
+        suggested_file_name: 'Hero Profile',
+        suggested_folder_name: '角色',
+      },
+      previewEntityInfo: { novelId: 7, entityType: 'characters', entityId: 42 },
+      isPreviewLoading: false,
+      libraries: [],
+      clearPreview: mockClearPreview,
+    }
+    mockProjectContext = createContext()
+
+    try {
+      render(<Editor />)
+      const addButton = await screen.findByRole('button', { name: /editor:fileTree\.addToProject/ })
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      fireEvent.click(addButton)
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    } finally {
+      mockMaterialLibrary = {
+        preview: null,
+        previewEntityInfo: null,
+        isPreviewLoading: false,
+        libraries: [],
+        clearPreview: mockClearPreview,
+      }
+    }
+  })
 })

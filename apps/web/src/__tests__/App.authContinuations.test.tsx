@@ -348,7 +348,7 @@ for (const strict of [true, false]) {
       handler = async call => {
         if (call.path === '/api/auth/me') return initial.promise
         if (call.path === '/api/auth/refresh') return json(rotatedA)
-        if (call.path === '/api/v1/subscription/me' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
+        if (call.path === '/api/v1/projects' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
         return ordinary(call)
       }
       mount(strict, '/dashboard/projects')
@@ -360,28 +360,28 @@ for (const strict of [true, false]) {
       expect(vi.mocked(identifyUser).mock.calls.at(-1)?.[0].id).toBe('A')
       expect(callsTo('/api/auth/refresh')).toHaveLength(1)
     })
-    it.each([false, true])('A initialization gates subscription 401 rotation until an identity exists cached=%s', async cached => {
+    it.each([false, true])('A initialization gates eager provider 401 rotation until an identity exists cached=%s', async cached => {
       const initial = hold()
       seed(a, cached)
       handler = async call => {
         if (call.path === '/api/auth/me') return initial.promise
         if (call.path === '/api/auth/refresh') return json(rotatedA)
-        if (call.path === '/api/v1/subscription/me' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline A rotation required' }, 401)
+        if (call.path === '/api/v1/projects' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline A rotation required' }, 401)
         return ordinary(call)
       }
       mount(strict, '/dashboard/projects')
       await waitFor(() => expect(callsTo('/api/auth/me').length).toBeGreaterThanOrEqual(strict ? 2 : 1))
       if (!cached) {
-        expect(callsTo('/api/v1/subscription/me')).toHaveLength(0)
+        expect(callsTo('/api/v1/projects')).toHaveLength(0)
         expect(callsTo('/api/auth/refresh')).toHaveLength(0)
         await settle(initial, a.user)
       }
       await waitFor(() => expect(callsTo('/api/auth/refresh')).toHaveLength(1))
       await waitFor(() => expect(localStorage.getItem('access_token')).toBe(rotatedA.access_token))
-      observe('subscription-rotation-after-identity', strict, { cached, meStillPending: cached })
+      observe('provider-rotation-after-identity', strict, { cached, meStillPending: cached })
       if (cached) await settle(initial, a.user)
-      await waitFor(() => expect(callsTo('/api/v1/subscription/me').some(call => call.authorization === `Bearer ${rotatedA.access_token}`)).toBe(true))
-      observe('eager-subscription-after-init-completion', strict, { cached })
+      await waitFor(() => expect(callsTo('/api/v1/projects').some(call => call.authorization === `Bearer ${rotatedA.access_token}`)).toBe(true))
+      observe('eager-provider-after-init-completion', strict, { cached })
       expect.soft(localStorage.getItem('access_token')).toBe(rotatedA.access_token)
       expect.soft(window.location.pathname).toBe('/dashboard/projects')
       expect.soft(screen.queryByTestId('login-form')).not.toBeInTheDocument()
@@ -392,13 +392,13 @@ for (const strict of [true, false]) {
       handler = async call => {
         if (call.path === '/api/auth/me') return initial.promise
         if (call.path === '/api/auth/refresh') return json(rotatedA)
-        if (call.path === '/api/v1/subscription/me' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
+        if (call.path === '/api/v1/projects' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
         return ordinary(call)
       }
       mount(strict, '/dashboard/projects')
       await waitFor(() => expect(callsTo('/api/auth/me').length).toBeGreaterThan(0))
       if (cached) await waitFor(() => expect(localStorage.getItem('access_token')).toBe(rotatedA.access_token))
-      else expect(callsTo('/api/v1/subscription/me')).toHaveLength(0)
+      else expect(callsTo('/api/v1/projects')).toHaveLength(0)
       const before = storage()
       expectedNetworkError = new TypeError('Owned offline /me rejection')
       await act(async () => { initial.reject(expectedNetworkError!) })
@@ -411,21 +411,21 @@ for (const strict of [true, false]) {
       handler = async call => {
         if (call.path === '/api/auth/me') return initial.promise
         if (call.path === '/api/auth/refresh') return json(rotatedA)
-        if (call.path === '/api/v1/subscription/me' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
+        if (call.path === '/api/v1/projects' && call.authorization === `Bearer ${a.access_token}`) return json({ detail: 'Offline rotation' }, 401)
         return ordinary(call)
       }
       mount(strict, '/dashboard/projects')
       await waitFor(() => expect(callsTo('/api/auth/me').length).toBeGreaterThan(0))
-      expect(callsTo('/api/v1/subscription/me')).toHaveLength(0)
+      expect(callsTo('/api/v1/projects')).toHaveLength(0)
       const before = storage()
       await settle(initial, { detail: 'Uncached init failure' }, status)
       if (status === 503) {
         expect(storage()).toEqual(before)
-        expect(callsTo('/api/v1/subscription/me')).toHaveLength(0)
+        expect(callsTo('/api/v1/projects')).toHaveLength(0)
         expect(callsTo('/api/auth/refresh')).toHaveLength(0)
       } else {
         await waitFor(() => expect(localStorage.getItem('access_token')).toBe(rotatedA.access_token))
-        await waitFor(() => expect(callsTo('/api/v1/subscription/me').some(call => call.authorization === `Bearer ${rotatedA.access_token}`)).toBe(true))
+        await waitFor(() => expect(callsTo('/api/v1/projects').some(call => call.authorization === `Bearer ${rotatedA.access_token}`)).toBe(true))
         expect(callsTo('/api/auth/refresh')).toHaveLength(1)
       }
     })

@@ -484,14 +484,16 @@ test('humanize aborts without starting Agent stream when dirty-draft flush hits 
   expect(f.requests.filter(r => r.path === '/api/v1/agent/stream')).toHaveLength(0);
 });
 
-test('narrow mobile panels retain actual textarea and responsive remount loads saved content', async ({ page }) => {
+test('narrow mobile panels retain actual textarea and responsive breakpoint transition preserves mounts', async ({ page }) => {
   const f = await fixture(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await openA(page);
   await page.locator('#editor-tab').click();
   await textarea(page).evaluate(el => el.setAttribute('data-fixture-identity', 'original'));
+  await page.getByTestId('chat-input').evaluate(el => el.setAttribute('data-fixture-chat-identity', 'original'));
   await textarea(page).fill('Mobile local draft');
   await page.locator('#chat-tab').click();
+  await page.getByTestId('chat-input').fill('Mobile chat draft');
   await page.locator('#editor-tab').click();
   await expect(textarea(page)).toHaveAttribute('data-fixture-identity', 'original');
   await expect(textarea(page)).toHaveValue('Mobile local draft');
@@ -501,10 +503,12 @@ test('narrow mobile panels retain actual textarea and responsive remount loads s
   await expect.poll(() => puts(f).length).toBe(1);
   await expect(page.getByText('Saved just now', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(textarea(page)).not.toHaveAttribute('data-fixture-identity', 'original');
+  await expect(textarea(page)).toHaveAttribute('data-fixture-identity', 'original');
   await expect(textarea(page)).toHaveValue('Mobile local draft');
+  await expect(page.getByTestId('chat-input')).toHaveAttribute('data-fixture-chat-identity', 'original');
+  await expect(page.getByTestId('chat-input')).toHaveValue('Mobile chat draft');
   f.observations.mobileRetainedNode = true;
-  f.observations.responsiveReplacedNode = true;
+  f.observations.responsiveRetainedNode = true;
 });
 
 test('short empty editor keeps start actions and search shortcut hint reachable', async ({ page }) => {
@@ -562,16 +566,17 @@ for (const departure of [false, true]) {
     await titleInput(page).fill('Late rename Alpha');
     await textarea(page).fill('Final old A draft');
     f.defer = true;
-    await page.setViewportSize({ width: 390, height: 844 });
+    // Unmount SimpleEditor via SPA navigation to projectB (responsive resize
+    // intentionally keeps Editor/Chat mounted across breakpoints).
+    await page.getByRole('button', { name: responsiveProjects[0].name, exact: true }).click();
+    await page.getByText(responsiveProjects[1].name, { exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/project/${projectB}$`));
     await expect.poll(() => puts(f).length).toBe(1);
     expect(puts(f)[0].body).toMatchObject({ title: 'Late rename Alpha', content: 'Final old A draft', base_updated_at: token0 });
-    if (departure) {
-      // The mobile project dropdown is separately probed below; use the ordinary desktop switcher here.
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await expect(textarea(page)).toHaveCount(1);
-      await page.getByRole('button', { name: responsiveProjects[0].name, exact: true }).click();
-      await page.getByText(responsiveProjects[1].name, { exact: true }).click();
-      await expect(page).toHaveURL(new RegExp(`/project/${projectB}$`));
+    if (!departure) {
+      await page.getByRole('button', { name: responsiveProjects[1].name, exact: true }).click();
+      await page.getByText(responsiveProjects[0].name, { exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`/project/${projectA}$`));
     }
     await selectFile(page, departure ? 'Chapter Gamma' : 'Chapter Beta');
     await expect(titleInput(page)).toHaveValue(departure ? 'Chapter Gamma' : 'Chapter Beta');
@@ -610,8 +615,14 @@ test('@watch final unmount 409 keeps the old A draft while replacement B is sele
   await textarea(page).fill('Final old A draft');
   f.defer = true;
   f.conflict = true;
-  await page.setViewportSize({ width: 390, height: 844 });
+  // Unmount SimpleEditor via SPA project switch and return to projectA before A's PUT resolves.
+  await page.getByRole('button', { name: responsiveProjects[0].name, exact: true }).click();
+  await page.getByText(responsiveProjects[1].name, { exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/project/${projectB}$`));
   await expect.poll(() => puts(f).length).toBe(1);
+  await page.getByRole('button', { name: responsiveProjects[1].name, exact: true }).click();
+  await page.getByText(responsiveProjects[0].name, { exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/project/${projectA}$`));
   await selectFile(page, 'Chapter Beta');
   await expect(titleInput(page)).toHaveValue('Chapter Beta');
   f.observations.beforeOldCompletion = await titleInput(page).inputValue();

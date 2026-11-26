@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const initMock = vi.fn();
 const captureMock = vi.fn();
@@ -33,7 +33,6 @@ const ENABLED_ENV = {
 
 const ACCESS_JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1MSJ9.sig";
 
-
 describe("analytics", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -52,6 +51,11 @@ describe("analytics", () => {
     document.title = "Dashboard";
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
   it("does not initialize when disabled", async () => {
     const analytics = await import("../analytics");
 
@@ -61,9 +65,137 @@ describe("analytics", () => {
         MODE: "test",
         VITE_POSTHOG_ENABLED: "false",
         VITE_POSTHOG_KEY: "phc_test",
-      })
+      }),
     ).toBe(false);
+    await analytics.whenAnalyticsReady();
     expect(initMock).not.toHaveBeenCalled();
+  });
+
+  it("defers PostHog loading via requestIdleCallback and flushes queued events with call-time URL", async () => {
+    let idleCallback: IdleRequestCallback | null = null;
+    const requestIdleSpy = vi.fn((cb: IdleRequestCallback) => {
+      idleCallback = cb;
+      return 42;
+    });
+    const cancelIdleSpy = vi.fn();
+    vi.stubGlobal("requestIdleCallback", requestIdleSpy);
+    vi.stubGlobal("cancelIdleCallback", cancelIdleSpy);
+
+    try {
+      const analytics = await import("../analytics");
+
+      expect(
+        analytics.initAnalytics({
+          DEV: false,
+          MODE: "test",
+          VITE_POSTHOG_ENABLED: " TRUE \n",
+          VITE_POSTHOG_KEY: "phc_test",
+          VITE_POSTHOG_HOST: "https://us.i.posthog.com",
+        }),
+      ).toBe(true);
+
+      // PostHog is not loaded synchronously on startup.
+      expect(requestIdleSpy).toHaveBeenCalledOnce();
+      expect(initMock).not.toHaveBeenCalled();
+
+      // Queue events before idle fires, then mutate URL/title to ensure call-time capture.
+      window.history.replaceState(null, "", "/dashboard?plan=pro");
+      document.title = "First Page";
+      analytics.trackEvent("dashboard_view", { source: "early" });
+      analytics.identifyUser({
+        id: "user-early",
+        email: "early@example.com",
+        username: "early",
+        is_superuser: false,
+      });
+
+      window.history.replaceState(null, "", "/project/p1");
+      document.title = "Second Page";
+
+      expect(captureMock).not.toHaveBeenCalled();
+      expect(identifyMock).not.toHaveBeenCalled();
+
+      idleCallback!({ didTimeout: false, timeRemaining: () => 50 });
+      await analytics.whenAnalyticsReady();
+
+      expect(initMock).toHaveBeenCalledWith(
+        "phc_test",
+        expect.objectContaining({
+          api_host: "https://us.i.posthog.com",
+          person_profiles: "identified_only",
+          disable_session_recording: true,
+        }),
+      );
+      expect(startExceptionAutocaptureMock).toHaveBeenCalledTimes(1);
+      expect(captureMock).toHaveBeenCalledWith(
+        "dashboard_view",
+        expect.objectContaining({
+          source: "early",
+          page_path: "/dashboard",
+          page_title: "First Page",
+        }),
+      );
+      expect(identifyMock).toHaveBeenCalledWith("user-early", { is_superuser: false });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("cancels deferred PostHog load and drops queued events if opted out before idle fires", async () => {
+    let idleCallback: IdleRequestCallback | null = null;
+    const cancelIdleSpy = vi.fn();
+    vi.stubGlobal("requestIdleCallback", vi.fn((cb: IdleRequestCallback) => {
+      idleCallback = cb;
+      return 99;
+    }));
+    vi.stubGlobal("cancelIdleCallback", cancelIdleSpy);
+
+    try {
+      const analytics = await import("../analytics");
+      expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
+      analytics.trackEvent("early_event", { source: "pre-optout" });
+
+      const readyBeforeCancel = analytics.whenAnalyticsReady();
+      analytics.setAnalyticsOptOut(true);
+      expect(cancelIdleSpy).toHaveBeenCalledWith(99);
+
+      // A promise captured before cancellation must settle rather than hang forever.
+      await expect(readyBeforeCancel).resolves.toBeUndefined();
+
+      // Even if a stale callback were invoked, PostHog must not initialize or capture.
+      idleCallback?.({ didTimeout: false, timeRemaining: () => 50 });
+      await analytics.whenAnalyticsReady();
+      expect(initMock).not.toHaveBeenCalled();
+      expect(captureMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("still initializes and flushes queued events on opt-back-in when localStorage.removeItem is blocked", async () => {
+    localStorage.setItem("zenstory:analytics-opt-out", "true");
+    const removeSpy = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+
+    try {
+      const analytics = await import("../analytics");
+      expect(analytics.initAnalytics(ENABLED_ENV)).toBe(false);
+      expect(initMock).not.toHaveBeenCalled();
+
+      // Opt back in even though localStorage still returns "true".
+      analytics.setAnalyticsOptOut(false);
+      analytics.trackEvent("post_opt_in_event", { source: "blocked-storage" });
+      await analytics.whenAnalyticsReady();
+
+      expect(initMock).toHaveBeenCalledTimes(1);
+      expect(captureMock).toHaveBeenCalledWith(
+        "post_opt_in_event",
+        expect.objectContaining({ source: "blocked-storage" }),
+      );
+    } finally {
+      removeSpy.mockRestore();
+    }
   });
 
   it("initializes PostHog and captures events when enabled", async () => {
@@ -76,8 +208,9 @@ describe("analytics", () => {
         VITE_POSTHOG_ENABLED: " TRUE \n",
         VITE_POSTHOG_KEY: "phc_test",
         VITE_POSTHOG_HOST: "https://us.i.posthog.com",
-      })
+      }),
     ).toBe(true);
+    await analytics.whenAnalyticsReady();
 
     expect(initMock).toHaveBeenCalledWith(
       "phc_test",
@@ -85,7 +218,7 @@ describe("analytics", () => {
         api_host: "https://us.i.posthog.com",
         person_profiles: "identified_only",
         disable_session_recording: true,
-      })
+      }),
     );
     expect(startExceptionAutocaptureMock).toHaveBeenCalledTimes(1);
 
@@ -96,7 +229,7 @@ describe("analytics", () => {
         source: "test",
         page_path: window.location.pathname,
         page_title: "Dashboard",
-      })
+      }),
     );
   });
 
@@ -109,6 +242,7 @@ describe("analytics", () => {
       VITE_POSTHOG_ENABLED: "true",
       VITE_POSTHOG_KEY: "phc_test",
     });
+    await analytics.whenAnalyticsReady();
 
     analytics.identifyUser({
       id: "user-1",
@@ -120,7 +254,7 @@ describe("analytics", () => {
       "user-1",
       expect.objectContaining({
         is_superuser: false,
-      })
+      }),
     );
     const identifyPayload = identifyMock.mock.calls[0]?.[1] as Record<string, unknown> | undefined;
     expect(identifyPayload).toBeDefined();
@@ -135,7 +269,7 @@ describe("analytics", () => {
       expect.objectContaining({
         path: window.location.pathname,
         search: window.location.search || undefined,
-      })
+      }),
     );
 
     analytics.captureException(new Error("boom"), { feature_area: "test" });
@@ -144,7 +278,7 @@ describe("analytics", () => {
       expect.objectContaining({
         feature_area: "test",
         page_path: window.location.pathname,
-      })
+      }),
     );
 
     analytics.resetAnalytics();
@@ -155,6 +289,7 @@ describe("analytics", () => {
     const analytics = await import("../analytics");
 
     analytics.initAnalytics(ENABLED_ENV);
+    await analytics.whenAnalyticsReady();
 
     const config = initMock.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(config).toMatchObject({
@@ -171,6 +306,7 @@ describe("analytics", () => {
   it("never sends a page view for the OAuth callback URL", async () => {
     const analytics = await import("../analytics");
     analytics.initAnalytics(ENABLED_ENV);
+    await analytics.whenAnalyticsReady();
     window.history.replaceState(null, "", `/auth/callback#access_token=${ACCESS_JWT}&refresh_token=${ACCESS_JWT}`);
 
     analytics.trackPageView();
@@ -181,6 +317,7 @@ describe("analytics", () => {
   it("drops hashes and non-allow-listed query params from page views", async () => {
     const analytics = await import("../analytics");
     analytics.initAnalytics(ENABLED_ENV);
+    await analytics.whenAnalyticsReady();
     window.history.replaceState(
       null,
       "",
@@ -261,10 +398,12 @@ describe("analytics", () => {
     analytics.setAnalyticsOptOut(true);
 
     expect(analytics.initAnalytics(ENABLED_ENV)).toBe(false);
+    await analytics.whenAnalyticsReady();
     expect(initMock).not.toHaveBeenCalled();
     expect(analytics.isAnalyticsOptedOut()).toBe(true);
 
     analytics.setAnalyticsOptOut(false);
+    await analytics.whenAnalyticsReady();
 
     expect(analytics.isAnalyticsOptedOut()).toBe(false);
     expect(initMock).toHaveBeenCalledTimes(1);
@@ -285,6 +424,7 @@ describe("analytics", () => {
 
     expect(analytics.initAnalytics(ENABLED_ENV)).toBe(false);
     analytics.setAnalyticsOptOut(false);
+    await analytics.whenAnalyticsReady();
 
     expect(initMock).toHaveBeenCalledTimes(1);
     expect(optInMock).toHaveBeenCalledTimes(1);
@@ -296,6 +436,7 @@ describe("analytics", () => {
     const analytics = await import("../analytics");
 
     expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
+    await analytics.whenAnalyticsReady();
     expect(optInMock).toHaveBeenCalledTimes(1);
   });
 
@@ -303,6 +444,7 @@ describe("analytics", () => {
     const analytics = await import("../analytics");
 
     expect(analytics.initAnalytics(ENABLED_ENV)).toBe(true);
+    await analytics.whenAnalyticsReady();
     expect(optInMock).not.toHaveBeenCalled();
   });
 });

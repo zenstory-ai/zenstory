@@ -4,8 +4,21 @@ import { useMaterialLibrary, type MaterialLibraryState } from '../hooks/useMater
 
 const MaterialLibraryContext = createContext<MaterialLibraryState | null>(null);
 
-export const MaterialLibraryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const state = useMaterialLibrary();
+export interface MaterialLibraryProviderProps {
+  children: React.ReactNode;
+  /**
+   * Whether to trigger material library entitlement & summary queries on mount.
+   * Defaults to `false` so mounting at the top of ProtectedProviders incurs
+   * zero API calls until a Materials pane/consumer calls `activate()`.
+   */
+  initialEnabled?: boolean;
+}
+
+export const MaterialLibraryProvider: React.FC<MaterialLibraryProviderProps> = ({
+  children,
+  initialEnabled = false,
+}) => {
+  const state = useMaterialLibrary({ enabled: initialEnabled });
   return (
     <MaterialLibraryContext.Provider value={state}>
       {children}
