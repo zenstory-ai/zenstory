@@ -825,3 +825,191 @@ def test_body_saved_by_the_stream_resets_reads_made_before_the_save():
         assert "read_hint" in json.loads(_guarded_read(guard)), "落库之后的重复读取重新计数"
     finally:
         req_ctx.clear()
+
+
+# ------------------------------------------------------- 技能工具重复读取守卫
+
+
+def _load_skill_ok(skill_id: str = "sk-1", skill_name: str = "悬念大师") -> str:
+    return json.dumps(
+        {
+            "status": "success",
+            "data": {
+                "skill_id": skill_id,
+                "skill_name": skill_name,
+                "source": "added",
+                "instructions": "OFFICIAL_BODY_NEVER_IN_BLOCKED_MSG",
+                "truncated": False,
+                "resources": [{"path": "references/hooks.md", "size": 12}],
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
+def _read_skill_res_ok(
+    skill_id: str = "sk-1",
+    skill_name: str = "悬念大师",
+    path: str = "references/hooks.md",
+    offset: int | None = None,
+) -> str:
+    data: dict = {
+        "skill_id": skill_id,
+        "skill_name": skill_name,
+        "path": path,
+        "content": "OFFICIAL_RESOURCE_NEVER_IN_BLOCKED_MSG",
+        "truncated": False,
+    }
+    if offset:
+        data["offset"] = offset
+    return json.dumps({"status": "success", "data": data}, ensure_ascii=False)
+
+
+def _guarded_skill_call(guard: RepeatReadGuard, tool_name: str, args: dict, output: str) -> dict:
+    raw = json.dumps(args, ensure_ascii=False)
+    plan = guard.plan(tool_name, raw)
+    if plan.blocked_output is not None:
+        return json.loads(plan.blocked_output)
+    return json.loads(guard.observe(tool_name, plan, output))
+
+
+@pytest.mark.unit
+def test_repeated_load_skill_hints_warns_blocks_and_normalizes_name_and_id_aliases():
+    """同一技能交替用名称与 skill_id 重复 load_skill：第 2 次提示、第 3 次警告、第 4 次拦截且不泄露正文。"""
+    guard = RepeatReadGuard()
+    ok = _load_skill_ok("sk-1", "悬念大师")
+
+    first = _guarded_skill_call(guard, "load_skill", {"name": "悬念大师"}, ok)
+    assert "read_hint" not in first
+
+    second = _guarded_skill_call(guard, "load_skill", {"name": "sk-1"}, ok)
+    assert second["repeated_reads"] == 2
+    assert "该技能正文本次运行中已加载过" in second["read_hint"]
+
+    third = _guarded_skill_call(guard, "load_skill", {"name": "  悬念大师  "}, ok)
+    assert third["repeated_reads"] == 3
+    assert third["read_hint"].startswith("警告")
+
+    blocked = _guarded_skill_call(guard, "load_skill", {"name": "sk-1"}, ok)
+    assert blocked["status"] == "error"
+    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert "悬念大师" in blocked["error"]
+    assert "OFFICIAL_BODY" not in json.dumps(blocked, ensure_ascii=False)
+    assert blocked["user_message"] == "技能「悬念大师」刚才已经加载过，AI 直接用已读内容继续。"
+    assert guard.blocked_reads == 1
+
+    # 失败调用（如技能未找到或超 3 技能上限）不计入重复读取
+    other = RepeatReadGuard()
+    err = json.dumps({"status": "error", "error": "not found"}, ensure_ascii=False)
+    for _ in range(READ_BLOCK_AT + 1):
+        res = _guarded_skill_call(other, "load_skill", {"name": "不存在"}, err)
+        assert res["status"] == "error"
+        assert res.get("error_type") != REPEATED_READ_ERROR_TYPE
+    assert other.duplicate_reads == 0
+    assert other.blocked_reads == 0
+
+
+@pytest.mark.unit
+def test_read_skill_resource_guards_identical_path_offset_but_allows_distinct_paths_and_offsets():
+    """同一技能读不同资源路径或不同 offset 全放行；相同 (skill, path, offset) 重复读取触发提示并拦截。"""
+    guard = RepeatReadGuard()
+
+    # 同一技能读多个不同资源路径和不同 offset：全部放行且无重复提示
+    distinct_calls = [
+        ({"name": "悬念大师", "path": "references/hooks.md"}, _read_skill_res_ok(path="references/hooks.md")),
+        (
+            {"name": "悬念大师", "path": "references/hooks.md", "offset": 500},
+            _read_skill_res_ok(path="references/hooks.md", offset=500),
+        ),
+        (
+            {"name": "sk-1", "path": "examples/scene.md"},
+            _read_skill_res_ok(path="examples/scene.md"),
+        ),
+        (
+            {"name": "sk-1", "path": "templates/chapter.md"},
+            _read_skill_res_ok(path="templates/chapter.md"),
+        ),
+        (
+            {"name": "sk-1", "path": "SKILL.md", "offset": 1000},
+            _read_skill_res_ok(path="SKILL.md", offset=1000),
+        ),
+    ]
+    for args, out in distinct_calls:
+        res = _guarded_skill_call(guard, "read_skill_resource", args, out)
+        assert res["status"] == "success"
+        assert "read_hint" not in res
+    assert guard.duplicate_reads == 0
+    assert guard.blocked_reads == 0
+
+    # 相同 (sk-1, references/hooks.md, offset=0) 的等价写法（省略 offset / offset=0 / offset="0"）算同一次读取
+    res_hooks = _read_skill_res_ok(path="references/hooks.md")
+    second = _guarded_skill_call(guard, "read_skill_resource", {"name": "sk-1", "path": "references/hooks.md", "offset": 0}, res_hooks)
+    assert second["repeated_reads"] == 2
+    assert "该技能的这一参考内容本次运行中已读取过" in second["read_hint"]
+
+    third = _guarded_skill_call(guard, "read_skill_resource", {"name": "悬念大师", "path": "references/hooks.md", "offset": "0"}, res_hooks)
+    assert third["repeated_reads"] == 3
+    assert third["read_hint"].startswith("警告")
+
+    blocked = _guarded_skill_call(guard, "read_skill_resource", {"name": "sk-1", "path": "references/hooks.md"}, res_hooks)
+    assert blocked["status"] == "error"
+    assert blocked["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert "references/hooks.md" in blocked["error"]
+    assert "OFFICIAL_RESOURCE" not in json.dumps(blocked, ensure_ascii=False)
+    assert blocked["user_message"] == "技能「悬念大师」的参考资料刚才已经读过，AI 直接用已读内容继续。"
+    assert guard.blocked_reads == 1
+
+    # 同一路径不同 offset 依然允许（且 NFD/NFC 归一为同一路径）
+    nfc_guard = RepeatReadGuard()
+    nfc_out = _read_skill_res_ok(path="references/café.md")
+    for args in (
+        {"name": "悬念大师", "path": "references/café.md"},
+        {"name": "悬念大师", "path": "references/cafe\u0301.md"},
+        {"name": "sk-1", "path": "references/café.md", "offset": 0},
+    ):
+        assert _guarded_skill_call(nfc_guard, "read_skill_resource", args, nfc_out)["status"] == "success"
+    nfc_blocked = _guarded_skill_call(nfc_guard, "read_skill_resource", {"name": "sk-1", "path": "references/cafe\u0301.md"}, nfc_out)
+    assert nfc_blocked["error_type"] == REPEATED_READ_ERROR_TYPE
+
+
+@pytest.mark.unit
+def test_skill_reads_do_not_pollute_files_read_and_reset_on_begin_agent_run():
+    """技能读取绝不污染项目文件台账 files_read；新 run 通过 begin_agent_run() 清零计数。"""
+    guard = RepeatReadGuard()
+    ok = _load_skill_ok("sk-1", "悬念大师")
+    for _ in range(READ_BLOCK_AT - 1):
+        assert _guarded_skill_call(guard, "load_skill", {"name": "悬念大师"}, ok)["status"] == "success"
+
+    assert guard.files_read == {}
+    assert _guarded_skill_call(guard, "load_skill", {"name": "悬念大师"}, ok)["error_type"] == REPEATED_READ_ERROR_TYPE
+
+    guard.begin_agent_run()
+    fresh = _guarded_skill_call(guard, "load_skill", {"name": "悬念大师"}, ok)
+    assert fresh["status"] == "success"
+    assert "read_hint" not in fresh
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_function_tool_blocks_repeated_skill_reads_without_executing():
+    """tools_adapter 接线：第 4 次相同 load_skill 不真正执行工具函数，累计达上限触发无进展停止。"""
+    from agent.openai_agents.tools_adapter import build_agent_function_tools
+
+    executed: list[dict] = []
+
+    async def fake_load_skill(args):
+        executed.append(dict(args))
+        return {"content": [{"type": "text", "text": _load_skill_ok("sk-1", "悬念大师")}]}
+
+    guard = RepeatReadGuard()
+    raw_args = json.dumps({"name": "悬念大师"}, ensure_ascii=False)
+    with patch.dict("agent.openai_agents.tools_adapter.TOOL_FUNCTIONS", {"load_skill": fake_load_skill}):
+        tools = {tool.name: tool for tool in build_agent_function_tools(read_guard=guard)}
+        outputs = [
+            json.loads(await tools["load_skill"].on_invoke_tool(None, raw_args))
+            for _ in range(READ_BLOCK_AT - 1 + MAX_BLOCKED_READS_PER_REQUEST)
+        ]
+
+    assert len(executed) == READ_BLOCK_AT - 1
+    assert outputs[-1]["error_type"] == REPEATED_READ_ERROR_TYPE
+    assert guard.is_open

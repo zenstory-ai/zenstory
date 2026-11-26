@@ -84,7 +84,7 @@ agent/
 ├── skills/                 # 技能系统（标准 SKILL.md，渐进式加载，永不执行脚本）
 │   ├── active_skills.py    # 当前用户启用中的技能视图（含触发词解析）
 │   ├── context_injector.py # L1 技能目录（名称 + 用途 + 触发场景提示）
-│   ├── content_budget.py   # 单轮技能加载门禁（最多 3 个不同技能，不做人为正文截断）
+│   ├── content_budget.py   # 单轮技能加载门禁（显式选择与工具加载合计最多 3 个不同技能，不做人为正文截断）
 │   ├── replay.py           # 服务端冷回放技能水合（仅模型输入，绝不泄露到浏览器/API）
 │   └── package.py          # SKILL.md 解析、zip 导入安全检查、导出
 ├── tools/                  # 工具
@@ -109,7 +109,7 @@ agent/
   `LOOP_AUTHOR_REPLY_PROTOCOL`、`LOOP_TOOL_USAGE_PROTOCOL`）+ 回复语言 + `loop/prompts.py` 的输入布局与
   工作方式（含写后连贯自查、按真实字数汇报）+ 技能目录，跨轮不变。`<turn_context>`（`loop/turn_context.py`）只放这一轮请求带来的东西：
   项目信息与写作约定、焦点文件、附加文件、引用、素材库条目、作者选的技能、经服务端校验的当轮结构化 UI 动作（`ui_action="natural_polish"` 时经 `loop/ui_actions.py` 直接注入官方「去AI味」权威方法、剧本 `△`/台词保护及单次批量 `edit_file` 范围约束，不改动静态系统提示、也不依赖 `UserAddedSkill`；见 [deai-via-agent][n-deai-agent]）（回复语言完全交由模型按作者最新消息在系统提示规则下自主判断，不再经正则启发式注入 `<turn_context>`；沿用 ContextAssembler 的解析器与渲染，不做
-  优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token 时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
+  优先级裁剪、检索和文件清单；超出 `AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS` 120000 供应商 token（先扣除本轮显式 `selected_skills` 的供应商 token 占用，保留所选技能完整）时按 `TokenBudget` 优先保留引用与焦点文件全文、截断超大附加稿并标注 `query_files`），以及 `<author_edits>`：焦点、附加文件和本会话 AI 写过的正文文件（`SessionLoader.session_written_file_ids`，
   按页读 assistant 行，先按本项目、未删除的 draft / script 筛再计名额，至多 `AUTHOR_EDITS_MAX_FILES` 个，凑够就停）里作者在 AI 写过之后的手改（`SessionLoader.author_edits_for_files`，受总墙钟预算 `AUTHOR_EDITS_TIME_BUDGET_S` 2.0s 与 `service.process_stream` 传入的协同 `cancel_event` 约束，超时或取消后剩余文件体面归入 `unchecked_titles`；`author_changes.line_blame` 对连续同标签非作者版本或从空基线起步的纯 AI 链直接走 `_apply_diff` 快速基线、跳过冗余 `SequenceMatcher`，`_matcher` 启用 `autojunk=True` 并裁剪 `_advance` 公共非空前后缀防长文高频短行二次退化 [author-blame-perf-and-collab-cache][n-blame-perf-collab-cache]）；选中文字和首条消息提示仍拼在作者消息后。以全文给出的文件与本会话此前轮次读/写过且库内未变更的文件（`SessionLoader.session_read_snapshots`，至多 `SESSION_SNAPSHOT_MAX_FILES` 个、单次批量 `SELECT` 核验、遇压缩点停止；若本轮开始前轮间压缩成功则经 `AgentRequestContext.drop_initial_read_snapshots` 撤销）作为 edit_file 陈旧检查的起点（[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）。
 - **历史**（`loop/history.py`、`loop/wire_prefix_cache.py`）：不开窗。单循环写下的 assistant 行（`message_metadata.engine == "loop"`）按 `display_events` 顺序还原成
   assistant 文字和成对的 function_call / function_call_output（id 为 `h{行id}_{序号}`，每个调用都有输出）；create_file / write_chapter 结果去掉
@@ -269,7 +269,7 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 | `rename_file` | 只改文件标题，id 与正文不变（同文件夹重名拒绝；[rename-file][n-rename]） |
 | `query_files` | 查询和读取文件；支持单 `id` 与批量 `ids`（去重最多 5 个、单条 `IN` SQL、按传入顺序返回并逐 ID 记快照与重复读取守卫；[batch-tool-calls-and-session-snapshots][n-batch-snapshots]）；单 `id` 可只读 `section` / `tail_chars` / `start_char`+`max_chars`（`start_char` 仅用于超过 15000 字的超长文件，总长或剩余 `<= 12000` 字符直接返回全文/余下全文避免多步分页），范围读取记下全文陈旧快照与已读字符区间（[range-reads][n-range]、[payload-slimming][n-payload-slimming]）；同时传 `id` 与 `query` 时按 `query` 返回命中片段（显式 `response_mode="full"` 除外）；未传 `id`/`ids` 时，带 `query` 的 `response_mode="full"` 降级为 `summary`（附 `matches` 与 `note` 引导按 `ids`/`id` 读全文），不带 `query` 的 `response_mode="full"` 仅在总正文 `<= 25,000` 字符时保留全文（兼容小体量人物卡/设定集），超出则降级为 `summary` + `note` 且绝不记全文快照；返回行省略 5 个死库字段、剥离 `file_metadata` 冗余字数键，在 `match_count > 0` 的 summary 行省略 `content_preview`，且超过 20 行的纯目录 listing（无 `query`、未显式给 `content_preview_chars`）将 `draft`/`script` 预览收紧至 60 字、`outline`/`character`/`lore` 等资料保持 100 字（[tier0-minimax-quota-safety][n-tier0-quota]） |
 | `update_project` | 项目信息、备注、任务板 |
-| `load_skill` / `read_skill_resource` | 技能 L2（方法与资源清单）/ L3（参考文件或 `path="SKILL.md"`，支持 `offset` 续读）；受每请求技能 token 预算限制，每请求最多读 `skills/content_budget.MAX_LOADED_SKILLS_PER_REQUEST`（3）个不同技能 |
+| `load_skill` / `read_skill_resource` | 技能 L2（方法与资源清单）/ L3（参考文件或 `path="SKILL.md"`，支持 `offset` 续读）；不做人为正文截断，与显式 `selected_skills` 共享每请求最多 `skills/content_budget.MAX_LOADED_SKILLS_PER_REQUEST`（3）个不同技能门禁；超上下文安全阀时由 `IntraRunToolOutputTrimmer` 折叠（只留安全元数据 trace、绝不暴露正文预览），单 run 内相同重复读取由 `RepeatReadGuard` 提示并拦截 |
 
 生成内容的文件流式写入分两次回复：这次回复以 `create_file`（写正文时是 `write_chapter`）工具调用结束；下一次回复以 `<file>` 开头写正文、`</file>` 结束，StreamAdapter 捕获后落库。create_file 的 source_text 原文复制已经直接保存，不再输出文件流。
 一次只流式写一个文件。[two-replies][n-two-replies]

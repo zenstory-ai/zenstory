@@ -1,3 +1,4 @@
+import { StrictMode, useState } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest'
 import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -924,6 +925,66 @@ describe('MessageInput', () => {
 
     await user.click(screen.getByRole('button', { name: 'chat:skill.retry' }))
     expect(await screen.findByText('节拍规划')).toBeInTheDocument()
+  })
+
+  it('calls onDraftChange once per update outside state updaters, including under StrictMode', () => {
+    const onDraftChange = vi.fn()
+    const onSend = vi.fn()
+
+    function ControlledHost({ initialDraft }: { initialDraft: string }) {
+      const [draft, setDraft] = useState(initialDraft)
+      return (
+        <>
+          <span data-testid="parent-draft">{draft}</span>
+          <MessageInput
+            onSend={onSend}
+            externalDraft={draft}
+            onDraftChange={(next) => {
+              onDraftChange(next)
+              setDraft(next)
+            }}
+          />
+        </>
+      )
+    }
+
+    const { rerender } = render(
+      <StrictMode>
+        <ControlledHost initialDraft="" />
+      </StrictMode>,
+    )
+
+    const textarea = screen.getByTestId('chat-input')
+    fireEvent.change(textarea, { target: { value: '第一章草稿' } })
+    expect(onDraftChange).toHaveBeenCalledTimes(1)
+    expect(onDraftChange).toHaveBeenLastCalledWith('第一章草稿')
+    expect(screen.getByTestId('parent-draft')).toHaveTextContent('第一章草稿')
+
+    // Functional update via voice input uses latest input without running inside a state updater.
+    fireEvent.click(screen.getByRole('button', { name: 'voice button' }))
+    expect(onDraftChange).toHaveBeenCalledTimes(2)
+    expect(onDraftChange).toHaveBeenLastCalledWith('第一章草稿 voice result')
+    expect(screen.getByTestId('parent-draft')).toHaveTextContent('第一章草稿 voice result')
+
+    // Syncing externalDraft updates the tracked ref before the next functional update.
+    rerender(
+      <StrictMode>
+        <MessageInput
+          onSend={onSend}
+          externalDraft="切换项目后的草稿"
+          onDraftChange={onDraftChange}
+        />
+      </StrictMode>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'voice button' }))
+    expect(onDraftChange).toHaveBeenCalledTimes(3)
+    expect(onDraftChange).toHaveBeenLastCalledWith('切换项目后的草稿 voice result')
+
+    // Submitting clears the draft and notifies once.
+    fireEvent.click(screen.getByTestId('send-button'))
+    expect(onDraftChange).toHaveBeenCalledTimes(4)
+    expect(onDraftChange).toHaveBeenLastCalledWith('')
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
   })
 })
 

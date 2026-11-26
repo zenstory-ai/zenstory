@@ -186,7 +186,7 @@ export default function AdminDashboard() {
       >
         <>
           {/* Stats Grid - Basic */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatsCard
               icon={<Users className="h-5 w-5" />}
               title={t('admin:dashboard.totalUsers')}
