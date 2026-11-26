@@ -597,6 +597,111 @@ def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list
     return kept
 
 
+def _fetch_message_page_desc(
+    session: Session,
+    model: Any,
+    *,
+    chat_session_id: str,
+    cursor: tuple[Any, Any] | None,
+) -> list[Any]:
+    stmt = select(model).where(
+        and_(
+            model.session_id == chat_session_id,
+            model.role.in_(("user", "assistant")),
+        )
+    )
+    if cursor is not None:
+        created_at, row_id = cursor
+        stmt = stmt.where(
+            or_(
+                model.created_at < created_at,
+                and_(model.created_at == created_at, model.id < row_id),
+            )
+        )
+    return list(
+        session.exec(
+            stmt.order_by(desc(model.created_at), desc(model.id)).limit(_PAGE_SIZE)
+        ).all()
+    )
+
+
+def _iter_session_messages_desc(
+    session: Session,
+    *,
+    chat_session_id: str,
+):
+    """Yield session user/assistant rows in strict descending ``(created_at, id)`` order.
+
+    Performs a lazy 2-way descending merge across hot ``ChatMessage`` and cold
+    ``ChatMessageArchive`` (when present), deduplicating by ``id`` (preferring hot).
+    This guarantees chronological accuracy even if hot and cold rows are temporarily
+    interleaved (e.g. a hot row skipped by ``FOR UPDATE SKIP LOCKED`` during archival).
+    """
+    from models import ChatMessage, ChatMessageArchive
+    from models.chat_message_archive import has_chat_message_archive_table
+
+    hot_buf: list[Any] = []
+    hot_idx = 0
+    hot_cursor: tuple[Any, Any] | None = None
+    hot_exhausted = False
+
+    cold_buf: list[Any] = []
+    cold_idx = 0
+    cold_cursor: tuple[Any, Any] | None = None
+    cold_exhausted = not has_chat_message_archive_table(session)
+
+    seen_ids: set[str] = set()
+
+    def _peek_hot() -> Any | None:
+        nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted
+        if hot_idx >= len(hot_buf) and not hot_exhausted:
+            hot_buf = _fetch_message_page_desc(
+                session, ChatMessage, chat_session_id=chat_session_id, cursor=hot_cursor
+            )
+            hot_idx = 0
+            if hot_buf:
+                hot_cursor = (hot_buf[-1].created_at, hot_buf[-1].id)
+            if len(hot_buf) < _PAGE_SIZE:
+                hot_exhausted = True
+        return hot_buf[hot_idx] if hot_idx < len(hot_buf) else None
+
+    def _peek_cold() -> Any | None:
+        nonlocal cold_buf, cold_idx, cold_cursor, cold_exhausted
+        if cold_idx >= len(cold_buf) and not cold_exhausted:
+            cold_buf = _fetch_message_page_desc(
+                session, ChatMessageArchive, chat_session_id=chat_session_id, cursor=cold_cursor
+            )
+            cold_idx = 0
+            if cold_buf:
+                cold_cursor = (cold_buf[-1].created_at, cold_buf[-1].id)
+            if len(cold_buf) < _PAGE_SIZE:
+                cold_exhausted = True
+        return cold_buf[cold_idx] if cold_idx < len(cold_buf) else None
+
+    while True:
+        hot_row = _peek_hot()
+        cold_row = _peek_cold()
+        if hot_row is None and cold_row is None:
+            break
+        if cold_row is None:
+            chosen = hot_row
+            hot_idx += 1
+        elif hot_row is None:
+            chosen = cold_row
+            cold_idx += 1
+        elif (hot_row.created_at, hot_row.id) >= (cold_row.created_at, cold_row.id):
+            chosen = hot_row
+            hot_idx += 1
+        else:
+            chosen = cold_row
+            cold_idx += 1
+
+        if chosen.id in seen_ids:
+            continue
+        seen_ids.add(chosen.id)
+        yield chosen
+
+
 def load_loop_history(
     session: Session,
     *,
@@ -615,8 +720,6 @@ def load_loop_history(
     重试不再重付一次摘要。
     """
     from agent.core.session_loader import SessionLoader
-    from models import ChatMessage, ChatMessageArchive
-    from models.chat_message_archive import has_chat_message_archive_table
 
     if keep_user_tokens is None:
         keep_user_tokens = AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
@@ -633,10 +736,6 @@ def load_loop_history(
     unmeasured_tokens = 0
     skip_seen = False
     truncation_streak_open = True
-    cursor: tuple[Any, Any] | None = None
-    source_model: Any = ChatMessage
-    archive_checked = False
-    seen_ids: set[str] = set()
 
     def note_compaction(metadata: dict[str, Any]) -> None:
         nonlocal compaction, stored_kept, skip_seen
@@ -658,88 +757,46 @@ def load_loop_history(
     if carried_metadata:
         note_compaction(carried_metadata)
 
-    while True:
-        stmt = select(source_model).where(
-            and_(
-                source_model.session_id == chat_session_id,
-                source_model.role.in_(("user", "assistant")),
-            )
-        )
-        if cursor is not None:
-            created_at, row_id = cursor
-            stmt = stmt.where(
-                or_(
-                    source_model.created_at < created_at,
-                    and_(source_model.created_at == created_at, source_model.id < row_id),
-                )
-            )
-        page = session.exec(
-            stmt.order_by(desc(source_model.created_at), desc(source_model.id)).limit(_PAGE_SIZE)
-        ).all()
-        if not page:
-            # Hot rows exhausted without hitting a compaction stop boundary: transparently
-            # continue reading older rows from chat_message_archive so returning >7d sessions
-            # never lose conversation context.
-            if (
-                source_model is ChatMessage
-                and not archive_checked
-                and has_chat_message_archive_table(session)
-            ):
-                archive_checked = True
-                source_model = ChatMessageArchive
-                cursor = None
-                continue
-            break
-        stop = False
-        for row in page:
-            if row.id in seen_ids:
-                continue
-            seen_ids.add(row.id)
-            if result.last_message_id is None:
-                result.last_message_id = row.id
-            if covered_reached:
-                before_rows.append(row)
-                if row.role == "user":
-                    kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
-                    if kept_tokens_seen >= keep_user_tokens:
-                        stop = True
-                        break
-                continue
-            if compaction is not None and row.id == compaction["covers_through_message_id"]:
-                covered_reached = True
-                if stored_kept is not None:
-                    # 保留的作者原话已记在压缩点上，不必再往前读。
-                    stop = True
+    for row in _iter_session_messages_desc(session, chat_session_id=chat_session_id):
+        if result.last_message_id is None:
+            result.last_message_id = row.id
+        if covered_reached:
+            before_rows.append(row)
+            if row.role == "user":
+                kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
+                if kept_tokens_seen >= keep_user_tokens:
                     break
-                before_rows.append(row)
-                if row.role == "user":
-                    kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
-                continue
-            after_rows.append(row)
-            metadata = row_metadata(row)
-            if row.role == "assistant":
-                if truncation_streak_open:
-                    if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
-                        result.trailing_output_truncations += 1
-                    else:
-                        truncation_streak_open = False
-                if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
-                    # 停在第一次模型调用之前的一轮没有量到 prompt_tokens：不挡住更早一轮的真实读数。
-                    tokens = metadata.get("prompt_tokens")
-                    if isinstance(tokens, int) and tokens > 0:
-                        measured_seen = True
-                        result.last_prompt_tokens = tokens + unmeasured_tokens
-            if not measured_seen and valid_compaction(metadata) is not None:
-                # 压缩点之前的读数是压缩前的上下文大小，不再往前取。
-                measured_seen = True
-            if not measured_seen:
-                unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
-            # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
-            note_compaction(metadata)
-        if stop:
-            break
-        last = page[-1]
-        cursor = (last.created_at, last.id)
+            continue
+        if compaction is not None and row.id == compaction["covers_through_message_id"]:
+            covered_reached = True
+            if stored_kept is not None:
+                # 保留的作者原话已记在压缩点上，不必再往前读。
+                break
+            before_rows.append(row)
+            if row.role == "user":
+                kept_tokens_seen += estimate_provider_text_tokens(str(row.content or ""))
+            continue
+        after_rows.append(row)
+        metadata = row_metadata(row)
+        if row.role == "assistant":
+            if truncation_streak_open:
+                if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
+                    result.trailing_output_truncations += 1
+                else:
+                    truncation_streak_open = False
+            if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
+                # 停在第一次模型调用之前的一轮没有量到 prompt_tokens：不挡住更早一轮的真实读数。
+                tokens = metadata.get("prompt_tokens")
+                if isinstance(tokens, int) and tokens > 0:
+                    measured_seen = True
+                    result.last_prompt_tokens = tokens + unmeasured_tokens
+        if not measured_seen and valid_compaction(metadata) is not None:
+            # 压缩点之前的读数是压缩前的上下文大小，不再往前取。
+            measured_seen = True
+        if not measured_seen:
+            unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
+        # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
+        note_compaction(metadata)
 
     items: list[dict[str, Any]] = []
     if compaction is not None and covered_reached:

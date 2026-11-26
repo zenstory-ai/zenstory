@@ -129,7 +129,7 @@ def _format_summary_line(report: GradualArchivalReport) -> str:
         f"deleted={report.total_deleted} bytes_before={report.total_bytes_before} "
         f"bytes_after={report.total_bytes_after} bytes_saved={report.bytes_saved} "
         f"has_more={report.has_more} oldest_remaining_at={oldest} "
-        f"vacuum_analyzed={report.vacuum_analyzed}"
+        f"vacuum_analyzed={report.vacuum_analyzed} aborted={report.aborted}"
     )
 
 
@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         progress_callback=_on_progress,
     )
     print(_format_summary_line(report), flush=True)
-    return 0
+    return 1 if report.aborted else 0
 
 
 if __name__ == "__main__":

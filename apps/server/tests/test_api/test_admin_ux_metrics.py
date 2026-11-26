@@ -824,7 +824,7 @@ def test_ux_health_and_votes_stream_multi_mb_rows_with_yield_per(
     fallback_payload = get_ux_health_dashboard(db_session, days=7, now=NOW)
     fallback_votes = list_chat_feedback_votes(db_session, days=7, vote="all", now=NOW)
 
-    assert pg_attempts == 2  # un-backfilled metadata window + chat_votes
+    assert pg_attempts == 3  # un-backfilled metadata window + hot chat_votes + cold chat_votes
     assert fallback_payload["current"]["metrics"] == payload["current"]["metrics"]
     assert fallback_votes["summary"] == votes["summary"]
 

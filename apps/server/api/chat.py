@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, desc
+from sqlalchemy import delete, desc, exists, literal
 from sqlalchemy.orm import load_only
 from sqlmodel import Session, col, func, select
 
@@ -410,7 +410,10 @@ def clear_session(
             session.exec(
                 select(func.count())
                 .select_from(ChatMessageArchive)
-                .where(ChatMessageArchive.session_id == chat_session.id)
+                .where(
+                    ChatMessageArchive.session_id == chat_session.id,
+                    ~exists(select(literal(1)).where(ChatMessage.id == ChatMessageArchive.id)),
+                )
             ).one()
         )
     if has_chat_message_ux_summary_table(session.connection()):

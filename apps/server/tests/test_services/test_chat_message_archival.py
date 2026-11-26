@@ -30,7 +30,9 @@ from models import (
     User,
 )
 from scripts.archive_old_chat_messages import build_parser
+from scripts.archive_old_chat_messages import main as archive_cli_main
 from services.chat_message_archival import (
+    GradualArchivalReport,
     archive_chat_messages_batch,
     run_gradual_archival,
 )
@@ -427,6 +429,69 @@ def test_archive_idempotent_rerun_and_partial_verification_failure_never_deletes
     assert empty_batch.has_more is False
 
 
+@pytest.mark.integration
+def test_gradual_archival_aborts_and_cli_returns_nonzero_on_verification_failure(
+    db_session: Session,
+) -> None:
+    """Live verification failure must abort immediately without archiving newer batches, and CLI exits 1."""
+    _user, _project, chat = _seed_user_project_session(db_session)
+    cutoff = datetime(2026, 11, 19, 0, 0, 0)
+    old_ts = cutoff - timedelta(days=5)
+
+    created_ids: list[str] = []
+    for idx in range(4):
+        msg = ChatMessage(
+            id=f"abort-{idx}-{uuid4().hex[:6]}",
+            session_id=chat.id,
+            role="user",
+            content=f"旧消息 {idx}",
+            created_at=old_ts + timedelta(minutes=idx),
+        )
+        created_ids.append(msg.id)
+        db_session.add(msg)
+    db_session.commit()
+
+    with patch(
+        "services.chat_message_archival._verify_archived_ids",
+        return_value=set(),
+    ):
+        report = run_gradual_archival(
+            db_session,
+            cutoff=cutoff,
+            batch_size=2,
+            max_batches=5,
+            sleep_ms=0,
+            dry_run=False,
+        )
+
+    assert report.aborted is True
+    assert report.verification_failed is True
+    assert report.batches_run == 1  # aborted immediately on first failed batch
+    assert report.total_deleted == 0
+    # ALL 4 hot rows stay untouched (batch 2 was never archived/deleted).
+    db_session.expire_all()
+    remaining_ids = {
+        row.id
+        for row in db_session.exec(
+            select(ChatMessage).where(ChatMessage.session_id == chat.id)
+        ).all()
+    }
+    assert remaining_ids == set(created_ids)
+
+    # CLI exit code must be 1 on aborted run and 0 on clean run.
+    with patch(
+        "scripts.archive_old_chat_messages.run_gradual_archival",
+        return_value=GradualArchivalReport(aborted=True, verification_failed=True),
+    ):
+        assert archive_cli_main(["--max-batches", "1"]) == 1
+
+    with patch(
+        "scripts.archive_old_chat_messages.run_gradual_archival",
+        return_value=GradualArchivalReport(aborted=False, verification_failed=False),
+    ):
+        assert archive_cli_main(["--max-batches", "1"]) == 0
+
+
 # ---------------------------------------------------------------------------
 # 2. Transparent API, feedback, tool cards, clear_session, and loop history
 # ---------------------------------------------------------------------------
@@ -806,6 +871,234 @@ def test_load_loop_history_seamlessly_continues_returning_session_across_cold_an
     assert compacted_history.items[0] == {"role": "user", "content": "设定主角叫沈砚，擅长机关术。"}
     assert "沈砚在第一章展示机关术。" in compacted_history.items[1]["content"]
     assert compacted_history.items[-1]["content"] == "已基于压缩摘要续写第三章。"
+
+
+@pytest.mark.integration
+def test_load_loop_history_interleaved_hot_and_cold_preserves_order_and_compaction_anchor(
+    db_session: Session,
+) -> None:
+    """Interleaved hot+cold rows (e.g. SKIP LOCKED skip on m2 while m3 archived) stay strictly ordered."""
+    user, project, chat = _seed_user_project_session(db_session)
+    t1 = datetime(2026, 11, 5, 9, 0, 0)
+    t2 = t1 + timedelta(minutes=1)
+    t3 = t1 + timedelta(minutes=2)
+    t4 = t1 + timedelta(minutes=3)
+
+    # m1 (t1, cold), m2 (t2, hot - skipped lock!), m3 (t3, cold with compaction covering m2),
+    # and duplicate m2 also in cold with stale content (hot m2 must win on dedup!).
+    db_session.add(
+        ChatMessageArchive(
+            id="inter-1",
+            session_id=chat.id,
+            role="user",
+            content="第一轮问题",
+            created_at=t1,
+            archived_at=t4,
+        )
+    )
+    db_session.add(
+        ChatMessage(
+            id="inter-2",
+            session_id=chat.id,
+            role="assistant",
+            content="热表最新版本的第二轮回答",
+            message_metadata=json.dumps(
+                {
+                    "engine": LOOP_ENGINE_METADATA_VALUE,
+                    "prompt_tokens": 1111,
+                    "display_events": [{"type": "content", "content": "热表最新版本的第二轮回答"}],
+                },
+                ensure_ascii=False,
+            ),
+            created_at=t2,
+        )
+    )
+    db_session.add(
+        ChatMessageArchive(
+            id="inter-2",
+            session_id=chat.id,
+            role="assistant",
+            content="冷表旧副本不应被采用",
+            created_at=t2,
+            archived_at=t4,
+        )
+    )
+    db_session.add(
+        ChatMessageArchive(
+            id="inter-3",
+            session_id=chat.id,
+            role="assistant",
+            content="冷表更新的第三轮（带压缩点覆盖 inter-2）",
+            message_metadata=json.dumps(
+                {
+                    "engine": LOOP_ENGINE_METADATA_VALUE,
+                    "prompt_tokens": 3333,
+                    "compaction": {
+                        "summary": "已覆盖到第二轮的交接摘要。",
+                        "covers_through_message_id": "inter-2",
+                        "kept_author_messages": ["第一轮问题"],
+                    },
+                    "display_events": [
+                        {"type": "content", "content": "冷表更新的第三轮（带压缩点覆盖 inter-2）"}
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            created_at=t3,
+            archived_at=t4,
+        )
+    )
+    db_session.commit()
+
+    history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        chat_session_id=chat.id,
+    )
+    assert history.last_message_id == "inter-3"
+    assert history.last_prompt_tokens == 3333
+    assert history.compacted is True
+    assert history.items[0] == {"role": "user", "content": "第一轮问题"}
+    assert "已覆盖到第二轮的交接摘要。" in history.items[1]["content"]
+    assert history.items[-1]["content"] == "冷表更新的第三轮（带压缩点覆盖 inter-2）"
+
+    # Also verify non-compacted interleaved order: add hot m4 (t4) without compaction on a fresh session.
+    _u2, proj2, chat2 = _seed_user_project_session(db_session)
+    db_session.add_all(
+        [
+            ChatMessage(id="ord-1", session_id=chat2.id, role="user", content="t1-hot", created_at=t1),
+            ChatMessageArchive(
+                id="ord-2", session_id=chat2.id, role="assistant", content="t2-cold", created_at=t2, archived_at=t4
+            ),
+            ChatMessage(id="ord-3", session_id=chat2.id, role="user", content="t3-hot", created_at=t3),
+            ChatMessageArchive(
+                id="ord-4", session_id=chat2.id, role="assistant", content="t4-cold", created_at=t4, archived_at=t4
+            ),
+        ]
+    )
+    db_session.commit()
+
+    ordered = load_loop_history(
+        db_session,
+        project_id=proj2.id,
+        user_id=_u2.id,
+        chat_session_id=chat2.id,
+    )
+    assert ordered.last_message_id == "ord-4"
+    assert [item["content"] for item in ordered.items] == [
+        "t1-hot",
+        "t2-cold",
+        "t3-hot",
+        "t4-cold",
+    ]
+
+
+@pytest.mark.integration
+def test_admin_list_chat_feedback_votes_includes_archived_messages_and_dedups_hot(
+    db_session: Session,
+) -> None:
+    """list_chat_feedback_votes(days=30) must include >7d archived votes and prefer hot on duplicate IDs."""
+    from datetime import UTC
+
+    from agent.service import _project_has_ai_reply
+    from services.usage.admin_ux_metrics_service import list_chat_feedback_votes
+
+    user, project, chat = _seed_user_project_session(db_session)
+    now_utc = datetime(2026, 11, 26, 8, 0, tzinfo=UTC)
+    now_naive = now_utc.replace(tzinfo=None)
+    old_ts = now_naive - timedelta(days=14)
+    recent_ts = now_naive - timedelta(days=2)
+    cutoff = now_naive - timedelta(days=7)
+
+    old_vote_msg = ChatMessage(
+        id=f"vote-old-{uuid4().hex[:6]}",
+        session_id=chat.id,
+        role="assistant",
+        content="十四天前的回复",
+        message_metadata=json.dumps(
+            {
+                "stop_reason": "end_turn",
+                "feedback": {
+                    "vote": "down",
+                    "preset": "off_topic",
+                    "comment": "归档后的点踩反馈",
+                    "created_at": old_ts.isoformat() + "+00:00",
+                    "updated_at": old_ts.isoformat() + "+00:00",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        created_at=old_ts,
+    )
+    hot_vote_msg = ChatMessage(
+        id=f"vote-hot-{uuid4().hex[:6]}",
+        session_id=chat.id,
+        role="assistant",
+        content="两天前的回复",
+        message_metadata=json.dumps(
+            {
+                "stop_reason": "end_turn",
+                "feedback": {
+                    "vote": "up",
+                    "preset": None,
+                    "comment": "热表点赞评论",
+                    "created_at": recent_ts.isoformat() + "+00:00",
+                    "updated_at": recent_ts.isoformat() + "+00:00",
+                },
+            },
+            ensure_ascii=False,
+        ),
+        created_at=recent_ts,
+    )
+    db_session.add_all([old_vote_msg, hot_vote_msg])
+    db_session.commit()
+
+    # Archive the 14-day-old row.
+    res = archive_chat_messages_batch(db_session, cutoff=cutoff, batch_size=50, dry_run=False)
+    assert res.deleted == 1
+
+    # Simulate temporary overlap: duplicate hot_vote_msg in cold with stale comment.
+    db_session.add(
+        ChatMessageArchive(
+            id=hot_vote_msg.id,
+            session_id=chat.id,
+            role="assistant",
+            content="两天前的回复",
+            message_metadata=json.dumps(
+                {
+                    "stop_reason": "end_turn",
+                    "feedback": {
+                        "vote": "down",
+                        "preset": "stale_cold_preset",
+                        "comment": "冷表旧副本",
+                        "created_at": recent_ts.isoformat() + "+00:00",
+                        "updated_at": recent_ts.isoformat() + "+00:00",
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            created_at=recent_ts,
+            archived_at=now_naive,
+        )
+    )
+    db_session.commit()
+
+    votes = list_chat_feedback_votes(db_session, days=30, now=now_utc)
+    assert votes["summary"]["up"] == 1
+    assert votes["summary"]["down"] == 1
+    assert votes["summary"]["total_votes"] == 2
+    assert votes["summary"]["preset_counts"] == [{"preset": "off_topic", "count": 1}]
+    by_id = {item["message_id"]: item for item in votes["items"]}
+    assert set(by_id.keys()) == {old_vote_msg.id, hot_vote_msg.id}
+    assert by_id[old_vote_msg.id]["comment"] == "归档后的点踩反馈"
+    assert by_id[hot_vote_msg.id]["vote"] == "up"
+    assert by_id[hot_vote_msg.id]["comment"] == "热表点赞评论"
+
+    # Also verify _project_has_ai_reply falls back to chat_message_archive when hot is empty!
+    db_session.delete(hot_vote_msg)
+    db_session.commit()
+    assert _project_has_ai_reply(db_session, project.id) is True
 
 
 # ---------------------------------------------------------------------------

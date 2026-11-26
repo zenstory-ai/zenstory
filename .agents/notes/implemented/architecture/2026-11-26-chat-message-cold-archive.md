@@ -21,14 +21,15 @@
 3. **零丢失、先拷贝校验再删除的渐进式归档服务与运维 CLI**：
    - `services/chat_message_archival.py` 提供 `archive_chat_messages_batch` 与 `run_gradual_archival`：
      - 拷贝入冷表前，将 `tool_calls` 经 `archive_historical_tool_calls_json` 瘦身并转为紧凑 UTF-8 JSON（`ensure_ascii=False, separators=(",", ":")`），将 `message_metadata` 转为紧凑 UTF-8 JSON，并清理已在 `display_events` 中保存的重复 `reasoning_content`。
-     - 以小批次短事务（默认 `batch_size=500`、PG 使用 `FOR UPDATE SKIP LOCKED`）执行 `INSERT ... ON CONFLICT (id) DO NOTHING`，随后回查 `chat_message_archive` 校验整批每一条 `id` 均已落库；若校验缺失则立即回滚、绝不执行热表 `DELETE`。
+     - 以小批次短事务（默认 `batch_size=500`、PG 使用 `FOR UPDATE SKIP LOCKED`）执行 `INSERT ... ON CONFLICT (id) DO NOTHING`，随后回查 `chat_message_archive` 校验整批每一条 `id` 均已落库；若校验缺失则立即回滚、绝不执行热表 `DELETE`，同时中止本轮渐进归档并由 CLI 返回非零退出码（`1`），避免掩盖异常或继续归档更新批次。
      - 支持 `--dry-run`（零写零删）、`--older-than-days`（默认 7）、`--batch-size`（默认 500）、`--max-batches`（默认 20）、`--sleep-ms`（默认 100）以及默认关闭的 `--vacuum-analyze`（仅 PG 非阻塞 `VACUUM ANALYZE chat_message`，永不执行 `VACUUM FULL`）。日志仅记录数值计数与字节数，不记录原文与 PII。
    - 提供独立 CLI `scripts/archive_old_chat_messages.py` 供分批运维执行。
 4. **读/写/删透明冷热回退**：
    - `GET /api/v1/chat/session/{project_id}/recent`：先查热表，仅当返回行数 `< limit`（或指定 `message_id` 未命中热表）时补充查询 `chat_message_archive`，按 `id` 去重并按 `(created_at, id)` 升序合并，复用同一套 `client_tool_calls` / `client_message_metadata` 瘦身逻辑。
    - `POST /api/v1/chat/messages/{message_id}/feedback`（`services/chat_feedback_service.py`）与 `services/chat_tool_cards.py`（修改卡撤销 / 删除卡恢复与状态读取）：先查热表，未命中则回退到 `chat_message_archive` 执行同等权限校验与行锁写回。
-   - `DELETE /api/v1/chat/session/{project_id}`：同步清空 `chat_message_ux_summary`、`chat_message_archive` 与 `chat_message` 并合并返回清理条数。
-   - `agent/loop/history.py`（`load_loop_history`）：热表分页读完且未命中压缩点停止边界时，透明衔接到 `chat_message_archive` 继续向前分页（按 `id` 去重、遵循既有压缩边界与 `kept_author_messages`），保障 7 天后回访会话无感续写。
+   - `DELETE /api/v1/chat/session/{project_id}`：同步清空 `chat_message_ux_summary`、`chat_message_archive` 与 `chat_message` 并去重合并返回清理条数。
+   - `agent/loop/history.py`（`load_loop_history`）：通过冷热双路降序归并（`(created_at, id) DESC`，按 `id` 去重且热表优先）按页读取会话行，即便并发 `SKIP LOCKED` 造成短暂冷热交错，也能保证严格时序、准确 `last_message_id`/`last_prompt_tokens` 与压缩锚点匹配。
+   - `services/usage/admin_ux_metrics_service.py`（`list_chat_feedback_votes`）与 `agent/service.py`（`_project_has_ai_reply`）：同步支持 `chat_message_archive` 回退（按 `message_id` 去重且热表优先），确保 14d/30d 管理后台点踩明细与 UX 看板一致，且全归档旧项目不会误判为首条消息。
 
 ## Alternatives considered
 

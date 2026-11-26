@@ -62,6 +62,7 @@ class ArchiveBatchResult:
     has_more: bool = False
     oldest_remaining_at: datetime | None = None
     last_cursor: tuple[datetime, str] | None = None
+    verification_failed: bool = False
 
     @property
     def bytes_saved(self) -> int:
@@ -82,6 +83,8 @@ class GradualArchivalReport:
     has_more: bool = False
     oldest_remaining_at: datetime | None = None
     vacuum_analyzed: bool = False
+    aborted: bool = False
+    verification_failed: bool = False
 
     @property
     def bytes_saved(self) -> int:
@@ -406,6 +409,7 @@ def archive_chat_messages_batch(
             ),
             oldest_remaining_at=_oldest_remaining_created_at(session),
             last_cursor=last_cursor,
+            verification_failed=True,
         )
 
     # Phase 3: Delete verified rows from hot table and commit the short transaction.
@@ -517,17 +521,32 @@ def run_gradual_archival(
         if progress_callback is not None:
             progress_callback(batch_num, batch_res, report)
 
+        if not dry_run and (
+            batch_res.verification_failed
+            or (batch_res.scanned > 0 and batch_res.deleted == 0)
+        ):
+            report.aborted = True
+            report.verification_failed = True
+            log_with_context(
+                logger,
+                40,  # ERROR
+                "Aborting gradual chat message archival after batch verification failure",
+                batch=batch_num,
+                scanned=batch_res.scanned,
+            )
+            break
+
         if batch_res.scanned == 0 or not batch_res.has_more:
             break
 
-        # Advance cursor in dry-run mode or when a batch could not delete rows so we never spin.
-        if dry_run or batch_res.deleted == 0:
+        # Advance cursor in dry-run mode (rows are not deleted) so we scan distinct batches.
+        if dry_run:
             cursor = batch_res.last_cursor
 
         if batch_num < max_batches and not dry_run and sleep_ms > 0:
             time.sleep(sleep_ms / 1000.0)
 
-    if vacuum_analyze and not dry_run and report.total_deleted > 0:
+    if vacuum_analyze and not dry_run and not report.aborted and report.total_deleted > 0:
         report.vacuum_analyzed = _run_postgres_vacuum_analyze(session_or_factory)
         log_with_context(
             logger,

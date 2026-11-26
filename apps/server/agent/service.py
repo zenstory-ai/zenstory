@@ -289,13 +289,26 @@ async def _settle_stopped_writes(run_outcome: Any, adapter: Any | None) -> None:
 
 def _project_has_ai_reply(session: Session, project_id: str) -> bool:
     """这部作品的任何会话里有过 AI 回复：之后再带第一条消息标记的，不按第一条处理。"""
-    from models import ChatMessage, ChatSession
+    from models import ChatMessage, ChatMessageArchive, ChatSession
+    from models.chat_message_archive import has_chat_message_archive_table
 
-    return (
+    if (
         session.exec(
             select(ChatMessage.id)
             .join(ChatSession, ChatSession.id == ChatMessage.session_id)
             .where(ChatSession.project_id == project_id, ChatMessage.role == "assistant")
+            .limit(1)
+        ).first()
+        is not None
+    ):
+        return True
+    if not has_chat_message_archive_table(session):
+        return False
+    return (
+        session.exec(
+            select(ChatMessageArchive.id)
+            .join(ChatSession, ChatSession.id == ChatMessageArchive.session_id)
+            .where(ChatSession.project_id == project_id, ChatMessageArchive.role == "assistant")
             .limit(1)
         ).first()
         is not None
