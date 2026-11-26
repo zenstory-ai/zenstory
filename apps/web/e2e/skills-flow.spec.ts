@@ -590,8 +590,8 @@ test.describe('Skills Management Flow - Accessibility', () => {
     const hasDialogRole = await modal.getAttribute('role');
     const hasAriaModal = await modal.getAttribute('aria-modal');
 
-    // Either role="dialog" or aria-modal="true" should be present
-    expect(hasDialogRole === 'dialog' || hasAriaModal === 'true' || true).toBeTruthy();
+    // Either role="dialog" or aria-modal="true" must be present
+    expect(hasDialogRole === 'dialog' || hasAriaModal === 'true').toBe(true);
 
     // Modal should have a title
     await expect(modal.getByText(/创建技能|编辑技能/i).first()).toBeVisible();
@@ -614,17 +614,28 @@ test.describe('Skills Management Flow - Accessibility', () => {
 
     const createButton = page.locator('button:has(svg.lucide-plus)').first();
     await createButton.click();
-    await expect(page.locator('[role="dialog"]')).toBeVisible();
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible();
 
     // Check name input has label (via placeholder or label element)
-    const nameInput = page.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
+    const nameInput = dialog.locator('input[placeholder*="章末留钩子"], input[placeholder*="名称"]');
     const hasPlaceholder = await nameInput.getAttribute('placeholder');
     expect(hasPlaceholder).toBeTruthy();
 
-    // Check textarea has label
-    const textarea = page.locator('textarea');
-    const hasTextareaPlaceholder = await textarea.getAttribute('placeholder');
-    expect(hasTextareaPlaceholder || true).toBeTruthy(); // Placeholder might be optional
+    // Check textarea has an accessible label or placeholder
+    const textarea = dialog.locator('textarea').first();
+    await expect(textarea).toBeVisible();
+    const hasTextareaLabel = await textarea.evaluate((el) => {
+      const input = el as HTMLTextAreaElement;
+      return Boolean(
+        input.placeholder ||
+        input.getAttribute('aria-label') ||
+        input.getAttribute('aria-labelledby') ||
+        (input.id && document.querySelector(`label[for="${input.id}"]`)) ||
+        input.closest('label')
+      );
+    });
+    expect(hasTextareaLabel).toBe(true);
   });
 });
 

@@ -51,7 +51,10 @@ const referralWebTestFlag = process.env.VITE_REFERRAL_ENABLED ?? 'true'
  */
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/geo-domain-smoke.spec.ts'], // Explicit release checks only (test:geo)
+  testIgnore: [
+    '**/geo-domain-smoke.spec.ts', // Explicit release checks only (test:geo)
+    '**/prod-bundle-smoke.spec.ts', // Built bundle only (test:e2e:prod-smoke -> vite preview)
+  ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   // Retry failed tests in CI for flakiness mitigation and detection

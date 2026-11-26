@@ -699,6 +699,8 @@ jobs:
           e2e/chat-file-open-mocked.spec.ts \
           e2e/admin-routes-smoke-mocked.spec.ts \
           e2e/app-public-polish-mocked.spec.ts \
+          e2e/file-search-mocked.spec.ts \
+          e2e/header-export-menu-mocked.spec.ts \
           --project=chromium --no-deps
 
     - name: Upload Playwright smoke report

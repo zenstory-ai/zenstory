@@ -670,10 +670,11 @@ describe('useFileSearch', () => {
 
   describe('cleanup', () => {
     it('clears timeout on unmount', () => {
+      const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout')
       const tree = createMockTree([
         { id: '1', title: 'Chapter One', file_type: 'draft' },
       ])
-      const { unmount } = renderHook(() =>
+      const { result, unmount } = renderHook(() =>
         useFileSearch({ tree, query: 'Chapter' })
       )
 
@@ -681,14 +682,18 @@ describe('useFileSearch', () => {
       act(() => {
         vi.advanceTimersByTime(100)
       })
+      expect(result.current.results).toEqual([])
 
       // Unmount before debounce completes
       unmount()
+      expect(clearTimeoutSpy).toHaveBeenCalled()
 
-      // Advance past debounce time - should not throw
+      // Advance past debounce time - search must not update after unmount
       act(() => {
         vi.advanceTimersByTime(200)
       })
+      expect(result.current.results).toEqual([])
+      clearTimeoutSpy.mockRestore()
     })
 
     it('clears timeout when query changes', () => {

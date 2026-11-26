@@ -417,16 +417,9 @@ describe('MessageInput', () => {
       />
     )
 
-    // Find refresh button (RefreshCw icon)
-    const refreshButtons = screen.getAllByRole('button')
-    const refreshButton = refreshButtons.find(btn =>
-      btn.querySelector('svg.lucide-refresh-cw') || btn.getAttribute('aria-busy') !== null
-    )
-
-    if (refreshButton) {
-      await user.click(refreshButton)
-      expect(onRefreshSuggestions).toHaveBeenCalled()
-    }
+    const refreshButton = screen.getByRole('button', { name: 'chat:input.refresh' })
+    await user.click(refreshButton)
+    expect(onRefreshSuggestions).toHaveBeenCalledTimes(1)
   })
 
   it('shows refresh button as busy when refreshing', () => {
