@@ -207,13 +207,9 @@ describe('SearchResultsDropdown', () => {
 
       render(<SearchResultsDropdown {...defaultProps} results={results} />)
 
-      // Find the clickable container for the second item
-      const allItems = screen.getAllByText(/File \d/)
-      const secondItem = allItems[1].closest('div[class*="cursor-pointer"]')
-
-      if (secondItem) {
-        fireEvent.mouseEnter(secondItem)
-      }
+      // Find the clickable option for the second item
+      const secondItem = screen.getByTestId('search-result-item-1')
+      fireEvent.mouseEnter(secondItem)
 
       expect(mockOnHover).toHaveBeenCalledWith(1)
     })
@@ -227,10 +223,8 @@ describe('SearchResultsDropdown', () => {
 
       render(<SearchResultsDropdown {...defaultProps} results={results} />)
 
-      const item = screen.getByText('File 1').closest('div[class*="cursor-pointer"]')
-      if (item) {
-        fireEvent.click(item)
-      }
+      const item = screen.getByRole('option')
+      fireEvent.click(item)
 
       expect(mockOnSelect).toHaveBeenCalledWith(results[0])
     })
@@ -248,10 +242,8 @@ describe('SearchResultsDropdown', () => {
 
       render(<SearchResultsDropdown {...defaultProps} results={results} />)
 
-      const item = screen.getByText('Test File').closest('div[class*="cursor-pointer"]')
-      if (item) {
-        fireEvent.click(item)
-      }
+      const item = screen.getByRole('option')
+      fireEvent.click(item)
 
       expect(mockOnSelect).toHaveBeenCalledWith({
         id: 'test-id',

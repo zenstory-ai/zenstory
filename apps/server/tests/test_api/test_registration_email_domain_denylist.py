@@ -265,7 +265,8 @@ async def test_deactivated_account_on_the_domain_gets_no_way_back_in(client: Asy
     db_session.commit()
     email = user.email
     login = await client.post("/api/auth/login", data={"username": email, "password": "password123"})
-    assert login.status_code in (400, 401, 403)
+    assert login.status_code == 400
+    assert login.json()["error_code"] == "ERR_AUTH_INACTIVE_USER"
     assert "access_token" not in login.text
     location = await _oauth_callback(client, monkeypatch, email)
     assert "error_code=ERR_AUTH_INACTIVE_USER" in location

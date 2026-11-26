@@ -12,21 +12,17 @@ Tests the bulk draft upload endpoint with chapter splitting:
 """
 
 import json
-from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
 
 from api.files import (
-    ALLOWED_DRAFT_EXTENSIONS,
     DRAFT_MAX_BYTES,
     DRAFT_MAX_CHARS,
     DRAFT_MAX_FILES,
 )
 from core.error_codes import ErrorCode
 from models import File, Project, User
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -412,7 +408,7 @@ async def test_upload_rejects_too_many_files(client: AsyncClient, db_session):
     token, project, _ = await _create_user_project(client, db_session, "du_user16")
 
     files = [
-        ("files", (f"file_{i}.txt", f"content {i}".encode("utf-8"), "text/plain"))
+        ("files", (f"file_{i}.txt", f"content {i}".encode(), "text/plain"))
         for i in range(DRAFT_MAX_FILES + 1)
     ]
     response = await client.post(
@@ -466,7 +462,7 @@ async def test_upload_unauthenticated(client: AsyncClient, db_session):
 
 @pytest.mark.integration
 async def test_upload_other_users_project(client: AsyncClient, db_session):
-    """Uploading to another user's project returns 403 or 404."""
+    """Uploading to another user's project returns 403."""
     token1, _, _ = await _create_user_project(client, db_session, "du_user19a")
     _, project2, _ = await _create_user_project(client, db_session, "du_user19b")
 
@@ -475,7 +471,7 @@ async def test_upload_other_users_project(client: AsyncClient, db_session):
         files={"files": ("test.txt", b"content", "text/plain")},
         headers=_auth_headers(token1),
     )
-    assert response.status_code in (403, 404)
+    assert response.status_code == 403
 
 
 # ==================== Encoding Cases ====================

@@ -17,6 +17,11 @@ test.describe('Production Bundle Smoke', () => {
     const dashboardPage = new DashboardPage(page)
 
     await loginPage.navigateToLogin()
+    // Ensure this smoke suite runs against a built production bundle (vite preview / dist),
+    // never against the Vite dev server.
+    await expect(page.locator('script[src*="/@vite/client"]')).toHaveCount(0)
+    expect(await page.locator('script[type="module"][src*="/assets/"]').count()).toBeGreaterThan(0)
+
     await loginPage.login(TEST_EMAIL, TEST_PASSWORD)
     await expect(page).toHaveURL(/\/(dashboard|project)/, { timeout: 10000 })
 

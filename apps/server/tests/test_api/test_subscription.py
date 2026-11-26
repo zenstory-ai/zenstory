@@ -451,7 +451,7 @@ class TestRedeemCode:
         )
 
         # Should fail validation (422 for Pydantic validation error)
-        assert response.status_code in [400, 422]
+        assert response.status_code == 422
 
     async def test_redeem_code_rejects_invalid_source(
         self, client: AsyncClient, auth_headers, free_plan
