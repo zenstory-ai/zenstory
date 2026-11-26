@@ -97,9 +97,46 @@ AGENT_SSE_HEARTBEAT_INTERVAL_S = get_int_env("AGENT_SSE_HEARTBEAT_INTERVAL_S", 1
 
 # Loop history compaction (agent/loop/compaction.py), between turns only. When the prompt of
 # the last model call of the previous turn (measured, cached tokens included) exceeds this,
-# the next turn first writes a handoff summary with the same model; the history loader then
-# replays recent author messages + the summary instead of everything before it.
+# the next turn first attempts Stage 1 zero-LLM tool_archive compaction and falls back to
+# Stage 2 LLM handoff summary if Stage 1 does not free enough headroom.
 AGENT_LOOP_COMPACT_AT_TOKENS = get_int_env("AGENT_LOOP_COMPACT_AT_TOKENS", 300_000)
+
+
+def _get_bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+# Stage 1 deterministic zero-LLM tool_archive compaction (agent/loop/compaction.py).
+# NEVER runs unless should_compact() already triggers (> AGENT_LOOP_COMPACT_AT_TOKENS),
+# keeping normal-turn prefixes byte-identical for KV cache hits.
+AGENT_LOOP_TOOL_ARCHIVE_ENABLED = _get_bool_env("AGENT_LOOP_TOOL_ARCHIVE_ENABLED", True)
+# Keep the last N user turns completely untouched during Stage 1 archiving.
+AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS = get_int_env(
+    "AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS",
+    3,
+    minimum=0,
+)
+# Only archive eligible read-only tool outputs at least this many characters long.
+AGENT_LOOP_TOOL_ARCHIVE_MIN_OUTPUT_CHARS = get_int_env(
+    "AGENT_LOOP_TOOL_ARCHIVE_MIN_OUTPUT_CHARS",
+    2_000,
+    minimum=1,
+)
+# Require at least this many provider tokens saved for Stage 1 to admit without Stage 2,
+# preventing compaction thrashing on the very next turn.
+AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS = get_int_env(
+    "AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS",
+    30_000,
+    minimum=1,
+)
 # Token budget for the most recent original author messages kept verbatim after compaction.
 AGENT_LOOP_COMPACT_KEEP_USER_TOKENS = get_int_env("AGENT_LOOP_COMPACT_KEEP_USER_TOKENS", 20_000)
 # Output cap of the summary call (reasoning tokens count against it).

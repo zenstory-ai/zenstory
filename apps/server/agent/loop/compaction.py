@@ -1,21 +1,29 @@
-"""单循环 agent 的历史压缩（轮与轮之间，从不在一次工具循环中途）。
+"""单循环 agent 的两阶段历史压缩（轮与轮之间，从不在一次工具循环中途）。
 
-上一轮最后一次模型调用的实测输入 token（``message_metadata.prompt_tokens``）超过
-``AGENT_LOOP_COMPACT_AT_TOKENS`` 时，本轮开始前用同一个模型（会话固定的供应商，保持默认思考强度）
-写一份交接摘要：校验非空、没有被输出上限截断且未混入工具调用标签，失败时附带精炼重试说明再试一次，
-仍失败就不压缩、照常跑这一轮。摘要随本轮的 assistant 行写进 ``message_metadata.compaction``（不改表结构），
-下一轮起 ``history.load_loop_history`` 据此重建历史。
+上一轮最后一次模型调用的实测输入 token（``message_metadata.prompt_tokens``）加上本轮新增输入
+超过 ``AGENT_LOOP_COMPACT_AT_TOKENS`` 时，本轮开始前按两阶段执行压缩：
+
+- **Stage 1（零 LLM 确定性 ``tool_archive``）**：在 ``AGENT_LOOP_TOOL_ARCHIVE_ENABLED`` 开启时，
+  仅针对早于最近 ``AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS`` 个用户轮次的大体积（``>= 2000`` 字符）
+  可重读只读工具输出（``query_files`` / ``read_skill_resource`` / ``load_skill``，绝不触碰写工具或错误结果）
+  替换为紧凑确定性归档回执。若节省量 ``>= AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS`` 且归档后总量
+  ``+ turn_input_tokens <= AGENT_LOOP_COMPACT_AT_TOKENS``，直接完成压缩（0 次模型调用、0 延迟、100% 无损对话）。
+- **Stage 2（LLM 交接摘要兜底）**：若 Stage 1 未达准入条件，回落到同模型交接摘要（若 Stage 1 已归档部分
+  旧只读输出，则把更小的已归档历史送入摘要调用以降低摘要延迟与成本）。校验非空、未截断且未混入工具调用标签，
+  失败时附带精炼重试说明再试一次，仍失败就不压缩、照常跑这一轮。
+
+正常轮次（未超过 ``AGENT_LOOP_COMPACT_AT_TOKENS``）从不触发 Stage 1，前缀逐字节稳定以保住 KV 缓存。
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from agent.core.usage import extract_response_usage, merge_usage_dicts
+from config import agent_runtime
 from config.agent_runtime import (
-    AGENT_LOOP_COMPACT_AT_TOKENS,
     AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS,
     AGENT_LOOP_COMPACT_KEEP_USER_TOKENS,
     AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
@@ -25,14 +33,20 @@ from config.datetime_utils import utcnow
 from utils.logger import get_logger, log_with_context
 
 from .history import (
+    ARCHIVABLE_READ_TOOLS,
+    COMPACTION_MODE_TOOL_ARCHIVE,
     LoopHistory,
     bound_history_for_provider,
+    build_tool_archive_receipt,
     contains_leaked_tool_protocol,
     effective_history_provider_tokens,
+    estimate_provider_items_tokens,
+    is_successful_archivable_payload,
     kept_author_messages,
+    parse_tool_json,
     summary_message,
 )
-from .prompts import COMPACT_PROMPT
+from .prompts import COMPACT_PROMPT, SUMMARY_PREFIX
 
 if TYPE_CHECKING:
     from agent.core.request_context import AgentRequestContext
@@ -53,6 +67,21 @@ SKIPPED_PROVIDER_ERROR = "provider_error"
 
 
 @dataclass
+class ToolArchiveResult:
+    """Stage 1 零 LLM 确定性只读工具输出归档的结果。"""
+
+    items: list[dict[str, Any]]
+    archived_call_ids: list[str] = field(default_factory=list)
+    archived_file_ids: set[str] = field(default_factory=set)
+    archived_count: int = 0
+    before_tokens: int = 0
+    after_tokens: int = 0
+    saved_tokens: int = 0
+    admitted: bool = False
+    record: dict[str, Any] | None = None
+
+
+@dataclass
 class CompactionOutcome:
     """压缩结果：``record`` 写进本轮 assistant 行，``items`` 是压缩后的历史。"""
 
@@ -60,6 +89,155 @@ class CompactionOutcome:
     items: list[dict[str, Any]] | None = None
     usage: dict[str, int] | None = None
     skipped: str | None = None
+    archived_file_ids: set[str] | None = None
+
+
+def _is_user_turn_item(item: Any) -> bool:
+    """是否为真实作者轮次（排除合成的「【上下文已压缩】」摘要消息）。"""
+    if not isinstance(item, dict) or item.get("role") != "user":
+        return False
+    content = item.get("content")
+    return not (isinstance(content, str) and content.startswith(SUMMARY_PREFIX))
+
+
+def archive_old_tool_results(
+    history: LoopHistory,
+    *,
+    turn_input_tokens: int = 0,
+    keep_recent_turns: int | None = None,
+    min_output_chars: int | None = None,
+    min_savings_tokens: int | None = None,
+    compact_at_tokens: int | None = None,
+) -> ToolArchiveResult:
+    """Stage 1：零 LLM 确定性归档较早轮次的大体积只读工具输出。
+
+    规则：
+    - 最近 ``keep_recent_turns`` 个用户轮次完整保留，逐字节不碰；
+    - 仅归档早于保护窗口、且属于 ``ARCHIVABLE_READ_TOOLS``（``query_files`` /
+      ``read_skill_resource`` / ``load_skill``）、长度 ``>= min_output_chars``、
+      且为成功 JSON 结果的 ``function_call_output``；绝不触碰写工具、错误结果或已归档回执；
+    - 用供应商同量纲估算 ``estimate_provider_items_tokens`` 计算归档前后体积与节省量；
+    - 仅当 ``archived_count > 0``、``saved_tokens >= min_savings_tokens`` 且
+      ``after_tokens + turn_input_tokens <= compact_at_tokens`` 时准入（``admitted=True``）。
+    """
+    keep_turns = (
+        agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS
+        if keep_recent_turns is None
+        else max(0, keep_recent_turns)
+    )
+    min_chars = (
+        agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_MIN_OUTPUT_CHARS
+        if min_output_chars is None
+        else max(1, min_output_chars)
+    )
+    min_savings = (
+        agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS
+        if min_savings_tokens is None
+        else max(1, min_savings_tokens)
+    )
+    compact_limit = (
+        agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS
+        if compact_at_tokens is None
+        else compact_at_tokens
+    )
+
+    if not history.items:
+        return ToolArchiveResult(items=[])
+
+    before_tokens = estimate_provider_items_tokens(history.items)
+    user_indices = [idx for idx, item in enumerate(history.items) if _is_user_turn_item(item)]
+    if keep_turns == 0:
+        archive_cutoff_index = len(history.items)
+    elif len(user_indices) <= keep_turns:
+        archive_cutoff_index = 0
+    else:
+        archive_cutoff_index = user_indices[-keep_turns]
+
+    if archive_cutoff_index <= 0:
+        return ToolArchiveResult(
+            items=list(history.items),
+            before_tokens=before_tokens,
+            after_tokens=before_tokens,
+        )
+
+    call_info_by_id: dict[str, tuple[int, str]] = {}
+    for idx in range(archive_cutoff_index):
+        item = history.items[idx]
+        if isinstance(item, dict) and item.get("type") == "function_call":
+            call_id = item.get("call_id") or item.get("id")
+            tool_name = item.get("name")
+            if isinstance(call_id, str) and call_id and isinstance(tool_name, str) and tool_name:
+                call_info_by_id[call_id] = (idx, tool_name)
+
+    new_items: list[dict[str, Any]] = list(history.items)
+    archived_call_ids: list[str] = []
+    archived_file_ids: set[str] = set()
+    archived_count = 0
+
+    for idx in range(archive_cutoff_index):
+        item = history.items[idx]
+        if not isinstance(item, dict) or item.get("type") != "function_call_output":
+            continue
+        call_id = item.get("call_id") or item.get("id")
+        if not isinstance(call_id, str) or not call_id:
+            continue
+        info = call_info_by_id.get(call_id)
+        if info is None:
+            continue
+        _call_idx, tool_name = info
+        if tool_name not in ARCHIVABLE_READ_TOOLS:
+            continue
+        output = item.get("output")
+        if not isinstance(output, str) or len(output) < min_chars:
+            continue
+        parsed = parse_tool_json(output)
+        if not is_successful_archivable_payload(parsed):
+            continue
+        receipt_json, file_ids = build_tool_archive_receipt(tool_name, output, parsed)
+        if len(receipt_json) >= len(output):
+            continue
+        new_items[idx] = {**item, "output": receipt_json}
+        archived_call_ids.append(call_id)
+        archived_file_ids.update(file_ids)
+        archived_count += 1
+
+    if archived_count == 0:
+        return ToolArchiveResult(
+            items=list(history.items),
+            before_tokens=before_tokens,
+            after_tokens=before_tokens,
+        )
+
+    after_tokens = estimate_provider_items_tokens(new_items)
+    saved_tokens = max(0, before_tokens - after_tokens)
+    admitted = (
+        archived_count > 0
+        and saved_tokens >= min_savings
+        and (after_tokens + max(0, turn_input_tokens)) <= compact_limit
+    )
+    record: dict[str, Any] | None = None
+    if admitted:
+        record = {
+            "mode": COMPACTION_MODE_TOOL_ARCHIVE,
+            "archived_through_message_id": history.last_message_id or "",
+            "archived_call_ids": archived_call_ids,
+            "archived_count": archived_count,
+            "saved_tokens": saved_tokens,
+            "before_tokens": before_tokens,
+            "after_tokens": after_tokens,
+            "created_at": utcnow().isoformat(),
+        }
+    return ToolArchiveResult(
+        items=new_items,
+        archived_call_ids=archived_call_ids,
+        archived_file_ids=archived_file_ids,
+        archived_count=archived_count,
+        before_tokens=before_tokens,
+        after_tokens=after_tokens,
+        saved_tokens=saved_tokens,
+        admitted=admitted,
+        record=record,
+    )
 
 
 # 退避目标的硬封顶：防止存量老会话在 ~96 万 token 处记下 skipped 后要求涨到 >100 万（物理不可能）才重试。
@@ -149,7 +327,7 @@ def should_compact(
     """
     if not history.items or not history.last_message_id:
         return False
-    limit = AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
+    limit = agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS if threshold is None else threshold
     measured = effective_history_provider_tokens(history) + max(0, extra_tokens)
     if measured <= limit:
         return False
@@ -272,17 +450,65 @@ async def compact_history(
     keep_user_tokens: int | None = None,
     run_meter: AgentRunMeter | None = None,
     request_context: AgentRequestContext | None = None,
+    turn_input_tokens: int = 0,
+    compact_at_tokens: int | None = None,
+    pre_archive: ToolArchiveResult | None = None,
 ) -> CompactionOutcome:
-    """写交接摘要并给出压缩后的历史；摘要不可用时返回 skipped，历史保持原样。
+    """两阶段压缩历史：先尝试 Stage 1 零 LLM ``tool_archive``，未达准入则回落到 Stage 2 交接摘要。
 
-    每次摘要调用都记进 ``run_meter``（请求级模型调用预算）。次数由 ``_MAX_COMPACTION_ATTEMPTS`` 限定、
-    发生在这一轮开始前，所以这里不看预算是否用完。
+    若 Stage 1 归档了部分旧只读输出但未达准入条件，则把更小的已归档历史送入 Stage 2 摘要调用，
+    减少摘要调用的输入量、延迟与成本；摘要仍不可用时返回 skipped，历史保持原样。
+
+    每次 Stage 2 摘要调用都记进 ``run_meter``（请求级模型调用预算）。次数由
+    ``_MAX_COMPACTION_ATTEMPTS`` 限定、发生在这一轮开始前，所以这里不看预算是否用完。
     """
     from agent.core import llm_failover
     from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
     from agent.openai_agents.usage_hooks import agent_usage_attribution
     from core.error_handler import APIException
     from services.usage.cost_budget import budget_attribution
+
+    source_items = history.items
+    if agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_ENABLED:
+        archive_result = (
+            pre_archive
+            if pre_archive is not None
+            else archive_old_tool_results(
+                history,
+                turn_input_tokens=turn_input_tokens,
+                compact_at_tokens=compact_at_tokens,
+            )
+        )
+        if archive_result.admitted and archive_result.record is not None:
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Loop history compacted via Stage 1 tool_archive (zero LLM calls)",
+                archived_count=archive_result.archived_count,
+                before_tokens=archive_result.before_tokens,
+                after_tokens=archive_result.after_tokens,
+                saved_tokens=archive_result.saved_tokens,
+                turn_input_tokens=turn_input_tokens,
+                history_items=len(history.items),
+            )
+            return CompactionOutcome(
+                record=archive_result.record,
+                items=archive_result.items,
+                usage=None,
+                archived_file_ids=set(archive_result.archived_file_ids),
+            )
+        if archive_result.archived_count > 0:
+            source_items = archive_result.items
+            log_with_context(
+                logger,
+                20,  # INFO
+                "Stage 1 tool_archive did not meet admission; feeding archived history into Stage 2 LLM summary",
+                archived_count=archive_result.archived_count,
+                before_tokens=archive_result.before_tokens,
+                after_tokens=archive_result.after_tokens,
+                saved_tokens=archive_result.saved_tokens,
+                turn_input_tokens=turn_input_tokens,
+            )
 
     attribution = agent_usage_attribution(request_context)
     input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
@@ -291,7 +517,7 @@ async def compact_history(
         # 按 1.5 倍供应商 token 量纲折算字符上限，折叠超预算旧工具载荷以尽量保住全部轮次的起止脉络与文件 id 摘要。
         trimmer_max_chars = max(200_000, int(budget_tokens * 1.5))
         return IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
-            history.items, instructions_chars=len(system_prompt)
+            source_items, instructions_chars=len(system_prompt)
         )
 
     target_model: str | None = None

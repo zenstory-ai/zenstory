@@ -25,6 +25,7 @@ from typing import Any
 from sqlalchemy import desc
 from sqlmodel import Session, and_, select
 
+from config import agent_runtime
 from config.agent_runtime import AGENT_LOOP_RUN_HISTORY_MAX_TOKENS
 from config.datetime_utils import utcnow
 from database import create_session
@@ -66,7 +67,14 @@ from .core.steering import (
 )
 from .core.stream_errors import classify_stream_exception, log_stream_exception
 from .core.writing_state import WritingState
-from .loop.compaction import compact_history, should_compact, skipped_record
+from .loop.compaction import (
+    CompactionOutcome,
+    ToolArchiveResult,
+    archive_old_tool_results,
+    compact_history,
+    should_compact,
+    skipped_record,
+)
 from .loop.engine import run_loop_agent_streaming
 from .loop.history import (
     LOOP_ENGINE_METADATA_VALUE,
@@ -75,9 +83,11 @@ from .loop.history import (
     effective_history_provider_tokens,
     estimate_provider_items_tokens,
     estimate_provider_text_tokens,
+    is_tool_archive_compaction,
     load_loop_history,
     row_metadata,
     valid_compaction,
+    valid_tool_archive_compaction,
 )
 from .loop.turn_context import LoopTurnContext, build_loop_turn_context
 from .loop.ui_actions import UIAction
@@ -1333,6 +1343,12 @@ class AgentService:
                 # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。
                 inflight_tool_writes=run_outcome.inflight_tool_writes if run_outcome is not None else None,
             )
+            # 此前轮次经 Stage 1 tool_archive 归档且未再重新读/写的文件，撤销跨轮会话快照结转，
+            # 防止 edit_file 误以为已归档的旧章节全文仍在模型视野内。
+            if loop_history.archived_file_ids and loop_turn.session_carried_snapshot_ids:
+                request_context.drop_initial_read_snapshots(
+                    loop_history.archived_file_ids & loop_turn.session_carried_snapshot_ids
+                )
 
             # Build WritingState for workflow execution
             writing_state: WritingState = {
@@ -1377,38 +1393,98 @@ class AgentService:
                     compaction_usage: dict[str, int] | None = None
                     current_turn_tokens = estimate_provider_text_tokens(user_content)
                     if should_compact(loop_history, extra_tokens=current_turn_tokens):
-                        # 轮与轮之间压缩历史（不在工具循环中途）：摘要不可用时照常带完整历史跑这一轮。
-                        # 作者能看到这一步：先发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
-                        # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
-                        # 没压缩成时只发一条收起它的进度提示，不落库。
-                        yield thinking_event(
-                            "Compacting conversation…" if force_en else "正在压缩对话…",
-                            step=HISTORY_COMPACTION_STEP,
-                        ).to_sse()
-                        from services.usage.cost_budget import on_model_transport_start
-
-                        transport_scope = (
-                            on_model_transport_start(run_outcome.mark_provider_attempted)
-                            if run_outcome is not None
-                            else contextlib.nullcontext()
-                        )
-                        with run_meter.measure_stage("compaction"), transport_scope:
-                            outcome = await compact_history(
+                        # 两阶段轮间压缩（不在工具循环中途）：
+                        # Stage 1（零 LLM 确定性 tool_archive）：优先归档早于最近 N 轮的大体积只读工具输出；
+                        # 满足节省量与阈值准入时零延迟放行，不触发摘要模型调用也不发阻塞式「正在压缩对话…」卡片。
+                        # Stage 2（LLM 交接摘要）：Stage 1 未达准入时兜底，并把 Stage 1 已归档的更小历史送入摘要调用。
+                        pre_archive: ToolArchiveResult | None = None
+                        outcome: CompactionOutcome | None = None
+                        if agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_ENABLED:
+                            stage1_started = time.monotonic()
+                            pre_archive = archive_old_tool_results(
                                 loop_history,
-                                system_prompt=system_prompt,
-                                session_id=session_id,
-                                run_meter=run_meter,
-                                request_context=request_context,
+                                turn_input_tokens=current_turn_tokens,
                             )
+                            if pre_archive.admitted and pre_archive.record is not None:
+                                run_meter.record_stage(
+                                    "compaction", (time.monotonic() - stage1_started) * 1000
+                                )
+                                outcome = CompactionOutcome(
+                                    record=pre_archive.record,
+                                    items=pre_archive.items,
+                                    usage=None,
+                                    archived_file_ids=set(pre_archive.archived_file_ids),
+                                )
+                                log_with_context(
+                                    logger,
+                                    20,  # INFO
+                                    "Loop history compacted via Stage 1 tool_archive (zero LLM calls)",
+                                    session_id=session_id,
+                                    archived_count=pre_archive.archived_count,
+                                    before_tokens=pre_archive.before_tokens,
+                                    after_tokens=pre_archive.after_tokens,
+                                    saved_tokens=pre_archive.saved_tokens,
+                                    turn_input_tokens=current_turn_tokens,
+                                )
+
+                        emitted_compaction_progress = False
+                        if outcome is None:
+                            # Stage 2 摘要前发「正在压缩对话…」，成功后变成会话里的「对话已压缩」标记
+                            # （记进 display_events，刷新后在同一位置回放，摘要读本轮的 compaction 记录）；
+                            # 没压缩成时只发一条收起它的进度提示，不落库。
+                            yield thinking_event(
+                                "Compacting conversation…" if force_en else "正在压缩对话…",
+                                step=HISTORY_COMPACTION_STEP,
+                            ).to_sse()
+                            emitted_compaction_progress = True
+                            from services.usage.cost_budget import on_model_transport_start
+
+                            transport_scope = (
+                                on_model_transport_start(run_outcome.mark_provider_attempted)
+                                if run_outcome is not None
+                                else contextlib.nullcontext()
+                            )
+                            with run_meter.measure_stage("compaction"), transport_scope:
+                                outcome = await compact_history(
+                                    loop_history,
+                                    system_prompt=system_prompt,
+                                    session_id=session_id,
+                                    run_meter=run_meter,
+                                    request_context=request_context,
+                                    turn_input_tokens=current_turn_tokens,
+                                    pre_archive=pre_archive,
+                                )
+
                         compaction_usage = outcome.usage
                         if outcome.record is not None and outcome.items is not None:
                             loop_compaction_record = outcome.record
                             writing_state["history_items"] = outcome.items
-                            # 压缩成功后前几轮的工具结果已折叠进摘要，撤销仅来自此前轮次的会话快照结转。
-                            if loop_turn.session_carried_snapshot_ids:
-                                request_context.drop_initial_read_snapshots(loop_turn.session_carried_snapshot_ids)
-                            assistant_display_events.append({"type": "history_compacted", "data": {}})
-                            yield history_compacted_event(outcome.record["summary"]).to_sse()
+                            if is_tool_archive_compaction(outcome.record):
+                                # Stage 1 只折叠了旧轮次的只读工具结果：撤销被归档文件的跨轮快照结转
+                                # （无具体 id 时保守全撤），防止 edit_file 误以为旧章节全文仍在视野内。
+                                if loop_turn.session_carried_snapshot_ids:
+                                    archived_ids = outcome.archived_file_ids or set()
+                                    to_drop = (
+                                        (archived_ids & loop_turn.session_carried_snapshot_ids)
+                                        if archived_ids
+                                        else loop_turn.session_carried_snapshot_ids
+                                    )
+                                    if to_drop:
+                                        request_context.drop_initial_read_snapshots(to_drop)
+                                yield thinking_event(
+                                    "Archived earlier read results to free context; continuing…"
+                                    if force_en
+                                    else "已归档较早的只读上下文以释放空间，继续生成…",
+                                    step=HISTORY_COMPACTION_SKIPPED_STEP if emitted_compaction_progress else None,
+                                ).to_sse()
+                            else:
+                                # Stage 2 压缩成功后前几轮的工具结果已折叠进摘要，撤销全部会话快照结转。
+                                if loop_turn.session_carried_snapshot_ids:
+                                    request_context.drop_initial_read_snapshots(
+                                        loop_turn.session_carried_snapshot_ids
+                                    )
+                                assistant_display_events.append({"type": "history_compacted", "data": {}})
+                                yield history_compacted_event(outcome.record["summary"]).to_sse()
                         else:
                             if outcome.skipped:
                                 loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
@@ -1420,12 +1496,17 @@ class AgentService:
                             ).to_sse()
                     # 重试接过来的记录：本轮历史照它重建，本轮没写新记录时随本轮的行落库，之后的轮次照样读到。
                     carried_record = valid_compaction(retry_carried_compaction)
-                    if loop_compaction_record is None and carried_record is not None and loop_history.compacted:
-                        loop_compaction_record = carried_record
+                    carried_archive = valid_tool_archive_compaction(retry_carried_compaction)
+                    if loop_compaction_record is None:
+                        if carried_record is not None and loop_history.compacted:
+                            loop_compaction_record = carried_record
+                        elif carried_archive is not None and loop_history.archived_call_ids:
+                            loop_compaction_record = carried_archive
                     if (
                         loop_compaction_record is None
                         and loop_compaction_skipped is None
                         and carried_record is None
+                        and carried_archive is None
                         and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
                     ):
                         loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
