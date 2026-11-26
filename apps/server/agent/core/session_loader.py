@@ -5,6 +5,7 @@ session read snapshots, and loop status card history replay.
 
 import json
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -403,6 +404,7 @@ class SessionLoader:
         page_size: int,
         max_rows: int | None = None,
         cancel_event: threading.Event | None = None,
+        before_cold_fallback: Callable[[], bool] | None = None,
     ):
         """Lazy 2-way descending keyset iterator across ``ChatMessage`` and ``ChatMessageArchive``.
 
@@ -514,6 +516,8 @@ class SessionLoader:
                 if watermark is None:
                     cold_row = None
                 elif hot_row is None or (hot_row[1], hot_row[0]) < watermark:
+                    if before_cold_fallback is not None and before_cold_fallback():
+                        return
                     cold_active = True
                     cold_row = _peek_cold()
                 else:
@@ -588,6 +592,12 @@ class SessionLoader:
                 written.extend(fid for fid in page_candidates if fid in accepted)
             page_candidates.clear()
 
+        def _stop_before_cold() -> bool:
+            nonlocal rows_in_batch
+            _flush_candidates()
+            rows_in_batch = 0
+            return len(written) >= limit
+
         for (tool_calls,) in self._iter_session_projection_desc(
             session,
             chat_session_id=chat_session_id,
@@ -595,6 +605,7 @@ class SessionLoader:
             column_names=("tool_calls",),
             page_size=SESSION_WRITTEN_FILES_PAGE_ROWS,
             cancel_event=cancel_event,
+            before_cold_fallback=_stop_before_cold,
         ):
             actions = self._extract_file_actions(tool_calls)
             for action in actions:
@@ -613,7 +624,7 @@ class SessionLoader:
                 seen.add(file_id)
                 page_candidates.append(file_id)
             rows_in_batch += 1
-            if rows_in_batch >= SESSION_WRITTEN_FILES_PAGE_ROWS or len(written) + len(page_candidates) >= limit:
+            if rows_in_batch >= SESSION_WRITTEN_FILES_PAGE_ROWS:
                 _flush_candidates()
                 rows_in_batch = 0
                 if len(written) >= limit:
