@@ -173,7 +173,10 @@ export default function ProjectEditor() {
 
         if (requestedFileId) {
           if (initialFile && initialFile.id === requestedFileId) {
-            if (swrPaintedFileId === requestedFileId) {
+            if (
+              swrPaintedFileId === requestedFileId &&
+              selectedItemRef.current?.id === requestedFileId
+            ) {
               // Always overwrite preloadedFileCache with the fresh server copy BEFORE dispatching
               // the event so a late-mounting or microtask-yielded Editor never commits stale SWR data.
               seedPreloadedFile(queryClient, userId, projectId, initialFile);

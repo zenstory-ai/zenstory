@@ -446,6 +446,35 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
     expect(mocks.getRecentMessages).toHaveBeenCalledWith("project-1", 16);
   });
 
+  it("gracefully falls back to parallel legacy endpoints when /bootstrap returns an invalid payload shape", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    setLastOpenedFile("user-1", "project-1", sampleFile.id);
+
+    // Simulate a legacy proxy or catch-all route returning a raw project object without { project, files, recent_messages }.
+    mocks.getBootstrap.mockResolvedValue(sampleProject as unknown as ProjectBootstrapResponse);
+    mocks.projectGet.mockResolvedValue(sampleProject);
+    mocks.fileGetTree.mockResolvedValue({ tree: sampleTree });
+    mocks.fileGet.mockResolvedValue(sampleFile);
+    mocks.getRecentMessages.mockResolvedValue(sampleBootstrap.recent_messages);
+
+    mountEditor(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("workbench-layout")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+        sampleFile.content,
+      );
+      expect(screen.getByText("正文")).toBeInTheDocument();
+      expect(screen.getByText("上次我们写到第七章转折点。")).toBeInTheDocument();
+    });
+
+    expect(mocks.getBootstrap).toHaveBeenCalledTimes(1);
+    expect(mocks.projectGet).toHaveBeenCalledWith("project-1");
+    expect(mocks.fileGetTree).toHaveBeenCalledWith("project-1");
+    expect(mocks.fileGet).toHaveBeenCalledWith(sampleFile.id);
+    expect(mocks.getRecentMessages).toHaveBeenCalledWith("project-1", 16);
+  });
+
   it("paints cached SWR project/tree/file immediately and silently reconciles fresh server version without extra file GET", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     setLastOpenedFile("user-1", "project-1", sampleFile.id);

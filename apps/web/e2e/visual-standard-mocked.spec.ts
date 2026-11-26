@@ -23,6 +23,8 @@ test('project opening and deletion have independent native keyboard targets', as
   await page.keyboard.press('Space');
   await expect(page).toHaveURL(/\/project\/responsive-project-0$/);
   await expect(page.getByTestId('chat-input')).toBeVisible();
+  // Wait for workspace entry reveal animations to settle so axe measures final contrast.
+  await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined))));
   const workspaceCheck = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(workspaceCheck.violations.filter(violation => violation.id === 'color-contrast')).toEqual([]);
 });

@@ -61,6 +61,35 @@ export function dispatchWorkbenchFreshFile(detail: WorkbenchFreshFileDetail): vo
   window.dispatchEvent(new CustomEvent<WorkbenchFreshFileDetail>(WORKBENCH_FRESH_FILE_EVENT, { detail }));
 }
 
+export function isValidProjectBootstrapResponse(
+  data: unknown,
+  expectedProjectId?: string,
+): data is ProjectBootstrapResponse {
+  if (!data || typeof data !== "object") return false;
+  const candidate = data as Partial<ProjectBootstrapResponse>;
+  if (
+    !candidate.project ||
+    typeof candidate.project !== "object" ||
+    typeof candidate.project.id !== "string" ||
+    candidate.project.id.length === 0
+  ) {
+    return false;
+  }
+  if (expectedProjectId && candidate.project.id !== expectedProjectId) {
+    return false;
+  }
+  if (!Array.isArray(candidate.files)) return false;
+  if (!Array.isArray(candidate.recent_messages)) return false;
+  if (
+    candidate.initial_file !== undefined &&
+    candidate.initial_file !== null &&
+    typeof candidate.initial_file !== "object"
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export async function fetchProjectBootstrapWithFallback(
   projectId: string,
   options: { fileId?: string | null; chatLimit?: number } = {},
@@ -73,13 +102,20 @@ export async function fetchProjectBootstrapWithFallback(
       fileId,
       chatLimit,
     });
-    return {
-      data,
-      usedFallback: false,
-      fileTreeReady: true,
-      chatReady: true,
-      initialFileStatus: data.initial_file ? "resolved" : "missing",
-    };
+    if (isValidProjectBootstrapResponse(data, projectId)) {
+      return {
+        data,
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+        initialFileStatus: data.initial_file ? "resolved" : "missing",
+      };
+    }
+
+    logger.warn(
+      "[Bootstrap] /bootstrap returned invalid payload shape, falling back to parallel legacy endpoints",
+      { projectId },
+    );
   } catch (error) {
     if (!isBootstrapEndpointMissingError(error)) {
       throw error;
@@ -88,57 +124,57 @@ export async function fetchProjectBootstrapWithFallback(
     logger.log("[Bootstrap] /bootstrap unavailable (404/405), falling back to parallel legacy endpoints", {
       projectId,
     });
-
-    const [project, treeResult, chatResult, fileResult] = await Promise.all([
-      apiModule.projectApi.get(projectId),
-      apiModule.fileApi
-        .getTree(projectId)
-        .then((res) => ({ ok: true as const, files: res.tree || [] }))
-        .catch(() => ({ ok: false as const, files: [] })),
-      getRecentMessages(projectId, chatLimit + 1)
-        .then((messages) => {
-          const hasMore = messages.length > chatLimit;
-          return {
-            ok: true as const,
-            messages: hasMore ? messages.slice(messages.length - chatLimit) : messages,
-            hasMore,
-          };
-        })
-        .catch(() => ({ ok: false as const, messages: [], hasMore: false })),
-      fileId
-        ? apiModule.fileApi
-            .get(fileId)
-            .then((file): { status: "resolved" | "missing"; file: File | null } => {
-              const isDeleted = (file as { is_deleted?: boolean }).is_deleted === true;
-              if (file.project_id !== projectId || isDeleted || (file.file_type as string) === "folder") {
-                return { status: "missing", file: null };
-              }
-              return { status: "resolved", file };
-            })
-            .catch((fileErr): { status: "missing" | "transient_error"; file: null } => {
-              if (fileErr instanceof ApiError && fileErr.status >= 400 && fileErr.status < 500) {
-                return { status: "missing", file: null };
-              }
-              return { status: "transient_error", file: null };
-            })
-        : Promise.resolve<{ status: "missing"; file: null }>({ status: "missing", file: null }),
-    ]);
-
-    return {
-      data: {
-        project,
-        files: treeResult.files,
-        initial_file: fileResult.file,
-        chat_session: null,
-        recent_messages: chatResult.messages,
-        has_more_messages: chatResult.hasMore,
-      },
-      usedFallback: true,
-      fileTreeReady: treeResult.ok,
-      chatReady: chatResult.ok,
-      initialFileStatus: fileResult.status,
-    };
   }
+
+  const [project, treeResult, chatResult, fileResult] = await Promise.all([
+    apiModule.projectApi.get(projectId),
+    apiModule.fileApi
+      .getTree(projectId)
+      .then((res) => ({ ok: true as const, files: res.tree || [] }))
+      .catch(() => ({ ok: false as const, files: [] })),
+    getRecentMessages(projectId, chatLimit + 1)
+      .then((messages) => {
+        const hasMore = messages.length > chatLimit;
+        return {
+          ok: true as const,
+          messages: hasMore ? messages.slice(messages.length - chatLimit) : messages,
+          hasMore,
+        };
+      })
+      .catch(() => ({ ok: false as const, messages: [], hasMore: false })),
+    fileId
+      ? apiModule.fileApi
+          .get(fileId)
+          .then((file): { status: "resolved" | "missing"; file: File | null } => {
+            const isDeleted = (file as { is_deleted?: boolean }).is_deleted === true;
+            if (file.project_id !== projectId || isDeleted || (file.file_type as string) === "folder") {
+              return { status: "missing", file: null };
+            }
+            return { status: "resolved", file };
+          })
+          .catch((fileErr): { status: "missing" | "transient_error"; file: null } => {
+            if (fileErr instanceof ApiError && fileErr.status >= 400 && fileErr.status < 500) {
+              return { status: "missing", file: null };
+            }
+            return { status: "transient_error", file: null };
+          })
+      : Promise.resolve<{ status: "missing"; file: null }>({ status: "missing", file: null }),
+  ]);
+
+  return {
+    data: {
+      project,
+      files: treeResult.files,
+      initial_file: fileResult.file,
+      chat_session: null,
+      recent_messages: chatResult.messages,
+      has_more_messages: chatResult.hasMore,
+    },
+    usedFallback: true,
+    fileTreeReady: treeResult.ok,
+    chatReady: chatResult.ok,
+    initialFileStatus: fileResult.status,
+  };
 }
 
 export function evictProjectBootstrapHandoff(

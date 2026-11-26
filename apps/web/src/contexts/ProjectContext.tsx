@@ -214,11 +214,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     streamingFileIdRef.current = streamingFileId;
   }, [streamingFileId]);
 
-  // 兜住那些绕过 setCurrentProjectId 直接调 setCurrentProjectIdState 的路径
-  // （登出清理、loadProjects 的无用户分支），保证 ref 不会漂移。
-  useEffect(() => {
-    currentProjectIdRef.current = currentProjectId;
-  }, [currentProjectId]);
+  // All state transitions that mutate currentProjectId update currentProjectIdRef.current
+  // synchronously. Avoid syncing currentProjectIdRef in a parent useEffect: child effects
+  // (e.g. ProjectEditor SWR/bootstrap mount) run before parent effects and would otherwise
+  // have their synchronous ref update clobbered back to the stale initial render value.
 
   useEffect(() => {
     return () => {
@@ -492,6 +491,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setProjectsOwnerId(null);
       setProjects([]);
       setCurrentProjectIdState(null);
+      currentProjectIdRef.current = null;
       setLoading(false);
       return;
     }
@@ -503,13 +503,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       authUserIdRef.current === requestedUserId
     );
 
-    if (projectsOwnerIdRef.current !== requestedUserId) {
+    const previousOwnerId = projectsOwnerIdRef.current;
+    if (previousOwnerId !== requestedUserId) {
       projectsOwnerIdRef.current = requestedUserId;
       setProjectsOwnerId(requestedUserId);
-      setProjects([]);
-      setCurrentProjectIdState(null);
-      currentProjectIdRef.current = null;
-      setSelectedItem(null);
+      // Only wipe project/selection state when transitioning from a different user;
+      // on initial mount (previousOwnerId === null), child route effects may already
+      // have selected the route project and SWR-hydrated initial file.
+      if (previousOwnerId !== null) {
+        setProjects([]);
+        setCurrentProjectIdState(null);
+        currentProjectIdRef.current = null;
+        setSelectedItem(null);
+      }
     }
 
     setLoading(true);
