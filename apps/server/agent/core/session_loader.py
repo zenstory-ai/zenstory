@@ -191,6 +191,7 @@ class SessionLoader:
                 .subquery()
             )
             ai_fv = aliased(FileVersion)
+            ai_ver_expr = func.coalesce(agg_subq.c.max_strict_ai_ver, agg_subq.c.max_potential_ai_ver)
             summary_rows = session.exec(
                 select(
                     agg_subq.c.file_id,
@@ -202,7 +203,9 @@ class SessionLoader:
                     FileVersion.word_count,
                     FileVersion.created_at,
                     case((strict_ai_expr, 1), else_=0).label("latest_is_strict_ai"),
-                    case((strict_ai_expr, None), else_=ai_fv.content).label("latest_ai_content"),
+                    ai_fv.version_number.label("ai_version_number"),
+                    ai_fv.char_count.label("ai_char_count"),
+                    ai_fv.word_count.label("ai_word_count"),
                 )
                 .join(
                     FileVersion,
@@ -215,7 +218,7 @@ class SessionLoader:
                     ai_fv,
                     and_(
                         ai_fv.file_id == agg_subq.c.file_id,
-                        ai_fv.version_number == agg_subq.c.max_potential_ai_ver,
+                        ai_fv.version_number == ai_ver_expr,
                     ),
                 )
             ).all()
@@ -240,7 +243,20 @@ class SessionLoader:
             )
 
         version_summary: dict[
-            str, tuple[int, int, int | None, int | None, int, int, datetime | None, bool, str | None]
+            str,
+            tuple[
+                int,
+                int,
+                int | None,
+                int | None,
+                int,
+                int,
+                datetime | None,
+                bool,
+                int | None,
+                int | None,
+                int | None,
+            ],
         ] = {
             str(fid): (
                 int(max_ver or 0),
@@ -251,7 +267,9 @@ class SessionLoader:
                 int(word_count or 0),
                 latest_created_at,
                 bool(latest_is_strict_ai),
-                latest_ai_content if isinstance(latest_ai_content, str) else None,
+                int(ai_version_number) if ai_version_number is not None else None,
+                int(ai_char_count) if ai_char_count is not None else None,
+                int(ai_word_count) if ai_word_count is not None else None,
             )
             for (
                 fid,
@@ -263,14 +281,19 @@ class SessionLoader:
                 word_count,
                 latest_created_at,
                 latest_is_strict_ai,
-                latest_ai_content,
+                ai_version_number,
+                ai_char_count,
+                ai_word_count,
             ) in summary_rows
         }
 
-        def _has_manual_edit_after_ai(snap: _FileSnapshot) -> bool:
+        definite_edited_ids: set[str] = set()
+        equal_len_candidates: dict[str, int] = {}
+        for file_id in checked:
+            snap = snapshots_by_id[file_id]
             summary = version_summary.get(snap.id)
             if summary is None:
-                return False
+                continue
             (
                 max_ver,
                 potential_ai_count,
@@ -280,10 +303,12 @@ class SessionLoader:
                 latest_word_count,
                 latest_created_at,
                 latest_is_strict_ai,
-                latest_ai_content,
+                ai_version_number,
+                ai_char_count,
+                ai_word_count,
             ) = summary
             if potential_ai_count <= 0:
-                return False
+                continue
             if not latest_is_strict_ai:
                 # A non-AI version (user edit, user restore, reviewed AI edit, system restore)
                 # exists after a strict AI version, OR after a legacy "AI edit (reviewed)"
@@ -292,23 +317,74 @@ class SessionLoader:
                     max_potential_ai_ver is not None and max_ver > max_potential_ai_ver
                 )
                 if not has_post_ai_ver:
-                    return False
-                return not (latest_ai_content is not None and snap.content == latest_ai_content)
+                    continue
+                if ai_version_number is None or ai_char_count is None or ai_word_count is None:
+                    definite_edited_ids.add(file_id)
+                elif len(snap.content) != ai_char_count or count_words(snap.content) != ai_word_count:
+                    # Distinct length/word count vs the AI version -> edited with 0 TOAST reads.
+                    definite_edited_ids.add(file_id)
+                else:
+                    # Rare equal-length/equal-word-count candidate: resolve AI version text in batch
+                    # to distinguish same-length edits from no-op identical-content saves.
+                    equal_len_candidates[file_id] = ai_version_number
+                continue
             current_text = snap.content
             if len(current_text) != latest_char_count or count_words(current_text) != latest_word_count:
                 # Unversioned manual edit after the latest AI version (e.g. version quota exhausted).
-                return True
-            if not isinstance(snap.updated_at, datetime) or not isinstance(latest_created_at, datetime):
+                definite_edited_ids.add(file_id)
+            elif not isinstance(snap.updated_at, datetime) or not isinstance(latest_created_at, datetime):
                 # Fail closed on missing timestamps.
-                return True
-            # Zero grace window so even same-length unversioned edits immediately after an AI write are caught.
-            return normalize_datetime_to_utc(snap.updated_at) > normalize_datetime_to_utc(latest_created_at)
+                definite_edited_ids.add(file_id)
+            elif normalize_datetime_to_utc(snap.updated_at) > normalize_datetime_to_utc(latest_created_at):
+                # Zero grace window so even same-length unversioned edits immediately after an AI write are caught.
+                definite_edited_ids.add(file_id)
+
+        if equal_len_candidates:
+            from services.features.file_version_service import FileVersionService
+
+            try:
+                pair_filters = [
+                    and_(FileVersion.file_id == fid, FileVersion.version_number == ver)
+                    for fid, ver in equal_len_candidates.items()
+                ]
+                target_versions = {
+                    str(v.file_id): v
+                    for v in session.exec(select(FileVersion).where(or_(*pair_filters))).all()
+                }
+                ai_contents = (
+                    FileVersionService()._get_contents_for_versions(session, target_versions)
+                    if target_versions
+                    else {}
+                )
+            except Exception as exc:
+                with contextlib.suppress(Exception):
+                    session.rollback()
+                log_with_context(
+                    logger,
+                    30,  # WARNING
+                    "Author edits AI version reconstruction failed",
+                    project_id=self.project_id,
+                    user_id=self.user_id,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                return (
+                    render_manual_edit_alerts(
+                        [], force_en=force_en, unchecked_titles=unchecked_titles, failed=True
+                    ),
+                    set(),
+                    by_id,
+                )
+            for fid in equal_len_candidates:
+                reconstructed = ai_contents.get(fid)
+                if reconstructed is None or snapshots_by_id[fid].content != reconstructed:
+                    definite_edited_ids.add(fid)
 
         edited_files: list[tuple[str, str]] = []
         edited_ids: set[str] = set()
         for file_id in checked:
-            snap = snapshots_by_id[file_id]
-            if _has_manual_edit_after_ai(snap):
+            if file_id in definite_edited_ids:
+                snap = snapshots_by_id[file_id]
                 edited_files.append((file_id, snap.title))
                 edited_ids.add(file_id)
 

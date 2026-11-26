@@ -637,11 +637,12 @@ def _tool_output_text(call: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def query_result_full_file_ids(result: Any) -> list[str]:
+def query_result_full_file_ids(result: Any, *, include_slimmed_sha256: bool = False) -> list[str]:
     """提取非归档 ``query_files`` 结果里实际携带完整非空 ``content`` 的非文件夹文件 id。
 
     严格排除范围读取（``content_partial=True``）、超长截断（``content_truncated=True``）
     与文件夹条目，口径与 ``SessionLoader.session_read_snapshots`` 保持一致。
+    ``include_slimmed_sha256=True`` 时同时识别落库瘦身保留了 ``content_sha256`` 的全文读结果。
     """
     found: list[str] = []
 
@@ -654,11 +655,14 @@ def query_result_full_file_ids(result: Any) -> list[str]:
         elif isinstance(node, dict):
             fid = node.get("id") or node.get("file_id")
             content = node.get("content")
+            sha = node.get("content_sha256") if include_slimmed_sha256 else None
+            has_full_body = (isinstance(content, str) and bool(content)) or (
+                isinstance(sha, str) and bool(sha.strip())
+            )
             if (
                 isinstance(fid, str)
                 and fid.strip()
-                and isinstance(content, str)
-                and content
+                and has_full_body
                 and not node.get("content_truncated")
                 and not node.get("content_partial")
                 and node.get("file_type") != "folder"

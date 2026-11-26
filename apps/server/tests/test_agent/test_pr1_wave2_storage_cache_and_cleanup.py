@@ -640,3 +640,206 @@ def test_shared_soft_delete_empty_file_advances_updated_at_and_guards_version(db
     assert refreshed.is_deleted is True
     assert refreshed.deleted_at is not None
     assert refreshed.updated_at > old_ts
+
+
+# ---------------------------------------------------------------------------
+# Review P1-1 / P1-2 / P2-2 regressions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_author_edits_strict_ai_followed_by_reviewed_base_version_is_detected(db_session: Session):
+    """P1-1(a): v1=create/ai -> v2=ai_edit('AI edit (reviewed)', force_base=True) must NOT suppress
+    the manual-edit alert (ai_fv must join max_strict_ai_ver, not the reviewed row)."""
+    from services.features.file_version_service import FileVersionService
+
+    user, project, _chat = _seed(db_session)
+    versions = FileVersionService()
+
+    f_diff_len = File(project_id=project.id, title="审查改长章", file_type="draft", content="AI原文。")
+    f_same_len = File(project_id=project.id, title="审查同长章", file_type="draft", content="林墨推门。")
+    db_session.add_all([f_diff_len, f_same_len])
+    db_session.commit()
+
+    versions.create_version(db_session, f_diff_len.id, "AI原文。", change_type="create", change_source="ai")
+    versions.create_version(
+        db_session,
+        f_diff_len.id,
+        "作者审查后改写的新正文。",
+        change_type="ai_edit",
+        change_source="user",
+        change_summary="AI edit (reviewed)",
+        force_base=True,
+    )
+    f_diff_len.content = "作者审查后改写的新正文。"
+
+    versions.create_version(db_session, f_same_len.id, "林墨推门。", change_type="create", change_source="ai")
+    versions.create_version(
+        db_session,
+        f_same_len.id,
+        "陆沉推门。",
+        change_type="ai_edit",
+        change_source="user",
+        change_summary="AI edit (reviewed)",
+        force_base=True,
+    )
+    f_same_len.content = "陆沉推门。"
+    db_session.add_all([f_diff_len, f_same_len])
+    db_session.commit()
+
+    block, edited_ids, _by_id = SessionLoader(project.id, user.id).author_edits_for_files(
+        db_session, [f_diff_len.id, f_same_len.id], {}
+    )
+    assert edited_ids == {f_diff_len.id, f_same_len.id}
+    assert f_diff_len.id in block and f_same_len.id in block
+
+
+@pytest.mark.unit
+def test_author_edits_diff_ai_version_followed_by_identical_user_save_not_flagged(db_session: Session):
+    """P1-1(b): v1=create/user -> v2=edit/ai (diff, is_base_version=False) -> v3=edit/user (identical)
+    must reconstruct v2's full text instead of comparing against raw diff, and initial batched SQL
+    must not project file_version.content."""
+    from services.features.file_version_service import FileVersionService
+
+    user, project, _chat = _seed(db_session)
+    versions = FileVersionService()
+
+    f_noop = File(project_id=project.id, title="无变更保存章", file_type="draft", content="初稿第一段。\n第二段。")
+    f_changed = File(project_id=project.id, title="真实手改章", file_type="draft", content="初稿第一段。\n第二段。")
+    db_session.add_all([f_noop, f_changed])
+    db_session.commit()
+
+    # v1 (base, user) -> v2 (diff, ai) -> v3 (identical, user)
+    versions.create_version(db_session, f_noop.id, "初稿第一段。\n第二段。", change_type="create", change_source="user")
+    v2_noop = versions.create_version(
+        db_session, f_noop.id, "AI改写第一段。\n第二段。", change_type="edit", change_source="ai"
+    )
+    assert v2_noop.is_base_version is False
+    versions.create_version(
+        db_session, f_noop.id, "AI改写第一段。\n第二段。", change_type="edit", change_source="user"
+    )
+    f_noop.content = "AI改写第一段。\n第二段。"
+
+    # v1 (base, user) -> v2 (diff, ai) -> v3 (different length, user)
+    versions.create_version(db_session, f_changed.id, "初稿第一段。\n第二段。", change_type="create", change_source="user")
+    v2_changed = versions.create_version(
+        db_session, f_changed.id, "AI改写第一段。\n第二段。", change_type="edit", change_source="ai"
+    )
+    assert v2_changed.is_base_version is False
+    versions.create_version(
+        db_session, f_changed.id, "作者大幅扩展后的第一段内容。\n第二段。", change_type="edit", change_source="user"
+    )
+    f_changed.content = "作者大幅扩展后的第一段内容。\n第二段。"
+    db_session.add_all([f_noop, f_changed])
+    db_session.commit()
+
+    executed_sql: list[str] = []
+    engine = db_session.get_bind()
+
+    def _on_sql(_conn, _cursor, statement, _params, _context, _execmany):
+        executed_sql.append(statement)
+
+    event.listen(engine, "before_cursor_execute", _on_sql)
+    try:
+        # First check only f_changed: distinct length -> 0 TOAST content reads!
+        _b1, edited_changed, _ = SessionLoader(project.id, user.id).author_edits_for_files(
+            db_session, [f_changed.id], {}
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", _on_sql)
+
+    assert edited_changed == {f_changed.id}
+    fv_sql = [s.lower() for s in executed_sql if "file_version" in s.lower()]
+    assert len(fv_sql) == 1
+    assert ".content" not in fv_sql[0]
+
+    # Now check both: f_noop reconstructs diff v2 == snap.content -> NOT flagged; f_changed -> flagged.
+    block, edited_ids, _ = SessionLoader(project.id, user.id).author_edits_for_files(
+        db_session, [f_noop.id, f_changed.id], {}
+    )
+    assert edited_ids == {f_changed.id}
+    assert f_noop.id not in block
+    assert f_changed.id in block
+
+
+@pytest.mark.unit
+def test_p1_2_turn_mutation_evicts_fingerprints_so_author_revert_emits_full_v1(db_session: Session):
+    """P1-2: Turn 1 starts with focus F=V1, AI edits F->V2, author reverts F->V1 before Turn 2.
+    Because Turn 1 mutated F, stored fingerprints evict F (and clear project_files/author_edits),
+    so Turn 2 warm-cache context emits full V1 instead of a stale unchanged pointer."""
+    from agent.service import _applied_file_mutations_for_fingerprints
+
+    user, project, chat = _seed(db_session)
+    v1_body = "【第1章原稿V1】" + ("林墨站在雨夜的巷口等待消息。" * 70)
+    focus = File(project_id=project.id, title="第1章", file_type="draft", content=v1_body)
+    db_session.add(focus)
+    db_session.commit()
+
+    # Turn 1: sends focus F=V1 in full
+    turn1 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id},
+        language="zh",
+        chat_session_id=chat.id,
+    )
+    assert v1_body in turn1.text
+    assert focus.id in turn1.context_fingerprints["full_file_hashes"]
+
+    # Turn 1 runs edit_file(focus.id) -> V2; service evicts mutated file_id + clears manifest/author_edits
+    tool_calls = [
+        {
+            "id": "call_edit_1",
+            "name": "edit_file",
+            "arguments": {"file_id": focus.id, "edits": [{"op": "append", "text": "新加一句"}]},
+            "status": "success",
+            "result": {"id": focus.id, "edits_applied": 1},
+        }
+    ]
+    mutated_ids, any_mutation = _applied_file_mutations_for_fingerprints(tool_calls)
+    assert mutated_ids == {focus.id}
+    assert any_mutation is True
+
+    stored_hashes = dict(turn1.context_fingerprints["full_file_hashes"])
+    for fid in mutated_ids:
+        stored_hashes.pop(fid, None)
+    cached_after_turn1 = {
+        "project_files_sha256": "" if any_mutation else turn1.context_fingerprints["project_files_sha256"],
+        "full_file_hashes": stored_hashes,
+        "author_edits_sha256": "" if any_mutation else turn1.context_fingerprints["author_edits_sha256"],
+    }
+
+    # Author reverts F back to V1 before Turn 2 (DB has V1 again).
+    turn2 = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={"current_file_id": focus.id},
+        language="zh",
+        chat_session_id=chat.id,
+        prior_context_fingerprints=cached_after_turn1,
+    )
+    # Turn 2 MUST emit full V1 and full <project_files> (no stale unchanged pointer!).
+    assert v1_body in turn2.text
+    assert PROJECT_FILES_UNCHANGED_MARKER not in turn2.text
+    assert turn2.read_snapshots[focus.id] == v1_body
+
+
+@pytest.mark.unit
+def test_p2_2_query_result_full_file_ids_covers_dict_containers_and_slimmed_sha():
+    """P2-2: query_result_full_file_ids handles dict containers (data/files/items/results)
+    and optional slimmed content_sha256 entries consistently."""
+    from agent.loop.history import query_result_full_file_ids
+
+    payload = {
+        "data": [
+            {"id": "f-raw", "file_type": "draft", "content": "完整正文"},
+            {"id": "f-slim", "file_type": "draft", "content_sha256": "abc123", "archived_note": "..."},
+            {"id": "f-partial", "file_type": "draft", "content": "局部", "content_partial": True},
+            {"id": "f-folder", "file_type": "folder", "content": "ignored"},
+        ],
+        "files": [{"file_id": "f-nested", "file_type": "outline", "content_sha256": "def456"}],
+    }
+    assert query_result_full_file_ids(payload) == ["f-raw"]
+    assert query_result_full_file_ids(payload, include_slimmed_sha256=True) == ["f-raw", "f-slim", "f-nested"]

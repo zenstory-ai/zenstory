@@ -148,6 +148,63 @@ def _has_blocking_wire_prefix_status_cards(status_cards: list[dict[str, Any]]) -
     return False
 
 
+_FINGERPRINT_MUTATION_TOOLS = frozenset(
+    {"edit_file", "write_chapter", "create_file", "delete_file", "rename_file"}
+)
+
+
+def _applied_file_mutations_for_fingerprints(
+    tool_calls: list[dict[str, Any]],
+) -> tuple[set[str], bool]:
+    """Return ``(mutated_file_ids, any_file_mutation)`` for tool calls that mutated files this turn.
+
+    Used before storing ``wire_prefix_cache`` so pre-turn ``context_fingerprints`` for
+    mutated files (and the project manifest / author_edits block) are invalidated: if the
+    author reverts a file back to its pre-turn text before the next turn, the next turn
+    will re-emit full content instead of a stale ``unchanged`` pointer.
+    """
+    mutated_ids: set[str] = set()
+    any_mutation = False
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        name = str(tc.get("name") or "").strip()
+        if name not in _FINGERPRINT_MUTATION_TOOLS:
+            continue
+        status = str(tc.get("status") or "").strip().lower()
+        if status not in ("success", "partial"):
+            continue
+        res = tc.get("result")
+        if isinstance(res, str):
+            with contextlib.suppress(Exception):
+                res = json.loads(res)
+        res_data = res.get("data") if isinstance(res, dict) and isinstance(res.get("data"), dict) else res
+        if res is False or res_data is False:
+            continue
+        if isinstance(res_data, dict):
+            if res_data.get("mutation_applied") is False or res_data.get("all_failed") is True:
+                continue
+            if res_data.get("body_saved") is False and res_data.get("action") == "replaced":
+                continue
+            for key in ("id", "file_id"):
+                val = res_data.get(key)
+                if isinstance(val, str) and val.strip():
+                    mutated_ids.add(val.strip())
+            deleted_ids = res_data.get("deleted_ids")
+            if isinstance(deleted_ids, list):
+                for val in deleted_ids:
+                    if isinstance(val, str) and val.strip():
+                        mutated_ids.add(val.strip())
+        args = tc.get("arguments")
+        if isinstance(args, dict):
+            for key in ("file_id", "id"):
+                val = args.get(key)
+                if isinstance(val, str) and val.strip():
+                    mutated_ids.add(val.strip())
+        any_mutation = True
+    return mutated_ids, any_mutation
+
+
 # 作者在一部作品里发出的第一条消息带 metadata.entry：工作台想法（dashboard_idea）、聊天空态
 # 起手卡的示例（starter_example）、已有作者正文时起手卡的读稿请求（starter_manuscript）、空会话里
 # 手打的第一条（first_message）。前端发的是作者原话；
@@ -1955,24 +2012,14 @@ class AgentService:
                                     if stage1_archived_file_ids:
                                         next_archived_file_ids.update(stage1_archived_file_ids)
                                 # If this turn re-read any archived file in full, discard it from archived_file_ids.
+                                from agent.loop.history import query_result_full_file_ids
+
                                 for tc in all_tool_calls:
                                     if tc.get("name") == "query_files" and str(tc.get("status") or "").lower() == "success":
-                                        res = tc.get("result")
-                                        if isinstance(res, list):
-                                            for item in res:
-                                                if (
-                                                    isinstance(item, dict)
-                                                    and item.get("file_type") != "folder"
-                                                    and not item.get("content_truncated")
-                                                    and not item.get("content_partial")
-                                                    and (
-                                                        (isinstance(item.get("content"), str) and item["content"])
-                                                        or (isinstance(item.get("content_sha256"), str) and item["content_sha256"])
-                                                    )
-                                                ):
-                                                    fid = str(item.get("id") or "").strip()
-                                                    if fid:
-                                                        next_archived_file_ids.discard(fid)
+                                        for fid in query_result_full_file_ids(
+                                            tc.get("result"), include_slimmed_sha256=True
+                                        ):
+                                            next_archived_file_ids.discard(fid)
                             if isinstance(loop_compaction_skipped, dict) and isinstance(
                                 loop_compaction_skipped.get("at_prompt_tokens"), int
                             ):
@@ -2003,6 +2050,32 @@ class AgentService:
                                 "archived_file_ids": sorted(next_archived_file_ids),
                                 "author_messages": next_author_messages,
                             }
+                            # P1-1: If this turn mutated any file, invalidate pre-turn fingerprints for
+                            # mutated files + manifest/author_edits so a subsequent author revert back to
+                            # pre-turn content never falsely triggers an "unchanged" pointer on the next turn.
+                            cached_fingerprints: dict[str, Any] | None = None
+                            if effective_context_fingerprints:
+                                mutated_ids, any_file_mutation = _applied_file_mutations_for_fingerprints(
+                                    all_tool_calls
+                                )
+                                cached_file_hashes = dict(
+                                    effective_context_fingerprints.get("full_file_hashes") or {}
+                                )
+                                for fid in mutated_ids:
+                                    cached_file_hashes.pop(fid, None)
+                                cached_fingerprints = {
+                                    "project_files_sha256": (
+                                        ""
+                                        if any_file_mutation
+                                        else effective_context_fingerprints.get("project_files_sha256", "")
+                                    ),
+                                    "full_file_hashes": cached_file_hashes,
+                                    "author_edits_sha256": (
+                                        ""
+                                        if any_file_mutation
+                                        else effective_context_fingerprints.get("author_edits_sha256", "")
+                                    ),
+                                }
                             stored_wire_prefix = await astore_wire_prefix(
                                 session_id=session_id,
                                 project_id=project_id,
@@ -2014,7 +2087,7 @@ class AgentService:
                                 tools_sha256=expected_tools_sha,
                                 reasoning_effort=run_meter.last_served_reasoning_effort or expected_reasoning_effort,
                                 history_meta=next_history_meta,
-                                context_fingerprints=effective_context_fingerprints or None,
+                                context_fingerprints=cached_fingerprints,
                             )
                         else:
                             log_with_context(

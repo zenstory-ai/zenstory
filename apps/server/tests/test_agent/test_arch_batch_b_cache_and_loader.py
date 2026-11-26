@@ -491,11 +491,13 @@ def test_author_edits_for_files_prequeries_versions_skips_unedited_and_emits_no_
     # Zero SAVEPOINTs emitted on healthy paths!
     assert not any("savepoint" in s.lower() for s in executed_sql), f"Unexpected SAVEPOINT SQL: {executed_sql}"
 
-    # Single batched FileVersion metadata query regardless of file count!
+    # 1 batched FileVersion metadata query (zero .content projection) + at most 1 batched
+    # reconstruction query for the single equal-length candidate (ai_edited), never per-file N+1.
     fv_selects = [
         s for s in executed_sql if s.lstrip().lower().startswith("select") and "file_version" in s.lower()
     ]
-    assert len(fv_selects) == 1, f"Expected exactly 1 batched FileVersion SQL, got {len(fv_selects)}"
+    assert len(fv_selects) <= 2, f"Expected <= 2 batched FileVersion SQL queries, got {len(fv_selects)}"
+    assert ".content" not in fv_selects[0].lower()
 
 
 @pytest.mark.unit
