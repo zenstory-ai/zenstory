@@ -747,7 +747,11 @@ class StreamAdapter:
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
-            if tool_name == "edit_file":
+            # 被 RepeatEditGuard 软跳过（guard_skipped=True）的调用未执行，不发假 file_edit 事件。
+            if tool_name == "edit_file" and not (
+                (isinstance(result_data, dict) and result_data.get("guard_skipped") is True)
+                or (isinstance(parsed_result, dict) and parsed_result.get("guard_skipped") is True)
+            ):
                 async for event in self._handle_edit_file_result(result_data):
                     yield event
 

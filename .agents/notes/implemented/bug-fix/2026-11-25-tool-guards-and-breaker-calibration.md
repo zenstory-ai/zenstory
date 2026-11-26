@@ -41,4 +41,4 @@ Status: implemented
 ## Consequences
 
 - **收益**：消除只读/元数据工具与同目标重复写触发的 `file_body_pending` 误拆轮；允许新写章节完成 1 次 6+ 处批量自查修订，并使 `RepeatEditGuard` 软跳过不再以 `status="error"` 污染持久化遥测；24 章跨文件批量处理不再因历史零星 miss 在累计第 10 次被致命熔断，同时保持同参数 3 次、无效 UUID 3 次、零进展 10 次与多文件空转 30 次的四重安全防线。
-- **成本与配套**：`RepeatEditGuard` 改为 `status="skipped"` 后，`round_outcome.tool_result_status` 会映射为非错误 `status="success"`，前端 `apps/web/src/components/MessageList.tsx` 的 `visibleToolCalls` 需同步去掉 `call.status === 'error' &&` 限制（或额外过滤 `guard_skipped === true`），否则前端会将其渲染为普通 `edit_file` 成功卡；本批未修改 `apps/web/**`，已交由协调层在 Wave 2 接线。
+- **成本与配套**：`RepeatEditGuard` 改为 `status="skipped"` 后，`round_outcome.tool_result_status` 会映射为非错误 `status="success"`；后端 `stream_adapter.py` 已跳过 `guard_skipped=True` 的 `file_edit_*` 事件，前端 `apps/web/src/components/MessageList.tsx` 也已在 #483 同步过滤 `guard_skipped === true` 与 `edit_repeat_limit`。
