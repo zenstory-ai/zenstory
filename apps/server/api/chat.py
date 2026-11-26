@@ -227,25 +227,38 @@ def get_or_create_session(
     )
 
 
-@router.get("/session/{project_id}/recent", response_model=list[MessageResponse])
-def get_recent_messages(
+def serialize_chat_session(chat_session: ChatSession) -> SessionResponse:
+    """Serialize a ChatSession row into the shared REST response shape."""
+    return SessionResponse(
+        id=chat_session.id,
+        user_id=chat_session.user_id,
+        project_id=chat_session.project_id,
+        title=chat_session.title,
+        is_active=chat_session.is_active,
+        message_count=chat_session.message_count,
+        created_at=chat_session.created_at,
+        updated_at=chat_session.updated_at,
+    )
+
+
+def load_active_session_recent_messages(
+    session: Session,
+    *,
     project_id: str,
-    limit: int = Query(20, ge=1, le=100),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
-    message_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
-):
-    """Get recent history, optionally one known message in the active session."""
-    user_id = current_user.id
+    user_id: str,
+    limit: int,
+    message_id: str | None = None,
+) -> tuple[SessionResponse | None, list[MessageResponse], bool]:
+    """Read active session metadata and latest slimmed messages without creating a session.
 
-    # Check if project exists and is not deleted
-    verify_project_access_sync(project_id, session, current_user)
-
+    Fetches `limit + 1` rows in one query so callers know whether older messages exist
+    without running a separate COUNT(*).
+    """
     active_sessions = _list_active_sessions(session, project_id, user_id)
     chat_session = active_sessions[0] if active_sessions else None
 
     if not chat_session:
-        return []
+        return None, [], False
 
     # Keep completion hydration scoped to the same ownership-checked active session.
     stmt = (
@@ -265,10 +278,12 @@ def get_recent_messages(
     )
     if message_id is not None:
         stmt = stmt.where(ChatMessage.id == message_id)
-    stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(limit)
-    messages = list(reversed(session.exec(stmt).all()))
+    stmt = stmt.order_by(ChatMessage.created_at.desc(), desc(ChatMessage.id)).limit(limit + 1)
+    fetched = list(session.exec(stmt).all())
+    has_more = len(fetched) > limit
+    messages = list(reversed(fetched[:limit]))
 
-    return [
+    serialized = [
         MessageResponse(
             id=msg.id,
             session_id=msg.session_id,
@@ -280,6 +295,31 @@ def get_recent_messages(
         )
         for msg in messages
     ]
+    return serialize_chat_session(chat_session), serialized, has_more
+
+
+@router.get("/session/{project_id}/recent", response_model=list[MessageResponse])
+def get_recent_messages(
+    project_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+    message_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
+):
+    """Get recent history, optionally one known message in the active session."""
+    user_id = current_user.id
+
+    # Check if project exists and is not deleted
+    verify_project_access_sync(project_id, session, current_user)
+
+    _, serialized, _ = load_active_session_recent_messages(
+        session,
+        project_id=project_id,
+        user_id=user_id,
+        limit=limit,
+        message_id=message_id,
+    )
+    return serialized
 
 
 @router.post("/messages/{message_id}/feedback", response_model=MessageFeedbackResponse)

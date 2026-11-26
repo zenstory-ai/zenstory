@@ -111,6 +111,11 @@ export interface ProjectContextType {
    * renamed the project. Failures are logged and leave the list unchanged.
    */
   refreshProject: (projectId: string) => Promise<void>;
+  /**
+   * Upsert a project obtained from `/bootstrap` or user-scoped SWR cache into
+   * `projects` without flipping `loading` or clobbering unrelated projects.
+   */
+  hydrateProject: (project: Project) => void;
   fileTreeVersion: number;
   triggerFileTreeRefresh: () => void;
   // Editor refresh state (for edit_file updates)
@@ -719,6 +724,36 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, []);
 
+  const hydrateProject = useCallback((project: Project) => {
+    const activeUserId = authUserIdRef.current;
+    if (!activeUserId || !project?.id || typeof project.name !== 'string') return;
+    if (projectsOwnerIdRef.current !== activeUserId) {
+      projectsOwnerIdRef.current = activeUserId;
+      setProjectsOwnerId(activeUserId);
+    }
+    setProjects((prev) => {
+      const idx = prev.findIndex((p) => p.id === project.id);
+      if (idx === -1) return [...prev, project];
+      const existing = prev[idx];
+      if (
+        existing.name === project.name &&
+        existing.updated_at === project.updated_at &&
+        existing.summary === project.summary &&
+        existing.current_phase === project.current_phase &&
+        existing.writing_style === project.writing_style &&
+        existing.notes === project.notes &&
+        existing.project_type === project.project_type &&
+        existing.description === project.description
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      next[idx] = { ...existing, ...project };
+      return next;
+    });
+    setError(null);
+  }, []);
+
   const contextValue = useMemo<ProjectContextType>(() => ({
     projects: visibleProjects,
     currentProject,
@@ -734,6 +769,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     deleteProject,
     refreshProjects,
     refreshProject,
+    hydrateProject,
     fileTreeVersion,
     triggerFileTreeRefresh,
     editorRefreshVersion,
@@ -777,6 +813,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     deleteProject,
     refreshProjects,
     refreshProject,
+    hydrateProject,
     fileTreeVersion,
     triggerFileTreeRefresh,
     editorRefreshVersion,

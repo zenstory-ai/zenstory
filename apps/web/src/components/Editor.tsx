@@ -67,6 +67,7 @@ import type { DiffReviewState } from "../types";
 import { FILE_REMOVED_EVENT, clearFileRemoved, isFileRemoved, notifyFileRemoved, setUnprotectedDeletedDraft, type FileRemovedDetail } from "../lib/fileRemovalEvents";
 import { clearLastOpenedFile } from "../lib/lastOpenedFile";
 import { consumePreloadedFile, peekPreloadedFile } from "../lib/preloadedFileCache";
+import { WORKBENCH_FRESH_FILE_EVENT, type WorkbenchFreshFileDetail } from "../lib/workbenchBootstrap";
 
 /** Retry delays for re-reading the open file after an external write. */
 const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
@@ -850,40 +851,18 @@ const EditorComponent: React.FC<EditorProps> = () => {
    *   The server copy becomes the comparison baseline and the author's own
    *   edits, replayed onto it, are the proposals.
    */
-  const syncOpenFileFromServer = useCallback(async () => {
-    const opened = currentFileRef.current;
-    if (!opened || selectedIdRef.current !== opened.id || isFileRemoved(activeProjectIdRef.current, opened.id)) return;
-    const fileId = opened.id;
-    const generation = loadGenerationRef.current;
-    const syncSeq = ++serverSyncSeqRef.current;
-    const isStillOpen = () =>
-      generation === loadGenerationRef.current &&
-      currentFileRef.current?.id === fileId &&
-      selectedIdRef.current === fileId;
-    let data: File | null = null;
-    for (let attempt = 0; data === null; attempt += 1) {
-      try {
-        data = await fileApi.get(fileId);
-      } catch (err) {
-        const failure = err as { status?: number; errorCode?: string };
-        if (failure?.status === 404 || failure?.errorCode === "ERR_FILE_NOT_FOUND") {
-          if (isStillOpen() && activeProjectIdRef.current) notifyFileRemoved(activeProjectIdRef.current, fileId);
-          return;
-        }
-        if (attempt >= SERVER_SYNC_RETRY_DELAYS_MS.length) {
-          // The save token still guards the server copy (saving stale text
-          // gets a 409, which opens the same comparison), but the author must
-          // not keep reading an older copy without knowing it.
-          logger.warn("Failed to re-read file after an external write:", err);
-          if (isStillOpen()) setServerSyncIssue({ fileId, retrying: false });
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, SERVER_SYNC_RETRY_DELAYS_MS[attempt]));
-        if (!isStillOpen()) return;
-      }
-    }
+  const applyServerCopyToOpenFile = useCallback((data: File, syncSeq: number, generation: number) => {
+    const fileId = data.id;
     const current = currentFileRef.current;
-    if (!current || !isStillOpen() || activeProjectIdRef.current !== data.project_id) return;
+    if (
+      !current ||
+      generation !== loadGenerationRef.current ||
+      current.id !== fileId ||
+      selectedIdRef.current !== fileId ||
+      activeProjectIdRef.current !== data.project_id
+    ) {
+      return;
+    }
     // Every external write now refreshes the editor directly. A slower read from an
     // earlier write must never arrive after a newer read and roll the body/token back.
     if (syncSeq !== serverSyncSeqRef.current) return;
@@ -933,7 +912,60 @@ const EditorComponent: React.FC<EditorProps> = () => {
     });
     toast.error(translateRef.current('editor:aiEditedWhileDirty'));
   }, [adoptServerCopy, keepLocalOnServerCopy, openConflictReview]);
+
+  const syncOpenFileFromServer = useCallback(async () => {
+    const opened = currentFileRef.current;
+    if (!opened || selectedIdRef.current !== opened.id || isFileRemoved(activeProjectIdRef.current, opened.id)) return;
+    const fileId = opened.id;
+    const generation = loadGenerationRef.current;
+    const syncSeq = ++serverSyncSeqRef.current;
+    const isStillOpen = () =>
+      generation === loadGenerationRef.current &&
+      currentFileRef.current?.id === fileId &&
+      selectedIdRef.current === fileId;
+    let data: File | null = null;
+    for (let attempt = 0; data === null; attempt += 1) {
+      try {
+        data = await fileApi.get(fileId);
+      } catch (err) {
+        const failure = err as { status?: number; errorCode?: string };
+        if (failure?.status === 404 || failure?.errorCode === "ERR_FILE_NOT_FOUND") {
+          if (isStillOpen() && activeProjectIdRef.current) notifyFileRemoved(activeProjectIdRef.current, fileId);
+          return;
+        }
+        if (attempt >= SERVER_SYNC_RETRY_DELAYS_MS.length) {
+          // The save token still guards the server copy (saving stale text
+          // gets a 409, which opens the same comparison), but the author must
+          // not keep reading an older copy without knowing it.
+          logger.warn("Failed to re-read file after an external write:", err);
+          if (isStillOpen()) setServerSyncIssue({ fileId, retrying: false });
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, SERVER_SYNC_RETRY_DELAYS_MS[attempt]));
+        if (!isStillOpen()) return;
+      }
+    }
+    applyServerCopyToOpenFile(data, syncSeq, generation);
+  }, [applyServerCopyToOpenFile]);
   syncOpenFileFromServerRef.current = syncOpenFileFromServer;
+
+  // Reconcile an SWR-painted open file when fresh /bootstrap returns without a duplicate GET.
+  useEffect(() => {
+    const onFreshFile = (event: Event) => {
+      const detail = (event as CustomEvent<WorkbenchFreshFileDetail>).detail;
+      if (!detail || detail.userId !== currentUserId || detail.projectId !== activeProjectIdRef.current) {
+        return;
+      }
+      if (currentFileRef.current?.id !== detail.file.id || selectedIdRef.current !== detail.file.id) {
+        return;
+      }
+      const generation = loadGenerationRef.current;
+      const syncSeq = ++serverSyncSeqRef.current;
+      applyServerCopyToOpenFile(detail.file, syncSeq, generation);
+    };
+    window.addEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
+    return () => window.removeEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
+  }, [applyServerCopyToOpenFile, currentUserId]);
 
   const retryServerSync = useCallback(() => {
     const fileId = currentFileRef.current?.id;

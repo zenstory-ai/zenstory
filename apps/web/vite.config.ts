@@ -127,11 +127,44 @@ export function resolveApiPreconnectOrigin(options: {
 }
 
 /**
- * Injects `<link rel="preconnect" href="<origin>" crossorigin />` into the built
- * app shell only when building for an HTTPS API origin (production or explicit
- * HTTPS staging), preventing speculative connections to prod during local dev,
- * HTTP E2E runs, or isolated Vercel Preview builds.
+ * Reconciles the static `<link rel="preconnect">` and `<link rel="dns-prefetch">`
+ * hints in `index.html` with the build's resolved HTTPS API origin:
+ * - Production builds keep the static `https://api.zenstory.ai` hints (no duplicates).
+ * - Explicit HTTPS staging builds rewrite them to the staging API origin.
+ * - Local dev, HTTP E2E, and isolated Vercel Preview builds strip them so no
+ *   speculative connection is opened to production.
  */
+export function transformApiPreconnectHtml(html: string, targetOrigin: string | null): string {
+  const staticPreconnectPattern = /^[ \t]*<link rel="preconnect" href="https:\/\/api\.zenstory\.ai" crossorigin \/>\r?\n?/m
+  const staticDnsPrefetchPattern = /^[ \t]*<link rel="dns-prefetch" href="https:\/\/api\.zenstory\.ai" \/>\r?\n?/m
+
+  if (!targetOrigin) {
+    return html.replace(staticPreconnectPattern, '').replace(staticDnsPrefetchPattern, '')
+  }
+
+  const preconnectTag = `<link rel="preconnect" href="${targetOrigin}" crossorigin />`
+  const dnsPrefetchTag = `<link rel="dns-prefetch" href="${targetOrigin}" />`
+  let nextHtml = html
+
+  if (targetOrigin !== DEFAULT_PRODUCTION_API_ORIGIN) {
+    nextHtml = nextHtml
+      .replace(staticPreconnectPattern, '')
+      .replace(staticDnsPrefetchPattern, '')
+  }
+
+  const missingTags: string[] = []
+  if (!nextHtml.includes(preconnectTag)) missingTags.push(preconnectTag)
+  if (!nextHtml.includes(dnsPrefetchTag)) missingTags.push(dnsPrefetchTag)
+  if (missingTags.length === 0) return nextHtml
+
+  const injection = missingTags.join('\n        ')
+  const iconMarker = '<link rel="icon"'
+  if (nextHtml.includes(iconMarker)) {
+    return nextHtml.replace(iconMarker, `${injection}\n        ${iconMarker}`)
+  }
+  return nextHtml.replace('</head>', `        ${injection}\n    </head>`)
+}
+
 function apiPreconnectPlugin(): Plugin {
   let targetOrigin: string | null = null
   return {
@@ -145,14 +178,7 @@ function apiPreconnectPlugin(): Plugin {
       })
     },
     transformIndexHtml(html) {
-      if (!targetOrigin) return html
-      const preconnectTag = `<link rel="preconnect" href="${targetOrigin}" crossorigin />`
-      if (html.includes(preconnectTag)) return html
-      const iconMarker = '<link rel="icon"'
-      if (html.includes(iconMarker)) {
-        return html.replace(iconMarker, `${preconnectTag}\n        ${iconMarker}`)
-      }
-      return html.replace('</head>', `        ${preconnectTag}\n    </head>`)
+      return transformApiPreconnectHtml(html, targetOrigin)
     },
   }
 }

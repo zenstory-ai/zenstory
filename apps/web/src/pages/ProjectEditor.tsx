@@ -17,6 +17,15 @@ import { logger } from "../lib/logger";
 import { trackEvent } from "../lib/analytics";
 import { clearLastOpenedFile, getLastOpenedFile, setLastOpenedFile } from "../lib/lastOpenedFile";
 import { seedPreloadedFile } from "../lib/preloadedFileCache";
+import { readEditorDraftSnapshot } from "../lib/editorDraftRecovery";
+import { notifyFileRemoved } from "../lib/fileRemovalEvents";
+import { readWorkbenchSwr } from "../lib/workbenchSwrCache";
+import {
+  BOOTSTRAP_DEFAULT_CHAT_LIMIT,
+  dispatchWorkbenchFreshFile,
+  isProjectBootstrapAvailable,
+  startProjectBootstrap,
+} from "../lib/workbenchBootstrap";
 import type { SelectedItem, TreeNodeType } from "../types";
 
 function toSelectedItem(file: { id: string; title: string; file_type: string }): SelectedItem {
@@ -32,7 +41,17 @@ export default function ProjectEditor() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = React.useContext(QueryClientContext);
-  const { setCurrentProjectId, currentProject, loading, error, refreshProjects, projects, selectedItem, setSelectedItem } = useProject();
+  const {
+    setCurrentProjectId,
+    currentProject,
+    loading,
+    error,
+    refreshProjects,
+    hydrateProject,
+    projects,
+    selectedItem,
+    setSelectedItem,
+  } = useProject();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { t } = useTranslation();
@@ -42,8 +61,11 @@ export default function ProjectEditor() {
   const attemptedRefreshRef = React.useRef<string | null>(null);
   const selectedFromQueryRef = React.useRef<string | null>(null);
   const restoreAttemptedRef = React.useRef<string | null>(null);
+  const bootstrappedProjectRef = React.useRef<string | null>(null);
   const selectedItemRef = React.useRef(selectedItem ?? null);
   selectedItemRef.current = selectedItem ?? null;
+  const locationSearchRef = React.useRef(location.search);
+  locationSearchRef.current = location.search;
 
   const isRouteProjectActive = Boolean(currentProject && projectId && currentProject.id === projectId);
   const currentProjectType = currentProject?.project_type;
@@ -60,8 +82,112 @@ export default function ProjectEditor() {
     attemptedRefreshRef.current = null;
     selectedFromQueryRef.current = null;
     restoreAttemptedRef.current = null;
+    bootstrappedProjectRef.current = null;
     setNotFound(false);
   }, [projectId]);
+
+  // Single-round-trip workbench bootstrap + user-scoped SWR instant paint.
+  // Runs immediately on mount for (userId, projectId) without waiting for GET /api/v1/projects.
+  React.useEffect(() => {
+    if (!userId || !projectId || !queryClient || !isProjectBootstrapAvailable()) {
+      return;
+    }
+
+    let cancelled = false;
+    const searchParams = new URLSearchParams(locationSearchRef.current);
+    const linkedFileId = searchParams.get("file");
+    const rememberedFileId = linkedFileId ? null : getLastOpenedFile(userId, projectId);
+    const requestedFileId = linkedFileId || rememberedFileId || null;
+
+    // Fence legacy separate fileApi.get effects so boot does not duplicate the file read.
+    bootstrappedProjectRef.current = projectId;
+    restoreAttemptedRef.current = projectId;
+    if (linkedFileId) {
+      selectedFromQueryRef.current = linkedFileId;
+    }
+    setCurrentProjectId(projectId);
+
+    // 1) User-scoped SWR instant paint (never touches unsaved editorDraftRecovery snapshots).
+    let swrPaintedFileId: string | null = null;
+    const swrEntry = readWorkbenchSwr(userId, projectId);
+    if (swrEntry) {
+      hydrateProject?.(swrEntry.project);
+      if (
+        requestedFileId &&
+        swrEntry.initial_file &&
+        swrEntry.initial_file.id === requestedFileId &&
+        !selectedItemRef.current
+      ) {
+        // CRITICAL draft protection invariant: if an unsaved recovery snapshot exists in
+        // localStorage for this file, wait for authoritative server updated_at from /bootstrap
+        // instead of resolving draft recovery against a potentially stale SWR copy.
+        const hasPendingRecoveryDraft =
+          readEditorDraftSnapshot(localStorage, {
+            userId,
+            projectId,
+            fileId: requestedFileId,
+          }) !== null;
+        if (!hasPendingRecoveryDraft) {
+          seedPreloadedFile(queryClient, userId, projectId, swrEntry.initial_file);
+          swrPaintedFileId = swrEntry.initial_file.id;
+          setSelectedItem(toSelectedItem(swrEntry.initial_file));
+        }
+      }
+    }
+
+    // 2) Live aggregated /bootstrap (automatically falls back to legacy endpoints on 404/405).
+    void startProjectBootstrap(queryClient, {
+      userId,
+      projectId,
+      fileId: requestedFileId,
+      chatLimit: BOOTSTRAP_DEFAULT_CHAT_LIMIT,
+    })
+      .then((result) => {
+        if (cancelled || !result) return;
+        const { project, initial_file: initialFile } = result.data;
+        hydrateProject?.(project);
+        setNotFound(false);
+
+        if (requestedFileId) {
+          if (initialFile && initialFile.id === requestedFileId) {
+            if (swrPaintedFileId === requestedFileId) {
+              // Silently reconcile the open SWR-painted file with fresh server version/content.
+              dispatchWorkbenchFreshFile({ userId, projectId, file: initialFile });
+            } else if (!selectedItemRef.current) {
+              seedPreloadedFile(queryClient, userId, projectId, initialFile);
+              setSelectedItem(toSelectedItem(initialFile));
+            }
+          } else {
+            // Requested file was deleted, moved, or is a folder.
+            if (rememberedFileId && !linkedFileId) {
+              clearLastOpenedFile(userId, projectId);
+            }
+            if (swrPaintedFileId === requestedFileId) {
+              notifyFileRemoved(projectId, requestedFileId);
+            }
+          }
+        } else if (initialFile) {
+          // Warm the one-shot cache for the most recently updated editable file without
+          // altering empty-state selection behavior.
+          seedPreloadedFile(queryClient, userId, projectId, initialFile);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+          setNotFound(true);
+          return;
+        }
+        logger.warn("[ProjectEditor] Bootstrap load failed, falling back to ProjectContext", {
+          projectId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrateProject, projectId, queryClient, setCurrentProjectId, setSelectedItem, userId]);
 
   // Remember the open file so reopening this project lands on it.
   const selectedFileId = selectedItem && selectedItem.type !== "folder" ? selectedItem.id : null;
@@ -241,12 +367,13 @@ export default function ProjectEditor() {
   }, [projectId, projects, loading, error, refreshProjects, setCurrentProjectId]);
 
   // Show loading state while projects are being fetched or ensuring project exists
-  if (loading || isEnsuring) {
+  // (never block an already-bootstrapped or SWR-hydrated active route project).
+  if (!isRouteProjectActive && (loading || isEnsuring)) {
     return <PageLoader />;
   }
 
-  // Show error state
-  if (error) {
+  // Show error state only when the active route project is not available.
+  if (error && !isRouteProjectActive) {
     return (
       <div className="min-h-screen bg-[hsl(var(--bg-primary))] flex flex-col items-center justify-center gap-4">
         <div role="alert" className="text-[hsl(var(--error-text))]">{t('projectLoadFailed')}</div>

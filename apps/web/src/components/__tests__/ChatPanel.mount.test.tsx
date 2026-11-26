@@ -3719,4 +3719,78 @@ describe("ChatPanel starter cards in a work's first chat", () => {
       mockLayout.isMobile = false
     }
   })
+
+  it('hydrates initial chat history from /bootstrap handoff without duplicate recent GET and loads older messages on click', async () => {
+    const { workbenchBootstrapQueryKey } = await import('../../lib/workbenchBootstrap')
+    const bootMessages = [
+      {
+        id: 'boot-msg-1',
+        session_id: 'session-boot',
+        role: 'user' as const,
+        content: '从 bootstrap 带来的消息',
+        created_at: '2026-11-26T08:00:00Z',
+      },
+    ]
+    const seededClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    seededClient.setQueryData(workbenchBootstrapQueryKey('test-user', 'project-1'), {
+      userId: 'test-user',
+      projectId: 'project-1',
+      requestedFileId: null,
+      startedAt: Date.now(),
+      promise: Promise.resolve({
+        data: {
+          project: { id: 'project-1', name: '测试作品' },
+          files: [],
+          initial_file: null,
+          chat_session: {
+            id: 'session-boot',
+            user_id: 'test-user',
+            project_id: 'project-1',
+            title: 'AI 助手对话',
+            is_active: true,
+            message_count: 25,
+            created_at: '2026-11-26T07:00:00Z',
+            updated_at: '2026-11-26T08:00:00Z',
+          },
+          recent_messages: bootMessages,
+          has_more_messages: true,
+        },
+        usedFallback: false,
+        fileTreeReady: true,
+        chatReady: true,
+      }),
+      fileTreeConsumed: false,
+      chatConsumed: false,
+    })
+
+    rtlRender(<QueryClientProvider client={seededClient}><ChatPanel /></QueryClientProvider>)
+
+    const loadEarlierBtn = await screen.findByTestId('chat-load-earlier-messages')
+    expect(loadEarlierBtn).toBeInTheDocument()
+    // Zero duplicate GET /chat/session/project-1/recent calls on initial boot!
+    expect(vi.mocked(getRecentMessages)).not.toHaveBeenCalled()
+
+    const expandedHistory = [
+      {
+        id: 'older-msg-0',
+        session_id: 'session-boot',
+        role: 'user' as const,
+        content: '更早的对话消息',
+        created_at: '2026-11-26T07:30:00Z',
+      },
+      ...bootMessages,
+    ]
+    vi.mocked(getRecentMessages).mockResolvedValueOnce(expandedHistory as never)
+
+    fireEvent.click(loadEarlierBtn)
+
+    await waitFor(() => {
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(getRecentMessages)).toHaveBeenCalledWith('project-1', 50)
+    })
+    await waitFor(() => {
+      const lastProps = mockMessageList.mock.calls.at(-1)?.[0] as { messages?: Array<{ id: string }> }
+      expect(lastProps.messages?.map((m) => m.id)).toEqual(['older-msg-0', 'boot-msg-1'])
+    })
+  })
 })

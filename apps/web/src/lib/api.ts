@@ -27,6 +27,7 @@ import type {
   VersionComparison,
   VersionContentResponse,
 } from "../types";
+import type { ChatMessage, ChatSession } from "./chatApi";
 import { api, ApiError, authenticatedFetch, getApiBase, getCurrentRequestLanguage, readApiError } from "./apiClient";
 import { downloadBlob } from "./downloadBlob";
 import { getLocale } from "./i18n-helpers";
@@ -239,6 +240,15 @@ export interface ProjectTemplate {
   default_project_name: string;
 }
 
+export interface ProjectBootstrapResponse {
+  project: Project;
+  files: FileTreeNode[];
+  initial_file: File | null;
+  chat_session: ChatSession | null;
+  recent_messages: ChatMessage[];
+  has_more_messages: boolean;
+}
+
 /**
  * Project API endpoints.
  *
@@ -272,6 +282,24 @@ export const projectApi = {
    * ```
    */
   get: (projectId: string) => api.get<Project>(`/api/v1/projects/${projectId}`),
+
+  /**
+   * Aggregated single-round-trip workbench boot payload: project metadata,
+   * file tree (without bodies), active initial file, and recent chat messages.
+   */
+  getBootstrap: (
+    projectId: string,
+    options?: { fileId?: string | null; chatLimit?: number; signal?: AbortSignal },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.fileId) params.set("file_id", options.fileId);
+    if (options?.chatLimit !== undefined) params.set("chat_limit", String(options.chatLimit));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return api.get<ProjectBootstrapResponse>(
+      `/api/v1/projects/${projectId}/bootstrap${query}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+  },
 
   /**
    * Writing progress of the author's projects (cards), or of one project when given

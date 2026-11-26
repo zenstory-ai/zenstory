@@ -1396,24 +1396,13 @@ def _serialize_file_tree_json(root_items: list[dict[str, Any]]) -> str:
     return "".join(chunks)
 
 
-@router.get("/projects/{project_id}/file-tree")
-def get_file_tree(
+def build_project_file_tree(
+    session: Session,
     project_id: str,
-    include_content: bool = Query(
-        False,
-        description="Whether to include full file content in tree nodes (default: false)",
-    ),
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
-):
-    """
-    Get the complete file tree for a project.
-
-    Returns a hierarchical structure with folders and their contents.
-    Files are sorted by explicit order, typed sequence fallback, then creation date.
-    """
-    # Check project ownership
-    verify_project_ownership(project_id, current_user, session)
+    *,
+    include_content: bool = False,
+) -> list[dict[str, Any]]:
+    """Build the sorted hierarchical file tree for a project (without loading file bodies by default)."""
 
     def sort_key(item: dict):
         """
@@ -1495,6 +1484,30 @@ def get_file_tree(
 
     # Sort root items
     root_items.sort(key=sort_key)
+
+    return root_items
+
+
+@router.get("/projects/{project_id}/file-tree")
+def get_file_tree(
+    project_id: str,
+    include_content: bool = Query(
+        False,
+        description="Whether to include full file content in tree nodes (default: false)",
+    ),
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Get the complete file tree for a project.
+
+    Returns a hierarchical structure with folders and their contents.
+    Files are sorted by explicit order, typed sequence fallback, then creation date.
+    """
+    # Check project ownership
+    verify_project_ownership(project_id, current_user, session)
+
+    root_items = build_project_file_tree(session, project_id, include_content=include_content)
 
     return Response(content=_serialize_file_tree_json(root_items), media_type="application/json")
 
