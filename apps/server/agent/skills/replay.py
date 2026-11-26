@@ -3,18 +3,18 @@ Server-side cold-replay rehydration for persisted skill tool cards.
 
 持久化在 `ChatMessage.tool_calls` / `display_events` 里的技能工具结果是前端安全口径
 （`stream_adapter._client_safe_skill_payload`）：只保留元数据，绝不落库官方技能或自定义技能正文，
-也不发给浏览器。其中 `load_skill` 卡片自带 `skill_id`，而 `read_skill_resource` 卡片需要
-集成侧补充持久化 `skill_id`（并由 `result_data["offset"]` 或配对的 `call_arguments["offset"]`
-提供续读偏移，以覆盖非截断尾段未携带 `offset` 的情形）。
+也不发给浏览器。其中 `load_skill` 与 `read_skill_resource` 卡片均携带 `skill_id`（`read_skill_resource`
+在 `offset > 0` 时一并保留 `offset`，并支持从配对的 `call_arguments["offset"]` 回退读取以兼容旧卡片）。
 
 当活跃会话的 Redis `wire_prefix_cache` 冷启动/失效、需要从数据库重建跨轮历史交给模型时，
-调用本模块的 `rehydrate_skill_tool_result` 可在服务端按当前用户仍启用中的技能重新回填正文，
+`agent.loop.history.load_loop_history` 对最近若干用户轮次内的技能工具调用本模块的
+`rehydrate_skill_tool_result`，在服务端按当前用户仍启用中的技能完整回填正文（不做人为 token 截断），
 避免模型因历史卡片缺失正文而白白重调 `load_skill` / `read_skill_resource`：
 
 - 仅当 `skill_id` 仍存在于调用方传入的 `active_skills_by_id`（由 `load_active_skills` 构建，
   天然强制当前用户归属、`is_active == True` 与 `PublicSkill.status == "approved"`）时才回填。
-- 技能被删除、停用、下架/驳回，资源文件已删除，`call_arguments` / `offset` 非法或越界，
-  或回放预算耗尽时返回 `None`，让调用方体面回退到既有的 `_SKILL_CONTENT_NOT_KEPT` 提示。
+- 技能被删除、停用、下架/驳回，资源文件已删除，或 `call_arguments` / `offset` 非法或越界时返回 `None`，
+  让调用方体面回退到既有的 `_SKILL_CONTENT_NOT_KEPT` 提示。
 - 本模块只服务于服务端模型历史回放，严禁用于浏览器 SSE 帧或聊天历史 HTTP 响应，
   官方技能正文对前端/API 依然保持 100% 隐藏。
 """
@@ -28,46 +28,13 @@ from typing import Any
 from sqlmodel import Session
 
 from .active_skills import ActiveSkill, get_skill_resource, list_active_skill_resources
-from .content_budget import (
-    SKILL_BODY_PATH,
-    SKILL_CONTENT_TOKEN_BUDGET,
-    SkillContentBudget,
-    SkillTextSegment,
-)
+from .content_budget import SKILL_BODY_PATH
 from .package import normalize_resource_path
-
-# 冷回放整段历史可重新注入的技能内容总 token 上限（与单轮请求预算对齐）
-SKILL_REPLAY_TOKEN_BUDGET = SKILL_CONTENT_TOKEN_BUDGET
 
 
 def index_active_skills(skills: Iterable[ActiveSkill]) -> dict[str, ActiveSkill]:
     """按规范 `skill.id` 建立当前启用中技能的索引表。"""
     return {skill.id: skill for skill in skills}
-
-
-def _segment_fields(segment: SkillTextSegment, *, skill_id: str, path: str) -> dict[str, Any]:
-    """与 `mcp_tools._segment_fields` 口径一致的分段续读元信息。"""
-    if not segment.truncated:
-        return {"truncated": False}
-    return {
-        "truncated": True,
-        "offset": segment.offset,
-        "next_offset": segment.next_offset,
-        "total_chars": segment.total_chars,
-        "continue_hint": (
-            f"内容过长，本次只返回了第 {segment.offset}–{segment.next_offset} 个字符（共 {segment.total_chars}）。"
-            f'需要后续内容时调用 read_skill_resource(name="{skill_id}", path="{path}", '
-            f"offset={segment.next_offset}) 分段读取。"
-        ),
-    }
-
-
-def _coerce_budget(remaining_budget: SkillContentBudget | int) -> SkillContentBudget | None:
-    if isinstance(remaining_budget, SkillContentBudget):
-        return remaining_budget if remaining_budget.remaining > 0 else None
-    if isinstance(remaining_budget, int) and not isinstance(remaining_budget, bool):
-        return SkillContentBudget(total=remaining_budget) if remaining_budget > 0 else None
-    return None
 
 
 def _parse_call_arguments(call_arguments: Any) -> dict[str, Any] | None:
@@ -99,24 +66,23 @@ def rehydrate_skill_tool_result(
     tool_name: str,
     result_data: Any,
     *,
-    remaining_budget: SkillContentBudget | int,
     call_arguments: Any = None,
 ) -> dict[str, Any] | None:
     """
-    将持久化的客户端安全技能结果卡片重新水合为模型可读的工具结果 `data` 字典。
+    将持久化的客户端安全技能结果卡片重新水合为模型可读的完整工具结果 `data` 字典。
 
     Args:
         active_skills_by_id: 当前用户启用中技能的索引（`{skill.id: ActiveSkill}`）。
         session: 只读查询技能资源所用的数据库会话。
         tool_name: 工具名，仅处理 `"load_skill"` 与 `"read_skill_resource"`。
         result_data: 持久化卡片中的 `result` 字典（`{skill_id, skill_name, path?, offset?, size?}`）。
-        remaining_budget: 回放共享的 `SkillContentBudget`（原地扣减余额），或单次整数 token 预算。
         call_arguments: 可选的配对工具入参（dict 或 JSON 字符串，对应 `ChatMessage.tool_calls[i]["arguments"]`）；
-            当 `read_skill_resource` 的 `result_data` 未显式携带 `offset`（如非截断续读尾段）时，
-            从中读取 `offset`，避免静默回退为 `offset=0`。
+            当 `read_skill_resource` 的 `result_data` 未显式携带 `offset` 时从中读取 `offset`，
+            避免静默回退为 `offset=0`。
 
     Returns:
-        水合后的结果字典；无法安全水合或预算耗尽时返回 `None`，调用方应回退到 `_SKILL_CONTENT_NOT_KEPT`。
+        水合后的完整结果字典（`truncated: False`）；无法安全水合时返回 `None`，
+        调用方应回退到 `_SKILL_CONTENT_NOT_KEPT`。
     """
     if tool_name not in ("load_skill", "read_skill_resource"):
         return None
@@ -134,25 +100,17 @@ def rehydrate_skill_tool_result(
     if skill is None:
         return None
 
-    budget = _coerce_budget(remaining_budget)
-    if budget is None:
-        return None
-
     if tool_name == "load_skill":
-        # 先查资源再扣预算，避免 DB 异常污染共享的 remaining_budget
         resources = [
             {"path": resource.path, "size": resource.size}
             for resource in list_active_skill_resources(session, skill)
         ]
-        segment = budget.take(skill.instructions, 0)
-        if segment.truncated and not segment.text:
-            return None
         return {
             "skill_id": skill.id,
             "skill_name": skill.name,
             "source": skill.source,
-            "instructions": segment.text,
-            **_segment_fields(segment, skill_id=skill.id, path=SKILL_BODY_PATH),
+            "instructions": skill.instructions,
+            "truncated": False,
             "resources": resources,
         }
 
@@ -193,16 +151,13 @@ def rehydrate_skill_tool_result(
     if offset > len(content):
         return None
 
-    segment = budget.take(content, offset)
-    if segment.truncated and not segment.text:
-        return None
     rehydrated: dict[str, Any] = {
         "skill_id": skill.id,
         "skill_name": skill.name,
         "path": resolved_path,
-        "content": segment.text,
-        **_segment_fields(segment, skill_id=skill.id, path=resolved_path),
+        "content": content[offset:],
+        "truncated": False,
     }
-    if offset > 0 and "offset" not in rehydrated:
+    if offset > 0:
         rehydrated["offset"] = offset
     return rehydrated

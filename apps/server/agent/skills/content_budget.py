@@ -1,13 +1,13 @@
 """
-技能正文的 token 预算。
+单轮技能加载门禁与正文读取辅助。
 
-技能正文最长 5 万字符（约 6 万 tokens），显式选择的技能会进 system prompt，被每一轮
-工具迭代、每个角色重复发送；`load_skill` / `read_skill_resource` 的结果也会留在对话里
-反复重发。所以一次请求里交给模型的技能内容（显式选择区块 + 技能工具返回）合计不超过
-``SKILL_CONTENT_TOKEN_BUDGET``，超出部分截断，并提示模型用
-``read_skill_resource(path="SKILL.md", offset=...)`` 分段读取。
+技能正文与资源文件在入库/上传时已有硬上限（正文 ≤ 50,000 字符、单资源 ≤ 64 KiB、
+技能包资源合计 ≤ 256 KiB），跨轮上下文体积交由轮间压缩控制，运行时不再对技能正文
+或资源文件做人为 token 截断。
 
-token 数用 ``agent.utils.token_utils.estimate_text_tokens`` 估算，与 prompt 账本同一口径。
+本模块保留核心安全护栏：单次请求内 `load_skill` / `read_skill_resource` 最多读取
+``MAX_LOADED_SKILLS_PER_REQUEST``（3）个不同技能，防批量倾倒官方技能；同时支持
+`read_skill_resource` 的向后兼容 `offset` 切片读取。
 """
 
 from __future__ import annotations
@@ -15,29 +15,22 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from agent.context.budget import truncate_text_to_tokens
 from agent.utils.token_utils import estimate_text_tokens
 
-# 一次请求里技能内容的 token 总上限（显式选择区块 + load_skill + read_skill_resource）
-SKILL_CONTENT_TOKEN_BUDGET = 24_000
-# 其中显式选择区块（进 system prompt）最多占用的部分，给本轮的 load_skill 留出余量
-SELECTED_SKILLS_TOKEN_BUDGET = 16_000
-
 # 一次请求里 load_skill / read_skill_resource 最多读取的不同技能数。一个任务正常用 1–2 个技能，
-# 一次读十几个是异常；同一技能重复读取（续读、读资源）不另计。
+# 一次读十几个是异常；同一技能重复读取（读多个资源或按 offset 读取）不另计。
 MAX_LOADED_SKILLS_PER_REQUEST = 3
 
-# read_skill_resource 用这个伪路径分段读取技能正文（SKILL.md 的正文部分）
+# read_skill_resource 用这个伪路径读取技能正文（SKILL.md 的正文部分）
 SKILL_BODY_PATH = "SKILL.md"
 
 
 @dataclass(frozen=True)
 class SkillTextSegment:
-    """从 offset 开始、落在 token 预算内的一段文本。"""
+    """从 offset 开始的完整文本切片（不做人为 token 截断）。"""
 
     text: str
     offset: int
-    # 还有后续内容时为下一段的起始字符偏移，读完为 None
     next_offset: int | None
     total_chars: int
     tokens: int
@@ -47,75 +40,41 @@ class SkillTextSegment:
         return self.next_offset is not None
 
 
-def take_segment(text: str, offset: int, max_tokens: int) -> SkillTextSegment:
-    """
-    从 ``offset`` 起截取不超过 ``max_tokens`` 的一段。
-
-    截断时至少前进 1 个字符，保证模型按 next_offset 续读一定能读完。
-    """
+def take_segment(text: str, offset: int = 0) -> SkillTextSegment:
+    """从 ``offset`` 起返回剩余完整文本，不做人为 token 截断。"""
     total = len(text)
     start = min(max(int(offset or 0), 0), total)
     rest = text[start:]
     if not rest:
         return SkillTextSegment(text="", offset=start, next_offset=None, total_chars=total, tokens=0)
-
-    rest_tokens = estimate_text_tokens(rest)
-    if rest_tokens <= max_tokens:
-        return SkillTextSegment(
-            text=rest, offset=start, next_offset=None, total_chars=total, tokens=rest_tokens
-        )
-    if max_tokens <= 0:
-        return SkillTextSegment(text="", offset=start, next_offset=start, total_chars=total, tokens=0)
-
-    clipped = truncate_text_to_tokens(rest, max_tokens, suffix="")
-    end = start + max(len(clipped), 1)
-    piece = text[start:end]
     return SkillTextSegment(
-        text=piece,
+        text=rest,
         offset=start,
-        next_offset=end if end < total else None,
+        next_offset=None,
         total_chars=total,
-        tokens=estimate_text_tokens(piece),
+        tokens=estimate_text_tokens(rest),
     )
 
 
-def split_selected_budget(texts: list[str], budget: int = SELECTED_SKILLS_TOKEN_BUDGET) -> list[SkillTextSegment]:
-    """
-    把显式选择区块的预算分给多个技能正文（返回顺序与输入一致）。
-
-    从最短的开始分：每个技能先拿「剩余预算 / 剩余技能数」，短技能用不完的部分留给后面的长技能。
-    """
-    segments: list[SkillTextSegment | None] = [None] * len(texts)
-    order = sorted(range(len(texts)), key=lambda index: len(texts[index]))
-    remaining = max(budget, 0)
-    for position, index in enumerate(order):
-        share = remaining // (len(order) - position)
-        segment = take_segment(texts[index], 0, share)
-        segments[index] = segment
-        remaining -= segment.tokens
-    return [segment for segment in segments if segment is not None]
-
-
 class SkillContentBudget:
-    """一次请求内共享的技能内容 token 余额（工具可能在多个工作线程里并发调用）。"""
+    """一次请求内共享的技能加载门禁与用量统计（工具可能在多个工作线程里并发调用）。"""
 
-    def __init__(self, total: int = SKILL_CONTENT_TOKEN_BUDGET, used: int = 0) -> None:
-        self._total = total
+    def __init__(self, used: int = 0) -> None:
         self._used = max(used, 0)
         self._loaded_skill_ids: set[str] = set()
         self._lock = threading.Lock()
 
     @property
-    def remaining(self) -> int:
+    def used_tokens(self) -> int:
         with self._lock:
-            return max(self._total - self._used, 0)
+            return self._used
 
     def take(self, text: str, offset: int = 0) -> SkillTextSegment:
-        """按当前余额截取一段并记账。"""
+        """返回从 offset 起的完整文本并记录估算 token 数（不截断）。"""
+        segment = take_segment(text, offset)
         with self._lock:
-            segment = take_segment(text, offset, max(self._total - self._used, 0))
             self._used += segment.tokens
-            return segment
+        return segment
 
     def admit_skill(self, skill_id: str) -> bool:
         """本次请求还能不能读这个技能：已读过的照常放行，新技能最多 MAX_LOADED_SKILLS_PER_REQUEST 个。"""

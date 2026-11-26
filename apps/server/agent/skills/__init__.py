@@ -12,13 +12,11 @@ from .active_skills import ActiveSkill, load_active_skills, resolve_selected_ski
 from .context_injector import SkillContextInjector, get_skill_context_injector
 from .package import ParsedSkill, SkillPackageError, build_skill_zip, parse_skill_md, read_skill_zip
 from .replay import (
-    SKILL_REPLAY_TOKEN_BUDGET,
     index_active_skills,
     rehydrate_skill_tool_result,
 )
 
 __all__ = [
-    "SKILL_REPLAY_TOKEN_BUDGET",
     "ActiveSkill",
     "ParsedSkill",
     "SkillContextInjector",

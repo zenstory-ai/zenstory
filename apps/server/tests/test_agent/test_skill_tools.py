@@ -7,7 +7,6 @@ import pytest
 from sqlmodel import Session
 
 from agent.core.request_context import AgentRequestContext
-from agent.skills.content_budget import SKILL_CONTENT_TOKEN_BUDGET
 from agent.skills.context_injector import SkillContextInjector
 from agent.tools.mcp_tools import load_skill, read_skill_resource
 from agent.tools.registry import get_exposed_tools
@@ -310,7 +309,7 @@ async def test_same_name_skills_are_listed_with_ids_and_loadable_by_id(
     assert resource_by_id["data"]["content"] == "续写的公共方法"
 
 
-# ==================== 技能内容 token 预算 ====================
+# ==================== 技能全文加载与每轮 3 技能门禁 ====================
 
 
 def _long_text(chars: int) -> str:
@@ -318,52 +317,74 @@ def _long_text(chars: int) -> str:
 
 
 @pytest.mark.integration
-async def test_load_skill_truncates_long_instructions_and_reads_rest_in_segments(
+async def test_load_skill_and_read_skill_resource_return_full_long_content_without_truncation(
     db_session: Session, owner: User, tool_context
 ):
+    """超过 24k tokens（≤ 50k 字符上限）的长技能与大资源文件一次完整返回，不再人为截断；offset 向后兼容。"""
     instructions = _long_text(50_000)
-    skill = UserSkill(user_id=owner.id, name="长技能", instructions=instructions)
+    assert estimate_text_tokens(instructions) > 24_000
+    resource_body = "r1 p2\n" * 10_000  # 60,000 bytes (<= 64 KiB cap) and > 24k tokens
+    assert len(resource_body.encode("utf-8")) <= 64 * 1024
+    assert estimate_text_tokens(resource_body) > 24_000
+
+    skill = UserSkill(user_id=owner.id, name="超长完整技能", instructions=instructions)
     db_session.add(skill)
     db_session.commit()
+    db_session.add(SkillResource(
+        user_skill_id=skill.id,
+        path="references/full.md",
+        content=resource_body,
+        size=len(resource_body.encode("utf-8")),
+    ))
+    db_session.commit()
 
-    loaded = _payload(await load_skill({"name": "长技能"}, request_context=tool_context))["data"]
+    loaded = _payload(await load_skill({"name": "超长完整技能"}, request_context=tool_context))["data"]
+    assert loaded["truncated"] is False
+    assert loaded["instructions"] == instructions
+    assert "continue_hint" not in loaded
+    assert "next_offset" not in loaded
 
-    assert loaded["truncated"] is True
-    assert estimate_text_tokens(loaded["instructions"]) <= SKILL_CONTENT_TOKEN_BUDGET
-    assert instructions.startswith(loaded["instructions"])
-    assert loaded["next_offset"] == len(loaded["instructions"])
-    assert loaded["total_chars"] == len(instructions)
-    assert "read_skill_resource" in loaded["continue_hint"]
-    assert f'offset={loaded["next_offset"]}' in loaded["continue_hint"]
+    full_resource = _payload(await read_skill_resource(
+        {"name": skill.id, "path": "references/full.md"}, request_context=tool_context
+    ))["data"]
+    assert full_resource["truncated"] is False
+    assert full_resource["content"] == resource_body
+    assert "offset" not in full_resource
 
-    # 同一请求里继续续读：合计不超过预算，用完后给出明确错误，而不是继续把正文塞进上下文
-    delivered = estimate_text_tokens(loaded["instructions"])
-    offset = loaded["next_offset"]
-    for _ in range(20):
-        result = _payload(await read_skill_resource({"name": skill.id, "path": "SKILL.md", "offset": offset}, request_context=tool_context))
-        if result["status"] == "error":
-            break
-        assert result["data"]["offset"] == offset
-        delivered += estimate_text_tokens(result["data"]["content"])
-        offset = result["data"]["next_offset"]
-    assert result["status"] == "error"
-    assert "上限" in result["error"]
-    assert delivered <= SKILL_CONTENT_TOKEN_BUDGET
+    # 向后兼容：显式传 offset > 0 时按字符偏移切片返回全文余段，并回传 offset 供卡片持久化与冷回放使用
+    sliced_body = _payload(await read_skill_resource(
+        {"name": skill.id, "path": "SKILL.md", "offset": 49_000}, request_context=tool_context
+    ))["data"]
+    assert sliced_body == {
+        "skill_id": skill.id,
+        "skill_name": "超长完整技能",
+        "path": "SKILL.md",
+        "content": instructions[49_000:],
+        "truncated": False,
+        "offset": 49_000,
+    }
 
-    # 新的一次请求（新的上下文）从 next_offset 续读，得到紧接着的下一段
-    fresh_ctx = AgentRequestContext(session=db_session, user_id=owner.id, project_id="p", session_id=None)
-    rest = _payload(await read_skill_resource({
-        "name": skill.id, "path": "SKILL.md", "offset": loaded["next_offset"],
-    }, request_context=fresh_ctx))["data"]
-    assert rest["offset"] == loaded["next_offset"]
-    assert instructions[loaded["next_offset"]:].startswith(rest["content"])
-    assert estimate_text_tokens(rest["content"]) <= SKILL_CONTENT_TOKEN_BUDGET
+    sliced_resource = _payload(await read_skill_resource(
+        {"name": skill.id, "path": "references/full.md", "offset": 59_400}, request_context=tool_context
+    ))["data"]
+    assert sliced_resource == {
+        "skill_id": skill.id,
+        "skill_name": "超长完整技能",
+        "path": "references/full.md",
+        "content": resource_body[59_400:],
+        "truncated": False,
+        "offset": 59_400,
+    }
 
 
 @pytest.mark.integration
-async def test_skill_budget_is_shared_with_selected_skills(db_session: Session, owner: User, project: Project):
-    """显式选择已占用的 token 从同一请求的预算里扣除，load_skill 只拿得到余额。"""
-    skill = UserSkill(user_id=owner.id, name="长技能", instructions=_long_text(30_000))
+async def test_load_skill_does_not_truncate_when_legacy_skill_tokens_used_is_passed(
+    db_session: Session, owner: User, project: Project
+):
+    """兼容旧构造参数 skill_tokens_used，但不再据此截断技能正文。"""
+    instructions = _long_text(30_000)
+    assert estimate_text_tokens(instructions) > 24_000
+    skill = UserSkill(user_id=owner.id, name="长技能", instructions=instructions)
     db_session.add(skill)
     db_session.commit()
     req_ctx = AgentRequestContext(
@@ -371,13 +392,13 @@ async def test_skill_budget_is_shared_with_selected_skills(db_session: Session, 
         user_id=owner.id,
         project_id=project.id,
         session_id=None,
-        skill_tokens_used=SKILL_CONTENT_TOKEN_BUDGET - 1_000,
+        skill_tokens_used=999_999,
     )
 
     loaded = _payload(await load_skill({"name": "长技能"}, request_context=req_ctx))["data"]
 
-    assert loaded["truncated"] is True
-    assert estimate_text_tokens(loaded["instructions"]) <= 1_000
+    assert loaded["truncated"] is False
+    assert loaded["instructions"] == instructions
 
 
 @pytest.mark.integration
@@ -417,13 +438,17 @@ async def test_load_skill_gets_full_text_of_added_official_skill(db_session: Ses
 async def test_load_skill_caps_distinct_skills_per_request(db_session: Session, owner: User, tool_context):
     from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
 
+    long_body = _long_text(30_000)
     names = [f"技能{i}" for i in range(MAX_LOADED_SKILLS_PER_REQUEST + 1)]
     for name in names:
-        db_session.add(UserSkill(user_id=owner.id, name=name, description="d", instructions=f"{name}的方法"))
+        db_session.add(UserSkill(user_id=owner.id, name=name, description="d", instructions=f"{name}:{long_body}"))
     db_session.commit()
 
     for name in names[:MAX_LOADED_SKILLS_PER_REQUEST]:
-        assert _payload(await load_skill({"name": name}, request_context=tool_context))["status"] == "success"
+        loaded = _payload(await load_skill({"name": name}, request_context=tool_context))
+        assert loaded["status"] == "success"
+        assert loaded["data"]["truncated"] is False
+        assert loaded["data"]["instructions"] == f"{name}:{long_body}"
     # 已加载过的技能重复加载、续读不另计
     assert _payload(await load_skill({"name": names[0]}, request_context=tool_context))["status"] == "success"
     assert _payload(await read_skill_resource({"name": names[1], "path": "SKILL.md"}, request_context=tool_context))["status"] == "success"
@@ -440,35 +465,15 @@ async def test_load_skill_caps_distinct_skills_per_request(db_session: Session, 
 
 
 @pytest.mark.unit
-def test_skill_content_budget_constants_and_distinct_skill_cap():
-    from agent.skills.content_budget import (
-        MAX_LOADED_SKILLS_PER_REQUEST,
-        SELECTED_SKILLS_TOKEN_BUDGET,
-        SKILL_CONTENT_TOKEN_BUDGET,
-    )
+def test_skill_distinct_cap_and_tool_schema_descriptions():
+    from agent.skills.active_skills import MAX_SELECTED_SKILLS
+    from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
 
-    assert SKILL_CONTENT_TOKEN_BUDGET == 24_000
-    assert SELECTED_SKILLS_TOKEN_BUDGET == 16_000
-    # 关键安全不变量：每轮最多加载 3 个不同技能不得放宽
+    # 关键安全不变量：每轮最多加载/显式选择 3 个不同技能不得放宽
     assert MAX_LOADED_SKILLS_PER_REQUEST == 3
-
-
-@pytest.mark.integration
-async def test_load_skill_fits_15k_token_skill_without_premature_fragmentation(
-    db_session: Session, owner: User, tool_context
-):
-    """放宽单轮内容预算到 24k 后，约 15k tokens 的常规长技能一次即可完整加载。"""
-    instructions = _long_text(15_000)
-    tokens = estimate_text_tokens(instructions)
-    assert 12_000 < tokens < SKILL_CONTENT_TOKEN_BUDGET
-    skill = UserSkill(user_id=owner.id, name="常规长技能", instructions=instructions)
-    db_session.add(skill)
-    db_session.commit()
-
-    loaded = _payload(await load_skill({"name": "常规长技能"}, request_context=tool_context))["data"]
-
-    assert loaded["truncated"] is False
-    assert loaded["instructions"] == instructions
+    assert MAX_SELECTED_SKILLS == 3
+    assert "truncated=true" not in TOOL_SCHEMAS["load_skill"]["description"]
+    assert "truncated=true" not in TOOL_SCHEMAS["read_skill_resource"]["description"]
 
 
 @pytest.mark.integration

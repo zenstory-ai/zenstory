@@ -9,7 +9,7 @@
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from sqlmodel import Session
@@ -180,7 +180,7 @@ def _add_user_skills(
             name=f"技能{index:02d}",
             description=f"描述{index:02d}" + ("长" * description_chars),
             instructions=marker + ("填充" * instruction_chars),
-            created_at=datetime(2026, 1, 1, 0, index),
+            created_at=datetime(2026, 1, 1) + timedelta(minutes=index),
         )
         session.add(skill)
         created.append(skill)
@@ -220,8 +220,8 @@ class TestSkillCatalogL1:
         assert "需显式调用" not in catalog
 
     def test_long_description_is_truncated(self, db_session: Session, skill_user: User):
-        assert CATALOG_DESCRIPTION_MAX_CHARS == 600
-        _add_user_skills(db_session, skill_user.id, count=1, description_chars=900)
+        assert CATALOG_DESCRIPTION_MAX_CHARS == 1024
+        _add_user_skills(db_session, skill_user.id, count=1, description_chars=1200)
 
         catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
 
@@ -231,14 +231,14 @@ class TestSkillCatalogL1:
         assert description.endswith("…")
         assert len(description) <= CATALOG_DESCRIPTION_MAX_CHARS + 1
 
-    def test_medium_description_under_600_chars_is_preserved_verbatim(
+    def test_description_up_to_1024_chars_is_preserved_verbatim(
         self, db_session: Session, skill_user: User
     ):
-        medium = "在悬疑转折处使用，避免提前泄底。" * 25  # 400 chars: >300, <600
+        max_valid = ("在悬疑转折处使用，避免提前泄底。" * 64)[:1024]  # 1024 chars == MAX_DESCRIPTION_CHARS
         db_session.add(UserSkill(
             user_id=skill_user.id,
-            name="中长描述技能",
-            description=medium,
+            name="完整描述技能",
+            description=max_valid,
             instructions="正文",
         ))
         db_session.commit()
@@ -246,22 +246,22 @@ class TestSkillCatalogL1:
         catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
 
         assert catalog is not None
-        assert f"- **中长描述技能**: {medium}" in catalog
+        assert f"- **完整描述技能**: {max_valid}" in catalog
         assert "…" not in catalog
 
     def test_catalog_cap_omits_overflow_but_says_they_are_loadable(
         self, db_session: Session, skill_user: User
     ):
-        assert CATALOG_MAX_CHARS == 10_000
-        _add_user_skills(db_session, skill_user.id, count=45, description_chars=250)
+        assert CATALOG_MAX_CHARS == 16_000
+        _add_user_skills(db_session, skill_user.id, count=70, description_chars=250)
 
         catalog = SkillContextInjector().build_skill_catalog(db_session, skill_user.id)
 
         assert catalog is not None
         listed = _catalog_names(catalog)
-        assert 0 < len(listed) < 45
+        assert 0 < len(listed) < 70
         assert len(catalog) <= CATALOG_MAX_CHARS + 200  # 溢出说明行本身不计入上限
-        assert f"另有 {45 - len(listed)} 个" in catalog
+        assert f"另有 {70 - len(listed)} 个" in catalog
         assert "load_skill" in catalog.split("另有", 1)[1]
 
     def test_triggers_are_parsed_and_rendered_without_duplicate_noise(

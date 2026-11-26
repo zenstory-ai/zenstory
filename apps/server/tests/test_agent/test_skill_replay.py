@@ -1,23 +1,38 @@
-"""Server-side cold-replay rehydration tests for persisted client-safe skill cards."""
+"""Server-side cold-replay rehydration tests (unit helper + end-to-end load_loop_history)."""
 
 from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta
 
 import pytest
 from sqlmodel import Session
 
+from agent.loop.history import (
+    _SKILL_CONTENT_NOT_KEPT,
+    LOOP_ENGINE_METADATA_VALUE,
+    SKILL_REPLAY_RECENT_TURNS,
+    client_tool_calls,
+    load_loop_history,
+)
 from agent.skills import (
-    SKILL_REPLAY_TOKEN_BUDGET,
     index_active_skills,
     load_active_skills,
     rehydrate_skill_tool_result,
 )
-from agent.skills.content_budget import (
-    MAX_LOADED_SKILLS_PER_REQUEST,
-    SKILL_CONTENT_TOKEN_BUDGET,
-    SkillContentBudget,
-)
+from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
+from agent.stream_adapter import StreamAdapter
 from agent.utils.token_utils import estimate_text_tokens
-from models import PublicSkill, SkillResource, User, UserAddedSkill, UserSkill
+from models import (
+    ChatMessage,
+    ChatSession,
+    Project,
+    PublicSkill,
+    SkillResource,
+    User,
+    UserAddedSkill,
+    UserSkill,
+)
 
 
 def _user(db_session: Session, suffix: str) -> User:
@@ -34,8 +49,77 @@ def _user(db_session: Session, suffix: str) -> User:
     return user
 
 
+def _project_and_session(db_session: Session, owner: User, suffix: str) -> tuple[Project, ChatSession]:
+    project = Project(name=f"Replay Project {suffix}", owner_id=owner.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(
+        user_id=owner.id,
+        project_id=project.id,
+        title=f"Replay Chat {suffix}",
+        is_active=True,
+        message_count=0,
+    )
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+    return project, chat
+
+
 def _long_text(chars: int) -> str:
     return ("冲突层层递进，每个场景都要留下余味。" * (chars // 18 + 1))[:chars]
+
+
+def _add_loop_turn(
+    db_session: Session,
+    chat_session_id: str,
+    *,
+    base_time: datetime,
+    user_text: str,
+    tool_calls: list[dict],
+    assistant_text: str = "已完成。",
+    steering_texts: list[str] | None = None,
+) -> ChatMessage:
+    user_row = ChatMessage(
+        session_id=chat_session_id,
+        role="user",
+        content=user_text,
+        created_at=base_time,
+    )
+    db_session.add(user_row)
+    offset_seconds = 1
+    for steer in steering_texts or []:
+        db_session.add(ChatMessage(
+            session_id=chat_session_id,
+            role="user",
+            content=steer,
+            created_at=base_time + timedelta(seconds=offset_seconds),
+        ))
+        offset_seconds += 1
+
+    display_events: list[dict] = [
+        {"type": "tool_call", "tool_call_index": idx}
+        for idx in range(len(tool_calls))
+    ]
+    if assistant_text:
+        display_events.append({"type": "content", "content": assistant_text})
+
+    assistant_row = ChatMessage(
+        session_id=chat_session_id,
+        role="assistant",
+        content=assistant_text,
+        tool_calls=json.dumps(tool_calls, ensure_ascii=False) if tool_calls else None,
+        message_metadata=json.dumps(
+            {"engine": LOOP_ENGINE_METADATA_VALUE, "display_events": display_events},
+            ensure_ascii=False,
+        ),
+        created_at=base_time + timedelta(seconds=offset_seconds),
+    )
+    db_session.add(assistant_row)
+    db_session.commit()
+    db_session.refresh(assistant_row)
+    return assistant_row
 
 
 @pytest.mark.integration
@@ -57,15 +141,8 @@ def test_rehydrate_load_skill_for_active_user_skill(db_session: Session):
         "resources": [],
     }
     card_snapshot = dict(card)
-    budget = SkillContentBudget(total=SKILL_REPLAY_TOKEN_BUDGET)
 
-    rehydrated = rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "load_skill",
-        card,
-        remaining_budget=budget,
-    )
+    rehydrated = rehydrate_skill_tool_result(active_by_id, db_session, "load_skill", card)
 
     assert card == card_snapshot  # pure: does not mutate persisted card
     assert rehydrated == {
@@ -79,7 +156,6 @@ def test_rehydrate_load_skill_for_active_user_skill(db_session: Session):
             {"path": "references/hooks.md", "size": 9},
         ],
     }
-    assert budget.remaining < SKILL_REPLAY_TOKEN_BUDGET
 
 
 @pytest.mark.integration
@@ -110,21 +186,18 @@ def test_rehydrate_added_official_and_community_skills(db_session: Session):
     db_session.commit()
 
     active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-    budget = SkillContentBudget()
 
     loaded = rehydrate_skill_tool_result(
         active_by_id,
         db_session,
         "load_skill",
         {"skill_id": official.id, "skill_name": "官方节奏"},
-        remaining_budget=budget,
     )
     resource = rehydrate_skill_tool_result(
         active_by_id,
         db_session,
         "read_skill_resource",
         {"skill_id": official.id, "skill_name": "官方节奏", "path": "templates/beats.md", "size": 18},
-        remaining_budget=budget,
     )
 
     assert loaded is not None
@@ -132,6 +205,7 @@ def test_rehydrate_added_official_and_community_skills(db_session: Session):
     assert loaded["skill_name"] == "我的节奏表"
     assert loaded["source"] == "added"
     assert loaded["instructions"] == "官方完整方法：先压后扬。"
+    assert loaded["truncated"] is False
     assert loaded["resources"] == [{"path": "templates/beats.md", "size": 18}]
     assert resource == {
         "skill_id": official.id,
@@ -140,6 +214,30 @@ def test_rehydrate_added_official_and_community_skills(db_session: Session):
         "content": "三幕节拍模板",
         "truncated": False,
     }
+
+
+@pytest.mark.integration
+def test_rehydrate_returns_full_long_skill_without_artificial_truncation(db_session: Session):
+    """冷回放对超过 24k tokens（≤ 50k 字符上限）的长技能返回全文，不做人为 token 截断。"""
+    owner = _user(db_session, "long_untruncated")
+    long_body = _long_text(50_000)
+    assert estimate_text_tokens(long_body) > 24_000
+    skill = UserSkill(user_id=owner.id, name="超长技能", instructions=long_body)
+    db_session.add(skill)
+    db_session.commit()
+
+    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
+    rehydrated = rehydrate_skill_tool_result(
+        active_by_id,
+        db_session,
+        "load_skill",
+        {"skill_id": skill.id, "skill_name": "超长技能"},
+    )
+
+    assert rehydrated is not None
+    assert rehydrated["truncated"] is False
+    assert rehydrated["instructions"] == long_body
+    assert "continue_hint" not in rehydrated
 
 
 @pytest.mark.integration
@@ -157,14 +255,12 @@ def test_rehydrate_read_skill_resource_supports_skill_md_offset_and_nfc(db_sessi
     db_session.commit()
 
     active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-    budget = SkillContentBudget()
 
     body_slice = rehydrate_skill_tool_result(
         active_by_id,
         db_session,
         "read_skill_resource",
         {"skill_id": skill.id, "skill_name": "分段技能", "path": "SKILL.md", "offset": 10},
-        remaining_budget=budget,
     )
     nfc_resource = rehydrate_skill_tool_result(
         active_by_id,
@@ -172,7 +268,6 @@ def test_rehydrate_read_skill_resource_supports_skill_md_offset_and_nfc(db_sessi
         "read_skill_resource",
         # NFD decomposed path should match stored NFC resource path
         {"skill_id": skill.id, "skill_name": "分段技能", "path": "examples/cafe\u0301.md", "offset": 5},
-        remaining_budget=budget,
     )
 
     assert body_slice == {
@@ -221,19 +316,9 @@ def test_rehydrate_returns_none_for_deleted_disabled_unapproved_or_foreign_skill
         # 历史遗留卡片缺少 skill_id：不能仅凭 skill_name 猜测
         {"skill_name": "别人的", "path": "SKILL.md"},
     ):
+        assert rehydrate_skill_tool_result(active_by_id, db_session, "load_skill", bad_card) is None
         assert rehydrate_skill_tool_result(
-            active_by_id,
-            db_session,
-            "load_skill",
-            bad_card,
-            remaining_budget=SkillContentBudget(),
-        ) is None
-        assert rehydrate_skill_tool_result(
-            active_by_id,
-            db_session,
-            "read_skill_resource",
-            {**bad_card, "path": "SKILL.md"},
-            remaining_budget=SkillContentBudget(),
+            active_by_id, db_session, "read_skill_resource", {**bad_card, "path": "SKILL.md"}
         ) is None
 
 
@@ -246,123 +331,26 @@ def test_rehydrate_returns_none_for_missing_resource_bad_offset_or_unknown_tool(
 
     active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
 
-    # 资源已被删除
     assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "read_skill_resource",
-        {"skill_id": skill.id, "path": "references/deleted.md"},
-        remaining_budget=SkillContentBudget(),
+        active_by_id, db_session, "read_skill_resource", {"skill_id": skill.id, "path": "references/deleted.md"}
     ) is None
-    # 缺少 path
     assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "read_skill_resource",
-        {"skill_id": skill.id},
-        remaining_budget=SkillContentBudget(),
+        active_by_id, db_session, "read_skill_resource", {"skill_id": skill.id}
     ) is None
-    # offset 越界或类型非法
     for bad_offset in (-1, True, "10", len(skill.instructions) + 1):
         assert rehydrate_skill_tool_result(
             active_by_id,
             db_session,
             "read_skill_resource",
             {"skill_id": skill.id, "path": "SKILL.md", "offset": bad_offset},
-            remaining_budget=SkillContentBudget(),
         ) is None
-    # 非技能工具或非法 result_data
-    assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "query_files",
-        {"skill_id": skill.id},
-        remaining_budget=SkillContentBudget(),
-    ) is None
-    assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "load_skill",
-        "not-a-dict",
-        remaining_budget=SkillContentBudget(),
-    ) is None
+    assert rehydrate_skill_tool_result(active_by_id, db_session, "query_files", {"skill_id": skill.id}) is None
+    assert rehydrate_skill_tool_result(active_by_id, db_session, "load_skill", "not-a-dict") is None
 
 
 @pytest.mark.integration
-def test_rehydrate_honors_shared_budget_truncation_and_exhaustion(db_session: Session):
-    owner = _user(db_session, "budget")
-    long_body = _long_text(20_000)
-    skill_a = UserSkill(user_id=owner.id, name="长技能A", instructions=long_body)
-    skill_b = UserSkill(user_id=owner.id, name="短技能B", instructions="短方法")
-    db_session.add_all([skill_a, skill_b])
-    db_session.commit()
-
-    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-    # 预算只有 500 tokens：长技能会被截断；余额耗尽后再回放应返回 None 回退到 _SKILL_CONTENT_NOT_KEPT
-    budget = SkillContentBudget(total=500)
-
-    first = rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "load_skill",
-        {"skill_id": skill_a.id, "skill_name": "长技能A"},
-        remaining_budget=budget,
-    )
-
-    assert first is not None
-    assert first["truncated"] is True
-    assert estimate_text_tokens(first["instructions"]) <= 500
-    assert first["next_offset"] == len(first["instructions"])
-    assert first["total_chars"] == len(long_body)
-    assert "read_skill_resource" in first["continue_hint"]
-    assert budget.remaining < 500
-
-    # 继续消耗剩余零头直到余额归零，下一次回放必须返回 None
-    offset = first["next_offset"]
-    for _ in range(20):
-        nxt = rehydrate_skill_tool_result(
-            active_by_id,
-            db_session,
-            "read_skill_resource",
-            {"skill_id": skill_a.id, "path": "SKILL.md", "offset": offset},
-            remaining_budget=budget,
-        )
-        if nxt is None:
-            break
-        offset = nxt["next_offset"]
-    assert budget.remaining == 0
-
-    after_exhausted = rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "load_skill",
-        {"skill_id": skill_b.id, "skill_name": "短技能B"},
-        remaining_budget=budget,
-    )
-    assert after_exhausted is None
-
-    # 传入 0 或负数整数预算也直接返回 None
-    assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "load_skill",
-        {"skill_id": skill_b.id},
-        remaining_budget=0,
-    ) is None
-    assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
-        "load_skill",
-        {"skill_id": skill_b.id},
-        remaining_budget=-10,
-    ) is None
-
-
-@pytest.mark.integration
-def test_rehydrate_across_many_turns_is_bounded_by_token_budget_not_per_turn_skill_cap(
-    db_session: Session,
-):
-    """跨多轮冷回放可能合法包含超过单轮 3 个的不同技能；回放只受 token 预算约束。"""
+def test_rehydrate_across_many_skills_is_not_capped_by_per_turn_skill_limit(db_session: Session):
+    """跨多轮冷回放可能合法包含超过单轮 3 个的不同技能。"""
     owner = _user(db_session, "multi_turn")
     skills = [
         UserSkill(user_id=owner.id, name=f"技能{i}", instructions=f"方法{i}")
@@ -372,7 +360,6 @@ def test_rehydrate_across_many_turns_is_bounded_by_token_budget_not_per_turn_ski
     db_session.commit()
 
     active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-    budget = SkillContentBudget(total=SKILL_CONTENT_TOKEN_BUDGET)
 
     results = [
         rehydrate_skill_tool_result(
@@ -380,7 +367,6 @@ def test_rehydrate_across_many_turns_is_bounded_by_token_budget_not_per_turn_ski
             db_session,
             "load_skill",
             {"skill_id": skill.id, "skill_name": skill.name},
-            remaining_budget=budget,
         )
         for skill in skills
     ]
@@ -393,9 +379,7 @@ def test_rehydrate_across_many_turns_is_bounded_by_token_budget_not_per_turn_ski
 
 @pytest.mark.integration
 def test_rehydrate_read_skill_resource_resolves_offset_from_call_arguments(db_session: Session):
-    """非截断续读尾段的 result_data 可能省略 offset；须从配对的 call_arguments 还原正确片段。"""
-    import json
-
+    """当 result_data 未显式携带 offset 时，从配对的 call_arguments 还原正确偏移片段。"""
     owner = _user(db_session, "call_args_offset")
     skill = UserSkill(user_id=owner.id, name="续读技能", instructions="0123456789FINAL_SLICE")
     db_session.add(skill)
@@ -410,13 +394,12 @@ def test_rehydrate_read_skill_resource_resolves_offset_from_call_arguments(db_se
 
     active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
 
-    # 1) dict 形式的 call_arguments（SKILL.md 续读）
+    # 1) dict 形式的 call_arguments（SKILL.md）
     from_dict = rehydrate_skill_tool_result(
         active_by_id,
         db_session,
         "read_skill_resource",
         {"skill_id": skill.id, "skill_name": "续读技能", "path": "SKILL.md", "size": 11},
-        remaining_budget=SkillContentBudget(),
         call_arguments={"name": skill.id, "path": "SKILL.md", "offset": 10},
     )
     assert from_dict == {
@@ -434,7 +417,6 @@ def test_rehydrate_read_skill_resource_resolves_offset_from_call_arguments(db_se
         db_session,
         "read_skill_resource",
         {"skill_id": skill.id, "skill_name": "续读技能", "path": "references/guide.md", "size": 9},
-        remaining_budget=SkillContentBudget(),
         call_arguments=json.dumps({"name": skill.id, "path": "references/guide.md", "offset": 10}),
     )
     assert from_json_str == {
@@ -452,7 +434,6 @@ def test_rehydrate_read_skill_resource_resolves_offset_from_call_arguments(db_se
         db_session,
         "read_skill_resource",
         {"skill_id": skill.id, "path": "SKILL.md", "offset": 15},
-        remaining_budget=SkillContentBudget(),
         call_arguments={"name": skill.id, "path": "SKILL.md", "offset": 10},
     )
     assert explicit_wins is not None
@@ -461,16 +442,13 @@ def test_rehydrate_read_skill_resource_resolves_offset_from_call_arguments(db_se
 
 
 @pytest.mark.integration
-def test_rehydrate_rejects_malformed_call_arguments_and_invalid_call_offset_without_spending_budget(
-    db_session: Session,
-):
+def test_rehydrate_rejects_malformed_call_arguments_and_invalid_call_offset(db_session: Session):
     owner = _user(db_session, "bad_call_args")
     skill = UserSkill(user_id=owner.id, name="参数校验技能", instructions="0123456789")
     db_session.add(skill)
     db_session.commit()
 
     active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-    budget = SkillContentBudget(total=1000)
 
     for bad_call_args in (
         "{not-json",
@@ -486,77 +464,300 @@ def test_rehydrate_rejects_malformed_call_arguments_and_invalid_call_offset_with
             db_session,
             "read_skill_resource",
             {"skill_id": skill.id, "path": "SKILL.md"},
-            remaining_budget=budget,
             call_arguments=bad_call_args,
         ) is None
 
-    assert budget.remaining == 1000
+
+# ==================== End-to-end cold replay via load_loop_history ====================
 
 
 @pytest.mark.integration
-def test_rehydrate_load_skill_db_error_does_not_mutate_budget(db_session: Session, monkeypatch):
-    from agent.skills import replay as replay_mod
+def test_load_loop_history_cold_replay_rehydrates_recent_skills_and_keeps_official_text_out_of_client(
+    db_session: Session,
+    monkeypatch,
+):
+    """端到端冷回放：最近 3 轮内技能完整水合（含 offset），旧轮与停用/下架回退说明，且绝不泄露官方正文到前端。"""
+    import agent.skills.active_skills as active_skills_mod
 
-    owner = _user(db_session, "db_err")
-    skill = UserSkill(user_id=owner.id, name="异常技能", instructions="方法正文")
-    db_session.add(skill)
+    owner = _user(db_session, "e2e_history")
+    project, chat = _project_and_session(db_session, owner, "e2e")
+
+    official_secret = "OFFICIAL_SECRET_METHOD_NEVER_IN_CLIENT_PAYLOAD"
+    official = PublicSkill(
+        name="官方悬疑",
+        description="悬疑技法",
+        instructions=official_secret,
+        status="approved",
+        source="official",
+    )
+    unapproved = PublicSkill(
+        name="已下架技能",
+        description="下架",
+        instructions="UNAPPROVED_SECRET",
+        status="rejected",
+        source="official",
+    )
+    user_skill = UserSkill(
+        user_id=owner.id,
+        name="自建大纲法",
+        description="大纲方法",
+        instructions="0123456789USER_FULL_BODY",
+        is_active=True,
+    )
+    disabled_skill = UserSkill(
+        user_id=owner.id,
+        name="停用技能",
+        description="已停用",
+        instructions="DISABLED_SECRET",
+        is_active=False,
+    )
+    db_session.add_all([official, unapproved, user_skill, disabled_skill])
+    db_session.commit()
+    db_session.add(UserAddedSkill(user_id=owner.id, public_skill_id=official.id, is_active=True))
+    db_session.add(UserAddedSkill(user_id=owner.id, public_skill_id=unapproved.id, is_active=True))
+    db_session.add(SkillResource(
+        public_skill_id=official.id,
+        path="templates/beat.md",
+        content="PREFIX_OFFICIAL_RESOURCE_TAIL",
+        size=29,
+    ))
     db_session.commit()
 
-    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-    budget = SkillContentBudget(total=1000)
-
-    def _boom(_session, _skill):
-        raise RuntimeError("db disconnected")
-
-    monkeypatch.setattr(replay_mod, "list_active_skill_resources", _boom)
-
-    with pytest.raises(RuntimeError, match="db disconnected"):
-        rehydrate_skill_tool_result(
-            active_by_id,
-            db_session,
-            "load_skill",
-            {"skill_id": skill.id},
-            remaining_budget=budget,
-        )
-
-    assert budget.remaining == 1000
-
-
-@pytest.mark.integration
-def test_rehydrate_returns_none_when_budget_drains_concurrently_before_take(db_session: Session):
-    """若共享 SkillContentBudget 在检查 remaining 与 take() 之间被并发耗尽，不返回空截断存根。"""
-    from agent.skills.content_budget import SkillTextSegment
-
-    owner = _user(db_session, "concurrent_drain")
-    skill = UserSkill(user_id=owner.id, name="并发耗尽技能", instructions="有效正文")
-    db_session.add(skill)
-    db_session.commit()
-    db_session.add(SkillResource(user_skill_id=skill.id, path="references/r.md", content="资源正文", size=12))
-    db_session.commit()
-
-    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
-
-    class _DrainedOnTakeBudget(SkillContentBudget):
-        def take(self, text: str, offset: int = 0) -> SkillTextSegment:
-            return SkillTextSegment(
-                text="",
-                offset=offset,
-                next_offset=offset,
-                total_chars=len(text),
-                tokens=0,
-            )
-
-    assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
+    t0 = datetime(2026, 11, 26, 10, 0, 0)
+    # 模拟 StreamAdapter 落库的前端安全载荷（绝不含官方/自建正文）
+    safe_official_load = StreamAdapter._client_safe_skill_payload(
         "load_skill",
-        {"skill_id": skill.id},
-        remaining_budget=_DrainedOnTakeBudget(total=100),
-    ) is None
-    assert rehydrate_skill_tool_result(
-        active_by_id,
-        db_session,
+        {
+            "skill_id": official.id,
+            "skill_name": official.name,
+            "source": "added",
+            "instructions": official_secret,
+            "resources": [{"path": "templates/beat.md", "size": 29}],
+        },
+    )
+    safe_official_res_with_offset = StreamAdapter._client_safe_skill_payload(
         "read_skill_resource",
-        {"skill_id": skill.id, "path": "references/r.md"},
-        remaining_budget=_DrainedOnTakeBudget(total=100),
-    ) is None
+        {
+            "skill_id": official.id,
+            "skill_name": official.name,
+            "path": "templates/beat.md",
+            "content": "OFFICIAL_RESOURCE_TAIL",
+            "offset": 7,
+        },
+    )
+    safe_user_res_args_offset = {
+        "skill_id": user_skill.id,
+        "skill_name": user_skill.name,
+        "path": "SKILL.md",
+        "size": 14,
+        # 故意不写 offset，验证从 call_arguments 回退解析
+    }
+    assert official_secret not in json.dumps(safe_official_load, ensure_ascii=False)
+    assert "OFFICIAL_RESOURCE_TAIL" not in json.dumps(safe_official_res_with_offset, ensure_ascii=False)
+    assert safe_official_res_with_offset["skill_id"] == official.id
+    assert safe_official_res_with_offset["offset"] == 7
+
+    # 第 1 轮（距最新超过 3 轮）：应不水合，回退 _SKILL_CONTENT_NOT_KEPT
+    old_assistant = _add_loop_turn(
+        db_session,
+        chat.id,
+        base_time=t0,
+        user_text="第1轮：很久以前加载了官方技能",
+        tool_calls=[
+            {
+                "id": "old-1",
+                "name": "load_skill",
+                "arguments": json.dumps({"name": "官方悬疑"}, ensure_ascii=False),
+                "status": "success",
+                "result": dict(safe_official_load),
+            },
+        ],
+    )
+    # 第 2 轮（最近第 3 轮）：包含有效官方技能 load_skill + 带 result_data.offset 的 read_skill_resource
+    recent_turn_1 = _add_loop_turn(
+        db_session,
+        chat.id,
+        base_time=t0 + timedelta(minutes=1),
+        user_text="第2轮：加载官方技能和模板",
+        tool_calls=[
+            {
+                "id": "r1-load",
+                "name": "load_skill",
+                "arguments": json.dumps({"name": "官方悬疑"}, ensure_ascii=False),
+                "status": "success",
+                "result": dict(safe_official_load),
+            },
+            {
+                "id": "r1-res",
+                "name": "read_skill_resource",
+                "arguments": json.dumps({"name": official.id, "path": "templates/beat.md", "offset": 7}),
+                "status": "success",
+                "result": dict(safe_official_res_with_offset),
+            },
+        ],
+    )
+    # 第 3 轮（最近第 2 轮，含 steering 连续 user 行不应被算成多个轮次）：call_arguments.offset 回退
+    recent_turn_2 = _add_loop_turn(
+        db_session,
+        chat.id,
+        base_time=t0 + timedelta(minutes=2),
+        user_text="第3轮：续读自建技能",
+        steering_texts=["补充一句：保持紧凑"],
+        tool_calls=[
+            {
+                "id": "r2-res",
+                "name": "read_skill_resource",
+                "arguments": json.dumps({"name": user_skill.id, "path": "SKILL.md", "offset": 10}),
+                "status": "success",
+                "result": dict(safe_user_res_args_offset),
+            },
+        ],
+    )
+    # 第 4 轮（最新 1 轮）：停用技能 + 下架技能 + 已删资源 → 全部体面回退 _SKILL_CONTENT_NOT_KEPT
+    recent_turn_3 = _add_loop_turn(
+        db_session,
+        chat.id,
+        base_time=t0 + timedelta(minutes=3),
+        user_text="第4轮：历史里有停用与下架技能",
+        tool_calls=[
+            {
+                "id": "r3-disabled",
+                "name": "load_skill",
+                "arguments": json.dumps({"name": disabled_skill.id}),
+                "status": "success",
+                "result": {"skill_id": disabled_skill.id, "skill_name": "停用技能", "source": "user"},
+            },
+            {
+                "id": "r3-unapproved",
+                "name": "load_skill",
+                "arguments": json.dumps({"name": unapproved.id}),
+                "status": "success",
+                "result": {"skill_id": unapproved.id, "skill_name": "已下架技能", "source": "added"},
+            },
+            {
+                "id": "r3-missing-res",
+                "name": "read_skill_resource",
+                "arguments": json.dumps({"name": official.id, "path": "references/gone.md"}),
+                "status": "success",
+                "result": {"skill_id": official.id, "skill_name": "官方悬疑", "path": "references/gone.md", "size": 5},
+            },
+        ],
+    )
+
+    assert SKILL_REPLAY_RECENT_TURNS == 3
+    load_calls = 0
+    orig_load_active = active_skills_mod.load_active_skills
+
+    def _counting_load_active(session: Session, uid: str):
+        nonlocal load_calls
+        load_calls += 1
+        return orig_load_active(session, uid)
+
+    monkeypatch.setattr(active_skills_mod, "load_active_skills", _counting_load_active)
+
+    history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=owner.id,
+        chat_session_id=chat.id,
+    )
+
+    # 整个 load_loop_history 只惰性查库 1 次启用技能
+    assert load_calls == 1
+
+    outputs_by_call_id = {
+        item["call_id"]: json.loads(item["output"])
+        for item in history.items
+        if item.get("type") == "function_call_output"
+    }
+
+    # 第 1 轮（超出最近 3 个用户轮次）：不水合，回退提示
+    old_out = outputs_by_call_id[f"h{old_assistant.id}_0"]
+    assert old_out["note"] == _SKILL_CONTENT_NOT_KEPT["load_skill"]
+    assert "instructions" not in old_out["data"]
+
+    # 第 2 轮（最近第 3 轮）：load_skill & read_skill_resource(offset=7) 完整水合且无 _SKILL_CONTENT_NOT_KEPT
+    r1_load_out = outputs_by_call_id[f"h{recent_turn_1.id}_0"]
+    assert "note" not in r1_load_out
+    assert r1_load_out["data"]["instructions"] == official_secret
+    assert r1_load_out["data"]["truncated"] is False
+    assert r1_load_out["data"]["resources"] == [{"path": "templates/beat.md", "size": 29}]
+
+    r1_res_out = outputs_by_call_id[f"h{recent_turn_1.id}_1"]
+    assert "note" not in r1_res_out
+    assert r1_res_out["data"] == {
+        "skill_id": official.id,
+        "skill_name": "官方悬疑",
+        "path": "templates/beat.md",
+        "content": "OFFICIAL_RESOURCE_TAIL",
+        "truncated": False,
+        "offset": 7,
+    }
+
+    # 第 3 轮（带 steering，仍在最近 3 轮内）：通过 call_arguments 还原 offset=10
+    r2_res_out = outputs_by_call_id[f"h{recent_turn_2.id}_0"]
+    assert "note" not in r2_res_out
+    assert r2_res_out["data"] == {
+        "skill_id": user_skill.id,
+        "skill_name": "自建大纲法",
+        "path": "SKILL.md",
+        "content": "USER_FULL_BODY",
+        "truncated": False,
+        "offset": 10,
+    }
+
+    # 第 4 轮：停用 / 下架 / 已删资源均体面回退 _SKILL_CONTENT_NOT_KEPT，绝不泄露正文
+    for idx, tool_name in ((0, "load_skill"), (1, "load_skill"), (2, "read_skill_resource")):
+        fallback = outputs_by_call_id[f"h{recent_turn_3.id}_{idx}"]
+        assert fallback["note"] == _SKILL_CONTENT_NOT_KEPT[tool_name]
+        assert "DISABLED_SECRET" not in json.dumps(fallback, ensure_ascii=False)
+        assert "UNAPPROVED_SECRET" not in json.dumps(fallback, ensure_ascii=False)
+
+    # DB 持久化记录和前端 client_tool_calls() 绝未被改写，也绝不泄露官方技能正文
+    for row in (old_assistant, recent_turn_1, recent_turn_2, recent_turn_3):
+        db_session.refresh(row)
+        client_payload = client_tool_calls(row.tool_calls) or ""
+        assert official_secret not in (row.tool_calls or "")
+        assert official_secret not in (row.message_metadata or "")
+        assert official_secret not in client_payload
+        assert "OFFICIAL_RESOURCE_TAIL" not in client_payload
+
+
+@pytest.mark.integration
+def test_load_loop_history_skips_active_skills_query_when_no_recent_skill_calls(
+    db_session: Session,
+    monkeypatch,
+):
+    """没有近期技能调用时，load_loop_history 绝不触发额外的 load_active_skills 数据库查询。"""
+    import agent.skills.active_skills as active_skills_mod
+
+    owner = _user(db_session, "no_skill_calls")
+    project, chat = _project_and_session(db_session, owner, "no_skill")
+    _add_loop_turn(
+        db_session,
+        chat.id,
+        base_time=datetime(2026, 11, 26, 11, 0, 0),
+        user_text="普通一轮",
+        tool_calls=[
+            {
+                "id": "q-1",
+                "name": "query_files",
+                "arguments": "{}",
+                "status": "success",
+                "result": {"files": []},
+            },
+        ],
+    )
+
+    def _must_not_be_called(*_args, **_kwargs):
+        raise AssertionError("load_active_skills should not be called without recent skill tool calls")
+
+    monkeypatch.setattr(active_skills_mod, "load_active_skills", _must_not_be_called)
+
+    history = load_loop_history(
+        db_session,
+        project_id=project.id,
+        user_id=owner.id,
+        chat_session_id=chat.id,
+    )
+    assert len(history.items) >= 3

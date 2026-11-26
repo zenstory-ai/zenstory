@@ -14,10 +14,10 @@ from .active_skills import ActiveSkill, duplicate_name_keys, load_active_skills,
 
 logger = get_logger(__name__)
 
-# 目录中单个技能描述的最大字符数（超出截断）
-CATALOG_DESCRIPTION_MAX_CHARS = 600
+# 目录中单个技能描述的最大字符数（与 MAX_DESCRIPTION_CHARS 对齐，合法描述不截断）
+CATALOG_DESCRIPTION_MAX_CHARS = 1024
 # 整个目录的字符上限；超出的技能不列出，但仍可按名称 load_skill
-CATALOG_MAX_CHARS = 10_000
+CATALOG_MAX_CHARS = 16_000
 # 单条目录最多展示的触发场景数量及总字符预算（保持每行紧凑、顺序确定）
 CATALOG_MAX_TRIGGERS_PER_SKILL = 6
 CATALOG_TRIGGERS_MAX_CHARS = 120
