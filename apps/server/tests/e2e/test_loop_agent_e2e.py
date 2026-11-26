@@ -342,7 +342,7 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
 
     from agent.loop.prompts import SUMMARY_PREFIX
 
-    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
     user, token, project = await _user_project(client, db_session, "loop_compaction_synthetic")
     chat, rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
 
@@ -407,7 +407,7 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
 ):
     from unittest.mock import AsyncMock
 
-    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
     user, token, project = await _user_project(client, db_session, "loop_compaction_empty_synthetic")
     chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
 
@@ -433,7 +433,10 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
     # 没压缩成：只收起进度，不发、不落库压缩标记。
     assert "event: history_compacted" not in response.text
     assert "history_compaction_skipped" in response.text
-    assert all(event.get("type") != "history_compacted" for event in json.loads(row.message_metadata)["display_events"])
+    assert all(
+        event.get("type") != "history_compacted"
+        for event in json.loads(row.message_metadata or "{}").get("display_events", [])
+    )
 
 
 @pytest.mark.asyncio
@@ -444,7 +447,7 @@ async def test_skipped_compaction_is_recorded_and_not_retried_every_turn(
     下一轮输入没长够就不再付摘要调用。"""
     from unittest.mock import AsyncMock
 
-    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
     user, token, project = await _user_project(client, db_session, "loop_compaction_backoff_synthetic")
     chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
 
@@ -488,7 +491,7 @@ async def test_compaction_survives_a_turn_without_an_assistant_row(
 
     from agent.loop.prompts import SUMMARY_PREFIX
 
-    monkeypatch.setattr("agent.loop.compaction.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
     user, token, project = await _user_project(client, db_session, "loop_compaction_user_row_synthetic")
     chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
 
