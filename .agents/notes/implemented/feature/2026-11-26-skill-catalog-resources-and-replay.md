@@ -30,10 +30,10 @@ Status: implemented
    - `SKILL_CONTENT_TOKEN_BUDGET` 从 `12_000` 提高到 `24_000`，`SELECTED_SKILLS_TOKEN_BUDGET` 从 `8_000` 提高到 `16_000`。
    - **保持 `MAX_LOADED_SKILLS_PER_REQUEST = 3` 不变**，且官方技能正文对浏览器/API 保持 100% 隐藏。
 4. **新增服务端冷回放水合纯辅助函数**（`agent/skills/replay.py`，经 `agent/skills/__init__.py` 导出）：
-   - 提供 `index_active_skills` 与 `rehydrate_skill_tool_result(active_skills_by_id, session, tool_name, result_data, *, remaining_budget)` 及 `SKILL_REPLAY_TOKEN_BUDGET`。
-   - 仅当持久化卡片中的 `skill_id` 仍存在于当前用户的 `active_skills_by_id`（由 `load_active_skills` 构造，强制用户归属、`is_active=True` 及 `PublicSkill.status == "approved"`）时，才按需回填 `load_skill` 的 `instructions` + 最新 `resources`，或 `read_skill_resource` 的 `content`（支持 `path="SKILL.md"`、NFC 归一化资源路径及 `offset`），并原地扣减共享 `SkillContentBudget`。
-   - 技能被删除/停用/下架、缺少 `skill_id`（绝不按 `skill_name` 猜测，防止同名顶替）、资源已删、`offset` 非法或越界、或回放预算耗尽时返回 `None`，让 `agent/loop/history.py` 在集成阶段体面回退到既有的 `_SKILL_CONTENT_NOT_KEPT` 说明。
-   - 本批刻意不修改 `agent/loop/history.py`，待并行压缩分支合并后用 ~10 行接线调用，避免合并冲突。
+   - 提供 `index_active_skills` 与 `rehydrate_skill_tool_result(active_skills_by_id, session, tool_name, result_data, *, remaining_budget, call_arguments=None)` 及 `SKILL_REPLAY_TOKEN_BUDGET`。
+   - 仅当持久化卡片中的 `skill_id` 仍存在于当前用户的 `active_skills_by_id`（由 `load_active_skills` 构造，强制用户归属、`is_active=True` 及 `PublicSkill.status == "approved"`）时，才按需回填 `load_skill` 的 `instructions` + 最新 `resources`，或 `read_skill_resource` 的 `content`（支持 `path="SKILL.md"`、NFC 归一化资源路径及 `offset`：优先取 `result_data["offset"]`，缺失时回退读取配对 `call_arguments["offset"]` 以兼容非截断尾段，原地扣减共享 `SkillContentBudget`，并先查资源再扣预算且拦截并发耗尽产生的空截断存根）。
+   - 技能被删除/停用/下架、缺少 `skill_id`（绝不按 `skill_name` 猜测，防止同名顶替）、资源已删、`call_arguments` 或 `offset` 非法/越界、或回放预算耗尽时返回 `None`，让 `agent/loop/history.py` 在集成阶段体面回退到既有的 `_SKILL_CONTENT_NOT_KEPT` 说明。
+   - 本批刻意不修改 `agent/loop/history.py`、`agent/stream_adapter.py`、`agent/tools/mcp_tools.py`、`agent/tools/tool_inputs.py`，待并行轨道合并后在集成步骤统一接线，避免合并冲突。
 
 ## Alternatives considered
 
@@ -56,4 +56,8 @@ Status: implemented
   - 服务端冷回放水合逻辑以独立、可测、受预算与权限约束的纯辅助模块落地，官方技能正文仍绝不进入持久化卡片或浏览器响应。
 - **代价与后续**：
   - L1 目录上线后因描述上限提高与新增触发场景提示，现有活跃会话的系统提示词前缀缓存会在发布后刷新一次。
-  - `agent/loop/history.py` 对 `rehydrate_skill_tool_result` 的接线以及 `stream_adapter._client_safe_skill_payload` 对 `read_skill_resource` 补充 `skill_id` / `offset` 留待并行轨道合并后的集成步骤完成。
+  - Wave 2 集成跟进（跨并行轨道文件，不在本批改动范围）：
+    1. `agent/loop/history.py` 接入 `rehydrate_skill_tool_result(..., call_arguments=call.get("arguments"))`；
+    2. `agent/stream_adapter.py:824-830` 的 `_client_safe_skill_payload("read_skill_resource", ...)` 补充持久化 `skill_id`（以及存在时的 `offset`）并更新 `tests/test_agent/test_round3_stream.py`；
+    3. `agent/tools/mcp_tools.py:2708-2717` 在 `offset > 0` 且非截断尾段时同步返回 `"offset": offset`；
+    4. `agent/tools/tool_inputs.py:870` 同步更新 `ReadSkillResourceInput.path` 描述为 `references/、assets/、examples/ 或 templates/`。

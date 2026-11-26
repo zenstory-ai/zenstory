@@ -389,3 +389,174 @@ def test_rehydrate_across_many_turns_is_bounded_by_token_budget_not_per_turn_ski
     assert [item["instructions"] for item in results if item is not None] == [
         f"方法{i}" for i in range(MAX_LOADED_SKILLS_PER_REQUEST + 2)
     ]
+
+
+@pytest.mark.integration
+def test_rehydrate_read_skill_resource_resolves_offset_from_call_arguments(db_session: Session):
+    """非截断续读尾段的 result_data 可能省略 offset；须从配对的 call_arguments 还原正确片段。"""
+    import json
+
+    owner = _user(db_session, "call_args_offset")
+    skill = UserSkill(user_id=owner.id, name="续读技能", instructions="0123456789FINAL_SLICE")
+    db_session.add(skill)
+    db_session.commit()
+    db_session.add(SkillResource(
+        user_skill_id=skill.id,
+        path="references/guide.md",
+        content="HEAD_PART|TAIL_PART",
+        size=19,
+    ))
+    db_session.commit()
+
+    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
+
+    # 1) dict 形式的 call_arguments（SKILL.md 续读）
+    from_dict = rehydrate_skill_tool_result(
+        active_by_id,
+        db_session,
+        "read_skill_resource",
+        {"skill_id": skill.id, "skill_name": "续读技能", "path": "SKILL.md", "size": 11},
+        remaining_budget=SkillContentBudget(),
+        call_arguments={"name": skill.id, "path": "SKILL.md", "offset": 10},
+    )
+    assert from_dict == {
+        "skill_id": skill.id,
+        "skill_name": "续读技能",
+        "path": "SKILL.md",
+        "content": "FINAL_SLICE",
+        "truncated": False,
+        "offset": 10,
+    }
+
+    # 2) JSON 字符串形式的 call_arguments（对应 ChatMessage.tool_calls[i]["arguments"]）
+    from_json_str = rehydrate_skill_tool_result(
+        active_by_id,
+        db_session,
+        "read_skill_resource",
+        {"skill_id": skill.id, "skill_name": "续读技能", "path": "references/guide.md", "size": 9},
+        remaining_budget=SkillContentBudget(),
+        call_arguments=json.dumps({"name": skill.id, "path": "references/guide.md", "offset": 10}),
+    )
+    assert from_json_str == {
+        "skill_id": skill.id,
+        "skill_name": "续读技能",
+        "path": "references/guide.md",
+        "content": "TAIL_PART",
+        "truncated": False,
+        "offset": 10,
+    }
+
+    # 3) result_data 显式提供 offset 时优先于 call_arguments
+    explicit_wins = rehydrate_skill_tool_result(
+        active_by_id,
+        db_session,
+        "read_skill_resource",
+        {"skill_id": skill.id, "path": "SKILL.md", "offset": 15},
+        remaining_budget=SkillContentBudget(),
+        call_arguments={"name": skill.id, "path": "SKILL.md", "offset": 10},
+    )
+    assert explicit_wins is not None
+    assert explicit_wins["content"] == "_SLICE"
+    assert explicit_wins["offset"] == 15
+
+
+@pytest.mark.integration
+def test_rehydrate_rejects_malformed_call_arguments_and_invalid_call_offset_without_spending_budget(
+    db_session: Session,
+):
+    owner = _user(db_session, "bad_call_args")
+    skill = UserSkill(user_id=owner.id, name="参数校验技能", instructions="0123456789")
+    db_session.add(skill)
+    db_session.commit()
+
+    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
+    budget = SkillContentBudget(total=1000)
+
+    for bad_call_args in (
+        "{not-json",
+        '["not-an-object"]',
+        123,
+        {"offset": -1},
+        {"offset": True},
+        {"offset": "10"},
+        {"offset": 999},
+    ):
+        assert rehydrate_skill_tool_result(
+            active_by_id,
+            db_session,
+            "read_skill_resource",
+            {"skill_id": skill.id, "path": "SKILL.md"},
+            remaining_budget=budget,
+            call_arguments=bad_call_args,
+        ) is None
+
+    assert budget.remaining == 1000
+
+
+@pytest.mark.integration
+def test_rehydrate_load_skill_db_error_does_not_mutate_budget(db_session: Session, monkeypatch):
+    from agent.skills import replay as replay_mod
+
+    owner = _user(db_session, "db_err")
+    skill = UserSkill(user_id=owner.id, name="异常技能", instructions="方法正文")
+    db_session.add(skill)
+    db_session.commit()
+
+    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
+    budget = SkillContentBudget(total=1000)
+
+    def _boom(_session, _skill):
+        raise RuntimeError("db disconnected")
+
+    monkeypatch.setattr(replay_mod, "list_active_skill_resources", _boom)
+
+    with pytest.raises(RuntimeError, match="db disconnected"):
+        rehydrate_skill_tool_result(
+            active_by_id,
+            db_session,
+            "load_skill",
+            {"skill_id": skill.id},
+            remaining_budget=budget,
+        )
+
+    assert budget.remaining == 1000
+
+
+@pytest.mark.integration
+def test_rehydrate_returns_none_when_budget_drains_concurrently_before_take(db_session: Session):
+    """若共享 SkillContentBudget 在检查 remaining 与 take() 之间被并发耗尽，不返回空截断存根。"""
+    from agent.skills.content_budget import SkillTextSegment
+
+    owner = _user(db_session, "concurrent_drain")
+    skill = UserSkill(user_id=owner.id, name="并发耗尽技能", instructions="有效正文")
+    db_session.add(skill)
+    db_session.commit()
+    db_session.add(SkillResource(user_skill_id=skill.id, path="references/r.md", content="资源正文", size=12))
+    db_session.commit()
+
+    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
+
+    class _DrainedOnTakeBudget(SkillContentBudget):
+        def take(self, text: str, offset: int = 0) -> SkillTextSegment:
+            return SkillTextSegment(
+                text="",
+                offset=offset,
+                next_offset=offset,
+                total_chars=len(text),
+                tokens=0,
+            )
+
+    assert rehydrate_skill_tool_result(
+        active_by_id,
+        db_session,
+        "load_skill",
+        {"skill_id": skill.id},
+        remaining_budget=_DrainedOnTakeBudget(total=100),
+    ) is None
+    assert rehydrate_skill_tool_result(
+        active_by_id,
+        db_session,
+        "read_skill_resource",
+        {"skill_id": skill.id, "path": "references/r.md"},
+        remaining_budget=_DrainedOnTakeBudget(total=100),
+    ) is None

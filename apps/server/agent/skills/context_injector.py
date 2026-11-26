@@ -87,7 +87,7 @@ class SkillContextInjector:
         max_chars: int = CATALOG_MAX_CHARS,
     ) -> str | None:
         """
-        Build the skill catalog (name + description only) for the system prompt.
+        Build the skill catalog (name, description, and trigger hints only; no instructions).
 
         Returns:
             Catalog string, or None when the user has no active skills

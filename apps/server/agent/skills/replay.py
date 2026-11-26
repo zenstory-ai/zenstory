@@ -2,8 +2,10 @@
 Server-side cold-replay rehydration for persisted skill tool cards.
 
 持久化在 `ChatMessage.tool_calls` / `display_events` 里的技能工具结果是前端安全口径
-（`stream_adapter._client_safe_skill_payload`）：只保存 `skill_id`、`skill_name`、
-`path`、`offset`、`size` 等元数据，绝不落库官方技能或自定义技能正文，也不发给浏览器。
+（`stream_adapter._client_safe_skill_payload`）：只保留元数据，绝不落库官方技能或自定义技能正文，
+也不发给浏览器。其中 `load_skill` 卡片自带 `skill_id`，而 `read_skill_resource` 卡片需要
+集成侧补充持久化 `skill_id`（并由 `result_data["offset"]` 或配对的 `call_arguments["offset"]`
+提供续读偏移，以覆盖非截断尾段未携带 `offset` 的情形）。
 
 当活跃会话的 Redis `wire_prefix_cache` 冷启动/失效、需要从数据库重建跨轮历史交给模型时，
 调用本模块的 `rehydrate_skill_tool_result` 可在服务端按当前用户仍启用中的技能重新回填正文，
@@ -11,14 +13,15 @@ Server-side cold-replay rehydration for persisted skill tool cards.
 
 - 仅当 `skill_id` 仍存在于调用方传入的 `active_skills_by_id`（由 `load_active_skills` 构建，
   天然强制当前用户归属、`is_active == True` 与 `PublicSkill.status == "approved"`）时才回填。
-- 技能被删除、停用、下架/驳回，资源文件已删除，`offset` 越界，或回放预算耗尽时返回 `None`，
-  让调用方体面回退到既有的 `_SKILL_CONTENT_NOT_KEPT` 提示。
+- 技能被删除、停用、下架/驳回，资源文件已删除，`call_arguments` / `offset` 非法或越界，
+  或回放预算耗尽时返回 `None`，让调用方体面回退到既有的 `_SKILL_CONTENT_NOT_KEPT` 提示。
 - 本模块只服务于服务端模型历史回放，严禁用于浏览器 SSE 帧或聊天历史 HTTP 响应，
   官方技能正文对前端/API 依然保持 100% 隐藏。
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -67,6 +70,21 @@ def _coerce_budget(remaining_budget: SkillContentBudget | int) -> SkillContentBu
     return None
 
 
+def _parse_call_arguments(call_arguments: Any) -> dict[str, Any] | None:
+    """解析历史 `tool_calls[i]["arguments"]`（dict 或 JSON 字符串）；无效输入返回 None。"""
+    if call_arguments is None:
+        return {}
+    if isinstance(call_arguments, dict):
+        return call_arguments
+    if isinstance(call_arguments, str):
+        try:
+            parsed = json.loads(call_arguments)
+        except (TypeError, ValueError):
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
 def _parse_offset(raw_offset: Any) -> int | None:
     if raw_offset is None:
         return 0
@@ -82,6 +100,7 @@ def rehydrate_skill_tool_result(
     result_data: Any,
     *,
     remaining_budget: SkillContentBudget | int,
+    call_arguments: Any = None,
 ) -> dict[str, Any] | None:
     """
     将持久化的客户端安全技能结果卡片重新水合为模型可读的工具结果 `data` 字典。
@@ -92,6 +111,9 @@ def rehydrate_skill_tool_result(
         tool_name: 工具名，仅处理 `"load_skill"` 与 `"read_skill_resource"`。
         result_data: 持久化卡片中的 `result` 字典（`{skill_id, skill_name, path?, offset?, size?}`）。
         remaining_budget: 回放共享的 `SkillContentBudget`（原地扣减余额），或单次整数 token 预算。
+        call_arguments: 可选的配对工具入参（dict 或 JSON 字符串，对应 `ChatMessage.tool_calls[i]["arguments"]`）；
+            当 `read_skill_resource` 的 `result_data` 未显式携带 `offset`（如非截断续读尾段）时，
+            从中读取 `offset`，避免静默回退为 `offset=0`。
 
     Returns:
         水合后的结果字典；无法安全水合或预算耗尽时返回 `None`，调用方应回退到 `_SKILL_CONTENT_NOT_KEPT`。
@@ -117,11 +139,14 @@ def rehydrate_skill_tool_result(
         return None
 
     if tool_name == "load_skill":
-        segment = budget.take(skill.instructions, 0)
+        # 先查资源再扣预算，避免 DB 异常污染共享的 remaining_budget
         resources = [
             {"path": resource.path, "size": resource.size}
             for resource in list_active_skill_resources(session, skill)
         ]
+        segment = budget.take(skill.instructions, 0)
+        if segment.truncated and not segment.text:
+            return None
         return {
             "skill_id": skill.id,
             "skill_name": skill.name,
@@ -132,6 +157,10 @@ def rehydrate_skill_tool_result(
         }
 
     # tool_name == "read_skill_resource"
+    parsed_args = _parse_call_arguments(call_arguments)
+    if parsed_args is None:
+        return None
+
     raw_path = result_data.get("path")
     if not isinstance(raw_path, str):
         return None
@@ -139,7 +168,10 @@ def rehydrate_skill_tool_result(
     if not path:
         return None
 
-    offset = _parse_offset(result_data.get("offset"))
+    raw_offset = result_data.get("offset")
+    if raw_offset is None:
+        raw_offset = parsed_args.get("offset")
+    offset = _parse_offset(raw_offset)
     if offset is None:
         return None
 
@@ -162,6 +194,8 @@ def rehydrate_skill_tool_result(
         return None
 
     segment = budget.take(content, offset)
+    if segment.truncated and not segment.text:
+        return None
     rehydrated: dict[str, Any] = {
         "skill_id": skill.id,
         "skill_name": skill.name,
