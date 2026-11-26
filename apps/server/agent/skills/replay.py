@@ -115,10 +115,6 @@ def rehydrate_skill_tool_result(
         }
 
     # tool_name == "read_skill_resource"
-    parsed_args = _parse_call_arguments(call_arguments)
-    if parsed_args is None:
-        return None
-
     raw_path = result_data.get("path")
     if not isinstance(raw_path, str):
         return None
@@ -128,6 +124,9 @@ def rehydrate_skill_tool_result(
 
     raw_offset = result_data.get("offset")
     if raw_offset is None:
+        parsed_args = _parse_call_arguments(call_arguments)
+        if parsed_args is None:
+            return None
         raw_offset = parsed_args.get("offset")
     offset = _parse_offset(raw_offset)
     if offset is None:

@@ -441,7 +441,7 @@
     "featuresDetail": {
       "title": "功能特性",
       "jsonLabel": "功能配置 (JSON)",
-      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 3,\n  \"max_projects\": 3,\n  \"file_versions_per_file\": 10,\n  \"materials_library_access\": false,\n  \"material_decompositions\": 0,\n  \"custom_skills\": 3,\n  \"inspiration_copies_monthly\": 10\n}",
+      "jsonPlaceholder": "{\n  \"ai_conversations_per_day\": 3,\n  \"max_projects\": 3,\n  \"file_versions_per_file\": 10,\n  \"materials_library_access\": false,\n  \"material_decompositions\": 0,\n  \"custom_skills\": 3\n}",
       "ai_conversations_per_day": "每日 AI 对话次数",
       "file_versions_per_file": "每文件版本数",
       "max_projects": "最大项目数",

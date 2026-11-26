@@ -1322,6 +1322,12 @@ class AgentService:
                 # 截停后还在线程里的写工具登记在 run_outcome 上，收尾时等它们的真实结果。
                 inflight_tool_writes=run_outcome.inflight_tool_writes if run_outcome is not None else None,
             )
+            # 显式选择的技能预登记进单轮技能加载门禁：selected_skills 与 load_skill / read_skill_resource
+            # 合计每请求最多 3 个不同技能，同时允许对已选技能继续读取其资源文件。
+            for selected in selected_skills:
+                selected_id = str(selected.get("id") or "").strip()
+                if selected_id:
+                    request_context.skill_content_budget.admit_skill(selected_id)
 
             # Build WritingState for workflow execution
             writing_state: WritingState = {

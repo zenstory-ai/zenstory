@@ -468,6 +468,49 @@ def test_rehydrate_rejects_malformed_call_arguments_and_invalid_call_offset(db_s
         ) is None
 
 
+@pytest.mark.integration
+def test_rehydrate_read_skill_resource_ignores_malformed_call_arguments_when_result_has_offset(db_session: Session):
+    """result_data 已携带合法 offset 时，不再解析 call_arguments，空串或损坏的 call_arguments 不影响水合。"""
+    owner = _user(db_session, "explicit_offset_malformed_args")
+    skill = UserSkill(user_id=owner.id, name="显式偏移技能", instructions="0123456789TAIL")
+    db_session.add(skill)
+    db_session.commit()
+
+    active_by_id = index_active_skills(load_active_skills(db_session, owner.id))
+
+    for malformed_args in ("", "{corrupted", '["not-a-dict"]', 123):
+        rehydrated = rehydrate_skill_tool_result(
+            active_by_id,
+            db_session,
+            "read_skill_resource",
+            {"skill_id": skill.id, "path": "SKILL.md", "offset": 10},
+            call_arguments=malformed_args,
+        )
+        assert rehydrated == {
+            "skill_id": skill.id,
+            "skill_name": "显式偏移技能",
+            "path": "SKILL.md",
+            "content": "TAIL",
+            "truncated": False,
+            "offset": 10,
+        }
+
+        rehydrated_zero = rehydrate_skill_tool_result(
+            active_by_id,
+            db_session,
+            "read_skill_resource",
+            {"skill_id": skill.id, "path": "SKILL.md", "offset": 0},
+            call_arguments=malformed_args,
+        )
+        assert rehydrated_zero == {
+            "skill_id": skill.id,
+            "skill_name": "显式偏移技能",
+            "path": "SKILL.md",
+            "content": "0123456789TAIL",
+            "truncated": False,
+        }
+
+
 # ==================== End-to-end cold replay via load_loop_history ====================
 
 

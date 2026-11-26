@@ -5,9 +5,9 @@
 技能包资源合计 ≤ 256 KiB），跨轮上下文体积交由轮间压缩控制，运行时不再对技能正文
 或资源文件做人为 token 截断。
 
-本模块保留核心安全护栏：单次请求内 `load_skill` / `read_skill_resource` 最多读取
-``MAX_LOADED_SKILLS_PER_REQUEST``（3）个不同技能，防批量倾倒官方技能；同时支持
-`read_skill_resource` 的向后兼容 `offset` 切片读取。
+本模块保留核心安全护栏：单次请求内显式 `selected_skills` 与 `load_skill` / `read_skill_resource`
+合计最多读取 ``MAX_LOADED_SKILLS_PER_REQUEST``（3）个不同技能（已选技能预登记进门禁后仍可继续读其资源），
+防批量倾倒官方技能；同时支持 `read_skill_resource` 的向后兼容 `offset` 切片读取。
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from dataclasses import dataclass
 
 from agent.utils.token_utils import estimate_text_tokens
 
-# 一次请求里 load_skill / read_skill_resource 最多读取的不同技能数。一个任务正常用 1–2 个技能，
-# 一次读十几个是异常；同一技能重复读取（读多个资源或按 offset 读取）不另计。
+# 一次请求里显式 selected_skills 与 load_skill / read_skill_resource 合计最多读取的不同技能数。
+# 一个任务正常用 1–2 个技能，一次读十几个是异常；已准入技能重复读取（读多个资源或按 offset 读取）不另计。
 MAX_LOADED_SKILLS_PER_REQUEST = 3
 
 # read_skill_resource 用这个伪路径读取技能正文（SKILL.md 的正文部分）

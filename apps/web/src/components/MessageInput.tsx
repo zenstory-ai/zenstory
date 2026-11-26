@@ -127,16 +127,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const steerActive = canSteer && !!onSteer && !inputDisabled;
 
   const [input, setInputInternal] = useState(externalDraft ?? "");
+  const inputRef = useRef(input);
   // 与后端 AgentRequest.message 的 max_length 一致：超限时禁用发送并提示。
   const inputTooLong = input.length > MAX_AGENT_MESSAGE_CHARS;
 
   const setInput = useCallback(
     (value: string | ((prev: string) => string)) => {
-      setInputInternal((prev) => {
-        const next = typeof value === "function" ? value(prev) : value;
-        onDraftChange?.(next);
-        return next;
-      });
+      const next = typeof value === "function" ? value(inputRef.current) : value;
+      inputRef.current = next;
+      setInputInternal(next);
+      onDraftChange?.(next);
     },
     [onDraftChange]
   );
@@ -144,6 +144,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   // Sync from external draft when it changes (e.g. project switch)
   useEffect(() => {
     if (externalDraft !== undefined) {
+      inputRef.current = externalDraft;
       setInputInternal(externalDraft);
     }
   }, [externalDraft]);
