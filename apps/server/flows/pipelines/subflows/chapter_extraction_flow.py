@@ -31,7 +31,13 @@ from flows.atomic_tasks.summaries import (
 )
 from flows.utils.helpers import create_checkpoint_manager, create_performance_monitor
 from flows.utils.helpers.exceptions import is_llm_fatal_stop, is_llm_service_failure
-from services.material.job_errors import MaterialPipelineError, job_error_code_for_exception
+from services.material.job_errors import (
+    MAX_PERSISTED_CHAPTER_FAILURES,
+    MaterialPipelineError,
+    build_chapter_failure_detail,
+    job_error_code_for_exception,
+    summarize_failure_reasons,
+)
 
 # 并发任务运行器
 RUNTIME_TASK_RUNNER: Any = ConcurrentTaskRunner(max_workers=settings.MAX_CONCURRENT_CHAPTERS)
@@ -63,6 +69,7 @@ def _raise_if_all_failed(
     capability: str,
     attempted: int,
     errors: list[Exception],
+    chapter_failures: list[dict[str, Any]] | None = None,
 ) -> None:
     """
     某能力本轮提交的章节全部失败时判定整次拆解失败，不再标成「部分完成」。
@@ -81,7 +88,21 @@ def _raise_if_all_failed(
         if all(is_llm_service_failure(error) for error in errors)
         else ErrorCode.MATERIAL_EXTRACTION_FAILED
     )
-    raise MaterialPipelineError(code, f"{capability}: all {attempted} chapters failed") from errors[-1]
+    failure_entries = chapter_failures or []
+    details: dict[str, Any] = {
+        "capability": capability,
+        "failed_count": len(errors),
+        "reason_counts": summarize_failure_reasons(errors),
+        "chapter_failures": failure_entries[:MAX_PERSISTED_CHAPTER_FAILURES],
+    }
+    if len(failure_entries) > MAX_PERSISTED_CHAPTER_FAILURES:
+        details["chapter_failures_truncated"] = True
+        details["total_chapter_failures"] = len(failure_entries)
+    raise MaterialPipelineError(
+        code,
+        f"{capability}: all {attempted} chapters failed",
+        details=details,
+    ) from errors[-1]
 
 
 def _sync_stage1_job_progress(
@@ -93,6 +114,7 @@ def _sync_stage1_job_progress(
     payload: dict[str, Any] | None = None,
     status: str = "processing",
     error_message: str | None = None,
+    error_details: dict[str, Any] | None = None,
 ) -> None:
     """Best-effort sync for ingestion job stage1 progress."""
     from flows.database_session import get_prefect_db_session
@@ -120,6 +142,7 @@ def _sync_stage1_job_progress(
                 stage_status=stage_status,
                 stage_data=payload or {},
                 error_message=error_message,
+                error_details=error_details,
             )
     except Exception:
         # Keep stage processing resilient; progress sync failure must not fail the flow.
@@ -171,6 +194,8 @@ def chapter_extraction_flow(
     # 全局失败集合，避免未定义
     failed_chapters: list[int] = []
     failed_plot_chapters: list[int] = []
+    chapter_failures: list[dict[str, Any]] = []
+    chapter_index_by_id = {cid: idx for idx, cid in enumerate(chapter_ids, start=1)}
 
     logger.info(
         "[章节提取流程] 开始: novel_id=%s, chapters_count=%s",
@@ -237,6 +262,7 @@ def chapter_extraction_flow(
             completed_chapter_ids = []
             failed_chapters = []
             summary_errors: list[Exception] = []
+            summary_failure_details: list[dict[str, Any]] = []
             batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
             processed_index = 0
 
@@ -259,6 +285,14 @@ def chapter_extraction_flow(
                             _raise_if_llm_account_failure("summaries", e)
                             failed_chapters.append(chapter_id)
                             summary_errors.append(e)
+                            detail = build_chapter_failure_detail(
+                                chapter_id=chapter_id,
+                                chapter_index=chapter_index_by_id.get(chapter_id),
+                                capability="summaries",
+                                exc=e,
+                            )
+                            summary_failure_details.append(detail)
+                            chapter_failures.append(detail)
 
                         processed_index += 1
                         if processed_index % batch == 0 or processed_index == len(summary_ids):
@@ -275,7 +309,12 @@ def chapter_extraction_flow(
                                 status="processing",
                             )
 
-            _raise_if_all_failed("summaries", len(summary_ids), summary_errors)
+            _raise_if_all_failed(
+                "summaries",
+                len(summary_ids),
+                summary_errors,
+                chapter_failures=summary_failure_details,
+            )
 
             # 回写摘要
             update_futures = []
@@ -327,6 +366,7 @@ def chapter_extraction_flow(
             plot_results = []
             failed_plot_chapters = []
             plot_errors: list[Exception] = []
+            plot_failure_details: list[dict[str, Any]] = []
             batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
 
             with monitor.measure("plot_extraction"):
@@ -347,11 +387,24 @@ def chapter_extraction_flow(
                             _raise_if_llm_account_failure("plots", e)
                             failed_plot_chapters.append(chapter_id)
                             plot_errors.append(e)
+                            detail = build_chapter_failure_detail(
+                                chapter_id=chapter_id,
+                                chapter_index=chapter_index_by_id.get(chapter_id),
+                                capability="plots",
+                                exc=e,
+                            )
+                            plot_failure_details.append(detail)
+                            chapter_failures.append(detail)
 
                             # 记录失败章节，但不阻塞流程
                             # 后续可以通过检查点重试这些章节
 
-            _raise_if_all_failed("plots", len(plot_ids), plot_errors)
+            _raise_if_all_failed(
+                "plots",
+                len(plot_ids),
+                plot_errors,
+                chapter_failures=plot_failure_details,
+            )
 
             # 保存情节点（extract_chapter_plots_task 已完成 validate_plots_response 校验）
             save_futures = []
@@ -405,6 +458,7 @@ def chapter_extraction_flow(
             mention_results = []
             completed_mention_chapter_ids: list[int] = []
             mention_errors: list[Exception] = []
+            mention_failure_details: list[dict[str, Any]] = []
             batch = max(1, settings.MAX_CONCURRENT_CHAPTERS)
 
             with monitor.measure("character_mention_extraction"):
@@ -428,8 +482,21 @@ def chapter_extraction_flow(
                             _raise_if_llm_account_failure("mentions", e)
                             failed_mention_chapters.append(chapter_id)
                             mention_errors.append(e)
+                            detail = build_chapter_failure_detail(
+                                chapter_id=chapter_id,
+                                chapter_index=chapter_index_by_id.get(chapter_id),
+                                capability="mentions",
+                                exc=e,
+                            )
+                            mention_failure_details.append(detail)
+                            chapter_failures.append(detail)
 
-            _raise_if_all_failed("mentions", len(mention_ids), mention_errors)
+            _raise_if_all_failed(
+                "mentions",
+                len(mention_ids),
+                mention_errors,
+                chapter_failures=mention_failure_details,
+            )
 
             old_completed = set(checkpoint.get_completed_chapters("stage1", "mentions"))
             old_failed = set(checkpoint.get_failed_chapters("stage1", "mentions"))
@@ -480,6 +547,7 @@ def chapter_extraction_flow(
             "mentions_extracted": mentions_extracted,
             "failed_chapters": all_failed_chapters,
             "failed_mention_chapters": failed_mention_chapters,
+            "chapter_failures": chapter_failures,
             "failed_count": total_failed,
             "processed_chapters": processed_chapters,
             "completed_chapter_ids": checkpoint.get_completed_chapters("stage1", "summaries"),
@@ -509,6 +577,23 @@ def chapter_extraction_flow(
             _elapsed_ms(flow_start),
         )
 
+        stage1_error_details: dict[str, Any] | None = None
+        if chapter_failures:
+            stage1_reason_counts: dict[str, int] = {}
+            for entry in chapter_failures:
+                reason = entry["reason"]
+                stage1_reason_counts[reason] = stage1_reason_counts.get(reason, 0) + 1
+            stage1_error_details = {
+                "stage": "stage1",
+                "error_code": ErrorCode.MATERIAL_PARTIALLY_COMPLETED,
+                "failed_count": total_failed,
+                "reason_counts": dict(sorted(stage1_reason_counts.items())),
+                "chapter_failures": chapter_failures[:MAX_PERSISTED_CHAPTER_FAILURES],
+            }
+            if len(chapter_failures) > MAX_PERSISTED_CHAPTER_FAILURES:
+                stage1_error_details["chapter_failures_truncated"] = True
+                stage1_error_details["total_chapter_failures"] = len(chapter_failures)
+
         _sync_stage1_job_progress(
             novel_id,
             job_id=job_id,
@@ -522,6 +607,7 @@ def chapter_extraction_flow(
                 "elapsed_ms": result["elapsed_ms"],
             },
             status="processing",
+            error_details=stage1_error_details,
         )
 
         return result

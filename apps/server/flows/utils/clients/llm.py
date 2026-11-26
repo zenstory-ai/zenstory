@@ -43,29 +43,48 @@ def _repair_json_object(json_str: str) -> dict[str, Any] | None:
 def _classify_llm_exception(error: Exception) -> LLMAPIError:
     """Wrap an OpenAI SDK error; only transient failures stay retryable."""
     from core.error_handler import APIException
-    from services.material.job_errors import MaterialPipelineError
+    from services.material.job_errors import MaterialPipelineError, classify_material_exception
     from services.usage.cost_budget import COST_LIMIT_CODE, UNAVAILABLE_CODE
 
     if isinstance(error, LLMNonRetryableError):
         return error
     if isinstance(error, MaterialPipelineError):
-        return LLMNonRetryableError(str(error), error.error_code)
+        return LLMNonRetryableError(
+            str(error),
+            error.error_code,
+            failure_reason=classify_material_exception(error)["reason"],
+        )
     if isinstance(error, APIException) and error.error_code == ErrorCode.MATERIAL_TRIAL_COST_LIMIT:
-        return LLMNonRetryableError("免费试拆的模型预算已用完", error.error_code)
+        return LLMNonRetryableError(
+            "免费试拆的模型预算已用完",
+            error.error_code,
+            failure_reason="budget_exceeded",
+        )
     if isinstance(error, llm_failover.JSONResponseFormatUnavailableError):
         return LLMNonRetryableError(
             "当前模型暂不支持所需的 JSON 输出格式",
             ErrorCode.MATERIAL_LLM_UNAVAILABLE,
+            failure_reason="llm_unavailable",
         )
     if isinstance(error, APIException) and error.error_code in {COST_LIMIT_CODE, UNAVAILABLE_CODE}:
-        return LLMNonRetryableError("今日免费模型预算已用尽或暂不可用", error.error_code)
-    status_code = getattr(error, "status_code", None)
+        return LLMNonRetryableError(
+            "今日免费模型预算已用尽或暂不可用",
+            error.error_code,
+            failure_reason="budget_exceeded",
+        )
+    classified = classify_material_exception(error)
+    status_code = classified.get("http_status", getattr(error, "status_code", None))
+    meta = {
+        "failure_reason": classified["reason"],
+        "http_status": classified.get("http_status"),
+        "provider_error_code": classified.get("provider_error_code"),
+    }
     message = f"API 调用失败: {type(error).__name__}: {error}"
     if status_code in _ACCOUNT_FAILURE_STATUSES:
-        return LLMNonRetryableError(message, ErrorCode.MATERIAL_LLM_UNAVAILABLE)
+        return LLMNonRetryableError(message, ErrorCode.MATERIAL_LLM_UNAVAILABLE, **meta)
     if status_code in _NON_RETRYABLE_STATUSES:
-        return LLMNonRetryableError(message)
-    return LLMAPIError(message)
+        return LLMNonRetryableError(message, **meta)
+    return LLMAPIError(message, **meta)
 
 
 @dataclass

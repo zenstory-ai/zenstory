@@ -35,7 +35,7 @@ from flows.database_session import get_db_session
 from flows.utils.helpers import create_checkpoint_manager, create_performance_monitor
 from flows.utils.helpers.exceptions import is_llm_fatal_stop, is_llm_service_failure
 from models.material_models import Chapter
-from services.material.job_errors import MaterialPipelineError
+from services.material.job_errors import MaterialPipelineError, summarize_failure_reasons
 
 _def_now = time.perf_counter
 
@@ -163,6 +163,7 @@ def story_aggregate_flow(
         stories_count = 0
         stories = []
         failed_stories: list[str] = []
+        story_errors: list[Exception] = []
         if stages.stories:
             logger.info("步骤2: 剧情聚合（智能分块）")
 
@@ -190,7 +191,7 @@ def story_aggregate_flow(
                 indexed_frameworks = list(enumerate(story_frameworks, 1))
                 batches = _warmup_batches(indexed_frameworks, batch_size)
                 total_batches = len(batches)
-                story_errors: list[Exception] = []
+                story_errors = []
 
                 for batch_num, batch_frameworks in enumerate(batches, 1):
                     logger.info(
@@ -260,6 +261,11 @@ def story_aggregate_flow(
                     raise MaterialPipelineError(
                         code,
                         f"stories: all {len(story_frameworks)} story frameworks failed",
+                        details={
+                            "capability": "stories",
+                            "failed_count": len(story_errors),
+                            "reason_counts": summarize_failure_reasons(story_errors),
+                        },
                     ) from (story_errors[-1] if story_errors else None)
             else:
                 logger.warning("步骤2跳过: 未识别到剧情框架")
@@ -341,6 +347,7 @@ def story_aggregate_flow(
             "orphan_handled": orphan_handled,
             "storylines_count": storylines_count,
             "failed_stories": failed_stories,
+            "story_failure_reasons": summarize_failure_reasons(story_errors),
             "status": "completed_with_errors" if failed_stories else "completed",
             "elapsed_ms": _elapsed_ms(flow_start),
         }

@@ -719,3 +719,143 @@ def test_agent_round_metric_alembic_upgrade_and_downgrade_round_trip(tmp_path: P
         ).one()
         assert tuple(defaults_row) == (0, 0, 0, 0, 0, 0, 0, 0, 0)
     engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# 6. Client disconnect primary_model & iteration_exhausted stop_reason regression
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_client_disconnected_round_metric_populates_primary_model_before_producer_finally(
+    db_session: Session,
+    monkeypatch,
+):
+    """When a client disconnects mid-stream, api/agent.py's finish() runs before
+    AgentService.process_stream's finally block; run_report must already carry the
+    served model (and primary_model fallback) so AgentRoundMetric.primary_model is not NULL."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from agent.service import AgentService
+    from api.agent import AgentRequest, stream_request
+
+    writer = _create_user(db_session, "disconnect_model_writer")
+    project = _create_project(db_session, writer, "Disconnect Novel")
+    monkeypatch.setattr("agent.service.primary_model_name", lambda: "MiniMax-M3.1-Flash")
+    monkeypatch.setattr(
+        "agent.service.MessageManager.build_system_prompt",
+        lambda self, **_kwargs: "系统提示",
+    )
+
+    stream_started = asyncio.Event()
+
+    async def hanging_loop_stream(writing_state, **_kwargs):
+        run_meter = writing_state["run_meter"]
+        run_meter.record_served_model("deepseek-flash")
+        yield WorkflowStreamEvent(type=StreamEventType.TEXT, data={"text": "前半句..."})
+        stream_started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("agent.service.run_loop_agent_streaming", hanging_loop_stream)
+
+    fake_request = SimpleNamespace(
+        headers={"user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
+        url=SimpleNamespace(path="/api/v1/agent/stream"),
+        client=SimpleNamespace(host="127.0.0.1"),
+    )
+    body = AgentRequest(project_id=project.id, message="写一段场景")
+
+    with patch("api.agent.get_agent_service", return_value=AgentService()):
+        response = await stream_request(
+            request=fake_request,  # type: ignore[arg-type]
+            body=body,
+            session=db_session,
+            current_user=writer,
+            accept_language="zh",
+            client_stop_contract="1",
+            _rate_limit=1,
+        )
+        run_id = response.headers["X-Agent-Run-ID"]
+        iterator = response.body_iterator
+        # Consume until the model has started streaming, then simulate immediate client disconnect.
+        async for _chunk in iterator:
+            if stream_started.is_set():
+                break
+        await iterator.aclose()
+        # Let any background cancellation cleanup settle cleanly.
+        await asyncio.sleep(0.05)
+
+    db_session.expire_all()
+    row = db_session.exec(select(AgentRoundMetric).where(AgentRoundMetric.agent_run_id == run_id)).one()
+    assert row.client_disconnected is True
+    assert row.primary_model == "deepseek-flash"
+    assert row.prepare_context_ms is not None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_iteration_exhausted_sets_non_healthy_round_metric_stop_reason_without_breaking_message_stop_reason(
+    db_session: Session,
+    monkeypatch,
+):
+    """Collaboration iteration_exhausted keeps chat_message.stop_reason='end_turn' for wire_prefix_cache
+    while recording 'iteration_exhausted' in run_report/agent_round_metric and abnormal in ux_summary."""
+    import json
+
+    from agent.service import AgentService
+    from models import ChatMessage, ChatMessageUxSummary
+
+    writer = _create_user(db_session, "exhausted_metric_writer")
+    project = _create_project(db_session, writer, "Exhausted Metric Novel")
+    monkeypatch.setattr("agent.service.primary_model_name", lambda: "MiniMax-M3.1-Flash")
+    monkeypatch.setattr(
+        "agent.service.MessageManager.build_system_prompt",
+        lambda self, **_kwargs: "系统提示",
+    )
+
+    async def collab_exhausted_loop(_writing_state, **_kwargs):
+        yield WorkflowStreamEvent(
+            type=StreamEventType.MESSAGE_END,
+            data={"stop_reason": "end_turn", "usage": {"input_tokens": 100, "output_tokens": 20}},
+        )
+        yield WorkflowStreamEvent(
+            type=StreamEventType.ITERATION_EXHAUSTED,
+            data={
+                "layer": "collaboration",
+                "iterations_used": 12,
+                "max_iterations": 12,
+                "reason": "达到上限",
+                "last_agent": None,
+            },
+        )
+
+    monkeypatch.setattr("agent.service.run_loop_agent_streaming", collab_exhausted_loop)
+
+    run_report: dict[str, Any] = {}
+    service = AgentService()
+    frames = [
+        frame
+        async for frame in service.process_stream(
+            project_id=project.id,
+            user_id=writer.id,
+            message="继续写",
+            session=db_session,
+            run_report=run_report,
+        )
+    ]
+    assert any("event: iteration_exhausted" in frame for frame in frames)
+    assert run_report["model"] == "MiniMax-M3.1-Flash"
+    assert run_report["stop_reason"] == "iteration_exhausted"
+
+    assistant_msg = db_session.exec(
+        select(ChatMessage).where(ChatMessage.role == "assistant")
+    ).one()
+    meta = json.loads(assistant_msg.message_metadata or "{}")
+    assert meta["stop_reason"] == "end_turn"
+    summary = db_session.get(ChatMessageUxSummary, assistant_msg.id)
+    assert summary is not None
+    assert summary.round_category == "abnormal"
+    assert summary.abnormal_reason == "iteration_exhausted"
+

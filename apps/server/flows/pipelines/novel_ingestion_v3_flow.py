@@ -65,7 +65,11 @@ from flows.utils.helpers import (
 )
 from flows.utils.helpers.novel_parser import read_novel_text
 from services.infra.upload_storage import OPAQUE_NAME_RE, SAFE_OWNER_RE
-from services.material.job_errors import MaterialPipelineError, job_error_code_for_exception
+from services.material.job_errors import (
+    MaterialPipelineError,
+    classify_material_exception,
+    job_error_code_for_exception,
+)
 from services.material.novel_text import NovelDecodeError
 
 from .helpers import ProgressPublisher
@@ -470,6 +474,26 @@ def _run_novel_ingestion(
     except Exception as e:
         logger.error("小说导入失败: %s", str(e), exc_info=True)
 
+        classified = classify_material_exception(e)
+        failure_details: dict[str, Any] = {
+            "failure_reason": classified["reason"],
+        }
+        if "http_status" in classified:
+            failure_details["http_status"] = classified["http_status"]
+        if "provider_error_code" in classified:
+            failure_details["provider_error_code"] = classified["provider_error_code"]
+        if isinstance(e, MaterialPipelineError) and isinstance(e.details, dict):
+            for key in (
+                "capability",
+                "failed_count",
+                "reason_counts",
+                "chapter_failures",
+                "chapter_failures_truncated",
+                "total_chapter_failures",
+            ):
+                if key in e.details:
+                    failure_details[key] = e.details[key]
+
         # 标记失败（只写错误码；原始异常只进日志）
         _mark_job_as_failed(
             novel_id=novel_id,
@@ -480,6 +504,7 @@ def _run_novel_ingestion(
             flow_start=flow_start,
             logger=logger,
             publisher=publisher,
+            error_details=failure_details,
         )
 
         # 即使出错也清理远端下载的临时文件
@@ -874,6 +899,7 @@ def _mark_job_as_failed(
     correlation_id: str | None = None,
     job_id: int | None = None,
     exception_type: str | None = None,
+    error_details: dict[str, Any] | None = None,
 ) -> None:
     """
     标记任务为失败状态
@@ -912,17 +938,22 @@ def _mark_job_as_failed(
                     job = IngestionJobsService().get_latest_by_novel(session, novel_id)
                 if job:
                     job_id = job.id
+                    details_payload: dict[str, Any] = {
+                        "elapsed_ms": elapsed_ms,
+                        "exception_type": exception_type,
+                        "correlation_id": correlation_id,
+                    }
+                    if isinstance(error_details, dict):
+                        for key, value in error_details.items():
+                            if key not in {"message", "stage", "error_code"} and value is not None:
+                                details_payload[key] = value
                     IngestionJobsService().fail_job(
                         session,
                         job,
                         error_code=error_code,
                         stage="flow",
                         reason=error_code,
-                        details={
-                            "elapsed_ms": elapsed_ms,
-                            "exception_type": exception_type,
-                            "correlation_id": correlation_id,
-                        },
+                        details=details_payload,
                     )
         except Exception as e:
             logger.warning(f"更新任务状态失败: {e}")
