@@ -249,6 +249,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
 
   useEffect(() => {
     lastRetryRequestRef.current = null;
+    setLastRetryMeta(null);
     blockedCandidateRef.current = null;
   }, [currentProjectId]);
 
@@ -258,6 +259,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     isMobile,
     queryClient,
   });
+  const {
+    invalidateQuota,
+    roundQuotaBaselineRef,
+    reportQuotaBlockedSend,
+    setShowQuotaUpgradeModal,
+    setUserStop,
+  } = quotaState;
 
   const {
     streamRenderItems,
@@ -277,8 +285,23 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     queryClient,
     messagesRef,
   });
+  const {
+    requestInitialSuggestions,
+    schedulePostTurnSuggestions,
+    invalidateInFlightSuggestions,
+    resetSuggestionsForNewRound,
+    clearSuggestionsForUnfinishedRound,
+    setAiSuggestions,
+    setSuggestionDisplayState,
+  } = suggestions;
 
   const progressState = useProjectProgressState(currentProjectIdRef);
+  const {
+    starterProjectIdRef,
+    refreshNextStep,
+    resetProgressForProject,
+    setStarterProjectId,
+  } = progressState;
 
   // Reset scroll helper ref bridged once scroll controller initializes below
   const resetScrollStateRef = useRef<() => void>(() => {});
@@ -293,7 +316,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     t,
     setMessages,
     currentAgentSessionIdRef,
-    setSuggestionDisplayState: suggestions.setSuggestionDisplayState,
+    setSuggestionDisplayState,
     onResetScrollForError,
   });
 
@@ -301,6 +324,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     creatingSessionRef,
     newSessionRequestSeqRef,
     sessionRecoveryBlockedRef,
+    historyRequestSeqRef,
+    lastLoadedProjectRef,
+    loadChatHistory,
+    hydrateAssistantBackendMessage,
+    loadEarlierMessages,
+    setHasMoreHistory,
+    setIsLoadingMoreHistory,
+    setFeedbackPendingMessageId,
     setIsCreatingSession,
     setSessionRecoveryError,
   } = history;
@@ -465,7 +496,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         setMessages((prev) => [...prev, aiMessage]);
 
         if (currentProjectId && (!endedEarly || assistantMessageId)) {
-          void history.hydrateAssistantBackendMessage(
+          void hydrateAssistantBackendMessage(
             currentProjectId,
             aiMessage.id,
             accumulatedContent,
@@ -486,7 +517,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         const producedOutput =
           completionMeta?.producedOutput ?? roundProgressRef.current.producedOutput;
         const writtenFiles = completionMeta?.writtenFiles ?? [];
-        quotaState.setUserStop({
+        setUserStop({
           projectId: currentProjectId,
           wroteFiles: wroteFiles || writtenFiles.length > 0,
           counted: completionMeta?.charged ?? (charged && producedOutput),
@@ -496,8 +527,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
 
       finalizePendingContextClears();
-      quotaState.invalidateQuota();
-      if (currentProjectId) void progressState.refreshNextStep(currentProjectId);
+      invalidateQuota();
+      if (currentProjectId) void refreshNextStep(currentProjectId);
 
       void streamCallbacks.onComplete(completedSegments, completionMeta);
 
@@ -513,21 +544,23 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         roundProgressRef.current.endedIncomplete;
 
       if (nothingWritten || endedUnfinished) {
-        suggestions.clearSuggestionsForUnfinishedRound(currentProjectId, endedUnfinished);
+        clearSuggestionsForUnfinishedRound(currentProjectId, endedUnfinished);
         return;
       }
-      suggestions.schedulePostTurnSuggestions(currentProjectId);
+      schedulePostTurnSuggestions(currentProjectId);
     },
     [
+      clearSuggestionsForUnfinishedRound,
       currentProjectId,
       finalizePendingContextClears,
       getStreamItemsSnapshot,
-      history,
-      progressState,
+      hydrateAssistantBackendMessage,
+      invalidateQuota,
       queryClient,
-      quotaState,
+      refreshNextStep,
+      schedulePostTurnSuggestions,
+      setUserStop,
       streamCallbacks,
-      suggestions,
       userId,
     ],
   );
@@ -792,34 +825,26 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const isHistoryLoadBlockedRef = useRef(isHistoryLoadBlocked);
   isHistoryLoadBlockedRef.current = isHistoryLoadBlocked;
 
+  const {
+    messagesScrollContainerRef,
+    shouldAutoScrollRef,
+    followLatestMessage,
+    resetScrollState,
+  } = scroll;
+
   const handleLoadEarlierMessages = useCallback(
     () =>
-      history.loadEarlierMessages({
+      loadEarlierMessages({
         isHistoryLoadBlockedRef,
         sendLockRef,
         newChatAfterStopRef,
-        messagesScrollContainerRef: scroll.messagesScrollContainerRef,
-        shouldAutoScrollRef: scroll.shouldAutoScrollRef,
+        messagesScrollContainerRef,
+        shouldAutoScrollRef,
       }),
-    [history, scroll.messagesScrollContainerRef, scroll.shouldAutoScrollRef],
+    [loadEarlierMessages, messagesScrollContainerRef, shouldAutoScrollRef],
   );
 
   // Load history when project changes
-  const {
-    lastLoadedProjectRef,
-    loadChatHistory,
-    setHasMoreHistory,
-    setIsLoadingMoreHistory,
-    setFeedbackPendingMessageId,
-  } = history;
-  const {
-    requestInitialSuggestions,
-    invalidateInFlightSuggestions,
-    setAiSuggestions,
-    setSuggestionDisplayState,
-  } = suggestions;
-  const { resetProgressForProject, refreshNextStep, setStarterProjectId } = progressState;
-  const { resetScrollState } = scroll;
 
   useEffect(() => {
     if (!currentProjectId) return;
@@ -885,8 +910,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         sendLockRef.current ||
         isStreaming ||
         newChatAfterStopRef.current ||
-        history.creatingSessionRef.current !== null ||
-        history.sessionRecoveryBlockedRef.current
+        creatingSessionRef.current !== null ||
+        sessionRecoveryBlockedRef.current
       ) {
         return false;
       }
@@ -895,9 +920,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         sendLockRef.current = false;
       }, 0);
 
-      history.historyRequestSeqRef.current += 1;
-      history.setIsLoadingMoreHistory(false);
-      suggestions.resetSuggestionsForNewRound();
+      historyRequestSeqRef.current += 1;
+      setIsLoadingMoreHistory(false);
+      resetSuggestionsForNewRound();
 
       const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
       if (options.userBubble) {
@@ -917,10 +942,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             keepIfBusy: options.keepIfBusy,
           }
         : null;
-      quotaState.roundQuotaBaselineRef.current =
+      roundQuotaBaselineRef.current =
         queryClient.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota())?.ai_conversations
           .used ?? null;
-      scroll.followLatestMessage();
+      followLatestMessage();
 
       if (currentProjectId) {
         lastRetryRequestRef.current = { projectId: currentProjectId, request };
@@ -930,14 +955,17 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return true;
     },
     [
+      creatingSessionRef,
       currentProjectId,
-      history,
+      followLatestMessage,
+      historyRequestSeqRef,
       isStreaming,
       queryClient,
-      quotaState.roundQuotaBaselineRef,
-      scroll,
+      resetSuggestionsForNewRound,
+      roundQuotaBaselineRef,
+      sessionRecoveryBlockedRef,
+      setIsLoadingMoreHistory,
       startStream,
-      suggestions,
     ],
   );
 
@@ -953,16 +981,16 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         isStreaming ||
         sendLockRef.current ||
         newChatAfterStopRef.current ||
-        history.creatingSessionRef.current !== null ||
-        history.sessionRecoveryBlockedRef.current
+        creatingSessionRef.current !== null ||
+        sessionRecoveryBlockedRef.current
       ) {
         return false;
       }
 
       if (quotaNotes.aiSendBlocked) {
         if (!keepComposer) saveDraft(message);
-        quotaState.reportQuotaBlockedSend(false);
-        quotaState.setShowQuotaUpgradeModal(true);
+        reportQuotaBlockedSend(false);
+        setShowQuotaUpgradeModal(true);
         return false;
       }
 
@@ -974,7 +1002,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       const entry =
         typeof extraMetadata?.entry === "string"
           ? extraMetadata.entry
-          : progressState.starterProjectIdRef.current === currentProjectId &&
+          : starterProjectIdRef.current === currentProjectId &&
               messagesRef.current.length === 0
             ? "first_message"
             : undefined;
@@ -1023,18 +1051,19 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       attachedFileIds,
       attachedLibraryMaterials,
       clearDraft,
+      creatingSessionRef,
       currentProjectId,
-      history.creatingSessionRef,
-      history.sessionRecoveryBlockedRef,
       isStreaming,
-      progressState.starterProjectIdRef,
       quotaNotes.aiSendBlocked,
-      quotaState,
       quotes,
+      reportQuotaBlockedSend,
       saveDraft,
       selectedItem?.id,
       selectedItem?.title,
       selectedItem?.type,
+      sessionRecoveryBlockedRef,
+      setShowQuotaUpgradeModal,
+      starterProjectIdRef,
       startRound,
     ],
   );
@@ -1068,15 +1097,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       isStreaming ||
       sendLockRef.current ||
       newChatAfterStopRef.current ||
-      history.creatingSessionRef.current !== null ||
-      history.sessionRecoveryBlockedRef.current
+      creatingSessionRef.current !== null ||
+      sessionRecoveryBlockedRef.current
     ) {
       toast.info(t("editor:naturalPolishBusy"));
       return;
     }
     if (quotaNotes.aiSendBlocked) {
-      quotaState.reportQuotaBlockedSend(false);
-      quotaState.setShowQuotaUpgradeModal(true);
+      reportQuotaBlockedSend(false);
+      setShowQuotaUpgradeModal(true);
       return;
     }
 
@@ -1115,10 +1144,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     currentProjectId,
     consumeAgentUiAction,
     isStreaming,
-    history.creatingSessionRef,
-    history.sessionRecoveryBlockedRef,
+    creatingSessionRef,
+    sessionRecoveryBlockedRef,
     quotaNotes.aiSendBlocked,
-    quotaState,
+    reportQuotaBlockedSend,
+    setShowQuotaUpgradeModal,
     t,
     startRound,
   ]);
