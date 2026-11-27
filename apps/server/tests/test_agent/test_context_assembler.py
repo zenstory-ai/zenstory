@@ -762,13 +762,18 @@ class TestContextAssembler:
         serialized = deduplicated[0].to_dict()
         assert serialized["metadata"]["is_focus"] is True
         assert serialized["metadata"]["attached"] is True
+        # Original input items must not be mutated in place.
+        assert not focus_item.metadata.get("attached")
 
-        # Order-independent: focus before attached preserves both flags too.
-        reversed_dedup = assembler.deduplicate_items([focus_item, *attached_items])
+        # Order-independent: fresh items with focus before attached preserve both flags too.
+        fresh_focus_item = assembler.file_to_context_item(outline, is_focus=True)
+        fresh_attached_items = assembler.get_attached_files(db_session, test_project.id, [outline.id])
+        reversed_dedup = assembler.deduplicate_items([fresh_focus_item, *fresh_attached_items])
         assert len(reversed_dedup) == 1
         reversed_serialized = reversed_dedup[0].to_dict()
         assert reversed_serialized["metadata"]["is_focus"] is True
         assert reversed_serialized["metadata"]["attached"] is True
+        assert not fresh_focus_item.metadata.get("attached")
 
     def test_format_context_sections(
         self,

@@ -610,12 +610,12 @@ const ContextItemCard: React.FC<{ item: AgentContextItem }> = ({ item }) => {
   const origin = contextOriginBadge(item, t);
 
   return (
-    <div className={`${CHAT_CARD_SURFACE} overflow-hidden`}>
+    <div data-testid="context-item-card" className={`${CHAT_CARD_SURFACE} overflow-hidden`}>
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
         aria-expanded={expanded}
-        className="w-full cursor-pointer select-none min-h-11 md:min-h-0 px-3 py-2 text-xs flex items-center gap-2 min-w-0 text-left rounded-xl hover:bg-[hsl(var(--bg-tertiary)/0.5)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))]"
+        className={`w-full cursor-pointer select-none min-h-11 md:min-h-0 px-3 py-2 text-xs flex items-center gap-2 min-w-0 text-left ${expanded ? 'rounded-t-xl' : 'rounded-xl'} hover:bg-[hsl(var(--bg-tertiary)/0.5)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))]`}
       >
         <svg
           aria-hidden="true"
