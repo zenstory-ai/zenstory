@@ -991,7 +991,7 @@ class BatchReplaceFilesInput(_ToolInputModel):
     )
     file_ids: list[StrictStr] | None = Field(
         default=None,
-        description="可选：限定只处理这些文件 ID；不传则扫描本项目所有非文件夹文件",
+        description="限定只处理这些文件 ID（单文件全部替换或仅改指定文件时必传，切勿省略；仅全书统一替换时省略以扫描整个项目）",
     )
     file_types: list[ArtifactFileType] | None = Field(
         default=None,

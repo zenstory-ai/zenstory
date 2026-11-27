@@ -9,6 +9,7 @@ the LLM provides slightly different text.
 """
 
 import copy
+import json
 import re
 from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
@@ -50,7 +51,7 @@ from utils.file_write_lock import (
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
 
-from .content_range import find_literal_matches
+from .content_range import format_match_snippets
 from .paragraph_layout import (
     NOTE_INDENT_FOLLOWS_FILE,
     NOTE_SENTENCE_SNAP,
@@ -95,6 +96,12 @@ _PARAGRAPH_MARKER_PREFIX_RE = re.compile(
     r"^(?:\[P\d+(?:\s*·\s*\d+字)?\][ \t]*|[ \t]*\d+→)"
 )
 
+# Exact prefix emitted by `content_range.format_paragraph_stats`: `[P01 · 84字] `.
+# Intentionally does NOT match authentic prose markers like `[P1]`, `[P05]`, `[P05 备注]`,
+# and only consumes the single ASCII space after `]` so Chinese full-width indent `\u3000\u3000` survives.
+_PARAGRAPH_STATS_MARKER_LINE_RE = re.compile(r"^\[P\d+ · \d+字\] ")
+_PARAGRAPH_STATS_MARKER_CONTAINS_RE = re.compile(r"\[P\d+ · \d+字\] ")
+
 
 def _all_non_empty_lines_have_marker_prefix(text: str) -> bool:
     """Return True iff ``text`` has >=1 non-empty line and EVERY non-empty line starts with a view marker."""
@@ -109,6 +116,104 @@ def _strip_marker_prefixes(text: str) -> str:
     return "".join(
         _PARAGRAPH_MARKER_PREFIX_RE.sub("", line, count=1) if line.strip() else line
         for line in text.splitlines(keepends=True)
+    )
+
+
+def _content_has_paragraph_stats_marker(content: str) -> bool:
+    """Return True when ``content`` already legitimately contains ``[Pxx · N字] ``."""
+    return "[P" in content and _PARAGRAPH_STATS_MARKER_CONTAINS_RE.search(content) is not None
+
+
+def _strip_paragraph_stats_marker_prefixes(text: str) -> tuple[str, bool]:
+    """Strip exact ``[Pxx · N字] `` prefixes line-by-line from write inputs."""
+    if "[P" not in text:
+        return text, False
+    stripped_any = False
+    out_lines: list[str] = []
+    for line in text.splitlines(keepends=True):
+        updated, count = _PARAGRAPH_STATS_MARKER_LINE_RE.subn("", line, count=1)
+        if count:
+            stripped_any = True
+        out_lines.append(updated)
+    if not stripped_any:
+        return text, False
+    return "".join(out_lines), True
+
+
+def _compile_overlapping_batch_pattern(old_text: str, new_text: str) -> re.Pattern[str] | None:
+    """Compile left-to-right alternation protecting existing ``new_text`` when ``old_text in new_text``."""
+    if not old_text or old_text == new_text or old_text not in new_text:
+        return None
+    return re.compile(f"{re.escape(new_text)}|({re.escape(old_text)})")
+
+
+def _find_batch_replace_spans(
+    content: str,
+    old_text: str,
+    new_text: str,
+    *,
+    overlap_pattern: re.Pattern[str] | None = None,
+) -> list[tuple[int, int]]:
+    """Find effective non-overlapping ``(start, end)`` spans to replace with ``new_text``.
+
+    When ``old_text in new_text`` (e.g. ``陈砚→陈砚之``, ``小雨→林小雨``, ``…→……``, ``a→aba``),
+    occurrences already inside an existing ``new_text`` instance are left untouched via
+    left-to-right alternation so repeated calls never cascade.
+    """
+    if not content or not old_text or old_text == new_text:
+        return []
+    if old_text in new_text:
+        pattern = overlap_pattern or _compile_overlapping_batch_pattern(old_text, new_text)
+        if pattern is None:
+            return []
+        return [(m.start(1), m.end(1)) for m in pattern.finditer(content) if m.group(1) is not None]
+    spans: list[tuple[int, int]] = []
+    step = len(old_text)
+    pos = content.find(old_text)
+    while pos >= 0:
+        spans.append((pos, pos + step))
+        pos = content.find(old_text, pos + step)
+    return spans
+
+
+def _apply_batch_replace_spans(
+    content: str,
+    spans: Sequence[tuple[int, int]],
+    new_text: str,
+) -> str:
+    """Apply non-overlapping ``(start, end)`` replacement spans to ``content``."""
+    if not spans:
+        return content
+    parts: list[str] = []
+    prev = 0
+    for start, end in spans:
+        parts.append(content[prev:start])
+        parts.append(new_text)
+        prev = end
+    parts.append(content[prev:])
+    return "".join(parts)
+
+
+def _effective_batch_new_text(old_content: str, new_text: str) -> str:
+    """Strip leaked ``[Pxx · N字] `` prefixes from ``new_text`` unless ``old_content`` already has them."""
+    if _content_has_paragraph_stats_marker(old_content):
+        return new_text
+    cleaned, _ = _strip_paragraph_stats_marker_prefixes(new_text)
+    return cleaned
+
+
+def _batch_replace_single_file_hint(file_id: str | None) -> str:
+    """Build scoped single-file replacement hint so ambiguity errors never direct to unscoped project-wide replace."""
+    if file_id:
+        scoped_ids = json.dumps([file_id], ensure_ascii=False)
+        return (
+            f"（确实要把当前文件里多处相同原文全部替换时，请改用 "
+            f"batch_replace_files(file_ids={scoped_ids}, ...)；"
+            f"只改当前文件时切勿省略 file_ids，否则会扫描整个项目）"
+        )
+    return (
+        "（确实要把当前文件里多处相同原文全部替换时，请改用 batch_replace_files "
+        "并传入 file_ids=[当前文件ID] 限定仅修改当前文件，切勿省略 file_ids，否则会扫描整个项目）"
     )
 
 
@@ -1033,6 +1138,7 @@ class FileEditor:
         )
 
         old_content = file.content or ""
+        original_has_paragraph_stats_marker = _content_has_paragraph_stats_marker(old_content)
         # 锁内重读的正文和模型看到的不一样：作者（或别的写入）在模型读过之后又改了。
         # 不在旧正文上做近似匹配，否则作者刚改的字可能被模型的旧写法覆盖。快照在锁内取：
         # 本请求里先拿到锁的那次写入已经把快照更新成它写下的正文，不会误判成别人改的。
@@ -1142,6 +1248,11 @@ class FileEditor:
                 if op in ("append", "prepend", "insert_after", "insert_before"):
                     self._require_insert_text(edit, i, op, warnings)
 
+                write_prefixes_stripped = (
+                    not original_has_paragraph_stats_marker
+                    and self._strip_write_input_paragraph_stats_markers(edit, op, i)
+                )
+
                 content_before_edit = content
                 applied_before_edit = len(applied_edits)
                 warnings_before_edit = len(warnings)
@@ -1157,6 +1268,7 @@ class FileEditor:
                         applied_edits,
                         unchanged_edits,
                         warnings,
+                        file_id=file.id,
                         quote_style=quote_style,
                         active_spans=active_spans,
                         edit_hunks=edit_hunks,
@@ -1185,6 +1297,7 @@ class FileEditor:
                         applied_edits,
                         unchanged_edits,
                         warnings,
+                        file_id=file.id,
                         quote_style=quote_style,
                         active_spans=active_spans,
                         edit_hunks=edit_hunks,
@@ -1192,6 +1305,10 @@ class FileEditor:
                         allow_approx_with_marker_prefix=True,
                     )
                     edit = stripped_edit
+                    for detail in applied_edits[applied_before_edit:]:
+                        if isinstance(detail, dict):
+                            detail["paragraph_prefixes_stripped"] = True
+                if write_prefixes_stripped:
                     for detail in applied_edits[applied_before_edit:]:
                         if isinstance(detail, dict):
                             detail["paragraph_prefixes_stripped"] = True
@@ -1549,6 +1666,7 @@ class FileEditor:
         body_guards: bool = False,
         read_snapshot_lookup: Callable[[str], str | None] | None = None,
         pending_file_ids: Collection[str] | None = None,
+        exclude_file_ids: Collection[str] | None = None,
     ) -> dict[str, Any]:
         """Deterministic literal exact-match batch replace across project files.
 
@@ -1634,28 +1752,59 @@ class FileEditor:
             )
             if normalized_file_types:
                 stmt = stmt.where(File.file_type.in_(normalized_file_types))  # type: ignore[attr-defined]
+            excluded_ids = [str(fid) for fid in (exclude_file_ids or ()) if fid]
+            if excluded_ids:
+                stmt = stmt.where(File.id.notin_(excluded_ids))  # type: ignore[attr-defined]
             ordered_candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
 
-        # Exact literal filter in Python (SQLite LIKE is ASCII case-insensitive).
-        matching_candidates = [
-            f for f in ordered_candidates if isinstance(f.content, str) and old_text in f.content
-        ]
-        matched_total = len(matching_candidates)
+        # Exact effective match filter in Python:
+        # - SQLite LIKE is ASCII case-insensitive.
+        # - When `old_text in new_text`, skip occurrences already inside `new_text` so
+        #   already-updated files are excluded instead of starving remaining chapters.
+        # - Strip leaked `[Pxx · N字] ` markers from `new_text` unless the file already contains them.
+        stripped_new_text, has_marker_in_new = _strip_paragraph_stats_marker_prefixes(new_text)
+        raw_overlap_pattern = _compile_overlapping_batch_pattern(old_text, new_text)
+        stripped_overlap_pattern = (
+            _compile_overlapping_batch_pattern(old_text, stripped_new_text)
+            if has_marker_in_new
+            else raw_overlap_pattern
+        )
+        matching_entries: list[tuple[File, list[tuple[int, int]]]] = []
+        for candidate in ordered_candidates:
+            if not isinstance(candidate.content, str) or old_text not in candidate.content:
+                continue
+            if has_marker_in_new and not _content_has_paragraph_stats_marker(candidate.content):
+                effective_new = stripped_new_text
+                overlap_pattern = stripped_overlap_pattern
+            else:
+                effective_new = new_text
+                overlap_pattern = raw_overlap_pattern
+            spans = _find_batch_replace_spans(
+                candidate.content,
+                old_text,
+                effective_new,
+                overlap_pattern=overlap_pattern,
+            )
+            if spans:
+                matching_entries.append((candidate, spans))
+        matched_total = len(matching_entries)
         effective_max = max(1, int(max_files))
-        batch_targets = matching_candidates[:effective_max]
-        overflow_targets = matching_candidates[effective_max:]
-        remaining_count = len(overflow_targets)
+        batch_entries = matching_entries[:effective_max]
+        overflow_entries = matching_entries[effective_max:]
+        remaining_count = len(overflow_entries)
         remaining_files = [
             {"id": f.id, "title": f.title, "file_type": f.file_type}
-            for f in overflow_targets[:BATCH_REPLACE_MAX_REMAINING_FILES]
+            for f, _ in overflow_entries[:BATCH_REPLACE_MAX_REMAINING_FILES]
         ]
 
         if dry_run:
             preview_files: list[dict[str, Any]] = []
             total_replacements = 0
-            for candidate in batch_targets:
-                hit_count, match_items = find_literal_matches(
+            for candidate, spans in batch_entries:
+                hit_count = len(spans)
+                match_items = format_match_snippets(
                     candidate.content or "",
+                    [start for start, _ in spans],
                     old_text,
                     max_matches=BATCH_REPLACE_PREVIEW_SNIPPETS,
                     context_chars=BATCH_REPLACE_SNIPPET_CONTEXT_CHARS,
@@ -1687,7 +1836,7 @@ class FileEditor:
 
         pending_set = set(pending_file_ids) if pending_file_ids else set()
         # Snapshot plain (id, title) tuples before commit/rollback expires ORM instances.
-        target_specs = [(candidate.id, candidate.title) for candidate in batch_targets]
+        target_specs = [(candidate.id, candidate.title) for candidate, _ in batch_entries]
         modified_files: list[dict[str, Any]] = []
         total_replacements = 0
         for target_id, target_title in target_specs:
@@ -1812,10 +1961,12 @@ class FileEditor:
                 snap = read_snapshot_lookup(file.id)
                 if snap is not None and snap != old_content:
                     raise StaleContentError(snap, old_content)
-            replacements = old_content.count(old_text)
+            effective_new = _effective_batch_new_text(old_content, new_text)
+            spans = _find_batch_replace_spans(old_content, old_text, effective_new)
+            replacements = len(spans)
             if replacements <= 0:
                 return None
-            new_content = old_content.replace(old_text, new_text)
+            new_content = _apply_batch_replace_spans(old_content, spans, effective_new)
             if new_content == old_content:
                 return None
             if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
@@ -1823,10 +1974,10 @@ class FileEditor:
                 # represents multiple local edits, not a single whole-body rewrite; keep exact whole-body blocking,
                 # single-occurrence near-whole-body blocking, and duplicated-paragraph checks intact.
                 guard_edits = [
-                    {"op": "replace", "old": old_text, "new": new_text, "replace_all": True}
+                    {"op": "replace", "old": old_text, "new": effective_new, "replace_all": True}
                 ] * min(replacements, 2)
                 check_body_edit_guards(old_content, new_content, guard_edits)
-            summary = f"AI 批量替换: {old_text[:20]} → {new_text[:20]} ({replacements} 处)"
+            summary = f"AI 批量替换: {old_text[:20]} → {effective_new[:20]} ({replacements} 处)"
             undo = self._commit_ai_content(
                 file,
                 old_content,
@@ -2002,6 +2153,7 @@ class FileEditor:
         unchanged_edits: list[dict[str, Any]],
         warnings: list[str],
         *,
+        file_id: str | None = None,
         quote_style: str | None,
         active_spans: list[tuple[int, int]] | None,
         edit_hunks: list[tuple[int, int, int]],
@@ -2036,6 +2188,7 @@ class FileEditor:
                     edit_index,
                     applied_edits,
                     warnings,
+                    file_id=file_id,
                     quote_style=quote_style,
                     allowed_fuzzy_spans=active_spans,
                     applied_hunks=edit_hunks,
@@ -2101,6 +2254,43 @@ class FileEditor:
         raise ValueError(
             f"Edit {edit_index}: unknown operation '{op}'. Valid ops: replace, append, insert_after, insert_before"
         )
+
+    @classmethod
+    def _strip_write_input_paragraph_stats_markers(
+        cls,
+        edit: dict[str, Any],
+        op: str,
+        edit_index: int,
+    ) -> bool:
+        """Strip exact ``[Pxx · N字] `` prefixes line-by-line from write inputs in place.
+
+        Called only when the original file content does not already contain the exact
+        ``format_paragraph_stats`` marker format. Does not require every non-empty line
+        to carry a prefix, so partial-marked expansions, clean-old + marked-new edits,
+        and marked append/prepend/insert texts never leak view annotations into saved text.
+        """
+        stripped = False
+        if op == "replace":
+            for key in ("new", *cls._REPLACE_NEW_ALIASES):
+                val = edit.get(key)
+                if isinstance(val, str):
+                    cleaned, changed = _strip_paragraph_stats_marker_prefixes(val)
+                    if changed:
+                        edit[key] = cleaned
+                        stripped = True
+        elif op in ("append", "prepend", "insert_after", "insert_before"):
+            for key in ("text", *cls._INSERT_TEXT_ALIASES):
+                val = edit.get(key)
+                if isinstance(val, str):
+                    cleaned, changed = _strip_paragraph_stats_marker_prefixes(val)
+                    if changed:
+                        edit[key] = cleaned
+                        stripped = True
+            if stripped and (not isinstance(edit.get("text"), str) or not edit.get("text")):
+                raise EditFileError(
+                    f"Edit {edit_index}: {op} 的 text 仅包含段落统计前缀，没有可写入的正文内容。"
+                )
+        return stripped
 
     @classmethod
     def _strip_edit_marker_prefixes(cls, edit: dict[str, Any], op: str) -> dict[str, Any] | None:
@@ -2358,6 +2548,7 @@ class FileEditor:
         applied_edits: list[dict[str, Any]],
         warnings: list[str],
         *,
+        file_id: str | None = None,
         quote_style: str | None = None,
         allowed_fuzzy_spans: Sequence[tuple[int, int]] | None = None,
         applied_hunks: list[tuple[int, int, int]] | None = None,
@@ -2365,6 +2556,7 @@ class FileEditor:
         allow_approx_with_marker_prefix: bool = True,
     ) -> str:
         """Apply a replace edit operation."""
+        batch_hint = _batch_replace_single_file_hint(file_id)
         old_text = edit.get("old", "")
         # replace_all 是本工具唯一的破坏性开关（无次数上限地替换全部匹配）。
         # strict_json_schema=False 时模型会把它序列化成 "false"/"0"，朴素真值
@@ -2389,6 +2581,7 @@ class FileEditor:
                 f"请从当前文件原文中复制要改的那一段。"
             )
         new_text = self._resolve_replace_new(edit, edit_index, warnings)
+        is_deletion = new_text == ""
         if (
             quote_style is not None
             and new_text != old_text
@@ -2449,7 +2642,7 @@ class FileEditor:
                     match_count,
                     edit_index,
                     label="原文片段",
-                    extra_hint="（确实要把多处相同原文全部替换时，请改用 batch_replace_files）",
+                    extra_hint=batch_hint,
                     preview_content=content,
                 )
                 if already_matched is not None and content[start : start + len(old_text)] == new_text:
@@ -2541,7 +2734,7 @@ class FileEditor:
                         f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
                         f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                         f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
-                        f"（确实要把多处相同原文全部替换时，请改用 batch_replace_files）候选片段: {previews}"
+                        f"{batch_hint}候选片段: {previews}"
                     ),
                 )
                 placed_text, indent_changed = _format_replacement_for_span(
@@ -2618,13 +2811,18 @@ class FileEditor:
                 and _all_non_empty_lines_have_marker_prefix(old_text)
             )
             if not spans and not replace_all and not unseen_fuzzy_rejected and not defer_approx_for_prefix_retry:
+                # Destructive replace(new="") enforces the same strict approximate-match guards as
+                # op="delete" (<=12% error, >=15 chars, sentence/line boundaries) while exact and
+                # normalized-exact short verbatim deletions remain unaffected above.
+                approx_max_error_rate = 0.12 if is_deletion else 0.25
+                approx_min_pattern_len = 15 if is_deletion else 8
                 if allowed_fuzzy_spans is not None:
                     approx_match = _find_approximate_in_spans(
                         content,
                         old_text,
                         allowed_fuzzy_spans,
-                        max_error_rate=0.25,
-                        min_pattern_len=8,
+                        max_error_rate=approx_max_error_rate,
+                        min_pattern_len=approx_min_pattern_len,
                         keep_line_breaks=True,
                         stats=approx_stats,
                     )
@@ -2632,8 +2830,8 @@ class FileEditor:
                     approx_match = find_approximate_match(
                         content,
                         old_text,
-                        max_error_rate=0.25,  # Allow up to 25% character difference
-                        min_pattern_len=8,
+                        max_error_rate=approx_max_error_rate,
+                        min_pattern_len=approx_min_pattern_len,
                         keep_line_breaks=True,
                         stats=approx_stats,
                     )
@@ -2652,7 +2850,14 @@ class FileEditor:
                     start, end = self._extend_fuzzy_span(
                         content, start, end, old_text, replacement=new_text
                     )
-                    self._check_approximate_edges(content, start, end, old_text, edit_index)
+                    self._check_approximate_edges(
+                        content,
+                        start,
+                        end,
+                        old_text,
+                        edit_index,
+                        require_sentence_boundaries=is_deletion,
+                    )
                     matched_text = content[start:end]
                     placed_text, indent_changed = _format_replacement_for_span(
                         content, start, end, old_text, new_text
@@ -2761,7 +2966,7 @@ class FileEditor:
                         f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
                         f"为避免误改已中止。推荐做法：保持原参数不变，加上 occurrence=N "
                         f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
-                        f"（确实要把多处相同原文全部替换时，请改用 batch_replace_files）候选片段: {previews}"
+                        f"{batch_hint}候选片段: {previews}"
                     ),
                 )
                 if ignore_punct_whitespace:

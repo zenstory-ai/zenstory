@@ -2734,6 +2734,12 @@ def _batch_replace_files_sync(
         if entry.get("file_id")
     }
 
+    excluded_file_ids = (
+        req_ctx.batch_replace_processed_ids(parsed.old_text, parsed.new_text)
+        if parsed.file_ids is None
+        else None
+    )
+
     with req_ctx.session_scope() as session:
         executor = req_ctx.executor(session)
         try:
@@ -2749,8 +2755,19 @@ def _batch_replace_files_sync(
                 body_guards=req_ctx.is_loop_agent,
                 read_snapshot_lookup=req_ctx.read_snapshot,
                 pending_file_ids=pending_ids,
+                exclude_file_ids=excluded_file_ids,
             )
             modified_count = int(result.get("modified_files") or 0)
+            if not parsed.dry_run and modified_count > 0:
+                committed_ids = [
+                    str(item["id"])
+                    for item in (result.get("files") or [])
+                    if isinstance(item, dict) and item.get("id")
+                ]
+                if committed_ids:
+                    req_ctx.record_batch_replace_processed(
+                        parsed.old_text, parsed.new_text, committed_ids
+                    )
             skipped = result.get("skipped_files") if isinstance(result.get("skipped_files"), list) else []
             if parsed.dry_run:
                 status = "success"
