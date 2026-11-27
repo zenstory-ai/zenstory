@@ -884,6 +884,26 @@ async def run_loop_agent_streaming(
             state["user_message"] = followup
 
         if not terminated and runs >= max_runs:
+            saved_titles: list[str] = []
+            seen_ids: set[str] = set()
+            for fid, title in req_ctx.saved_bodies_this_request().items():
+                if fid and fid not in seen_ids:
+                    seen_ids.add(fid)
+                    if title:
+                        saved_titles.append(title)
+            for fid, title in read_guard.files_written.items():
+                if fid and fid not in seen_ids:
+                    seen_ids.add(fid)
+                    if title:
+                        saved_titles.append(title)
+            yield StreamEvent(
+                type=StreamEventType.TEXT,
+                data={
+                    "text": await run_support.collaboration_cap_text(
+                        english, max_runs, saved_titles, request_context=req_ctx
+                    )
+                },
+            )
             yield StreamEvent(
                 type=StreamEventType.ITERATION_EXHAUSTED,
                 data={

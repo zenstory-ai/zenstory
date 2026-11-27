@@ -154,6 +154,11 @@ class _PendingEmptyFileState:
             self._reply_seq += 1
             self._waiting_at_reply_start = any(file_id not in self._streamed for file_id in self._entries)
 
+    def reply_seq(self) -> int:
+        """返回当前请求内的模型回复序号（每次模型调用开始时单调递增）。"""
+        with self._lock:
+            return self._reply_seq
+
     def overdue_unwritten_files(self) -> list[dict[str, Any]]:
         """上一次（或更早的）回复建好、这次回复还没写出正文的文件：精确 {id, title, created_here, file_type}（按置位先后）。
 
@@ -1235,6 +1240,9 @@ class AgentRequestContext:
 
     def begin_model_reply(self) -> None:
         self.pending_empty_file_state.begin_reply()
+
+    def model_reply_seq(self) -> int:
+        return self.pending_empty_file_state.reply_seq()
 
     def overdue_file_bodies(self) -> list[dict[str, Any]]:
         return self.pending_empty_file_state.overdue_unwritten_files()

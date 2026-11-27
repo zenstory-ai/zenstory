@@ -64,6 +64,8 @@ class AgentRunMeter:
     last_served_model: str | None = None
     # 可选实时回调：模型开始服务时立即通知调用方（如实时更新 run_report["model"]，防止断线时丢失）。
     on_served_model: Callable[[str], None] | None = field(default=None, repr=False)
+    # 可选实时回调：工具开始、失败、正文落库或阶段耗时更新时立即同步 run_report，防止断线时遥测丢失。
+    on_report_update: Callable[[dict[str, object]], None] | None = field(default=None, repr=False)
     # 最近一次模型调用的 provider:model:key_slot 标识，用于校验跨轮 wire-prefix 缓存归属。
     last_served_provider_key: str | None = None
     # 最近一次模型调用实际使用的 reasoning_effort（用于 wire_prefix_cache 校验）。
@@ -90,8 +92,34 @@ class AgentRunMeter:
     def exhausted(self) -> bool:
         return self.model_calls >= self.max_model_calls
 
+    def _notify_report(self, updates: dict[str, object]) -> None:
+        if self.on_report_update is not None and updates:
+            self.on_report_update(updates)
+
+    def _stage_timings_snapshot(self) -> dict[str, dict[str, float | int]]:
+        return {
+            stage: {key: round(value, 1) if isinstance(value, float) else value for key, value in stats.items()}
+            for stage, stats in self._stage_timings.items()
+        }
+
+    def _tool_failures_snapshot(self) -> dict[str, dict[str, object]]:
+        return {
+            tool: {
+                "count": stats.count,
+                "rolled_back_batches": stats.rolled_back_batches,
+                "error_types": dict(stats.error_types),
+            }
+            for tool, stats in self._tool_failures.items()
+        }
+
     def record_model_call(self) -> None:
         self.model_calls += 1
+        self._notify_report(
+            {
+                "model_calls": self.model_calls,
+                "max_model_calls": self.max_model_calls,
+            }
+        )
 
     def record_wall_clock_landing_call(self) -> None:
         """记录一次已注入墙钟收尾提醒的模型调用。"""
@@ -139,6 +167,12 @@ class AgentRunMeter:
         self.llm_duration_ms += max(0.0, float(duration_ms))
         if stage := _ROLE_STAGES.get(agent_type or ""):
             self.record_stage(stage, duration_ms, outcome=outcome)
+        self._notify_report(
+            {
+                "agent_runs": self.agent_runs,
+                "llm_duration_ms": round(self.llm_duration_ms, 1),
+            }
+        )
 
     def record_stage(
         self,
@@ -164,6 +198,7 @@ class AgentRunMeter:
         stats["max_ms"] = max(stats["max_ms"], duration_ms)
         stats["error_count"] += outcome == "error"
         stats["interrupted_count"] += outcome == "interrupted"
+        self._notify_report({"stage_timings": self._stage_timings_snapshot()})
 
     @contextmanager
     def measure_stage(self, stage: TimingStage) -> Iterator[None]:
@@ -194,6 +229,7 @@ class AgentRunMeter:
         if key not in stats.error_types and len(stats.error_types) >= _MAX_ERROR_TYPES_PER_TOOL:
             key = _OTHER_ERROR_TYPE
         stats.error_types[key] = stats.error_types.get(key, 0) + 1
+        self._notify_report({"tool_failures": self._tool_failures_snapshot()})
 
     def _offset_ms(self) -> float:
         origin = self.started_at if self.timing_origin is None else self.timing_origin
@@ -202,6 +238,7 @@ class AgentRunMeter:
     def mark_first_tool_started(self) -> None:
         if self.first_tool_started_ms is None:
             self.first_tool_started_ms = self._offset_ms()
+            self._notify_report({"first_tool_started_ms": self.first_tool_started_ms})
 
     def mark_pending_file_write_armed(self, file_id: str | None = None) -> None:
         """Record when a pending file write (write_chapter / create_file awaiting <file>) arms."""
@@ -220,15 +257,18 @@ class AgentRunMeter:
         ):
             return
         self.chapter_first_prose_ms = round(max(0.0, time.monotonic() - self._pending_file_write_armed_at) * 1000, 1)
+        self._notify_report({"chapter_first_prose_ms": self.chapter_first_prose_ms})
 
     def record_leaked_tool_call(self, count: int = 1) -> None:
         """Increment count of leaked tool-call protocol aborts/detections in this round."""
         if count > 0:
             self.leaked_tool_call_count += int(count)
+            self._notify_report({"leaked_tool_call_count": self.leaked_tool_call_count})
 
     def mark_first_body_persisted(self) -> None:
         if self.first_body_persisted_ms is None:
             self.first_body_persisted_ms = self._offset_ms()
+            self._notify_report({"first_body_persisted_ms": self.first_body_persisted_ms})
 
     def timing_report(self) -> dict[str, object]:
         """Snapshot for the existing billing log. Nested stages overlap: do not sum them."""
@@ -237,16 +277,6 @@ class AgentRunMeter:
             "chapter_first_prose_ms": self.chapter_first_prose_ms,
             "first_body_persisted_ms": self.first_body_persisted_ms,
             "leaked_tool_call_count": self.leaked_tool_call_count,
-            "stage_timings": {
-                stage: {key: round(value, 1) if isinstance(value, float) else value for key, value in stats.items()}
-                for stage, stats in self._stage_timings.items()
-            },
-            "tool_failures": {
-                tool: {
-                    "count": stats.count,
-                    "rolled_back_batches": stats.rolled_back_batches,
-                    "error_types": dict(stats.error_types),
-                }
-                for tool, stats in self._tool_failures.items()
-            },
+            "stage_timings": self._stage_timings_snapshot(),
+            "tool_failures": self._tool_failures_snapshot(),
         }

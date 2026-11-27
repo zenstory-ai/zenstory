@@ -172,6 +172,23 @@ def _clear_recovery_families(
         families.pop((tool_name, _ANCHOR_NOT_FOUND_ERROR_TYPE, file_id), None)
 
 
+def _extract_error_message(payload: dict[str, Any]) -> str:
+    """提取工具错误文本：优先顶层 error，缺失时兜底取 data.failed_edits 首项 error。"""
+    top = str(payload.get("error") or "").strip()
+    if top:
+        return top
+    data = payload.get("data")
+    if isinstance(data, dict):
+        failed_edits = data.get("failed_edits")
+        if isinstance(failed_edits, list):
+            for item in failed_edits:
+                if isinstance(item, dict):
+                    msg = str(item.get("error") or "").strip()
+                    if msg:
+                        return msg
+    return ""
+
+
 def _error_fingerprint(payload: dict[str, Any]) -> str:
     """「等价错误」的指纹：抹掉 id、数字等每次都会变的部分。
 
@@ -179,7 +196,7 @@ def _error_fingerprint(payload: dict[str, Any]) -> str:
     逐字比较会让每次重试都算作「不同错误」而永远不熔断。
     """
     error_type = payload.get("error_type")
-    message = str(payload.get("error") or "")
+    message = _extract_error_message(payload)
     text = _UUID_RE.sub("<id>", message)
     text = _HEX_RE.sub("<hex>", text)
     text = _DIGITS_RE.sub("#", text)
@@ -325,6 +342,9 @@ class ToolFailureBreaker:
     trip: ToolFailureTrip | None = None
     _streaks: dict[tuple[str, str], _CallStreak] = field(default_factory=dict)
     _recovery_families: dict[tuple[str, str, str], int] = field(default_factory=dict)
+    # 同一模型回复批次内并列发出的顺序守卫拒绝（如 11 个并行 delete_file 全触发 file_body_pending）
+    # 最多按 1 次计入，避免抢跑击穿熔断器、阻断 runner 交回 FILE_BODY_RESUME。
+    _counted_ordering_batches: set[tuple[str, int]] = field(default_factory=set)
     _last_mutated_file_id: str = ""
 
     @property
@@ -345,6 +365,7 @@ class ToolFailureBreaker:
         *,
         parsed_args: dict[str, Any] | None = None,
         parsed_output: dict[str, Any] | None = None,
+        reply_seq: int | None = None,
     ) -> str:
         """记录一次工具结果，返回交给模型的输出（重复失败时附带不要原样重试的提示）。"""
         key = (tool_name, _normalize_arguments(raw_arguments, parsed_args=parsed_args))
@@ -370,10 +391,17 @@ class ToolFailureBreaker:
                 self._last_mutated_file_id = mutated_file_id
             return output_text
 
+        error_type = payload.get("error_type")
+        if error_type in _ORDERING_ERROR_TYPES and reply_seq is not None and reply_seq > 0:
+            batch_key = (str(error_type), int(reply_seq))
+            if batch_key in self._counted_ordering_batches:
+                return output_text
+            self._counted_ordering_batches.add(batch_key)
+
         self.total_failures += 1
         self.consecutive_failures += 1
         streak: _CallStreak | None = None
-        if payload.get("error_type") not in _ORDERING_ERROR_TYPES:
+        if error_type not in _ORDERING_ERROR_TYPES:
             fingerprint = _error_fingerprint(payload)
             streak = self._streaks.get(key)
             if streak is not None and streak.fingerprint == fingerprint:
@@ -391,7 +419,7 @@ class ToolFailureBreaker:
             recovery_count = self._recovery_families.get(recovery_key, 0) + 1
             self._recovery_families[recovery_key] = recovery_count
 
-        last_error = _preview(str(payload.get("error") or ""))
+        last_error = _preview(_extract_error_message(payload))
         if self.trip is None:
             # 只有无效文件 id 这一族提前熔断（模型在猜 id）。同一文件的锚点失败只附恢复提示、
             # 计入连续/累计失败上限：生产 11-01～03 这类失败多是长 old 差一两个字、大批编辑整批回滚，

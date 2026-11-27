@@ -14,7 +14,7 @@ from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, or_, select
 
 from agent.constants import coerce_bool
 from agent.tools.permissions import (
@@ -353,6 +353,36 @@ def _exact_spans(content: str, sub: str, limit: int = 3) -> list[tuple[int, int]
 _INLINE_WS_CHARS = " \t\u3000"
 _INLINE_WS_SPLIT_RE = re.compile(r"[ \t\u3000]+")
 _LINE_SPLIT_RE = re.compile(r"\r\n|\r|\n")
+_BARE_LF_RE = re.compile(r"(?<!\r)\n")
+_CRLF_NOT_FOUND_HINT = "（提示：目标文件使用 Windows CRLF 换行符 \\r\\n；请核对空行数量或上下文锚点。）"
+
+
+def _adapt_lf_to_crlf(text: str) -> str:
+    """Convert bare LF (``\\n``) to CRLF (``\\r\\n``) without doubling existing ``\\r\\n``."""
+    if not isinstance(text, str) or "\n" not in text:
+        return text
+    return _BARE_LF_RE.sub("\r\n", text)
+
+
+def _crlf_hint_if_applicable(content: str, pattern: str) -> str:
+    """Return a concise CRLF hint when editing a CRLF file with an LF-only pattern fails."""
+    if isinstance(content, str) and isinstance(pattern, str) and "\r\n" in content and "\n" in pattern and "\r\n" not in pattern:
+        return _CRLF_NOT_FOUND_HINT
+    return ""
+
+
+def _locate_crlf_exact_or_quote_equivalent(
+    content: str, pattern: str
+) -> tuple[str, str, str, str] | None:
+    """Deterministic CRLF-adapted exact/quote-equivalent match for LF patterns on CRLF files."""
+    if not pattern or "\r\n" not in content or "\n" not in pattern or "\r\n" in pattern:
+        return None
+    crlf_pattern = _adapt_lf_to_crlf(pattern)
+    located = locate_exact_or_quote_equivalent(content, crlf_pattern)
+    if located is None:
+        return None
+    exact_mode, haystack, needle = located
+    return exact_mode, haystack, needle, crlf_pattern
 _LINE_SEP_RUN_RE = re.compile(r"(?:\r\n|\r|\n)(?:[ \t\u3000]*(?:\r\n|\r|\n))*")
 _NORM_LINE_SEP_PATTERN = r"[ \t\u3000]*(?:\r\n|\r|\n)(?:[ \t\u3000]*(?:\r\n|\r|\n))*[ \t\u3000]*"
 
@@ -1588,6 +1618,9 @@ class FileEditor:
 
         check_project_ownership(self.session, project_id, self.user_id)
 
+        crlf_old_text = (
+            _adapt_lf_to_crlf(old_text) if ("\n" in old_text and "\r\n" not in old_text) else None
+        )
         skipped_files: list[dict[str, Any]] = []
         requested_ids: list[str] = []
         if file_ids is not None:
@@ -1618,13 +1651,21 @@ class FileEditor:
                 )
             ordered_candidates = [by_id[fid] for fid in requested_ids if fid in by_id]
         else:
+            content_filter = (
+                or_(
+                    File.content.contains(old_text, autoescape=True),  # type: ignore[attr-defined]
+                    File.content.contains(crlf_old_text, autoescape=True),  # type: ignore[attr-defined]
+                )
+                if crlf_old_text is not None
+                else File.content.contains(old_text, autoescape=True)  # type: ignore[attr-defined]
+            )
             stmt = (
                 select(File)
                 .where(
                     File.project_id == project_id,
                     File.is_deleted.is_(False),
                     File.file_type != "folder",
-                    File.content.contains(old_text, autoescape=True),  # type: ignore[attr-defined]
+                    content_filter,
                 )
                 .order_by(
                     File.order.asc(),  # type: ignore[attr-defined]
@@ -1636,9 +1677,12 @@ class FileEditor:
                 stmt = stmt.where(File.file_type.in_(normalized_file_types))  # type: ignore[attr-defined]
             ordered_candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
 
-        # Exact literal filter in Python (SQLite LIKE is ASCII case-insensitive).
+        # Exact literal filter in Python (SQLite LIKE is ASCII case-insensitive), with CRLF fallback.
         matching_candidates = [
-            f for f in ordered_candidates if isinstance(f.content, str) and old_text in f.content
+            f
+            for f in ordered_candidates
+            if isinstance(f.content, str)
+            and (old_text in f.content or (crlf_old_text is not None and crlf_old_text in f.content))
         ]
         matched_total = len(matching_candidates)
         effective_max = max(1, int(max_files))
@@ -1654,9 +1698,15 @@ class FileEditor:
             preview_files: list[dict[str, Any]] = []
             total_replacements = 0
             for candidate in batch_targets:
+                cand_content = candidate.content or ""
+                effective_old = (
+                    old_text
+                    if old_text in cand_content or crlf_old_text is None
+                    else crlf_old_text
+                )
                 hit_count, match_items = find_literal_matches(
-                    candidate.content or "",
-                    old_text,
+                    cand_content,
+                    effective_old,
                     max_matches=BATCH_REPLACE_PREVIEW_SNIPPETS,
                     context_chars=BATCH_REPLACE_SNIPPET_CONTEXT_CHARS,
                 )
@@ -1812,10 +1862,23 @@ class FileEditor:
                 snap = read_snapshot_lookup(file.id)
                 if snap is not None and snap != old_content:
                     raise StaleContentError(snap, old_content)
-            replacements = old_content.count(old_text)
+            effective_old = old_text
+            effective_new = new_text
+            replacements = old_content.count(effective_old)
+            if (
+                replacements <= 0
+                and "\r\n" in old_content
+                and "\n" in old_text
+                and "\r\n" not in old_text
+            ):
+                crlf_candidate = _adapt_lf_to_crlf(old_text)
+                replacements = old_content.count(crlf_candidate)
+                if replacements > 0:
+                    effective_old = crlf_candidate
+                    effective_new = _adapt_lf_to_crlf(new_text)
             if replacements <= 0:
                 return None
-            new_content = old_content.replace(old_text, new_text)
+            new_content = old_content.replace(effective_old, effective_new)
             if new_content == old_content:
                 return None
             if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
@@ -1823,7 +1886,7 @@ class FileEditor:
                 # represents multiple local edits, not a single whole-body rewrite; keep exact whole-body blocking,
                 # single-occurrence near-whole-body blocking, and duplicated-paragraph checks intact.
                 guard_edits = [
-                    {"op": "replace", "old": old_text, "new": new_text, "replace_all": True}
+                    {"op": "replace", "old": effective_old, "new": effective_new, "replace_all": True}
                 ] * min(replacements, 2)
                 check_body_edit_guards(old_content, new_content, guard_edits)
             summary = f"AI 批量替换: {old_text[:20]} → {new_text[:20]} ({replacements} 处)"
@@ -2399,15 +2462,24 @@ class FileEditor:
             # 引号此时按产品默认的 “” 写入；new 里直接写的 「」/“” 原样保留。
             quote_style = QUOTE_STYLE_CURLY
 
-        # 1) Exact match first, then exact modulo double-quote style
+        # 1) Exact match first, then exact modulo double-quote style; in non-exact modes,
+        #    also support deterministic CRLF line-ending exact match (preserving CRLF in new_text).
         located = locate_exact_or_quote_equivalent(content, old_text)
+        effective_old = old_text
+        effective_new = new_text
+        if located is None and match_mode != "exact":
+            crlf_located = _locate_crlf_exact_or_quote_equivalent(content, old_text)
+            if crlf_located is not None:
+                _crlf_mode, haystack, needle, effective_old = crlf_located
+                located = ("normalized_exact", haystack, needle)
+                effective_new = _adapt_lf_to_crlf(new_text)
         if located is not None:
             exact_mode, haystack, needle = located
             if replace_all:
                 spans = _exact_spans(haystack, needle, limit=len(haystack) + 1)
                 count = len(spans)
                 if already_matched is not None and spans and all(
-                    content[s:e] == new_text for s, e in spans
+                    content[s:e] == effective_new for s, e in spans
                 ):
                     already_matched.append(True)
                 parts: list[str] = []
@@ -2416,9 +2488,9 @@ class FileEditor:
                 for start, end in spans:
                     parts.append(content[prev:start])
                     out_len += start - prev
-                    parts.append(new_text)
-                    placed.append((out_len, out_len + len(new_text)))
-                    out_len += len(new_text)
+                    parts.append(effective_new)
+                    placed.append((out_len, out_len + len(effective_new)))
+                    out_len += len(effective_new)
                     prev = end
                 parts.append(content[prev:])
                 content = self._normalize_placed_spans("".join(parts), placed, quote_style)
@@ -2428,12 +2500,12 @@ class FileEditor:
                         for (start, end), (p_start, p_end) in zip(spans, placed, strict=True)
                     )
                 if placed:
-                    new_text = content[placed[0][0] : placed[0][1]]
+                    effective_new = content[placed[0][0] : placed[0][1]]
                 applied_edits.append({
                     "op": "replace",
                     "match_mode": exact_mode,
                     "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                    "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                    "new_preview": effective_new[:200] + ("..." if len(effective_new) > 200 else ""),
                     "count": count,
                 })
             else:
@@ -2452,19 +2524,19 @@ class FileEditor:
                     extra_hint="（确实要把多处相同原文全部替换时，请改用 batch_replace_files）",
                     preview_content=content,
                 )
-                if already_matched is not None and content[start : start + len(old_text)] == new_text:
+                if already_matched is not None and content[start : start + len(effective_old)] == effective_new:
                     already_matched.append(True)
-                content, new_text = self._place_new_text(
-                    content, start, start + len(old_text), new_text, quote_style
+                content, written_new = self._place_new_text(
+                    content, start, start + len(effective_old), effective_new, quote_style
                 )
                 if applied_hunks is not None:
-                    applied_hunks.append((start, start + len(old_text), len(new_text)))
+                    applied_hunks.append((start, start + len(effective_old), len(written_new)))
                 detail = {
                     "op": "replace",
                     "match_mode": exact_mode,
                     "match_count": match_count,
                     "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                    "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                    "new_preview": written_new[:200] + ("..." if len(written_new) > 200 else ""),
                 }
                 if occurrence is not None:
                     detail["occurrence"] = occurrence
@@ -2473,6 +2545,7 @@ class FileEditor:
             if match_mode == "exact":
                 raise _not_found(
                     f"Edit {edit_index}: old text not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             # 2) Deterministic whitespace/newline/double-quote-normalized match.
@@ -2568,6 +2641,7 @@ class FileEditor:
             if match_mode == "exact_normalized":
                 raise _not_found(
                     f"Edit {edit_index}: old text not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             # 3) Fuzzy match (ignore punctuation/whitespace)
@@ -2685,6 +2759,7 @@ class FileEditor:
                 )
                 raise _not_found(
                     f"Edit {edit_index}: 找不到要替换的原文片段。"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                     f"{_approximate_not_found_advice(approx_stats, label='原文片段')}"
                     f"候选片段: {suggestions}"
                 )
@@ -2845,6 +2920,13 @@ class FileEditor:
             return placed
 
         located = locate_exact_or_quote_equivalent(content, anchor)
+        effective_anchor = anchor
+        if located is None and match_mode != "exact":
+            crlf_located = _locate_crlf_exact_or_quote_equivalent(content, anchor)
+            if crlf_located is not None:
+                _crlf_mode, haystack, needle, effective_anchor = crlf_located
+                located = ("normalized_exact", haystack, needle)
+                text = _adapt_lf_to_crlf(text)
         if located is not None:
             exact_mode, haystack, needle = located
             match_count = haystack.count(needle)
@@ -2852,12 +2934,13 @@ class FileEditor:
                 haystack, needle, occurrence, match_count, edit_index, label="锚点",
                 preview_content=content,
             )
-            pos = start + len(anchor) if after else start
+            pos = start + len(effective_anchor) if after else start
             return place(pos, {"match_mode": exact_mode, "match_count": match_count}, exact_anchor=True)
 
         if match_mode == "exact":
             raise _not_found(
                 f"Edit {edit_index}: anchor text not found in content (exact match)"
+                f"{_crlf_hint_if_applicable(content, anchor)}"
             )
 
         norm_spans = _locate_normalized_exact_spans(content, anchor)
@@ -2885,6 +2968,7 @@ class FileEditor:
         if match_mode == "exact_normalized":
             raise _not_found(
                 f"Edit {edit_index}: anchor text not found in content (exact match)"
+                f"{_crlf_hint_if_applicable(content, anchor)}"
             )
 
         fuzzy_stats: dict[str, int] = {}
@@ -3012,6 +3096,7 @@ class FileEditor:
         )
         raise _not_found(
             f"Edit {edit_index}: 找不到插入锚点。"
+            f"{_crlf_hint_if_applicable(content, anchor)}"
             f"{_approximate_not_found_advice(approx_stats, label='锚点')}"
             f"候选片段: {suggestions}"
         )
@@ -3042,6 +3127,12 @@ class FileEditor:
             )
 
         located = locate_exact_or_quote_equivalent(content, old_text)
+        effective_old = old_text
+        if located is None and match_mode != "exact":
+            crlf_located = _locate_crlf_exact_or_quote_equivalent(content, old_text)
+            if crlf_located is not None:
+                _crlf_mode, haystack, needle, effective_old = crlf_located
+                located = ("normalized_exact", haystack, needle)
         if located is not None:
             exact_mode, haystack, needle = located
             match_count = haystack.count(needle)
@@ -3057,9 +3148,9 @@ class FileEditor:
                 label="删除片段",
                 preview_content=content,
             )
-            content = content[:start] + content[start + len(old_text):]
+            content = content[:start] + content[start + len(effective_old):]
             if applied_hunks is not None:
-                applied_hunks.append((start, start + len(old_text), 0))
+                applied_hunks.append((start, start + len(effective_old), 0))
             detail = {
                 "op": "delete",
                 "match_mode": exact_mode,
@@ -3073,6 +3164,7 @@ class FileEditor:
             if match_mode == "exact":
                 raise _not_found(
                     f"Edit {edit_index}: text to delete not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             norm_spans = _locate_normalized_exact_spans(content, old_text)
@@ -3106,6 +3198,7 @@ class FileEditor:
             if match_mode == "exact_normalized":
                 raise _not_found(
                     f"Edit {edit_index}: text to delete not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             fuzzy_stats: dict[str, int] = {}

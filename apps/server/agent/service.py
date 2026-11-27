@@ -1142,6 +1142,10 @@ class AgentService:
             if run_report is not None and model_name:
                 run_report["model"] = model_name
 
+        def _record_live_report(updates: dict[str, object]) -> None:
+            if run_report is not None and updates:
+                run_report.update(updates)
+
         if run_report is not None:
             run_report.setdefault("model", primary_model_name())
             if session_id:
@@ -1150,6 +1154,7 @@ class AgentService:
         run_meter = AgentRunMeter(
             timing_origin=run_started_monotonic,
             on_served_model=_record_live_model if run_report is not None else None,
+            on_report_update=_record_live_report if run_report is not None else None,
         )
         context_timing_recorded = False
 
@@ -1158,8 +1163,8 @@ class AgentService:
         tool_call_index_by_id: dict[str, int] = {}
         consumed_steering: list[str] = []
         assistant_response = ""
-        post_file_whitespace_pending = False
-        post_file_whitespace_buf = ""
+        protocol_whitespace_pending = False
+        protocol_whitespace_buf = ""
         assistant_stop_reason: str | None = None
         assistant_usage: dict[str, Any] | None = None
         assistant_status_cards: list[dict[str, Any]] = []
@@ -1272,6 +1277,8 @@ class AgentService:
                     content if response_chunk is None else response_chunk.replace("\x00", "")
                 )
                 assistant_response += chunk_for_response
+                if run_report is not None:
+                    run_report["response_length"] = len(assistant_response)
             display_text_run_type = event_type
 
         def _append_user_messages_sync(
@@ -2013,34 +2020,64 @@ class AgentService:
                                 }
                             )
 
-                        if event_type == "file_content_end":
-                            post_file_whitespace_pending = True
-                            post_file_whitespace_buf = ""
-                        elif event_type in {
+                        if event_type in {
+                            "file_content",
+                            "file_content_end",
                             "tool_call",
-                            "thinking_content",
+                            "tool_result",
+                        }:
+                            # 工具调用与 <file> 流边界之间产出的纯空白片段属于协议分隔换行，
+                            # 先暂存；若在下一个非空白正文前又遇到工具/文件/终态事件则直接丢弃，
+                            # 避免多文件续跑在 chat_message.content 里堆出大量连续 \n。
+                            protocol_whitespace_pending = True
+                            protocol_whitespace_buf = ""
+                        elif event_type == "thinking_content":
+                            if protocol_whitespace_pending:
+                                # 处于工具/文件边界时，丢弃已暂存的纯空白并继续等待真正的正文。
+                                protocol_whitespace_buf = ""
+                        elif event_type in {
                             "iteration_exhausted",
                             "error",
                         }:
-                            post_file_whitespace_pending = False
-                            post_file_whitespace_buf = ""
+                            protocol_whitespace_pending = False
+                            protocol_whitespace_buf = ""
 
                         # Track content for history
                         if event_type == "content":
                             text_chunk = event.data.get("text", "")
-                            if post_file_whitespace_pending:
-                                candidate = (post_file_whitespace_buf + text_chunk).replace("\x00", "")
+                            if protocol_whitespace_pending:
+                                candidate = (protocol_whitespace_buf + text_chunk).replace("\x00", "")
                                 if not candidate.strip():
-                                    post_file_whitespace_buf = candidate
+                                    protocol_whitespace_buf = candidate
                                 else:
                                     trimmed = candidate.lstrip("\r\n")
+                                    if not assistant_response.strip():
+                                        response_chunk = trimmed
+                                    else:
+                                        leading_sep = candidate[: len(candidate) - len(trimmed)]
+                                        if not leading_sep:
+                                            # 跨工具/文件边界有前文但新段无前导换行：补一段空行以免粘连。
+                                            if assistant_response.endswith("\n\n"):
+                                                response_chunk = trimmed
+                                            elif assistant_response.endswith("\n"):
+                                                response_chunk = "\n" + trimmed
+                                            else:
+                                                response_chunk = "\n\n" + trimmed
+                                        elif assistant_response.endswith("\n\n"):
+                                            response_chunk = trimmed
+                                        elif assistant_response.endswith("\n"):
+                                            response_chunk = "\n" + trimmed
+                                        else:
+                                            newline_count = leading_sep.count("\n")
+                                            sep = "\n\n" if newline_count >= 2 else leading_sep
+                                            response_chunk = sep + trimmed
                                     _append_display_text(
                                         "content",
                                         trimmed,
-                                        response_chunk=trimmed if not assistant_response else candidate,
+                                        response_chunk=response_chunk,
                                     )
-                                    post_file_whitespace_pending = False
-                                    post_file_whitespace_buf = ""
+                                    protocol_whitespace_pending = False
+                                    protocol_whitespace_buf = ""
                             else:
                                 _append_display_text("content", text_chunk)
                         elif event_type == "thinking_content":
@@ -2071,6 +2108,8 @@ class AgentService:
                                 assistant_display_events.append(
                                     {"type": "tool_call", "tool_call_index": tool_call_index}
                                 )
+                            if run_report is not None:
+                                run_report["tool_calls_count"] = len(all_tool_calls)
                         elif event_type == "tool_result":
                             tool_use_id = str(event.data.get("tool_use_id") or "").strip()
                             target_call: dict[str, Any] | None = None
@@ -2102,6 +2141,8 @@ class AgentService:
                                     event.data.get("data"),
                                 )
                                 target_call["error"] = event.data.get("error")
+                            if run_report is not None:
+                                run_report["tool_calls_count"] = len(all_tool_calls)
                         elif event_type == "iteration_exhausted":
                             assistant_status_cards.append(iteration_exhausted_status_card(event.data))
                         elif event_type == "error":

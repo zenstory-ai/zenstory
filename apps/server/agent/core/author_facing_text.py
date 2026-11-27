@@ -94,7 +94,7 @@ class AgentTextShaper:
             return ""
         if not self._started:
             self._started = True
-            if self._previous_text.strip():
+            if self._previous_text.strip() and not text.lstrip().startswith("<"):
                 text = self._separated(self._tail, text)
         elif self._after_tool_call and not text.lstrip().startswith("<"):
             text = self._separated(self._tail, text)

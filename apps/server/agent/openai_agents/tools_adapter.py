@@ -740,6 +740,7 @@ def build_agent_function_tools(
                     output,
                     parsed_args=parsed_args,
                     parsed_output=parsed_output,
+                    reply_seq=req_ctx.model_reply_seq() if req_ctx is not None else None,
                 )
                 if _tool_name == "batch_replace_files":
                     _maybe_reset_breaker_for_batch_replace(

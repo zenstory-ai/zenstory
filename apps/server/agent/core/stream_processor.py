@@ -145,10 +145,14 @@ _LONE_FILE_START_LINE_PATTERN = re.compile(rf"[ \t]*{_TAG_OPEN_PREFIX}file\s*>[ 
 PREBODY_FILE_ID = "reply-prebody"
 
 # 模型陷入循环、把一大段原样一遍遍重写（生产 10-26：一段约五千字的正文连续重复九遍，
-# 直到单轮时限才停；生产 11-18：``dl/`` 短词或 18 字短句重复上千遍）：最近这么多字符按同一间隔
-# 连续出现第三遍，且包含足够多的文字/字母/数字（排除纯标点分隔线、表格横线与空白），就算循环。
+# 直到单轮时限才停；生产 11-18：``dl/`` 短词或 18 字短句重复上千遍；生产 11-27：``\n\n　　——``
+# 破折号行连续重复 11,559 段写爆 7.6 万字）：
+# 1) 末尾连续出现 ≥20 行相同的非空白纯标点/分隔符行即判为循环并回退到循环之前；
+# 2) 最近 REPEAT_WINDOW_CHARS 个字符按同一间隔连续出现第三遍，且包含足够多的非空白字符（排除纯空白），
+#    同样判为循环。
 REPEAT_WINDOW_CHARS = 800
 _REPEAT_MIN_ALNUM_CHARS = 64
+_REPEAT_SYMBOL_MIN_LINES = 20
 
 # 悬置（ambiguous）标记候选的等待上限：一个 </file> 候选因反引号/围栏未闭合被
 # 挂起后，若其后又累积了这么多字符仍无法判定，就按真实结束标记处理。没有这个
@@ -1282,17 +1286,94 @@ def extract_reply_prebody(text: str) -> str | None:
     return None
 
 
+def _find_symbol_line_repetition_start(
+    text: str,
+    *,
+    min_lines: int = _REPEAT_SYMBOL_MIN_LINES,
+) -> int | None:
+    """检测末尾连续重复的纯标点/分隔符行死循环（例如 ``\\n\\n　　——`` 连续重复 20+ 次）。
+
+    正常正文里的少量场景分隔线或表格分隔行不会连续出现 20 行；纯空白行不计入。
+    命中时返回循环起点（含紧贴其前的空行分隔），截断后保留前文干净结尾；整段都是符号循环时返回 0。
+    """
+    if not text or min_lines < 2:
+        return None
+    lines = text.splitlines(keepends=True)
+    if len(lines) < min_lines:
+        return None
+
+    idx = len(lines) - 1
+    while idx >= 0 and not lines[idx].strip():
+        idx -= 1
+    if idx < 0:
+        return None
+
+    last_stripped = lines[idx].strip()
+    if any(ch.isalnum() for ch in last_stripped):
+        return None
+
+    ref_stripped = last_stripped
+    run_first_line_idx = idx
+    # 流式检查恰好落在最后一行写到一半时（如 ``　　—``），允许它是前一行符号的严格前缀。
+    if not lines[idx].endswith(("\n", "\r")):
+        prev = idx - 1
+        while prev >= 0 and not lines[prev].strip():
+            prev -= 1
+        if prev >= 0:
+            prev_stripped = lines[prev].strip()
+            if (
+                prev_stripped
+                and not any(ch.isalnum() for ch in prev_stripped)
+                and prev_stripped != last_stripped
+                and prev_stripped.startswith(last_stripped)
+            ):
+                ref_stripped = prev_stripped
+                idx = prev
+                run_first_line_idx = prev
+
+    count = 0
+    while idx >= 0:
+        stripped = lines[idx].strip()
+        if not stripped:
+            idx -= 1
+            continue
+        if stripped == ref_stripped:
+            count += 1
+            run_first_line_idx = idx
+            idx -= 1
+            continue
+        break
+
+    if count < min_lines:
+        return None
+
+    cut_line_idx = run_first_line_idx
+    while cut_line_idx > 0 and not lines[cut_line_idx - 1].strip():
+        cut_line_idx -= 1
+    if cut_line_idx == 0:
+        return 0
+    cut_offset = sum(len(line) for line in lines[:cut_line_idx])
+    while cut_offset > 0 and text[cut_offset - 1] in "\r\n":
+        cut_offset -= 1
+    return cut_offset
+
+
 def find_repetition_start(text: str, window: int = REPEAT_WINDOW_CHARS) -> int | None:
     """text 末尾 window 个字符按同一间隔在前文里又原样出现了两遍（连续第三遍）时，返回重复开始的位置；否则 None。
 
     末尾这段上一次出现的位置与它现在的位置之差就是一遍的长度；从末尾这段往前，逐字
     与前一遍对照，一直相同的部分也属于重复，第一处不同（或文本开头）之后就是重复的起点。
+    另补充纯标点/分隔符行连续重复（≥20 行）与长单行纯符号洪泛检测，防止 ``isalnum()==0`` 穿透防线。
     """
+    symbol_cut = _find_symbol_line_repetition_start(text)
+    if symbol_cut is not None:
+        return symbol_cut
     if len(text) < window * 2:
         return None
     tail = text[-window:]
-    min_alnum = min(_REPEAT_MIN_ALNUM_CHARS, max(2, window // 12))
-    if sum(1 for ch in tail if ch.isalnum()) < min_alnum:
+    min_chars = min(_REPEAT_MIN_ALNUM_CHARS, max(2, window // 12))
+    # 纯空白不算循环；超长连续非空白字符（含正文以及无换行的纯符号/标点洪泛如 1600+ 字符 ``——``）进入 3 遍周期检测。
+    if sum(1 for ch in tail if not ch.isspace()) < min_chars:
         return None
     start = len(text) - window
     previous = text.rfind(tail, 0, start - 1 + window)
