@@ -163,14 +163,16 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const isSuperuser = Boolean(user?.is_superuser);
   const [projects, setProjects] = useState<Project[]>([]);
   const projectsRef = useRef<Project[]>(projects);
   projectsRef.current = projects;
   const [projectsOwnerId, setProjectsOwnerId] = useState<string | null>(null);
   const projectsOwnerIdRef = useRef<string | null>(null);
-  const authUserIdRef = useRef<string | null>(user?.id ?? null);
+  const authUserIdRef = useRef<string | null>(userId);
   const loadGenerationRef = useRef(0);
-  authUserIdRef.current = user?.id ?? null;
+  authUserIdRef.current = userId;
   const [currentProjectId, setCurrentProjectIdState] = useState<string | null>(null);
   // 与 currentProjectId 同步的 ref：用于在同一批更新里判断「项目是否真的换了」。
   const currentProjectIdRef = useRef<string | null>(null);
@@ -473,7 +475,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setPendingAgentUiAction(null);
     }
 
-    const storageKey = getProjectStorageKey(user?.id);
+    const storageKey = getProjectStorageKey(authUserIdRef.current);
     if (projectId) {
       localStorage.setItem(storageKey, projectId);
       if (storageKey !== STORAGE_KEY_PREFIX) {
@@ -483,11 +485,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       localStorage.removeItem(storageKey);
       localStorage.removeItem(STORAGE_KEY_PREFIX);
     }
-  }, [resetStreamingContent, user]);
+  }, [resetStreamingContent]);
 
   // Load projects when user is authenticated
   const loadProjects = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       loadGenerationRef.current += 1;
       projectsOwnerIdRef.current = null;
       setProjectsOwnerId(null);
@@ -498,7 +500,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       return;
     }
 
-    const requestedUserId = user.id;
+    const requestedUserId = userId;
     const generation = ++loadGenerationRef.current;
     const ownsRequest = () => (
       loadGenerationRef.current === generation &&
@@ -544,7 +546,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       // we only hydrate the currently-selected projectId.
       const routeChosenId = currentProjectIdRef.current;
       const shouldHydrateRouteProject =
-        Boolean(user?.is_superuser) &&
+        isSuperuser &&
         typeof routeChosenId === 'string' &&
         routeChosenId.length > 0 &&
         !validProjects.some((p) => p.id === routeChosenId);
@@ -586,7 +588,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         if (routeChosenExists) {
           // Keep currentProjectId untouched to avoid overwriting URL-selected project.
         } else {
-          const storageKey = getProjectStorageKey(user?.id);
+          const storageKey = getProjectStorageKey(userId);
 
           // Backward compatible: read legacy key if needed.
           const savedProjectId =
@@ -615,12 +617,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     } finally {
       if (ownsRequest()) setLoading(false);
     }
-  }, [user, setCurrentProjectId]);
+  }, [userId, isSuperuser, setCurrentProjectId]);
 
-  // Load projects when user changes
-  // Use user as direct dependency to ensure immediate reload on login/register
+  // Load projects when user identity changes (ignore background /me object refreshes with the same id)
   useEffect(() => {
-    if (user) {
+    if (userId) {
       // User logged in or registered - load projects
       loadProjects();
     } else {
@@ -637,7 +638,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setPendingAgentUiAction(null);
       setLoading(false);
     }
-  }, [user, loadProjects]);
+  }, [userId, loadProjects]);
 
   const switchProject = useCallback((projectId: string) => {
     const projectExists = visibleProjects.some(p => p.id === projectId);
@@ -767,7 +768,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     currentProject,
     currentProjectId: visibleCurrentProjectId,
     setCurrentProjectId,
-    loading: identityMatchesProjects ? loading : Boolean(user),
+    loading: identityMatchesProjects ? loading : Boolean(userId),
     error: identityMatchesProjects ? error : null,
     selectedItem: identityMatchesProjects ? selectedItem : null,
     setSelectedItem,
@@ -811,7 +812,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCurrentProjectId,
     loading,
     identityMatchesProjects,
-    user,
+    userId,
     error,
     selectedItem,
     setSelectedItem,

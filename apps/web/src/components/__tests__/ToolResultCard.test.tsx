@@ -45,6 +45,15 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.batch_replace_preview_many_in_many' && options?.files !== undefined && options?.matches !== undefined) {
     return `Preview: ${options.matches} matches across ${options.files} files`
   }
+  if (key === 'chat:tool.batch_replace_preview_truncated_one_in_one' && options?.matched !== undefined) {
+    return `Preview: 1 match in the first file (${options.matched} files matched in total)`
+  }
+  if (key === 'chat:tool.batch_replace_preview_truncated_many_in_one' && options?.matches !== undefined && options?.matched !== undefined) {
+    return `Preview: ${options.matches} matches in the first file (${options.matched} files matched in total)`
+  }
+  if (key === 'chat:tool.batch_replace_preview_truncated_many_in_many' && options?.files !== undefined && options?.matches !== undefined && options?.matched !== undefined) {
+    return `Preview: ${options.matches} matches in the first ${options.files} files (${options.matched} files matched in total)`
+  }
   if (key === 'chat:tool.batch_replace_done_many_in_one' && options?.matches !== undefined) {
     return `Replaced ${options.matches} matches in 1 file`
   }
@@ -774,6 +783,82 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('Preview')).toBeInTheDocument()
       expect(screen.getByText('4 matches')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+    })
+
+    it('aligns previewed file count and replacement count when batch_replace_files dry_run is truncated', () => {
+      const previewFiles = Array.from({ length: 30 }, (_, index) => ({
+        id: `f-${index + 1}`,
+        title: `第${index + 1}章`,
+        file_type: 'draft',
+        replacements: index < 3 ? 2 : 1,
+      }))
+
+      const { rerender } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="batch_replace_files"
+          result={{
+            data: {
+              dry_run: true,
+              mutation_applied: false,
+              matched_files: 45,
+              modified_files: 0,
+              total_replacements: 33,
+              files: previewFiles,
+              remaining_count: 15,
+              truncated: true,
+            },
+          }}
+        />
+      )
+
+      expect(
+        screen.getByText('Preview: 33 matches in the first 30 files (45 files matched in total)'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Preview: 33 matches across 45 files')).not.toBeInTheDocument()
+      expect(screen.getByText('15 more files remaining')).toBeInTheDocument()
+      expect(screen.getByText('View affected files (30)')).toBeInTheDocument()
+
+      // Single previewed file truncated out of 5 matched files (singular & plural matches)
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName="batch_replace_files"
+          result={{
+            data: {
+              dry_run: true,
+              matched_files: 5,
+              total_replacements: 1,
+              files: [{ id: 'f-1', title: '第1章', file_type: 'draft', replacements: 1 }],
+              remaining_count: 4,
+              truncated: true,
+            },
+          }}
+        />
+      )
+      expect(
+        screen.getByText('Preview: 1 match in the first file (5 files matched in total)'),
+      ).toBeInTheDocument()
+
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName="batch_replace_files"
+          result={{
+            data: {
+              dry_run: true,
+              matched_files: 5,
+              total_replacements: 3,
+              files: [{ id: 'f-1', title: '第1章', file_type: 'draft', replacements: 3 }],
+              remaining_count: 4,
+              truncated: true,
+            },
+          }}
+        />
+      )
+      expect(
+        screen.getByText('Preview: 3 matches in the first file (5 files matched in total)'),
+      ).toBeInTheDocument()
     })
 
     it('renders batch_replace_files real execution with counts, per-file undo, failed files, and remaining files', async () => {

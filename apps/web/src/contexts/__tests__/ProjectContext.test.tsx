@@ -1569,5 +1569,44 @@ describe('ProjectContext', () => {
         expect(probe).toHaveAttribute('data-selected', 'file-a')
       })
     })
+
+    it('keeps setCurrentProjectId and refreshProjects stable when background /me refreshes user object with the same id', async () => {
+      vi.mocked(projectApi.getAll).mockResolvedValue(mockProjects)
+      const authBase = {
+        loading: false,
+        login: vi.fn(),
+        register: vi.fn(),
+        logout: vi.fn(),
+        handleOAuthCallback: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        googleLogin: vi.fn(),
+      }
+      vi.mocked(useAuth).mockReturnValue({ ...authBase, user: mockUser })
+
+      const wrapper = ({ children }: { children: ReactNode }) => <ProjectProvider>{children}</ProjectProvider>
+      const { result, rerender } = renderHook(() => useProject(), { wrapper })
+      await waitFor(() => expect(result.current.projects.length).toBe(2))
+
+      const initialSetCurrentProjectId = result.current.setCurrentProjectId
+      const initialRefreshProjects = result.current.refreshProjects
+
+      // Background /api/auth/me returns a fresh user object reference for the same account.
+      vi.mocked(useAuth).mockReturnValue({
+        ...authBase,
+        user: { ...mockUser, updated_at: '2026-11-27T12:00:00Z' },
+      })
+      rerender()
+
+      expect(result.current.setCurrentProjectId).toBe(initialSetCurrentProjectId)
+      expect(result.current.refreshProjects).toBe(initialRefreshProjects)
+      expect(projectApi.getAll).toHaveBeenCalledTimes(1)
+
+      // Calling the stable setter still persists under the active user's storage key.
+      act(() => {
+        result.current.setCurrentProjectId('project-1')
+      })
+      expect(localStorage.getItem('zenstory_current_project_id:user-123')).toBe('project-1')
+    })
   })
 })
