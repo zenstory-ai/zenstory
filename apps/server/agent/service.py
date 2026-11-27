@@ -15,6 +15,7 @@ Built on the single loop agent (agent/loop) and openai-agents-python.
 import asyncio
 import contextlib
 import json
+import re
 import threading
 import time
 import uuid
@@ -108,6 +109,8 @@ from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
 from .tools.tool_context import AgentRequestContext
 
 logger = get_logger(__name__)
+
+_LEADING_BLANK_LINES_RE = re.compile(r"\A(?:[ \t\u3000]*\r?\n)+")
 
 # 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限与发布交接
 # 也是以取消的方式到达 process_stream（sse_pump 取消后台 task）：原因由路由层写在
@@ -2004,6 +2007,27 @@ class AgentService:
                             pending_done_payload = event.data if isinstance(event.data, dict) else {}
                             continue
 
+                        if event_type == "error":
+                            # Record fatal error status & stop_reason before yielding so a
+                            # client disconnect right on `event: error` still preserves them.
+                            had_stream_error = True
+                            meta_stop = stream_adapter.get_last_message_metadata().get("stop_reason")
+                            err_stop = (
+                                meta_stop
+                                if isinstance(meta_stop, str) and meta_stop.strip()
+                                else (
+                                    event.data.get("reason")
+                                    if isinstance(event.data, dict)
+                                    and isinstance(event.data.get("reason"), str)
+                                    and event.data.get("reason").strip()
+                                    else None
+                                )
+                            )
+                            if err_stop:
+                                assistant_stop_reason = err_stop
+                                if run_report is not None:
+                                    run_report["stop_reason"] = err_stop
+
                         # Yield SSE event
                         yield event.to_sse()
 
@@ -2050,7 +2074,7 @@ class AgentService:
                                 if not candidate.strip():
                                     protocol_whitespace_buf = candidate
                                 else:
-                                    trimmed = candidate.lstrip("\r\n")
+                                    trimmed = _LEADING_BLANK_LINES_RE.sub("", candidate)
                                     if not assistant_response.strip():
                                         response_chunk = trimmed
                                     else:
@@ -2069,7 +2093,7 @@ class AgentService:
                                             response_chunk = "\n" + trimmed
                                         else:
                                             newline_count = leading_sep.count("\n")
-                                            sep = "\n\n" if newline_count >= 2 else leading_sep
+                                            sep = "\n\n" if newline_count >= 2 else "\n"
                                             response_chunk = sep + trimmed
                                     _append_display_text(
                                         "content",
@@ -2145,13 +2169,22 @@ class AgentService:
                                 run_report["tool_calls_count"] = len(all_tool_calls)
                         elif event_type == "iteration_exhausted":
                             assistant_status_cards.append(iteration_exhausted_status_card(event.data))
-                        elif event_type == "error":
-                            had_stream_error = True
 
                     model_metadata = stream_adapter.get_last_message_metadata()
-                    assistant_stop_reason = model_metadata.get("stop_reason")
+                    assistant_stop_reason = model_metadata.get("stop_reason") or assistant_stop_reason
                     usage_candidate = model_metadata.get("usage")
                     assistant_usage = usage_candidate if isinstance(usage_candidate, dict) else None
+                    if run_report is not None and assistant_stop_reason:
+                        from models.chat_message_ux_summary import iteration_exhausted_abnormal_reason
+
+                        live_metric_stop_reason = assistant_stop_reason
+                        if live_metric_stop_reason == "end_turn" and assistant_status_cards:
+                            exhausted_reason = iteration_exhausted_abnormal_reason(
+                                {"status_cards": assistant_status_cards}
+                            )
+                            if exhausted_reason is not None:
+                                live_metric_stop_reason = exhausted_reason
+                        run_report["stop_reason"] = live_metric_stop_reason
                     if had_stream_error:
                         # Still persist partial history so the user and AI can
                         # recover context on the next turn instead of losing
@@ -2657,7 +2690,12 @@ class AgentService:
                 from models.chat_message_ux_summary import iteration_exhausted_abnormal_reason
 
                 usage_summary = assistant_usage if isinstance(assistant_usage, dict) else {}
-                metric_stop_reason = assistant_stop_reason
+                metric_stop_reason = assistant_stop_reason or (
+                    run_report.get("stop_reason")
+                    if isinstance(run_report.get("stop_reason"), str)
+                    and run_report.get("stop_reason").strip()
+                    else None
+                )
                 if metric_stop_reason == "end_turn" and assistant_status_cards:
                     exhausted_reason = iteration_exhausted_abnormal_reason(
                         {"status_cards": assistant_status_cards}

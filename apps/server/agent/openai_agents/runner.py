@@ -329,20 +329,31 @@ def _landing_write_facts(
         if fid:
             pending_by_id[fid] = str(entry.get("title") or "").strip()
 
+    unsaved_replacements = (
+        request_context.unsaved_chapter_replacement_ids() if request_context is not None else set()
+    )
     saved_bodies = request_context.saved_bodies_this_request() if request_context is not None else {}
+    deleted_ids = set(read_guard.files_deleted) if read_guard is not None else set()
     written: dict[str, str] = {}
+    deleted: dict[str, str] = {}
     if read_guard is not None:
         for fid, title in read_guard.files_written.items():
             clean_id = str(fid or "").strip()
-            if clean_id and clean_id not in pending_by_id:
-                written[clean_id] = str(title or "").strip()
+            if not clean_id:
+                continue
+            clean_title = str(title or "").strip()
+            if clean_id in deleted_ids:
+                deleted[clean_id] = clean_title
+            elif clean_id not in pending_by_id and clean_id not in unsaved_replacements:
+                written[clean_id] = clean_title
     for fid, title in saved_bodies.items():
         clean_id = str(fid or "").strip()
-        if clean_id:
+        if clean_id and clean_id not in deleted_ids and clean_id not in unsaved_replacements:
             written[clean_id] = str(title or "").strip() or written.get(clean_id, "")
 
     unidentified_write = bool(
         not written
+        and not deleted
         and read_guard is not None
         and read_guard.write_succeeded
         and not pending_by_id
@@ -370,6 +381,21 @@ def _landing_write_facts(
                 f"[本轮实际写入事实] 本轮实际已写入/修改的文件仅限：{listed}。"
                 "未在此清单中的文件均未改动，严禁宣称清单外的文件已修改或已保存。"
             )
+    elif deleted:
+        del_items = [
+            _format_landing_file_label(fid, title, english=english)
+            for fid, title in list(deleted.items())[:_LANDING_WRITE_FACTS_MAX_FILES]
+        ]
+        if english:
+            parts.append(
+                f"[Actual writes this round] No file contents were saved; files deleted in this round: "
+                f"{', '.join(del_items)}. Do NOT claim any other file was modified or saved."
+            )
+        else:
+            parts.append(
+                f"[本轮实际写入事实] 本轮未保存新正文，仅删除了以下文件：{'、'.join(del_items)}。"
+                "严禁宣称其他文件已修改或已保存。"
+            )
     elif unidentified_write:
         if english:
             parts.append(
@@ -380,17 +406,36 @@ def _landing_write_facts(
             parts.append(
                 "[本轮实际写入事实] 本轮仅有工具结果明确确认的写入生效，严禁宣称未执行或失败的改动已保存。"
             )
+    elif pending_by_id:
+        pending_items = [
+            _format_landing_file_label(fid, title, english=english)
+            for fid, title in list(pending_by_id.items())[:_LANDING_WRITE_FACTS_MAX_FILES]
+        ]
+        if english:
+            parts.append(
+                f"[Actual writes this round] No file body has been saved yet in this round; "
+                f"files still awaiting <file> body content: {', '.join(pending_items)} (not yet saved). "
+                "Finish writing the pending <file>…</file> body first as instructed above; "
+                "do NOT claim any other file was modified or saved."
+            )
+        else:
+            parts.append(
+                f"[本轮实际写入事实] 本轮目前尚无已完成保存的文件正文；仍在等待 <file> 正文写入的文件："
+                f"{'、'.join(pending_items)}（正文尚未保存）。请先按上方提醒写完它的 <file>…</file> 正文，"
+                "严禁宣称其他文件已修改或已保存。"
+            )
+        return "\n" + "\n".join(parts)
     else:
         if english:
             parts.append(
-                "[Actual writes this round] No project files have been modified or saved in this round "
-                "(only read/search or non-mutating steps ran). State accurately that only inspection/reading was done; "
+                "[Actual writes this round] No project files have been modified or saved in this round. "
+                "State accurately that no project files were changed; "
                 "do NOT claim any file was edited, updated, or saved."
             )
         else:
             parts.append(
-                "[本轮实际写入事实] 本轮尚未修改或保存任何项目文件（仅执行了读取/检索或无写入操作）。"
-                "总结时请如实说明目前仅完成检查/阅读，严禁宣称任何文件「已修改」「已统一」或「已保存」。"
+                "[本轮实际写入事实] 本轮尚未修改或保存任何项目文件。"
+                "总结时请如实说明未改动项目文件，严禁宣称任何文件「已修改」「已统一」或「已保存」。"
             )
 
     if pending_by_id:

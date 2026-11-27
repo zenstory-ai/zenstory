@@ -4,7 +4,7 @@
 
 对 2026-11-26 至 2026-11-27 近一天线上 Railway 日志、PostgreSQL `agent_round_metric` 及真实用户对话排查发现 5 个在 `origin/main` 尚未修复的缺陷：
 
-1. **并行 `file_body_pending` 抢跑击穿熔断器（P1）**：单条模型回复里并行发出 ≥10 个工具调用（例如刚调用 `write_chapter` 建立待写占位后，紧接着在同一回复里并行发 11 个 `delete_file`），`ToolFailureBreaker` 虽将 `file_body_pending` 列入 `_ORDERING_ERROR_TYPES` 跳过同参数连续计数，但仍逐个累加 `consecutive_failures / total_failures`，在第 10 个调用直接触发 `tool_failure_circuit_open`（已扣额度、阻断 `runner._stop_run_after_tools` 交回 `FILE_BODY_RESUME`、残留空文件）。
+1. **并行 `file_body_pending` 抢跑击穿熔断器（P1）**：前一条回复用 `write_chapter` 建立待写占位后，下一条模型回复里并行发出 ≥10 个工具调用（例如并行 11 个 `delete_file`），`ToolFailureBreaker` 虽将 `file_body_pending` 列入 `_ORDERING_ERROR_TYPES` 跳过同参数连续计数，但仍逐个累加 `consecutive_failures / total_failures`，在第 10 个调用直接触发 `tool_failure_circuit_open`（已扣额度、阻断 `runner._stop_run_after_tools` 交回 `FILE_BODY_RESUME`、残留空文件）。
 2. **流式复读检测器漏掉纯标点/分隔符循环（P1）**：`stream_processor.find_repetition_start` 要求末尾窗口内 `isalnum() >= min_alnum`，导致纯标点/破折号循环（线上实测 11,559 段连续 `\n\n　　——`、写爆 7.6 万字）`isalnum()` 恒为 0、100% 穿透检测并被自动落盘。
 3. **`edit_file(continue_on_error=True)` 全失败缺少顶层 `error` 及 CRLF 空白替换死循环（P2）**：`all_failed=True` 时 `mcp_tools.edit_file` 仅写 `status="error"` 与 `error_type`、未写顶层 `error`，导致 `ToolFailureBreaker` 的 `last_error` 为空且错误指纹退化；同时 `zenstory-cli` 上传的 Windows CRLF（`\r\n`）文件中，模型以 `\n\n\n\n` 清理多余空行时，字面匹配失败、`_locate_normalized_exact_spans` 因无非空白行返回空，触发连续 `anchor_not_found` 死循环。
 4. **断线轮次丢失 `agent_round_metric` 工具与停止原因遥测（P2）**：客户端中途断连触发 `api/agent.py` 的 `finish()` 时，`AgentService.process_stream` 的 `finally` 尚未执行；`#484` 仅实时同步了 `model` 与 `prepare_context_ms`，而 `tool_calls_count`、`first_tool_started_ms`、`tool_failures_count` 与 `stop_reason` 仍丢失或为 `0 / None`。

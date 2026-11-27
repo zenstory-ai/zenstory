@@ -357,6 +357,11 @@ _BARE_LF_RE = re.compile(r"(?<!\r)\n")
 _CRLF_NOT_FOUND_HINT = "（提示：目标文件使用 Windows CRLF 换行符 \\r\\n；请核对空行数量或上下文锚点。）"
 
 
+def _is_crlf_content(content: str) -> bool:
+    """Whether ``content`` uses Windows CRLF (``\\r\\n``) exclusively (no bare LF)."""
+    return isinstance(content, str) and "\r\n" in content and "\n" not in content.replace("\r\n", "")
+
+
 def _adapt_lf_to_crlf(text: str) -> str:
     """Convert bare LF (``\\n``) to CRLF (``\\r\\n``) without doubling existing ``\\r\\n``."""
     if not isinstance(text, str) or "\n" not in text:
@@ -672,12 +677,13 @@ def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> No
       而改之前它没有重复。原文里本来就重复的段落不受影响。
     """
     old_stripped = (old_content or "").strip()
+    old_stripped_lf = old_stripped.replace("\r\n", "\n")
     if old_stripped:
         whole = any(
             isinstance(edit, dict)
             and str(edit.get("op") or "replace").strip().lower() == "replace"
             and isinstance(edit.get("old"), str)
-            and edit["old"].strip() == old_stripped
+            and edit["old"].strip().replace("\r\n", "\n") == old_stripped_lf
             for edit in edits or []
         )
         old_paragraphs = _body_paragraphs(old_content)
@@ -1863,7 +1869,11 @@ class FileEditor:
                 if snap is not None and snap != old_content:
                     raise StaleContentError(snap, old_content)
             effective_old = old_text
-            effective_new = new_text
+            effective_new = (
+                _adapt_lf_to_crlf(new_text)
+                if _is_crlf_content(old_content) and "\n" in new_text and "\r\n" not in new_text
+                else new_text
+            )
             replacements = old_content.count(effective_old)
             if (
                 replacements <= 0
@@ -2466,7 +2476,14 @@ class FileEditor:
         #    also support deterministic CRLF line-ending exact match (preserving CRLF in new_text).
         located = locate_exact_or_quote_equivalent(content, old_text)
         effective_old = old_text
-        effective_new = new_text
+        effective_new = (
+            _adapt_lf_to_crlf(new_text)
+            if match_mode != "exact"
+            and _is_crlf_content(content)
+            and "\n" in new_text
+            and "\r\n" not in new_text
+            else new_text
+        )
         if located is None and match_mode != "exact":
             crlf_located = _locate_crlf_exact_or_quote_equivalent(content, old_text)
             if crlf_located is not None:
@@ -2921,6 +2938,15 @@ class FileEditor:
 
         located = locate_exact_or_quote_equivalent(content, anchor)
         effective_anchor = anchor
+        if (
+            located is not None
+            and match_mode != "exact"
+            and _is_crlf_content(content)
+            and isinstance(text, str)
+            and "\n" in text
+            and "\r\n" not in text
+        ):
+            text = _adapt_lf_to_crlf(text)
         if located is None and match_mode != "exact":
             crlf_located = _locate_crlf_exact_or_quote_equivalent(content, anchor)
             if crlf_located is not None:

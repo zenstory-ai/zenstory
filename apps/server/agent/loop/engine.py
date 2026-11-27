@@ -884,15 +884,22 @@ async def run_loop_agent_streaming(
             state["user_message"] = followup
 
         if not terminated and runs >= max_runs:
+            unsaved_ids = req_ctx.unsaved_chapter_replacement_ids()
+            pending_ids = {
+                str(entry.get("file_id") or entry.get("id") or "")
+                for entry in req_ctx.get_pending_empty_files()
+                if str(entry.get("file_id") or entry.get("id") or "")
+            }
+            excluded_ids = unsaved_ids | pending_ids | read_guard.files_deleted
             saved_titles: list[str] = []
             seen_ids: set[str] = set()
             for fid, title in req_ctx.saved_bodies_this_request().items():
-                if fid and fid not in seen_ids:
+                if fid and fid not in seen_ids and fid not in excluded_ids:
                     seen_ids.add(fid)
                     if title:
                         saved_titles.append(title)
             for fid, title in read_guard.files_written.items():
-                if fid and fid not in seen_ids:
+                if fid and fid not in seen_ids and fid not in excluded_ids:
                     seen_ids.add(fid)
                     if title:
                         saved_titles.append(title)

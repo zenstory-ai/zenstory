@@ -517,6 +517,304 @@ def test_landing_prompt_injects_factual_written_files_or_zero_writes(trigger: st
 
 
 @pytest.mark.unit
+def test_landing_write_facts_edge_cases_pending_only_deleted_unidentified_and_english():
+    """Verify non-contradictory pending-only, delete-only, unidentified-write, overflow, and EN facts."""
+    from agent.openai_agents.runner import _landing_write_facts
+
+    # 1) Pending-only (0 saved bodies, 1 file awaiting <file>): must NOT tell model "only inspected/no writes".
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    guard = RepeatReadGuard(request_context=req_ctx)
+    req_ctx.set_pending_empty_file("f-new", "第1章", version="v1", file_type="draft")
+    guard._record_write("f-new", "第1章")
+    zh_pending = _landing_write_facts(guard, req_ctx, english=False)
+    assert "仍在等待 <file> 正文写入" in zh_pending
+    assert "请先按上方提醒写完" in zh_pending
+    assert "仅完成检查/阅读" not in zh_pending
+    en_pending = _landing_write_facts(guard, req_ctx, english=True)
+    assert "still awaiting <file> body content" in en_pending
+    assert "Finish writing" in en_pending
+
+    # 2) Delete-only round: deleted files listed as deleted, NOT as saved.
+    req_del = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    guard_del = RepeatReadGuard(request_context=req_del)
+    guard_del._record_write("f-old", "废稿", deleted=True)
+    zh_del = _landing_write_facts(guard_del, req_del, english=False)
+    assert "仅删除了以下文件" in zh_del and "《废稿》(id=f-old)" in zh_del
+    en_del = _landing_write_facts(guard_del, req_del, english=True)
+    assert "files deleted in this round" in en_del and '"废稿" (id=f-old)' in en_del
+
+    # 3) Unidentified write_succeeded (e.g. truncated tool output without id)
+    guard_unid = RepeatReadGuard()
+    guard_unid.write_succeeded = True
+    assert "工具结果明确确认" in _landing_write_facts(guard_unid, None, english=False)
+    assert "without full file details" in _landing_write_facts(guard_unid, None, english=True)
+
+    # 4) Zero writes in English + >20 written files overflow truncation
+    req_zero = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    assert "No project files have been modified" in _landing_write_facts(RepeatReadGuard(), req_zero, english=True)
+
+    guard_many = RepeatReadGuard()
+    for idx in range(23):
+        guard_many._record_write(f"f-{idx}", f"第{idx}章" if idx else "")
+    zh_many = _landing_write_facts(guard_many, None, english=False)
+    assert "等共 23 份文件" in zh_many and "id=f-0" in zh_many
+    en_many = _landing_write_facts(guard_many, None, english=True)
+    assert "(and 3 more)" in en_many
+
+
+@pytest.mark.unit
+def test_tool_failure_breaker_extracts_nested_failed_edits_error_fallback():
+    """Defense-in-depth: even if top-level 'error' is omitted, breaker extracts data.failed_edits[0].error."""
+    breaker = ToolFailureBreaker()
+    legacy_payload = json.dumps(
+        {
+            "status": "error",
+            "error_type": "anchor_not_found",
+            "data": {"failed_edits": [{"index": 0, "error": "Edit 0: 找不到要替换的原文片段。"}]},
+        },
+        ensure_ascii=False,
+    )
+    args = json.dumps({"id": "f-1", "edits": [{"op": "replace", "old": "x", "new": "y"}]})
+    for _ in range(3):
+        breaker.observe("edit_file", args, legacy_payload)
+    assert breaker.is_open is True
+    assert breaker.trip is not None
+    assert "找不到要替换的原文片段" in breaker.trip.last_error
+
+    # Empty failed_edits still produces empty fallback cleanly without raising.
+    breaker_empty = ToolFailureBreaker()
+    empty_payload = json.dumps({"status": "error", "data": {"failed_edits": []}})
+    for _ in range(3):
+        breaker_empty.observe("edit_file", args, empty_payload)
+    assert breaker_empty.is_open is True
+    assert breaker_empty.trip.last_error == ""
+
+
+@pytest.mark.unit
+def test_crlf_insert_and_single_line_multiline_replace_preserve_crlf_cleanly():
+    """Fixes P1-2 (paragraph_layout dropping \\r) and P2-1 (single-line old + multi-line new on CRLF)."""
+    editor = FileEditor(session=None)
+    crlf = "第一段。\r\n\r\n第二段。\r\n\r\n第三段。"
+
+    # 1) insert_after with LF multi-line anchor & LF paragraph text on CRLF file -> zero bare LF!
+    applied_ins: list[dict] = []
+    out_ins = editor._apply_insert(
+        crlf,
+        {"op": "insert_after", "anchor": "第一段。\n\n第二段。", "text": "\n\n新增段落。"},
+        0,
+        applied_ins,
+        [],
+        after=True,
+    )
+    assert out_ins == "第一段。\r\n\r\n第二段。\r\n\r\n新增段落。\r\n\r\n第三段。"
+    assert "\n" not in out_ins.replace("\r\n", "")
+
+    # 2) Single-line old + multi-line LF new on pure CRLF file -> adapts new_text to CRLF!
+    applied_rep: list[dict] = []
+    out_rep = editor._apply_replace(
+        crlf,
+        {"op": "replace", "old": "第二段。", "new": "第二段甲。\n\n第二段乙。"},
+        0,
+        applied_rep,
+        [],
+    )
+    assert out_rep == "第一段。\r\n\r\n第二段甲。\r\n\r\n第二段乙。\r\n\r\n第三段。"
+    assert "\n" not in out_rep.replace("\r\n", "")
+
+    # 3) Single-line anchor + multi-line LF text in insert_after on pure CRLF file -> zero bare LF!
+    applied_ins2: list[dict] = []
+    out_ins2 = editor._apply_insert(
+        crlf,
+        {"op": "insert_after", "anchor": "第一段。", "text": "\n\n插段甲。\n\n插段乙。"},
+        0,
+        applied_ins2,
+        [],
+        after=True,
+    )
+    assert "\n" not in out_ins2.replace("\r\n", "")
+
+
+@pytest.mark.unit
+def test_text_shaper_separates_angle_bracket_prose_while_skipping_file_tag():
+    """Fixes P2-6: '<第一幕>' gets separated from prior prose while '<file>' / '<' does not."""
+    shaper_prose = AgentTextShaper(previous_text="准备好了。", drop_english_narration=True)
+    out = shaper_prose.feed("<第一幕> 场景开始") + shaper_prose.end_segment(before_tool_call=False)
+    assert out == "\n\n<第一幕> 场景开始"
+
+    shaper_stream = AgentTextShaper(previous_text="<file>\n正文\n</file>", drop_english_narration=False)
+    out2 = shaper_stream.feed("<") + shaper_stream.feed("file>\n下章\n</file>")
+    assert out2 == "<file>\n下章\n</file>"
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_collaboration_cap_excludes_deleted_unsaved_and_pending_files_and_supports_en():
+    """Fixes P1-1 + tests run_support.collaboration_cap_text across ZH/EN, quota-left, and >10 titles."""
+    from agent.loop import run_support
+    from agent.loop.engine import run_loop_agent_streaming
+
+    # 1) Direct unit tests for collaboration_cap_text branches (EN, ZH, no-messages-left, empty, >10 titles).
+    with patch("agent.loop.run_support._ai_messages_left_today", return_value=False):
+        req_u = AgentRequestContext(session=None, user_id="u1", project_id="p1", session_id="s1")
+        assert 'Reply "continue"' not in await run_support.collaboration_cap_text(
+            True, 12, ["Ch 1"], request_context=req_u
+        )
+        assert 'Reply "continue"' not in await run_support.collaboration_cap_text(
+            True, 12, [], request_context=req_u
+        )
+        assert "回复「继续」" not in await run_support.collaboration_cap_text(
+            False, 12, ["第1章"], request_context=req_u
+        )
+        assert "回复「继续」" not in await run_support.collaboration_cap_text(
+            False, 12, [], request_context=req_u
+        )
+    with patch("agent.loop.run_support._ai_messages_left_today", return_value=True):
+        many = [f"第{i}章" for i in range(1, 13)]
+        zh_many = await run_support.collaboration_cap_text(False, 12, many, request_context=req_u)
+        assert "等 12 份文件" in zh_many and "回复「继续」" in zh_many
+        en_many = await run_support.collaboration_cap_text(True, 12, many, request_context=req_u)
+        assert "and 2 more" in en_many and 'Reply "continue"' in en_many
+        en_empty = await run_support.collaboration_cap_text(True, 12, [], request_context=req_u)
+        assert "Reached the per-round run limit (12)" in en_empty
+        zh_empty = await run_support.collaboration_cap_text(False, 12, [], request_context=req_u)
+        assert "本轮已达到单轮连续运行上限（12 次）" in zh_empty
+
+    # 2) Engine integration: deleted, unsaved replacement, and pending empty files must NOT appear in "已保存".
+    req_ctx = AgentRequestContext(session=None, user_id="u", project_id="p", session_id="s")
+    payload = {"content": [{"type": "text", "text": json.dumps({"status": "success"})}]}
+
+    async def fake_runner(*, state, agent_type, system_prompt, **_kwargs):
+        ctx = state["request_context"]
+        guard = state["repeat_read_guard"]
+        ctx.mark_chapter_body_saved("ch-saved", "第1章 已存", "draft")
+        guard._record_write("ch-edited", "第2章 局部改")
+        guard._record_write("ch-deleted", "废稿A", deleted=True)
+        # Arm an unsaved chapter replacement for ch-unsaved
+        ok, _ = ctx.try_reserve_pending_empty_file("t1", "第3章 未存替换")
+        assert ok
+        ctx.bind_pending_empty_file("t1", "ch-unsaved", "第3章 未存替换", replacement={"id": "ch-unsaved", "updated_at": "v1"})
+        guard._record_write("ch-unsaved", "第3章 未存替换")
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": agent_type})
+        yield StreamEvent(type=StreamEventType.TOOL_USE, data={"id": "c1", "name": "create_file", "status": "complete", "input": {}})
+        yield StreamEvent(type=StreamEventType.TOOL_RESULT, data={"tool_use_id": "c1", "name": "create_file", "result": payload})
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n第1章正文。\n</file>\n"})
+        state["run_items"] = [{"role": "user", "content": "x"}]
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    state = {"user_message": "整理章节", "messages": [], "system_prompt": "系统", "request_context": req_ctx}
+    with (
+        patch("agent.loop.engine.run_openai_agents_streaming_agent", fake_runner),
+        patch("agent.loop.run_support._ai_messages_left_today", return_value=True),
+    ):
+        events = [e async for e in run_loop_agent_streaming(state, max_runs=1)]
+
+    closing_texts = [
+        str(e.data.get("text") or "")
+        for e in events
+        if e.type == StreamEventType.TEXT and "连续运行上限" in str(e.data.get("text") or "")
+    ]
+    assert len(closing_texts) == 1
+    assert "《第1章 已存》" in closing_texts[0]
+    assert "《第2章 局部改》" in closing_texts[0]
+    assert "废稿A" not in closing_texts[0]
+    assert "第3章 未存替换" not in closing_texts[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_service_space_padded_blank_lines_after_file_and_live_stop_reason_on_error(
+    db_session: Session, monkeypatch
+):
+    """Fixes P2-5 (space-padded blank line after file_content_end) & P2-3 (live stop_reason on error)."""
+    from agent.service import AgentService
+
+    user, project = _make_user_and_project(db_session, monkeypatch, tag="spacepad")
+    monkeypatch.setattr("agent.service.primary_model_name", lambda: "deepseek-flash")
+    monkeypatch.setattr(
+        "agent.service.MessageManager.build_system_prompt",
+        lambda self, **_kwargs: "系统提示",
+    )
+    monkeypatch.setattr("agent.service.create_session", lambda: Session(db_session.get_bind()))
+    monkeypatch.setattr("database.is_postgres", True)
+
+    f = File(project_id=project.id, title="第1章", content="", file_type="draft")
+    db_session.add(f)
+    db_session.commit()
+    db_session.refresh(f)
+
+    async def padded_stream(_state, **_kwargs):
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "前文"})
+        yield StreamEvent(type=StreamEventType.TOOL_USE, data={"id": "w1", "name": "write_chapter", "input": {}, "status": "complete"})
+        yield StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={
+                "tool_use_id": "w1",
+                "name": "write_chapter",
+                "result": {
+                    "status": "success",
+                    "mutation_applied": True,
+                    "data": {
+                        "id": f.id,
+                        "title": f.title,
+                        "file_type": "draft",
+                        "action": "created",
+                        "awaiting_body": True,
+                        "content": "",
+                        "updated_at": f.updated_at.isoformat(),
+                    },
+                },
+            },
+        )
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "<file>\n正文\n</file>   "})
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "\n\n总结"})
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    monkeypatch.setattr("agent.service.run_loop_agent_streaming", padded_stream)
+    run_report: dict = {}
+    frames = [
+        frame
+        async for frame in AgentService().process_stream(
+            project_id=project.id,
+            user_id=user.id,
+            message="写第一章",
+            session=db_session,
+            run_report=run_report,
+        )
+    ]
+    done = [json.loads(fr.split("data:", 1)[1]) for fr in frames if "event: done" in fr]
+    db_session.expire_all()
+    saved = db_session.get(ChatMessage, done[0]["assistant_message_id"])
+    assert saved is not None
+    assert saved.content == "前文\n\n总结"
+    assert run_report["stop_reason"] == "end_turn"
+
+    # Verify stop_reason is populated live on error BEFORE process_stream exits finally.
+    async def error_stream(_state, **_kwargs):
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": REPETITION_LOOP_STOP_REASON})
+        yield StreamEvent(
+            type=StreamEventType.ERROR,
+            data={"error": "重复循环", "code": "ERR_AGENT_REPETITION_LOOP", "reason": REPETITION_LOOP_STOP_REASON},
+        )
+
+    monkeypatch.setattr("agent.service.run_loop_agent_streaming", error_stream)
+    err_report: dict = {}
+    stream = AgentService().process_stream(
+        project_id=project.id,
+        user_id=user.id,
+        message="触发复读",
+        session=db_session,
+        run_report=err_report,
+    )
+    async for frame in stream:
+        if "event: error" in frame:
+            break
+    await stream.aclose()
+    if AgentService.background_cleanup_tasks:
+        await asyncio.gather(*list(AgentService.background_cleanup_tasks), return_exceptions=True)
+    assert err_report.get("stop_reason") == REPETITION_LOOP_STOP_REASON
+
+
+@pytest.mark.unit
 def test_text_shaper_does_not_prepend_blank_lines_before_continuation_file_block():
     """AgentTextShaper starting a continuation run with <file> must not emit leading '\\n\\n'."""
     shaper = AgentTextShaper(previous_text="<file>\n第1章正文。\n</file>", drop_english_narration=True)

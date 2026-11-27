@@ -1286,6 +1286,28 @@ def extract_reply_prebody(text: str) -> str | None:
     return None
 
 
+def _prev_line_bounds(text: str, end: int) -> tuple[int, int, bool]:
+    """返回以 ``end`` 结尾的上一行 ``(line_start, content_end, has_eol)``。
+
+    仅按 ``\\r\\n`` / ``\\n`` / ``\\r`` 倒序查找，不对整段正文调用 ``splitlines()``，
+    常态（末尾为正常文字）仅扫描最后一行、零列表分配。
+    """
+    has_eol = False
+    content_end = end
+    if content_end > 0 and text[content_end - 1] == "\n":
+        has_eol = True
+        content_end -= 1
+        if content_end > 0 and text[content_end - 1] == "\r":
+            content_end -= 1
+    elif content_end > 0 and text[content_end - 1] == "\r":
+        has_eol = True
+        content_end -= 1
+    prev_nl = text.rfind("\n", 0, content_end)
+    prev_cr = text.rfind("\r", 0, content_end)
+    line_start = max(prev_nl, prev_cr) + 1
+    return line_start, content_end, has_eol
+
+
 def _find_symbol_line_repetition_start(
     text: str,
     *,
@@ -1294,65 +1316,78 @@ def _find_symbol_line_repetition_start(
     """检测末尾连续重复的纯标点/分隔符行死循环（例如 ``\\n\\n　　——`` 连续重复 20+ 次）。
 
     正常正文里的少量场景分隔线或表格分隔行不会连续出现 20 行；纯空白行不计入。
-    命中时返回循环起点（含紧贴其前的空行分隔），截断后保留前文干净结尾；整段都是符号循环时返回 0。
+    从末尾倒序扫描，常态 O(末行长度) 直接返回 None；命中时返回循环起点（含紧贴其前的空行分隔），
+    截断后保留前文干净结尾；整段都是符号循环时返回 0。
     """
     if not text or min_lines < 2:
         return None
-    lines = text.splitlines(keepends=True)
-    if len(lines) < min_lines:
+
+    end = len(text)
+    last_start = 0
+    last_stripped = ""
+    last_has_eol = False
+    while end > 0:
+        line_start, content_end, has_eol = _prev_line_bounds(text, end)
+        stripped = text[line_start:content_end].strip()
+        if stripped:
+            last_start = line_start
+            last_stripped = stripped
+            last_has_eol = has_eol
+            break
+        end = line_start
+    else:
         return None
 
-    idx = len(lines) - 1
-    while idx >= 0 and not lines[idx].strip():
-        idx -= 1
-    if idx < 0:
-        return None
-
-    last_stripped = lines[idx].strip()
     if any(ch.isalnum() for ch in last_stripped):
         return None
 
     ref_stripped = last_stripped
-    run_first_line_idx = idx
+    scan_end = end
+    run_first_start = last_start
     # 流式检查恰好落在最后一行写到一半时（如 ``　　—``），允许它是前一行符号的严格前缀。
-    if not lines[idx].endswith(("\n", "\r")):
-        prev = idx - 1
-        while prev >= 0 and not lines[prev].strip():
-            prev -= 1
-        if prev >= 0:
-            prev_stripped = lines[prev].strip()
-            if (
-                prev_stripped
-                and not any(ch.isalnum() for ch in prev_stripped)
-                and prev_stripped != last_stripped
-                and prev_stripped.startswith(last_stripped)
-            ):
-                ref_stripped = prev_stripped
-                idx = prev
-                run_first_line_idx = prev
+    if not last_has_eol and last_start > 0:
+        peek_end = last_start
+        while peek_end > 0:
+            p_start, p_content_end, _p_eol = _prev_line_bounds(text, peek_end)
+            p_stripped = text[p_start:p_content_end].strip()
+            if p_stripped:
+                if (
+                    not any(ch.isalnum() for ch in p_stripped)
+                    and p_stripped != last_stripped
+                    and p_stripped.startswith(last_stripped)
+                ):
+                    ref_stripped = p_stripped
+                    scan_end = peek_end
+                    run_first_start = p_start
+                break
+            peek_end = p_start
 
     count = 0
-    while idx >= 0:
-        stripped = lines[idx].strip()
+    cur_end = scan_end
+    while cur_end > 0:
+        line_start, content_end, _has_eol = _prev_line_bounds(text, cur_end)
+        stripped = text[line_start:content_end].strip()
         if not stripped:
-            idx -= 1
+            cur_end = line_start
             continue
         if stripped == ref_stripped:
             count += 1
-            run_first_line_idx = idx
-            idx -= 1
+            run_first_start = line_start
+            cur_end = line_start
             continue
         break
 
     if count < min_lines:
         return None
 
-    cut_line_idx = run_first_line_idx
-    while cut_line_idx > 0 and not lines[cut_line_idx - 1].strip():
-        cut_line_idx -= 1
-    if cut_line_idx == 0:
+    cut_offset = run_first_start
+    while cut_offset > 0:
+        line_start, content_end, _has_eol = _prev_line_bounds(text, cut_offset)
+        if text[line_start:content_end].strip():
+            break
+        cut_offset = line_start
+    if cut_offset == 0:
         return 0
-    cut_offset = sum(len(line) for line in lines[:cut_line_idx])
     while cut_offset > 0 and text[cut_offset - 1] in "\r\n":
         cut_offset -= 1
     return cut_offset
