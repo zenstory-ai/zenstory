@@ -1,219 +1,40 @@
 /**
  * React hook for streaming agent requests.
  *
- * Provides state management and methods for:
- * - Starting a streaming request
- * - Tracking thinking/content/tool calls state
- * - Cancelling requests
- * - Resetting state
- * 
- * Key feature: Supports message segments - each content block before/after
- * tool calls is treated as a separate segment, enabling proper chat UI display.
+ * Manages SSE connection lifecycle, epoch/project-switch cancellation fencing,
+ * server stop grace period (`stop` / `whenStreamClosed`), steering session guard,
+ * single-shot completion/partial finalization, and delegates segment batching to
+ * `useAgentStreamSegments` and SSE callback wiring to `buildAgentStreamCallbacks`.
+ *
+ * @module hooks/useAgentStream
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { parseWrittenFiles, type RoundWrittenFile, type RoundStopOutcome } from "../lib/chatRoundEnd";
 import {
   sendSteeringRequest,
   stopAgentRun,
   streamAgentRequest,
-  type QuotaRefundKind,
-  type RemovedPlaceholderFile,
 } from "../lib/agentApi";
-import type {
-  AgentContextItem,
-  AgentRequest,
-  AgentStreamState,
-  FileEditOutcome,
-  IterationExhaustedFiles,
-  IterationExhaustedLayer,
-  SSEWorkflowStoppedData,
-  ToolCall,
-} from "../types";
+import type { AgentRequest, AgentStreamState } from "../types";
+import {
+  STOP_GRACE_MS,
+  STREAM_CONTENT_FLUSH_INTERVAL_MS,
+  type UseAgentStreamOptions,
+  type UseAgentStreamReturn,
+} from "./streaming/types";
+import {
+  buildAgentStreamCallbacks,
+  type StreamClosedHandle,
+} from "./streaming/buildAgentStreamCallbacks";
+import { useAgentStreamSegments } from "./streaming/useAgentStreamSegments";
 
-/** A segment of assistant response (text content or tool calls) */
-export interface MessageSegment {
-  id: string;
-  type: "content" | "tool_calls";
-  content?: string;
-  toolCalls?: ToolCall[];
-  isStreaming?: boolean;
-}
-
-export interface StreamCompletionMeta {
-  assistantMessageId?: string;
-  sessionId?: string;
-  /** Server-confirmed indication that this completed turn committed a file mutation. */
-  confirmedFileMutation?: boolean;
-  /**
-   * 本轮是「非正常终止」后的部分提交（用户点停止 / SSE error / 反向代理掐断空闲连接）。
-   *
-   * 正常路径（SSE done）不会带这个标记。调用方据此可以把已流式渲染的正文
-   * 照常落进 messages，而不是让它随下一轮 onStart 的清理一起消失。
-   */
-  partial?: boolean;
-  /** The author stopped this round and the server wrapped it up (done with stop_reason). */
-  stoppedByAuthor?: boolean;
-  /** Stopped rounds only: whether the server settled this round as charged (false: refunded). */
-  charged?: boolean;
-  /**
-   * Stopped rounds only: whether the server saw real output (prose or a write). False means
-   * nothing was written, so follow-ups must not assume prose exists.
-   */
-  producedOutput?: boolean;
-  /**
-   * Stopped rounds only: the files this round wrote text into, as the server will record them
-   * in `stop_outcome.written_files`. Absent when the server named none (or is older).
-   */
-  writtenFiles?: RoundWrittenFile[];
-  unwrittenFiles?: RoundWrittenFile[];
-  deliveryOutcome?: RoundStopOutcome;
-}
-
-export interface UseAgentStreamOptions {
-  /**
-   * Flush interval (ms) for streaming content batching.
-   *
-   * Default: 33ms.
-   * Set to 0 to disable batching (flush every chunk).
-   */
-  contentFlushIntervalMs?: number;
-  /** Called when streaming starts */
-  onStart?: () => void;
-  /** Called when context items are received */
-  onContext?: (items: AgentContextItem[], tokenCount?: number) => void;
-  /** Called when AI is thinking (with message) */
-  onThinking?: (message: string, step?: string) => void;
-  /** Called when thinking content arrives */
-  onThinkingContent?: (content: string, isComplete: boolean) => void;
-  /** Called when a new message segment starts (for adding to chat) */
-  onSegmentStart?: (segment: MessageSegment) => void;
-  /** Called when segment content updates (for streaming text) */
-  onSegmentUpdate?: (segmentId: string, content: string) => void;
-  /** Called when tool calls segment updates */
-  onSegmentUpdateToolCalls?: (segmentId: string, toolCalls: ToolCall[]) => void;
-  /** Called when a segment completes */
-  onSegmentEnd?: (segmentId: string) => void;
-  /**
-   * Called when content is flushed to React state.
-   *
-   * Note: To reduce re-renders, streaming content may be batched (e.g. flushed every ~33ms),
-   * so `chunk` can contain multiple SSE chunks concatenated together.
-   */
-  onContent?: (chunk: string, fullContent: string) => void;
-  /** Called when streaming completes successfully */
-  onComplete?: (
-    segments: MessageSegment[],
-    completionMeta?: StreamCompletionMeta,
-  ) => void;
-  /** Called when an error occurs */
-  onError?: (error: string, code?: string, retryable?: boolean) => void;
-  /** Called when AI calls a tool */
-  onToolCall?: (toolName: string, args: Record<string, unknown>, toolUseId?: string) => void;
-  /** Called when tool execution completes */
-  onToolResult?: (
-    toolName: string,
-    status: string,
-    result?: Record<string, unknown>,
-    error?: string,
-    toolUseId?: string,
-  ) => void;
-  /** Called when a file is created (for auto-select) */
-  onFileCreated?: (fileId: string, fileType: string, title: string) => void;
-  /** Called when file content chunk is received (streaming) */
-  onFileContent?: (fileId: string, chunk: string) => void;
-  /** Called when file content streaming ends */
-  onFileContentEnd?: (fileId: string) => void;
-  /** Called when file editing starts */
-  onFileEditStart?: (
-    fileId: string,
-    title: string,
-    totalEdits: number,
-    fileType?: string,
-  ) => void;
-  /** Called when a single edit is applied */
-  onFileEditApplied?: (
-    editIndex: number,
-    op: string,
-  ) => void;
-  /** Called when file editing ends */
-  onFileEditEnd?: (
-    fileId: string,
-    editsApplied: number,
-    newContent?: string,
-    originalContent?: string,
-    fileType?: string,
-    title?: string,
-    outcome?: FileEditOutcome,
-  ) => void;
-  /** Called when a skill is matched */
-  onSkillMatched?: (skillId: string, skillName: string, matchedTrigger: string) => void;
-  /** Called when iteration limit is exhausted */
-  onIterationExhausted?: (
-    layer: IterationExhaustedLayer,
-    iterationsUsed: number,
-    maxIterations: number,
-    reason: string,
-    lastAgent?: string,
-    limit?: string,
-    files?: IterationExhaustedFiles
-  ) => void;
-  /** Called when workflow stops */
-  onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
-  /** Called when session starts */
-  onSessionStarted?: (sessionId: string) => void;
-  /** Called when steering message is received */
-  onSteeringReceived?: (messageId: string, preview: string) => void;
-  /** Called when earlier conversation was summarized before this round */
-  onHistoryCompacted?: (summary: string) => void;
-  /** Called after the terminal frame when the backend actually refunded this round */
-  onQuotaRefunded?: (kind: QuotaRefundKind, removedFiles: RemovedPlaceholderFile[]) => void;
-}
-
-export interface UseAgentStreamReturn {
-  /** Current stream state */
-  state: AgentStreamState;
-  /** Start streaming request */
-  startStream: (request: Omit<AgentRequest, "project_id">) => void;
-  /**
-   * Author pressed stop: ask the server to end the run on this stream so it can
-   * settle billing as an author stop; falls back to cancel() if that fails.
-   * `keepFileIds`: files with author text the editor could not save first; the
-   * server does not remove them as blank placeholders. Resolves once the stop
-   * request has settled.
-   */
-  stop: (options?: { keepFileIds?: string[] }) => Promise<void>;
-  /** Stop requested, waiting for the server to close the round */
-  isStopping: boolean;
-  /** Reset state to initial (drops the connection without the server stop) */
-  reset: () => void;
-  /**
-   * Resolves once this round's connection is over: the server sent its last frame (after
-   * done a quota_refunded may still follow) and closed the stream, or the connection was
-   * dropped. Resolves at once when no round is open, and after `timeoutMs` at the latest.
-   * Used to start a new chat only after a stopped round has been settled as an author stop.
-   */
-  whenStreamClosed: (timeoutMs?: number) => Promise<void>;
-  /** Whether currently streaming */
-  isStreaming: boolean;
-  /** Whether waiting for thinking step */
-  isThinking: boolean;
-  /** Error message if any */
-  error: string | null;
-  /** Backend error code if provided by SSE error event */
-  errorCode: string | null;
-  /** Clears the current error message and code */
-  clearError: () => void;
-  /** Whether the backend says the current stream error can be retried */
-  retryable: boolean;
-  /** Current session ID for steering */
-  sessionId: string | null;
-  /** Send a steering message to the active session */
-  sendSteeringMessage: (message: string) => Promise<void>;
-}
-
-/** How long to wait for the server to wrap up a stopped round before dropping the connection. */
-export const STOP_GRACE_MS = 5000;
+export { STOP_GRACE_MS } from "./streaming/types";
+export type {
+  MessageSegment,
+  StreamCompletionMeta,
+  UseAgentStreamOptions,
+  UseAgentStreamReturn,
+} from "./streaming/types";
 
 const initialState: AgentStreamState = {
   isStreaming: false,
@@ -224,37 +45,12 @@ const initialState: AgentStreamState = {
   retryable: false,
 };
 
-// Flush streaming content to React state at most once per interval.
-// This avoids re-rendering on every token/chunk, which can make the UI
-// appear "slow" even when the backend streams quickly.
-const STREAM_CONTENT_FLUSH_INTERVAL_MS = 33;
-
 export function useAgentStream(
   projectId: string,
   options: UseAgentStreamOptions = {},
 ): UseAgentStreamReturn {
   const [state, setState] = useState<AgentStreamState>(initialState);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Ref to track current segments value for onComplete callback (avoids stale closure)
-  const segmentsRef = useRef<MessageSegment[]>([]);
-
-  const updateSegmentsSync = useCallback((updater: (prev: MessageSegment[]) => MessageSegment[]) => {
-    segmentsRef.current = updater(segmentsRef.current);
-  }, []);
-
-  // Track current segment for streaming
-  const currentSegmentIdRef = useRef<string | null>(null);
-  const currentSegmentContentRef = useRef<string>("");
-  const pendingToolCallsRef = useRef<ToolCall[]>([]);
-
-  // Streaming content batching (frontend perf)
-  const contentRef = useRef<string>("");
-  const pendingContentChunkRef = useRef<string>("");
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Track current tool calls segment (for live updates)
-  const currentToolCallsSegmentIdRef = useRef<string | null>(null);
 
   // Track if onComplete has been called (prevent duplicate calls)
   const onCompleteCalledRef = useRef<boolean>(false);
@@ -279,7 +75,8 @@ export function useAgentStream(
   const stopFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stopRequested, setStopRequested] = useState(false);
   // The in-flight request's connection: settled when the server closes it or we drop it.
-  const streamClosedRef = useRef<{ promise: Promise<void>; settle: () => void } | null>(null);
+  const streamClosedRef = useRef<StreamClosedHandle | null>(null);
+
   /** The connection was dropped on our side: nothing more will arrive from it. */
   const settleStreamClosed = useCallback(() => {
     const closed = streamClosedRef.current;
@@ -326,19 +123,41 @@ export function useAgentStream(
       ? Math.max(0, Math.floor(contentFlushIntervalMs as number))
       : STREAM_CONTENT_FLUSH_INTERVAL_MS;
 
-  /** Clear any scheduled content flush timer */
-  const clearFlushTimer = useCallback(() => {
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-  }, []);
+  const handleContentFlushed = useCallback(
+    (chunk: string, fullContent: string) => {
+      setState((prev) => ({
+        ...prev,
+        isThinking: false,
+        content: fullContent,
+      }));
+      onContent?.(chunk, fullContent);
+    },
+    [onContent],
+  );
+
+  const {
+    segmentsRef,
+    clearFlushTimer,
+    flushPendingContent,
+    clearContentBuffers,
+    resetSegments,
+    startContentSegment,
+    appendContentText,
+    markCurrentContentSegmentDone,
+    finishCurrentContentSegment,
+    recordToolCall,
+    recordToolResult,
+  } = useAgentStreamSegments({
+    flushIntervalMs,
+    onSegmentStart,
+    onSegmentUpdate,
+    onSegmentUpdateToolCalls,
+    onSegmentEnd,
+    onContentFlushed: handleContentFlushed,
+  });
 
   // Cleanup on unmount: abort the in-flight SSE stream and invalidate the epoch
-  // so no late callbacks fire, and clear pending timers. Without the abort, the
-  // fetch/ReadableStream reader keeps running after unmount (e.g. navigating away
-  // mid-stream), holding the connection open and keeping the backend agent run
-  // alive — wasted tokens/compute for the rest of the run.
+  // so no late callbacks fire, and clear pending timers.
   useEffect(() => {
     return () => {
       streamEpochRef.current += 1;
@@ -363,54 +182,6 @@ export function useAgentStream(
     );
   }, []);
 
-  /**
-   * Flush pending streamed content into React state / segments.
-   *
-   * Important:
-   * - This function is called frequently; keep it minimal.
-   * - It uses refs to avoid string concatenation on every token causing re-renders.
-   */
-  const flushPendingContent = useCallback(() => {
-    clearFlushTimer();
-
-    const chunk = pendingContentChunkRef.current;
-    if (!chunk) return;
-
-    pendingContentChunkRef.current = "";
-
-    const segmentId = currentSegmentIdRef.current;
-    const segmentContent = currentSegmentContentRef.current;
-    const fullContent = contentRef.current;
-
-    if (segmentId) {
-      updateSegmentsSync(prev =>
-        prev.map(s => (s.id === segmentId ? { ...s, content: segmentContent } : s)),
-      );
-      onSegmentUpdate?.(segmentId, segmentContent);
-    }
-
-    setState((prev) => ({
-      ...prev,
-      isThinking: false,
-      content: fullContent,
-    }));
-    onContent?.(chunk, fullContent);
-  }, [clearFlushTimer, onContent, onSegmentUpdate, updateSegmentsSync]);
-
-  /** Schedule a flush if not already scheduled */
-  const scheduleContentFlush = useCallback(() => {
-    if (flushIntervalMs <= 0) {
-      flushPendingContent();
-      return;
-    }
-    if (flushTimerRef.current) return;
-
-    flushTimerRef.current = setTimeout(() => {
-      flushTimerRef.current = null;
-      flushPendingContent();
-    }, flushIntervalMs);
-  }, [flushIntervalMs, flushPendingContent]);
-
   // Prevent session_id reuse across different projects.
   useEffect(() => {
     if (lastProjectIdRef.current === projectId) {
@@ -424,125 +195,17 @@ export function useAgentStream(
       abortControllerRef.current = null;
     }
     settleStreamClosed();
-    clearFlushTimer();
-    pendingContentChunkRef.current = "";
-    contentRef.current = "";
+    clearContentBuffers();
     sessionIdRef.current = null;
     activeStreamSessionIdRef.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- project switch synchronously aborts the active stream and resets stream/session state.
     setSessionId(null);
     setState((prev) => ({
       ...prev,
       isStreaming: false,
       isThinking: false,
     }));
-  }, [projectId, clearFlushTimer, settleStreamClosed]);
-
-  /** Generate unique segment ID */
-  const generateSegmentId = () => `segment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-  /** Start a new content segment */
-  const startContentSegment = useCallback(() => {
-    // Ensure any pending content is flushed before ending the previous segment.
-    flushPendingContent();
-
-    // End previous segment if exists
-    if (currentSegmentIdRef.current) {
-      onSegmentEnd?.(currentSegmentIdRef.current);
-    }
-    
-    const segmentId = generateSegmentId();
-    currentSegmentIdRef.current = segmentId;
-    currentSegmentContentRef.current = "";
-    
-    const segment: MessageSegment = {
-      id: segmentId,
-      type: "content",
-      content: "",
-      isStreaming: true,
-    };
-    
-    updateSegmentsSync(prev => [...prev, segment]);
-    onSegmentStart?.(segment);
-
-    return segmentId;
-  }, [flushPendingContent, onSegmentStart, onSegmentEnd, updateSegmentsSync]);
-
-  /** Create or update tool calls segment (called on each tool call) */
-  const upsertToolCallsSegment = useCallback((toolCalls: ToolCall[], isComplete: boolean = false) => {
-    // End current content segment if exists and this is the first tool call
-    if (!currentToolCallsSegmentIdRef.current && currentSegmentIdRef.current) {
-      onSegmentEnd?.(currentSegmentIdRef.current);
-      currentSegmentIdRef.current = null;
-    }
-
-    if (!currentToolCallsSegmentIdRef.current) {
-      // Create new tool calls segment
-      const segmentId = generateSegmentId();
-      currentToolCallsSegmentIdRef.current = segmentId;
-
-      const segment: MessageSegment = {
-        id: segmentId,
-        type: "tool_calls",
-        toolCalls,
-        isStreaming: !isComplete, // streaming until all tool calls complete
-      };
-
-      updateSegmentsSync(prev => [...prev, segment]);
-      onSegmentStart?.(segment);
-    } else {
-      // Update existing segment
-      const segmentId = currentToolCallsSegmentIdRef.current;
-      updateSegmentsSync(prev =>
-        prev.map(s => (s.id === segmentId ? { ...s, toolCalls, isStreaming: !isComplete } : s)),
-      );
-      // Notify ChatPanel to update streamRenderItems
-      onSegmentUpdateToolCalls?.(segmentId, toolCalls);
-    }
-
-    // If complete, end the segment
-    if (isComplete && currentToolCallsSegmentIdRef.current) {
-      onSegmentEnd?.(currentToolCallsSegmentIdRef.current);
-      currentToolCallsSegmentIdRef.current = null;
-    }
-  }, [onSegmentStart, onSegmentEnd, onSegmentUpdateToolCalls, updateSegmentsSync]);
-
-  /**
-   * Replaces the result of a tool call that already resolved, matched strictly by tool_use_id: in the
-   * calls still being collected, otherwise in the tool-calls segment that holds it.
-   *
-   * @returns Whether a resolved call with this tool_use_id was found
-   */
-  const replaceResolvedToolResult = useCallback((
-    toolUseId: string,
-    status: string,
-    result?: Record<string, unknown>,
-    error?: string,
-  ): boolean => {
-    const apply = (tc: ToolCall): ToolCall => ({
-      ...tc,
-      status: status as "success" | "error",
-      result,
-      error,
-    });
-    const inCurrent = pendingToolCallsRef.current.some(tc => tc.id === toolUseId && tc.status !== "pending");
-    if (inCurrent) {
-      const nextCalls = pendingToolCallsRef.current.map(tc => (tc.id === toolUseId ? apply(tc) : tc));
-      pendingToolCallsRef.current = nextCalls;
-      upsertToolCallsSegment(nextCalls, nextCalls.every(tc => tc.status !== "pending"));
-      return true;
-    }
-    const segment = segmentsRef.current.find(
-      s => s.type === "tool_calls" && s.toolCalls?.some(tc => tc.id === toolUseId && tc.status !== "pending"),
-    );
-    if (!segment?.toolCalls) return false;
-    const segmentId = segment.id;
-    const nextCalls = segment.toolCalls.map(tc => (tc.id === toolUseId ? apply(tc) : tc));
-    updateSegmentsSync(prev =>
-      prev.map(s => (s.id === segmentId ? { ...s, toolCalls: nextCalls } : s)),
-    );
-    onSegmentUpdateToolCalls?.(segmentId, nextCalls);
-    return true;
-  }, [onSegmentUpdateToolCalls, updateSegmentsSync, upsertToolCallsSegment]);
+  }, [projectId, clearContentBuffers, settleStreamClosed]);
 
   /**
    * Send a steering message to the active session.
@@ -568,32 +231,17 @@ export function useAgentStream(
       abortControllerRef.current = null;
     }
     settleStreamClosed();
-    clearFlushTimer();
-    pendingContentChunkRef.current = "";
-    contentRef.current = "";
+    resetSegments();
     setState(initialState);
-    updateSegmentsSync(() => []);
-    currentSegmentIdRef.current = null;
-    currentToolCallsSegmentIdRef.current = null;
-    currentSegmentContentRef.current = "";
-    pendingToolCallsRef.current = [];
     sessionIdRef.current = null;
     activeStreamSessionIdRef.current = null;
     setSessionId(null);
     onCompleteCalledRef.current = false;
-  }, [clearFlushTimer, settleStreamClosed, updateSegmentsSync]);
+  }, [resetSegments, settleStreamClosed]);
 
   /**
    * 非正常终止的统一收尾通道（取消 / SSE error / 反向代理掐断空闲连接）。
-   *
-   * 历史缺陷：落地与清理逻辑全部只挂在 done 事件驱动的 onComplete 上，导致
-   * 三条非正常终止路径没有任何等价钩子——
-   *   1. 已流式渲染的 AI 正文永远进不了 messages，用户一发下一条消息，
-   *      onStart 的 clearStreamItems 就把它整段抹掉（但后端其实已落库）；
-   *   2. ProjectContext.streamingFileId 永不释放，AI 新建的那个文件在编辑器里
-   *      被锁成只读、常驻「AI 正在写作」浮层。
-   *
-   * 这里复用 onCompleteCalledRef，保证一轮流至多提交一次（done 已提交过就不再补发）。
+   * 复用 onCompleteCalledRef，保证一轮流至多提交一次（done 已提交过就不再补发）。
    */
   const finalizeStream = useCallback(() => {
     if (onCompleteCalledRef.current) return;
@@ -602,7 +250,7 @@ export function useAgentStream(
       partial: true,
       sessionId: activeStreamSessionIdRef.current ?? undefined,
     });
-  }, [onComplete]);
+  }, [onComplete, segmentsRef]);
 
   /**
    * Cancel ongoing stream.
@@ -622,16 +270,7 @@ export function useAgentStream(
     // Flush what we already received so the UI doesn't "lose" the last chunk.
     flushPendingContent();
     clearFlushTimer();
-
-    // End current segment
-    if (currentSegmentIdRef.current) {
-      const segmentId = currentSegmentIdRef.current;
-      updateSegmentsSync(prev =>
-        prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
-      );
-      onSegmentEnd?.(segmentId);
-      currentSegmentIdRef.current = null;
-    }
+    finishCurrentContentSegment();
 
     setState((prev) => ({
       ...prev,
@@ -642,7 +281,13 @@ export function useAgentStream(
     // abort 之后 fetch 侧只会抛 AbortError 并被忽略，不会再有任何回调，
     // 所以必须在这里主动补发终止回调（不经过 isStaleEvent，epoch 已自增也不受影响）。
     finalizeStream();
-  }, [clearFlushTimer, finalizeStream, flushPendingContent, onSegmentEnd, settleStreamClosed, updateSegmentsSync]);
+  }, [
+    clearFlushTimer,
+    finalizeStream,
+    finishCurrentContentSegment,
+    flushPendingContent,
+    settleStreamClosed,
+  ]);
 
   /**
    * Author pressed stop. The server ends the run on the open stream (stop card +
@@ -706,7 +351,7 @@ export function useAgentStream(
       }
       settleStreamClosed();
       let settleClosed: () => void = () => {};
-      const closed = {
+      const closed: StreamClosedHandle = {
         promise: new Promise<void>((resolve) => { settleClosed = resolve; }),
         settle: () => settleClosed(),
       };
@@ -719,21 +364,12 @@ export function useAgentStream(
       }
       setStopRequested(false);
 
-      clearFlushTimer();
-      pendingContentChunkRef.current = "";
-      contentRef.current = "";
-
-      // Reset state
+      resetSegments();
       setState({
         ...initialState,
         isStreaming: true,
         isThinking: true,
       });
-      updateSegmentsSync(() => []);
-      currentSegmentIdRef.current = null;
-      currentSegmentContentRef.current = "";
-      pendingToolCallsRef.current = [];
-      currentToolCallsSegmentIdRef.current = null;
       onCompleteCalledRef.current = false;
       // 本轮的 session 尚未确认：在收到 session_started 之前不允许 steering，
       // 否则会拿上一轮的陈旧 session id 去请求并稳定 404。
@@ -747,7 +383,6 @@ export function useAgentStream(
         streamEpoch !== streamEpochRef.current
         || currentProjectIdRef.current !== streamProjectId;
 
-      // Start streaming
       abortControllerRef.current = streamAgentRequest(
         {
           project_id: streamProjectId,
@@ -758,383 +393,55 @@ export function useAgentStream(
           metadata: request.metadata,
           selected_skill_ids: request.selected_skill_ids,
         },
-        {
-          onRunStarted: (agentRunId) => {
-            if (isStaleEvent()) return;
-            runIdRef.current = agentRunId;
+        buildAgentStreamCallbacks({
+          isStaleEvent,
+          closed,
+          streamClosedRef,
+          runIdRef,
+          sessionIdRef,
+          activeStreamSessionIdRef,
+          onCompleteCalledRef,
+          setSessionId,
+          setState,
+          segments: {
+            segmentsRef,
+            flushPendingContent,
+            startContentSegment,
+            appendContentText,
+            markCurrentContentSegmentDone,
+            finishCurrentContentSegment,
+            recordToolCall,
+            recordToolResult,
           },
-
-          // Not epoch-gated: a dropped earlier stream only settles its own connection.
-          onClosed: () => {
-            if (streamClosedRef.current === closed) streamClosedRef.current = null;
-            closed.settle();
+          finalizeStream,
+          callbacks: {
+            onContext: onContextOption,
+            onThinking: onThinkingOption,
+            onThinkingContent: onThinkingContentOption,
+            onComplete,
+            onError,
+            onToolCall,
+            onToolResult,
+            onFileCreated,
+            onFileContent,
+            onFileContentEnd,
+            onFileEditStart,
+            onFileEditApplied,
+            onFileEditEnd,
+            onSkillMatched,
+            onIterationExhausted,
+            onWorkflowStopped,
+            onSessionStarted,
+            onSteeringReceived,
+            onHistoryCompacted,
+            onQuotaRefunded,
           },
-
-          onThinking: (message, step) => {
-            if (isStaleEvent()) return;
-            setState((prev) => ({
-              ...prev,
-              isThinking: true,
-            }));
-
-            // 调用外部回调
-            onThinkingOption?.(message, step);
-          },
-
-          onThinkingContent: (content, isComplete) => {
-            if (isStaleEvent()) return;
-            // 不再累积到 state，只通过回调处理，避免重复
-            // 调用外部回调
-            onThinkingContentOption?.(content, isComplete ?? false);
-          },
-
-          onContext: (items, tokenCount) => {
-            if (isStaleEvent()) return;
-            onContextOption?.(items, tokenCount);
-          },
-
-          onContentStart: () => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            setState((prev) => ({
-              ...prev,
-              isThinking: false,
-            }));
-            // Start a new content segment
-            startContentSegment();
-          },
-
-          onContent: (text) => {
-            if (isStaleEvent()) return;
-            // Ensure we have a content segment
-            if (!currentSegmentIdRef.current) {
-              setState((prev) => ({
-                ...prev,
-                isThinking: false,
-              }));
-              startContentSegment();
-            }
-            
-            // Batch content updates for smoother UI.
-            currentSegmentContentRef.current += text;
-            contentRef.current += text;
-            pendingContentChunkRef.current += text;
-            scheduleContentFlush();
-          },
-
-          onContentEnd: () => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            // Mark current segment as done streaming
-            if (currentSegmentIdRef.current) {
-              const segmentId = currentSegmentIdRef.current;
-              updateSegmentsSync(prev =>
-                prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
-              );
-            }
-          },
-
-          onToolCall: (toolName, args, toolUseId) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            const toolCall: ToolCall = {
-              id: (toolUseId && toolUseId.trim()) || Date.now().toString(),
-              tool_name: toolName,
-              arguments: args,
-              status: "pending",
-            };
-            
-            pendingToolCallsRef.current.push(toolCall);
-            
-            // Immediately create/update tool calls segment with pending status
-            upsertToolCallsSegment([...pendingToolCallsRef.current], false);
-
-            if (toolUseId) {
-              onToolCall?.(toolName, args, toolUseId);
-            } else {
-              onToolCall?.(toolName, args);
-            }
-          },
-
-          onToolResult: (toolName, status, result, error, toolUseId) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            const normalizedToolUseId = (toolUseId || "").trim();
-            // Update tool call status (prefer tool_use_id match, fallback to first pending by name)
-            let updated = false;
-            const updatedToolCalls = pendingToolCallsRef.current.map((tc) => {
-              const idMatched = normalizedToolUseId ? tc.id === normalizedToolUseId : false;
-              const nameMatched =
-                !normalizedToolUseId && tc.tool_name === toolName && tc.status === "pending";
-              if (!updated && (idMatched || nameMatched) && tc.status === "pending") {
-                updated = true;
-                return {
-                  ...tc,
-                  status: status as "success" | "error",
-                  result,
-                  error,
-                };
-              }
-              return tc;
-            });
-            if (!updated && normalizedToolUseId) {
-              // A later result for a call that already resolved (write_chapter re-sends its card once the
-              // replacement text is saved or refused): replace that call's result, keyed only by tool_use_id.
-              if (replaceResolvedToolResult(normalizedToolUseId, status, result, error)) {
-                if (toolUseId) {
-                  onToolResult?.(toolName, status, result, error, toolUseId);
-                } else {
-                  onToolResult?.(toolName, status, result, error);
-                }
-                return;
-              }
-            }
-            pendingToolCallsRef.current = updatedToolCalls;
-
-            // Check if all pending tool calls are done
-            const allDone = updatedToolCalls.every(tc => tc.status !== "pending");
-            
-            // Update the tool calls segment with new status
-            upsertToolCallsSegment(updatedToolCalls, allDone);
-            
-            if (allDone && updatedToolCalls.length > 0) {
-              // Clear pending tool calls for next round
-              pendingToolCallsRef.current = [];
-            }
-
-            if (toolUseId) {
-              onToolResult?.(toolName, status, result, error, toolUseId);
-            } else {
-              onToolResult?.(toolName, status, result, error);
-            }
-          },
-
-          onFileCreated: (fileId, fileType, title) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            onFileCreated?.(fileId, fileType, title);
-          },
-
-          onFileContent: (fileId, chunk) => {
-            if (isStaleEvent()) return;
-            onFileContent?.(fileId, chunk);
-          },
-
-          onFileContentEnd: (fileId) => {
-            if (isStaleEvent()) return;
-            onFileContentEnd?.(fileId);
-          },
-
-          onFileEditStart: (fileId, title, totalEdits, fileType) => {
-            if (isStaleEvent()) return;
-            onFileEditStart?.(fileId, title, totalEdits, fileType);
-          },
-
-          onFileEditApplied: (editIndex, op) => {
-            if (isStaleEvent()) return;
-            onFileEditApplied?.(editIndex, op);
-          },
-
-          onFileEditEnd: (
-            fileId,
-            editsApplied,
-            newContent,
-            originalContent,
-            fileType,
-            title,
-            outcome,
-          ) => {
-            if (isStaleEvent()) return;
-            onFileEditEnd?.(
-              fileId,
-              editsApplied,
-              newContent,
-              originalContent,
-              fileType,
-              title,
-              outcome,
-            );
-          },
-
-          onSkillMatched: (skillId, skillName, matchedTrigger) => {
-            if (isStaleEvent()) return;
-            onSkillMatched?.(skillId, skillName, matchedTrigger);
-          },
-
-          onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
-            if (isStaleEvent()) return;
-            onIterationExhausted?.(layer, iterationsUsed, maxIterations, reason, lastAgent, limit, ...(files ? [files] : []));
-          },
-
-          onWorkflowStopped: (data) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            // The author's stop card comes before done (which carries this round's
-            // assistant message id and arrives once the server saved it): keep the round
-            // open ("正在停止…") until then, so a new send cannot cut the round off midway.
-            const keepOpenUntilDone = data.reason === "user_stopped";
-            setState((prev) => ({
-              ...prev,
-              isStreaming: keepOpenUntilDone ? prev.isStreaming : false,
-              isThinking: false,
-            }));
-            onWorkflowStopped?.(data);
-          },
-
-          onSessionStarted: (session_id) => {
-            if (isStaleEvent()) return;
-            sessionIdRef.current = session_id;
-            // 后端已注册 steering 队列，此刻起本轮才真正可被追加指令。
-            activeStreamSessionIdRef.current = session_id;
-            setSessionId(session_id);
-            onSessionStarted?.(session_id);
-          },
-
-          onSteeringReceived: (message_id, preview) => {
-            if (isStaleEvent()) return;
-            onSteeringReceived?.(message_id, preview);
-          },
-
-          onHistoryCompacted: (summary) => {
-            if (isStaleEvent()) return;
-            onHistoryCompacted?.(summary);
-          },
-
-          onQuotaRefunded: (kind, removedFiles) => {
-            if (isStaleEvent()) return;
-            onQuotaRefunded?.(kind, removedFiles);
-          },
-
-          onDone: (data) => {
-            if (isStaleEvent()) return;
-            try {
-              flushPendingContent();
-
-              // End current segment
-              if (currentSegmentIdRef.current) {
-                const segmentId = currentSegmentIdRef.current;
-                updateSegmentsSync(prev =>
-                  prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
-                );
-                onSegmentEnd?.(segmentId);
-                currentSegmentIdRef.current = null;
-              }
-
-              setState((prev) => ({
-                ...prev,
-                isStreaming: false,
-                isThinking: false,
-              }));
-
-              // Get final segments for callback
-              // 🔥 防止重复调用 onComplete（在回调内部也要检查，因为 React 可能多次调用此回调）
-              // Use segmentsRef.current to avoid stale closure issue with segments
-              if (!onCompleteCalledRef.current) {
-                onCompleteCalledRef.current = true;
-                const completionMeta: StreamCompletionMeta = {
-                  assistantMessageId:
-                    typeof data.assistant_message_id === "string" && data.assistant_message_id.trim()
-                      ? data.assistant_message_id
-                      : undefined,
-                  sessionId:
-                    typeof data.session_id === "string" && data.session_id.trim()
-                      ? data.session_id
-                      : undefined,
-                  confirmedFileMutation:
-                    typeof data.file_mutated === "boolean" ? data.file_mutated : undefined,
-                };
-                if (data.stop_reason === "user_stopped") {
-                  completionMeta.stoppedByAuthor = true;
-                  if (typeof data.charged === "boolean") {
-                    completionMeta.charged = data.charged;
-                  }
-                  if (typeof data.produced_output === "boolean") {
-                    completionMeta.producedOutput = data.produced_output;
-                  }
-                  const writtenFiles = parseWrittenFiles(data.written_files);
-                  if (writtenFiles.length > 0) {
-                    completionMeta.writtenFiles = writtenFiles;
-                  }
-                  const unwrittenFiles = parseWrittenFiles(data.unwritten_files);
-                  if (unwrittenFiles.length > 0) completionMeta.unwrittenFiles = unwrittenFiles;
-                } else {
-                  const unwrittenFiles = parseWrittenFiles(data.unwritten_files);
-                  const writtenFiles = parseWrittenFiles(data.written_files);
-                  const savedOutput = typeof data.saved_output === 'boolean'
-                    ? data.saved_output
-                    : writtenFiles.length > 0;
-                  if (data.delivery_incomplete === true || unwrittenFiles.length > 0) {
-                    completionMeta.deliveryOutcome = { reason: 'incomplete', charged: true,
-                      savedOutput, removedFiles: [], writtenFiles,
-                      ...(data.no_file_changes === true ? { noFileChanges: true } : {}),
-                      ...(data.unexecuted_tool_text === true ? { unexecutedToolText: true } : {}),
-                      ...(unwrittenFiles.length > 0 ? { unwrittenFiles } : {}) };
-                  } else if (writtenFiles.length > 0 || data.no_file_changes === true) {
-                    // The write receipt of a normally completed round (#267): only what the
-                    // server confirmed, never what the reply text says it did.
-                    completionMeta.deliveryOutcome = { reason: 'completed', charged: true,
-                      savedOutput, removedFiles: [], writtenFiles,
-                      ...(data.no_file_changes === true ? { noFileChanges: true } : {}) };
-                  }
-                }
-                onComplete?.(segmentsRef.current, completionMeta);
-              }
-            } finally {
-              // agentApi 不会把 done 之后的回调异常报成失败（不再走 onError 收尾）：
-              // 中途抛错时这里也要结束流式状态，并补发一次终止回调释放文件只读锁。
-              setState((prev) =>
-                prev.isStreaming || prev.isThinking
-                  ? { ...prev, isStreaming: false, isThinking: false }
-                  : prev,
-              );
-              finalizeStream();
-            }
-          },
-
-          onError: (message, code, retryable) => {
-            if (isStaleEvent()) return;
-            flushPendingContent();
-            // End current segment
-            if (currentSegmentIdRef.current) {
-              const segmentId = currentSegmentIdRef.current;
-              updateSegmentsSync(prev =>
-                prev.map(s => (s.id === segmentId ? { ...s, isStreaming: false } : s)),
-              );
-              onSegmentEnd?.(segmentId);
-              currentSegmentIdRef.current = null;
-            }
-
-            // 注意：这里**不再**把 onCompleteCalledRef 重置为 false。
-            // 该标志由 startStream 在每轮开始时重置即可；在出错时清零会让
-            // 下面的 finalizeStream 与已发生过的 done 提交重复叠加。
-
-            // 流式错误持续展示，直到下一次发送、reset 或调用方主动 clearError。
-            setState((prev) => ({
-              ...prev,
-              isStreaming: false,
-              isThinking: false,
-              error: message,
-              errorCode: code ?? null,
-              retryable: retryable === true,
-            }));
-
-            if (code !== undefined || retryable !== undefined) {
-              onError?.(message, code, retryable);
-            } else {
-              onError?.(message);
-            }
-
-            // SSE error / 代理掐断（STREAM_CLOSED）同样拿不到 done：
-            // 补发终止回调，把已渲染的正文落进 messages 并释放文件流式只读态。
-            finalizeStream();
-          },
-        },
+        }),
       );
     },
     [
       projectId,
       onStart,
-      onSegmentEnd,
       onComplete,
       onError,
       onToolCall,
@@ -1154,16 +461,18 @@ export function useAgentStream(
       onQuotaRefunded,
       onThinkingOption,
       onThinkingContentOption,
-      startContentSegment,
-      upsertToolCallsSegment,
-      replaceResolvedToolResult,
       onContextOption,
-      clearFlushTimer,
+      appendContentText,
       finalizeStream,
+      finishCurrentContentSegment,
       flushPendingContent,
-      scheduleContentFlush,
+      markCurrentContentSegmentDone,
+      recordToolCall,
+      recordToolResult,
+      resetSegments,
+      segmentsRef,
       settleStreamClosed,
-      updateSegmentsSync,
+      startContentSegment,
     ],
   );
 
