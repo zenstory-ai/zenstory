@@ -1035,20 +1035,24 @@ def _iter_session_messages_desc(
     hot_idx = 0
     hot_cursor: tuple[Any, Any] | None = None
     hot_exhausted = False
+    hot_pages_fetched = 0
 
+    has_archive_table = has_chat_message_archive_table(session)
     cold_buf: list[Any] = []
     cold_idx = 0
     cold_cursor: tuple[Any, Any] | None = None
-    cold_exhausted = not has_chat_message_archive_table(session)
+    cold_exhausted = not has_archive_table
     cold_watermark: tuple[Any, Any] | None = None
     cold_watermark_checked = False
     cold_active = False
+    cold_reprobed = False
 
     seen_ids: set[str] = set()
 
     def _peek_hot() -> Any | None:
-        nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted
+        nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted, hot_pages_fetched
         if hot_idx >= len(hot_buf) and not hot_exhausted:
+            hot_pages_fetched += 1
             hot_buf = _fetch_message_page_desc(
                 session, ChatMessage, chat_session_id=chat_session_id, cursor=hot_cursor
             )
@@ -1102,6 +1106,24 @@ def _iter_session_messages_desc(
                 # hot_row >= newest cold row: strictly newer (or identical id, hot wins),
                 # so defer full-row cold fetching until hot exhausts or reaches the watermark.
                 cold_row = None
+
+        if (
+            hot_row is None
+            and cold_row is None
+            and has_archive_table
+            and cold_watermark_checked
+            and cold_watermark is None
+            and not cold_reprobed
+            and hot_pages_fetched > 1
+        ):
+            # Re-probe cold once after multi-page hot exhaustion to catch rows archived mid-iteration.
+            cold_reprobed = True
+            reprobed = _fetch_cold_watermark(session, chat_session_id=chat_session_id)
+            if reprobed is not None:
+                cold_watermark = reprobed
+                cold_exhausted = False
+                cold_active = True
+                cold_row = _peek_cold()
 
         if hot_row is None and cold_row is None:
             break

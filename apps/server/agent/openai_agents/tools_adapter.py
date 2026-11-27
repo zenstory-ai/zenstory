@@ -217,7 +217,11 @@ async def invoke_project_tool(
 
     tool_func = TOOL_FUNCTIONS.get(tool_name)
     if tool_func is None:
-        return tool_error_text(f"Unknown tool: {tool_name}", tool_name=tool_name)
+        return tool_error_text(
+            f"Unknown tool: {tool_name}",
+            error_type="tool_not_found",
+            tool_name=tool_name,
+        )
 
     try:
         if run_meter is not None:

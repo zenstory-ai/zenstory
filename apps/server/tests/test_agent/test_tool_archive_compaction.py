@@ -568,14 +568,14 @@ def test_db_replay_produces_byte_identical_archived_outputs_and_handles_cumulati
 
 
 # ---------------------------------------------------------------------------
-# 4. Stage 2 fallback receives archived history when savings or headroom is insufficient
+# 4. Stage 2 fallback preserves original history for prefix cache when Stage 1 does not admit
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_stage2_fallback_receives_archived_history_when_savings_insufficient():
-    """When Stage 1 archives outputs but saves < MIN_SAVINGS_TOKENS, Stage 2 gets the smaller archived history."""
+async def test_stage2_fallback_preserves_original_history_for_prefix_cache_when_savings_insufficient():
+    """When Stage 1 archives outputs but does not admit (< MIN_SAVINGS_TOKENS), Stage 2 uses original history.items."""
     medium_read = _large_query_output("ch-old", "旧章", repeat=200)  # ~4.5k chars -> ~3k tokens (< 30k savings)
     heavy_prose = "这是无法归档的纯对话长文本内容，需要靠 Stage 2 交接摘要压缩。" * 3000
 
@@ -615,19 +615,20 @@ async def test_stage2_fallback_receives_archived_history_when_savings_insufficie
     assert outcome.record is not None
     assert outcome.record["summary"] == "Stage2 交接摘要"
     assert outcome.record["covers_through_message_id"] == "msg-10"
-    # Stage 2 received the archived receipt for c_old instead of raw prose!
+    # Stage 2 MUST receive original unmodified history.items so it hits the upstream prompt prefix cache!
     sent_messages = mock_call.await_args.kwargs["messages"]
     tool_msgs = [m for m in sent_messages if m.get("role") == "tool" and m.get("tool_call_id") == "c_old"]
     assert len(tool_msgs) == 1
+    assert tool_msgs[0]["content"] == medium_read
     parsed_tool = json.loads(tool_msgs[0]["content"])
-    assert parsed_tool["archived"] is True
-    assert parsed_tool["files"] == [{"id": "ch-old", "title": "旧章"}]
+    assert "archived" not in parsed_tool
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_stage2_fallback_when_after_tokens_plus_turn_input_still_exceeds_threshold():
-    """Even with >= 30k savings, if after_tokens + turn_input_tokens > COMPACT_AT_TOKENS, Stage 1 does NOT admit."""
+    """Even with >= 30k savings, if after_tokens + turn_input_tokens > COMPACT_AT_TOKENS, Stage 1 does NOT admit
+    and Stage 2 still builds from original history.items to preserve upstream prompt prefix cache."""
     old_read = _large_query_output("ch-old", "旧章", repeat=4000)  # ~60k tokens saved
     huge_recent_prose = "近期三轮里的大段正文无法由 Stage 1 归档。" * 20_000  # ~260k tokens in recent turns
 
@@ -672,6 +673,10 @@ async def test_stage2_fallback_when_after_tokens_plus_turn_input_still_exceeds_t
     assert mock_call.await_count == 1
     assert outcome.record is not None
     assert outcome.record["summary"] == "超阈值回落摘要"
+    sent_messages = mock_call.await_args.kwargs["messages"]
+    tool_msgs = [m for m in sent_messages if m.get("role") == "tool" and m.get("tool_call_id") == "c_old"]
+    assert len(tool_msgs) == 1
+    assert tool_msgs[0]["content"] == old_read
 
 
 # ---------------------------------------------------------------------------

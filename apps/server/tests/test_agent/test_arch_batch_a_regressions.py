@@ -320,7 +320,8 @@ async def test_p0_7_llm_failover_async_helpers_offload_store_io(monkeypatch):
             ),
         )
         ordered_after = await llm_failover.aordered_providers("sess-offload")
-        await llm_failover.arecord_success(ordered_after[0], "sess-offload", ordered_after)
+        # Failover success (provider != ordered[0]) offloads pin write to worker thread.
+        await llm_failover.arecord_success(ordered_after[1], "sess-offload", ordered_after)
     finally:
         llm_failover.reset_failover_state()
 
@@ -329,13 +330,13 @@ async def test_p0_7_llm_failover_async_helpers_offload_store_io(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# P0-9: Failover pin TTL = 1200s and sliding TTL refresh on backup success
+# A1: Failover pin TTL = 300s fixed window (no sliding renewal on backup success)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_p0_9_pin_ttl_defaults_to_1200_and_refreshes_on_backup_success(monkeypatch):
+async def test_a1_pin_ttl_defaults_to_300_and_does_not_slide_on_backup_success(monkeypatch):
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
     monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-minimax")
@@ -343,39 +344,42 @@ async def test_p0_9_pin_ttl_defaults_to_1200_and_refreshes_on_backup_success(mon
     monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-deepseek")
     llm_failover.reset_failover_state()
 
-    assert llm_failover.LLM_SESSION_PIN_TTL_S == 1200
+    assert llm_failover.LLM_SESSION_PIN_TTL_S == 300
+    assert not hasattr(llm_failover, "_refresh_existing_pin")
+    assert not hasattr(llm_failover._MemoryStore, "set_if_exists")
+    assert not hasattr(llm_failover._RedisStore, "set_if_exists")
 
     clock = [100.0]
     monkeypatch.setattr(llm_failover.time, "monotonic", lambda: clock[0])
 
     try:
-        providers = llm_failover.ordered_providers("sess-slide")
+        providers = llm_failover.ordered_providers("sess-fixed-pin")
         primary, backup = providers[0], providers[1]
         assert primary.slot == "primary" and backup.slot == "backup"
 
-        # Failover pins session to backup until t = 100 + 1200 = 1300.
-        llm_failover.record_failure(primary, "sess-slide", TimeoutError())
-        ordered = await llm_failover.aordered_providers("sess-slide")
+        # Failover pins session to backup until fixed t = 100 + 300 = 400.
+        llm_failover.record_failure(primary, "sess-fixed-pin", TimeoutError())
+        ordered = await llm_failover.aordered_providers("sess-fixed-pin")
         assert ordered[0].slot == "backup"
 
-        # At t = 900 (before original 1300 expiry), backup succeeds (ordered[0] == backup!).
-        # Sliding TTL must refresh expiry to 900 + 1200 = 2100.
-        clock[0] = 900.0
-        await llm_failover.arecord_success(backup, "sess-slide", ordered)
+        # At t = 300 (before original 400 expiry), backup succeeds (ordered[0] == backup).
+        # Fixed TTL must NOT slide/renew expiry!
+        clock[0] = 300.0
+        await llm_failover.arecord_success(backup, "sess-fixed-pin", ordered)
 
-        # At t = 1500 (past original 1300 expiry, before refreshed 2100 expiry), session stays pinned!
-        clock[0] = 1500.0
-        assert (await llm_failover.aordered_providers("sess-slide"))[0].slot == "backup"
+        # At t = 350 (still inside original 300s window), session stays pinned to backup.
+        clock[0] = 350.0
+        assert (await llm_failover.aordered_providers("sess-fixed-pin"))[0].slot == "backup"
 
-        # At t = 2101 (past refreshed 2100 expiry), pin expires and returns to primary.
-        clock[0] = 2101.0
-        assert (await llm_failover.aordered_providers("sess-slide"))[0].slot == "primary"
+        # At t = 401 (past original 400 expiry), pin MUST have expired and returned to primary!
+        clock[0] = 401.0
+        assert (await llm_failover.aordered_providers("sess-fixed-pin"))[0].slot == "primary"
     finally:
         llm_failover.reset_failover_state()
 
 
 @pytest.mark.unit
-def test_p0_9_thinking_off_backup_preference_does_not_create_spurious_pin(monkeypatch):
+def test_a1_thinking_off_backup_preference_does_not_create_spurious_pin(monkeypatch):
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.setenv("LLM_PRIMARY_PROVIDER", "minimax")
     monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-minimax")
@@ -386,22 +390,11 @@ def test_p0_9_thinking_off_backup_preference_does_not_create_spurious_pin(monkey
     try:
         ordered = llm_failover.ordered_providers("sess-think-off", thinking_enabled=False)
         assert ordered[0].slot == "backup"
-        llm_failover.record_success(ordered[0], "sess-think-off", ordered, thinking_enabled=False)
+        llm_failover.record_success(ordered[0], "sess-think-off", ordered)
         # Subsequent normal thinking_enabled=True call must STILL start on primary!
         assert llm_failover.ordered_providers("sess-think-off", thinking_enabled=True)[0].slot == "primary"
     finally:
         llm_failover.reset_failover_state()
-
-
-@pytest.mark.unit
-def test_p0_9_redis_store_set_if_exists_uses_xx_flag(monkeypatch):
-    fake_client = MagicMock()
-    fake_client.set.return_value = True
-    store = llm_failover._RedisStore()
-    monkeypatch.setattr(store, "_client", lambda: fake_client)
-
-    assert store.set_if_exists("llm:session_slot:s1", "backup", 1200) is True
-    fake_client.set.assert_called_once_with("llm:session_slot:s1", "backup", ex=1200, xx=True)
 
 
 # ---------------------------------------------------------------------------

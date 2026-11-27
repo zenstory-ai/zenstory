@@ -259,10 +259,12 @@ def _resolve_bootstrap_initial_file(
     project_id: str,
     file_id: str | None,
 ) -> FileResponse | None:
-    """Resolve the requested editable file in this project, or fall back to the most recently updated editable file."""
-    target: File | None = None
-    if file_id:
-        candidate = session.exec(
+    """Resolve an explicitly requested editable file in this project (None if missing, deleted, folder, or foreign),
+    or when omitted, the most recently updated editable file."""
+    if file_id is not None:
+        if not file_id.strip():
+            return None
+        target = session.exec(
             select(File).where(
                 File.id == file_id,
                 File.project_id == project_id,
@@ -270,10 +272,7 @@ def _resolve_bootstrap_initial_file(
                 File.file_type != "folder",
             )
         ).first()
-        if candidate is not None:
-            target = candidate
-
-    if target is None:
+    else:
         target = session.exec(
             select(File)
             .where(

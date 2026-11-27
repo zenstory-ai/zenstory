@@ -7,11 +7,10 @@ SDK 的 max_turns（AGENT_TOOL_CALL_MAX_ITERATIONS）只限制模型轮数，挡
 熔断器按**一次用户请求**记账：单循环 agent 为一轮建一个，传给每一次
 agent run（同一轮里的续跑不会让计数归零）。
 熔断判定只看工具结果本身（工具名 + 归一化参数 + 归一化错误），不依赖错误来源：
-- 同一调用（同名 + 同参数）以等价错误连续失败 MAX_IDENTICAL_TOOL_FAILURES 次 → 熔断
-  （调用的是不存在的工具，或在执行前被只读请求 / 角色权限 / 先澄清拒绝时原因记为 TRIP_REASON_TOOL_NOT_FOUND，文案不说「相同参数」）；
-- edit_file 的无效文件标识（跨不同标识）或同一文件的定位失败累计
-  MAX_IDENTICAL_TOOL_FAILURES 次 → 按恢复失败族熔断；
-- 本次请求累计失败 MAX_TOOL_FAILURES_PER_REQUEST 次（参数/错误各不相同的乱试）→ 熔断。
+- 同一调用（同名 + 同参数）以等价错误连续失败 MAX_IDENTICAL_TOOL_FAILURES 次 → 熔断；
+- edit_file 的无效文件标识（跨不同标识）累计 MAX_IDENTICAL_TOOL_FAILURES 次 → 按恢复失败族熔断；
+- 本次请求累计失败 MAX_TOOL_FAILURES_PER_REQUEST 次（参数/错误各不相同的乱试）→ 熔断；
+- 不存在或已停用的工具名（``tool_not_found``）未实际执行，只返回结构化错误引导模型改用可用工具，不计入熔断。
 第一、二次失败照常把错误交还模型，让它有机会换参数/换方法自行恢复；
 同一调用一旦成功，它的连续失败计数清零。
 
@@ -73,11 +72,9 @@ _ORDERING_ERROR_TYPES = frozenset({"file_body_pending"})
 TRIP_REASON_IDENTICAL = "repeated_identical_tool_failure"
 TRIP_REASON_RECOVERY = "repeated_recoverable_tool_failure"
 TRIP_REASON_TOTAL = "too_many_tool_failures"
-# 同一个不存在的工具被连续调用（runner._format_tool_error 记账，参数记为空串）：
-# 调用根本没执行，也没有「参数」可言，单独一个原因与文案，不说成「以相同参数失败」。
-TRIP_REASON_TOOL_NOT_FOUND = "repeated_unavailable_tool_call"
-_TOOL_NOT_FOUND_ERROR_TYPE = "tool_not_found"
-_UNEXECUTED_CALL_ERROR_TYPES = frozenset({_TOOL_NOT_FOUND_ERROR_TYPE})
+# 调用不存在或已停用的工具名（如旧历史里的 query_files）时工具根本未执行，
+# 只返回清晰结构化错误引导模型改用当前可用工具，不计入熔断（由 max_turns 兜底轮数上限）。
+_NON_BREAKER_ERROR_TYPES = frozenset({"tool_not_found"})
 
 # 这两类失败即使模型每次换一点参数，恢复动作也不变：文件标识无效时必须重新取得
 # 当前真实标识；同一文件的锚点不存在时必须重读当前段落。按完整参数分别计数会让
@@ -290,11 +287,6 @@ class ToolFailureTrip:
         不带工具名、失败次数和错误原文：这些是给开发者排查用的，只写日志
         （runner 在熔断时记录 tool_name / failures / last_error）。
         """
-        if self.reason == TRIP_REASON_TOOL_NOT_FOUND:
-            return (
-                "AI 几次想用这一轮用不了的功能，都没有执行，这一轮先停下了。"
-                "之前改好的内容不受影响。可以换个说法再试。"
-            )
         return (
             "AI 这一步连续几次都没做成，这一轮先停下了。之前改好的内容不受影响。"
             "可以换个说法，或者把任务拆小一点再试。"
@@ -374,7 +366,10 @@ class ToolFailureBreaker:
             return output_text
         payload = raw_payload if raw_payload is not None and raw_payload.get("status") == "error" else None
         if payload is not None and payload.get("error_type") in (
-            GUARD_ERROR_TYPES | EDIT_GUARD_ERROR_TYPES | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
+            GUARD_ERROR_TYPES
+            | EDIT_GUARD_ERROR_TYPES
+            | _PARALLEL_BATCH_ORDERING_ERROR_TYPES
+            | _NON_BREAKER_ERROR_TYPES
         ):
             return output_text
         if payload is None:
@@ -434,11 +429,7 @@ class ToolFailureBreaker:
                 )
             elif streak is not None and streak.count >= self.max_identical_failures:
                 self.trip = ToolFailureTrip(
-                    reason=(
-                        TRIP_REASON_TOOL_NOT_FOUND
-                        if payload.get("error_type") in _UNEXECUTED_CALL_ERROR_TYPES
-                        else TRIP_REASON_IDENTICAL
-                    ),
+                    reason=TRIP_REASON_IDENTICAL,
                     tool_name=tool_name,
                     failures=streak.count,
                     threshold=self.max_identical_failures,
@@ -526,7 +517,6 @@ __all__ = [
     "MAX_TOOL_FAILURES_PER_REQUEST",
     "TRIP_REASON_IDENTICAL",
     "TRIP_REASON_RECOVERY",
-    "TRIP_REASON_TOOL_NOT_FOUND",
     "TRIP_REASON_TOTAL",
     "ToolFailureBreaker",
     "ToolFailureTrip",

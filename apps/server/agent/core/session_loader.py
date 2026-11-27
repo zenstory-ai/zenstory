@@ -442,24 +442,28 @@ class SessionLoader:
         hot_idx = 0
         hot_cursor: tuple[Any, Any] | None = None
         hot_exhausted = False
+        hot_pages_fetched = 0
 
+        has_archive_table = has_chat_message_archive_table(session)
         cold_buf: list[Any] = []
         cold_idx = 0
         cold_cursor: tuple[Any, Any] | None = None
-        cold_exhausted = not has_chat_message_archive_table(session)
+        cold_exhausted = not has_archive_table
         cold_watermark: tuple[Any, Any] | None = None
         cold_watermark_checked = False
         cold_active = False
+        cold_reprobed = False
 
         seen_ids: set[str] = set()
         yielded = 0
 
         def _peek_hot() -> Any | None:
-            nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted
+            nonlocal hot_buf, hot_idx, hot_cursor, hot_exhausted, hot_pages_fetched
             if hot_idx >= len(hot_buf) and not hot_exhausted:
                 if cancel_event is not None and cancel_event.is_set():
                     hot_exhausted = True
                     return None
+                hot_pages_fetched += 1
                 hot_buf = _fetch_page(ChatMessage, hot_cursor)
                 hot_idx = 0
                 if hot_buf:
@@ -468,22 +472,24 @@ class SessionLoader:
                     hot_exhausted = True
             return hot_buf[hot_idx] if hot_idx < len(hot_buf) else None
 
+        def _fetch_cold_watermark() -> tuple[Any, Any] | None:
+            row = session.exec(
+                select(ChatMessageArchive.created_at, ChatMessageArchive.id)
+                .where(ChatMessageArchive.session_id == chat_session_id)
+                .order_by(desc(ChatMessageArchive.created_at), desc(ChatMessageArchive.id))
+                .limit(1)
+            ).first()
+            return (row[0], row[1]) if row is not None else None
+
         def _ensure_cold_watermark() -> tuple[Any, Any] | None:
             nonlocal cold_watermark, cold_watermark_checked, cold_exhausted
             if not cold_watermark_checked:
                 cold_watermark_checked = True
                 if cold_exhausted:
                     return None
-                row = session.exec(
-                    select(ChatMessageArchive.created_at, ChatMessageArchive.id)
-                    .where(ChatMessageArchive.session_id == chat_session_id)
-                    .order_by(desc(ChatMessageArchive.created_at), desc(ChatMessageArchive.id))
-                    .limit(1)
-                ).first()
-                if row is None:
+                cold_watermark = _fetch_cold_watermark()
+                if cold_watermark is None:
                     cold_exhausted = True
-                    return None
-                cold_watermark = (row[0], row[1])
             return cold_watermark
 
         def _peek_cold() -> Any | None:
@@ -522,6 +528,27 @@ class SessionLoader:
                     cold_row = _peek_cold()
                 else:
                     cold_row = None
+
+            if (
+                hot_row is None
+                and cold_row is None
+                and has_archive_table
+                and cold_watermark_checked
+                and cold_watermark is None
+                and not cold_reprobed
+                and hot_pages_fetched > 1
+                and (cancel_event is None or not cancel_event.is_set())
+            ):
+                # Re-probe cold once after multi-page hot exhaustion to catch rows archived mid-iteration.
+                cold_reprobed = True
+                reprobed = _fetch_cold_watermark()
+                if reprobed is not None:
+                    if before_cold_fallback is not None and before_cold_fallback():
+                        return
+                    cold_watermark = reprobed
+                    cold_exhausted = False
+                    cold_active = True
+                    cold_row = _peek_cold()
 
             if hot_row is None and cold_row is None:
                 return

@@ -827,17 +827,16 @@ def _usage_dict_from_result(result: Any) -> dict[str, int]:
 def _format_tool_error(args: Any, *, failure_breaker: ToolFailureBreaker | None = None) -> str | None:
     """RunConfig.tool_error_formatter：把「工具不存在」改写成项目统一的结构化错误。
 
-    只处理 kind == "tool_not_found"（其余返回 None 走 SDK 默认文案）。结果经
-    请求级熔断器记账：模型反复调用不存在的工具时，与普通工具失败一样受
-    「同一调用连续失败」与「累计失败」两条上限约束；前者触发时熔断原因是
-    TRIP_REASON_TOOL_NOT_FOUND（调用没执行，文案不说「以相同参数失败」）。
+    只处理 kind == "tool_not_found"（其余返回 None 走 SDK 默认文案）。
+    不存在或已停用的工具名不会计入 ToolFailureBreaker 熔断，只返回清晰的结构化引导，
+    让模型直接改用当前可用的工具清单。
     """
     if getattr(args, "kind", None) != "tool_not_found":
         return None
     tool_name = str(getattr(args, "tool_name", "") or "")
     text = tool_error_text(
-        f"工具 {tool_name} 不在你本轮可用的工具集里，调用未执行。"
-        "请只使用已提供的工具；需要改文件但没有写工具时，直接在回答里说明。",
+        f"工具 {tool_name} 不在当前可用的工具清单里，调用未执行。"
+        "请只使用当前已提供的可用工具完成任务，不要再调用已停用或不存在的工具名。",
         error_type="tool_not_found",
         tool_name=tool_name,
     )
@@ -1201,11 +1200,10 @@ async def run_openai_agents_streaming_agent(
                     # 超限才从最旧的读/写载荷开始折叠。见 intra_run_trimmer。
                     # 计数 + 软着陆见上方 turn_filter。
                     call_model_input_filter=turn_filter,
-                    # 模型调用了工具集里没有的工具（例如照着旧会话历史调已删除的工具、
+                    # 模型调用了工具集里没有的工具（例如照着旧会话历史调已停用的工具、
                     # 或幻觉出的工具名）：SDK 默认抛 ModelBehaviorError，整轮
                     # 以致命 ERROR 结束、原始异常文本直接展示给用户。改为把结构化错误
-                    # 交还模型让它自行纠正；这类错误同样经熔断器记账（见
-                    # _format_tool_error），乱试有上限。
+                    # 交还模型让它自行改用可用工具，不计入 ToolFailureBreaker 熔断。
                     tool_not_found_behavior="return_error_to_model",
                     tool_error_formatter=functools.partial(
                         _format_tool_error, failure_breaker=failure_breaker
