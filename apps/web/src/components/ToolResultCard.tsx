@@ -1196,15 +1196,32 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       );
 
       if (isDryRun) {
-        const hasMatches = filesMatched > 0 && totalMatches > 0;
+        const isDryRunTruncated =
+          affectedFiles.length > 0 && filesMatched > affectedFiles.length;
+        const previewFilesCount = isDryRunTruncated ? affectedFiles.length : filesMatched;
+        const hasMatches = previewFilesCount > 0 && totalMatches > 0;
+        const previewHeadline = !hasMatches
+          ? t('chat:tool.batch_replace_preview_none')
+          : isDryRunTruncated
+            ? previewFilesCount === 1 && totalMatches === 1
+              ? t('chat:tool.batch_replace_preview_truncated_one_in_one', { matched: filesMatched })
+              : previewFilesCount === 1
+                ? t('chat:tool.batch_replace_preview_truncated_many_in_one', {
+                    matches: totalMatches,
+                    matched: filesMatched,
+                  })
+                : t('chat:tool.batch_replace_preview_truncated_many_in_many', {
+                    files: previewFilesCount,
+                    matches: totalMatches,
+                    matched: filesMatched,
+                  })
+            : formatMatchCountHeadline('batch_replace_preview', filesMatched, totalMatches, t);
         return (
           <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
               <span className={`min-w-0 flex-1 text-sm ${hasMatches ? 'font-medium text-[hsl(var(--text-primary))]' : 'text-[hsl(var(--text-secondary))]'}`}>
-                {hasMatches
-                  ? formatMatchCountHeadline('batch_replace_preview', filesMatched, totalMatches, t)
-                  : t('chat:tool.batch_replace_preview_none')}
+                {previewHeadline}
               </span>
               <span className="shrink-0 rounded-md bg-[hsl(var(--bg-tertiary))] px-1.5 py-0.5 text-xs font-medium text-[hsl(var(--text-secondary))]">
                 {t('chat:tool.batch_replace_preview_badge')}

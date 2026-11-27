@@ -73,6 +73,12 @@ export default function ProjectEditor() {
   selectedItemRef.current = selectedItem ?? null;
   const locationSearchRef = React.useRef(location.search);
   locationSearchRef.current = location.search;
+  const setCurrentProjectIdRef = React.useRef(setCurrentProjectId);
+  setCurrentProjectIdRef.current = setCurrentProjectId;
+  const hydrateProjectRef = React.useRef(hydrateProject);
+  hydrateProjectRef.current = hydrateProject;
+  const setSelectedItemRef = React.useRef(setSelectedItem);
+  setSelectedItemRef.current = setSelectedItem;
 
   const isRouteProjectActive = Boolean(currentProject && projectId && currentProject.id === projectId);
   const isRouteProjectActiveRef = React.useRef(isRouteProjectActive);
@@ -130,13 +136,13 @@ export default function ProjectEditor() {
     if (linkedFileId) {
       selectedFromQueryRef.current = linkedFileId;
     }
-    setCurrentProjectId(projectId);
+    setCurrentProjectIdRef.current(projectId);
 
     // 1) User-scoped SWR instant paint (never touches unsaved editorDraftRecovery snapshots).
     let swrPaintedFileId: string | null = null;
     const swrEntry = readWorkbenchSwr(userId, projectId);
     if (swrEntry) {
-      hydrateProject?.(swrEntry.project);
+      hydrateProjectRef.current?.(swrEntry.project);
       if (
         requestedFileId &&
         swrEntry.initial_file &&
@@ -161,7 +167,7 @@ export default function ProjectEditor() {
         if (!hasPendingRecoveryDraft) {
           seedPreloadedFile(queryClient, userId, projectId, swrEntry.initial_file);
           swrPaintedFileId = swrEntry.initial_file.id;
-          setSelectedItem(toSelectedItem(swrEntry.initial_file));
+          setSelectedItemRef.current(toSelectedItem(swrEntry.initial_file));
         }
       }
     }
@@ -178,7 +184,7 @@ export default function ProjectEditor() {
         const { project, initial_file: initialFile } = result.data;
         bootstrapNotFoundProjectRef.current = null;
         clearWorkbenchSwrSyncRequired(queryClient, userId, projectId, requestedFileId);
-        hydrateProject?.(project);
+        hydrateProjectRef.current?.(project);
         setNotFound(false);
 
         if (requestedFileId) {
@@ -193,7 +199,7 @@ export default function ProjectEditor() {
               dispatchWorkbenchFreshFile({ userId, projectId, file: initialFile });
             } else if (!hasSelectionForThisProject()) {
               seedPreloadedFile(queryClient, userId, projectId, initialFile);
-              setSelectedItem(toSelectedItem(initialFile));
+              setSelectedItemRef.current(toSelectedItem(initialFile));
             }
           } else if (result.initialFileStatus !== "transient_error") {
             // Definitive answer: requested file was deleted, moved, or is a folder.
@@ -253,7 +259,7 @@ export default function ProjectEditor() {
     return () => {
       cancelled = true;
     };
-  }, [bootstrapRetryNonce, hydrateProject, projectId, queryClient, setCurrentProjectId, setSelectedItem, userId]);
+  }, [bootstrapRetryNonce, projectId, queryClient, userId]);
 
   // Remember the open file so reopening this project lands on it.
   const selectedFileId = selectedItem && selectedItem.type !== "folder" ? selectedItem.id : null;

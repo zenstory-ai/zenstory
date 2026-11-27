@@ -234,6 +234,8 @@ import ProjectEditor from "../pages/ProjectEditor";
 import { useFileTree } from "../hooks/useFileTree";
 import {
   BOOTSTRAP_HANDOFF_MAX_AGE_MS,
+  WORKBENCH_BOOTSTRAP_FAILED_EVENT,
+  WORKBENCH_FRESH_FILE_EVENT,
   clearWorkbenchSwrSyncRequired,
   consumeWorkbenchSwrSyncRequired,
   evictProjectBootstrapHandoff,
@@ -400,7 +402,7 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
     });
 
     const view = render(<StatefulHost />);
-    return { view };
+    return { view, notify };
   }
 
   it("loads project, file tree, initial file, and chat in ONE /bootstrap call with zero duplicate GETs (StrictMode safe)", async () => {
@@ -1193,6 +1195,130 @@ describe("Workbench /bootstrap single-call boot, 404 fallback, and SWR cache", (
 
     // Must fetch live T3 from server rather than rolling back to dangling preloadedFileCache T2!
     expect(mocks.fileGet).toHaveBeenCalledWith(file1T1.id);
+  });
+
+  it("keeps SWR fresh-file reconciliation and error recovery alive when /me refreshes user object while /bootstrap is in flight (A3)", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const file1T1: File = {
+      ...sampleFile,
+      id: "file-1",
+      title: "第一章",
+      content: "SWR 缓存里的旧正文 T1。",
+      updated_at: "2026-11-26T07:00:00Z",
+    };
+    const file1T2: File = {
+      ...file1T1,
+      content: "Bootstrap 返回的新鲜正文 T2。",
+      updated_at: "2026-11-26T08:00:00Z",
+    };
+
+    const originalUser = mocks.user;
+    const originalSetCurrentProjectId = mocks.setCurrentProjectId;
+    const freshFileEvents: Array<CustomEvent> = [];
+    const failedEvents: Array<CustomEvent> = [];
+    const onFreshFile = (event: Event) => freshFileEvents.push(event as CustomEvent);
+    const onBootstrapFailed = (event: Event) => failedEvents.push(event as CustomEvent);
+    window.addEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
+    window.addEventListener(WORKBENCH_BOOTSTRAP_FAILED_EVENT, onBootstrapFailed);
+
+    try {
+      // Case 1: /bootstrap resolves with T2 after background /me updates user object reference (same id)
+      setLastOpenedFile("user-1", "project-1", file1T1.id);
+      writeWorkbenchSwr("user-1", "project-1", {
+        project: sampleProject,
+        files: sampleTree,
+        initial_file: file1T1,
+      });
+
+      const pendingBootstrap = deferred<ProjectBootstrapResponse>();
+      mocks.getBootstrap.mockReturnValueOnce(pendingBootstrap.promise);
+
+      const { view, notify } = mountEditor(queryClient);
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+          file1T1.content,
+        );
+      });
+
+      // Simulate background /api/auth/me resolving with a new user object (same id) and a new callback ref
+      // while /bootstrap is still in flight.
+      const prevImpl = mocks.setCurrentProjectId.getMockImplementation();
+      mocks.user = { ...originalUser, updated_at: "2026-11-27T12:00:00Z" };
+      mocks.setCurrentProjectId = vi.fn((id: string | null) => prevImpl?.(id));
+      act(() => {
+        notify();
+      });
+
+      await act(async () => {
+        pendingBootstrap.resolve({
+          ...sampleBootstrap,
+          initial_file: file1T2,
+        });
+        await pendingBootstrap.promise;
+      });
+
+      await waitFor(() => {
+        expect(freshFileEvents.length).toBe(1);
+        expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+          file1T2.content,
+        );
+      });
+      view.unmount();
+
+      // Case 2: /bootstrap rejects with 503 after mid-flight /me refresh -> error recovery still fires!
+      const queryClient2 = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      mocks.project.projects = [];
+      mocks.project.currentProject = null;
+      mocks.project.currentProjectId = null;
+      mocks.project.loading = true;
+      mocks.project.selectedItem = null;
+      mocks.setCurrentProjectId = originalSetCurrentProjectId;
+      mocks.user = originalUser;
+
+      writeWorkbenchSwr("user-1", "project-1", {
+        project: sampleProject,
+        files: sampleTree,
+        initial_file: file1T1,
+      });
+
+      const failingBootstrap = deferred<ProjectBootstrapResponse>();
+      mocks.getBootstrap.mockReturnValueOnce(failingBootstrap.promise);
+      mocks.fileGet.mockResolvedValueOnce(file1T2);
+
+      const { view: view2, notify: notify2 } = mountEditor(queryClient2);
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+          file1T1.content,
+        );
+      });
+
+      const prevImpl2 = mocks.setCurrentProjectId.getMockImplementation();
+      mocks.user = { ...originalUser, updated_at: "2026-11-27T12:05:00Z" };
+      mocks.setCurrentProjectId = vi.fn((id: string | null) => prevImpl2?.(id));
+      act(() => {
+        notify2();
+      });
+
+      await act(async () => {
+        failingBootstrap.reject(new ApiError(503, "Service Unavailable"));
+        await failingBootstrap.promise.catch(() => {});
+      });
+
+      await waitFor(() => {
+        expect(failedEvents.length).toBe(1);
+        expect(screen.getByPlaceholderText("editor:placeholder.contentPlaceholder")).toHaveValue(
+          file1T2.content,
+        );
+      });
+      view2.unmount();
+    } finally {
+      window.removeEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
+      window.removeEventListener(WORKBENCH_BOOTSTRAP_FAILED_EVENT, onBootstrapFailed);
+      mocks.user = originalUser;
+      mocks.setCurrentProjectId = originalSetCurrentProjectId;
+    }
   });
 
   it("propagates fresher SWR initial_file from startProjectBootstrap and clears preloaded cache when slow /bootstrap returns T1 after T3 save", async () => {
