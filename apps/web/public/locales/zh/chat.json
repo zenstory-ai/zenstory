@@ -123,6 +123,11 @@
     "copiedReply": "已复制"
   },
   "context": {
+    "origin": {
+      "quote": "选中引用",
+      "attached": "已附加",
+      "openFile": "当前打开"
+    },
     "priority": {
       "critical": "关键",
       "constraint": "重要",
@@ -130,7 +135,7 @@
       "inspiration": "参考",
       "default": "来源"
     },
-    "label": "来源"
+    "label": "已附上下文"
   },
   "workflow": {
     "iterationExhausted": "这一轮先做到这里",

@@ -1284,11 +1284,17 @@ class ContextAssembler:
                 seen[item.id] = item
             else:
                 existing = seen[item.id]
+                was_focus = existing.is_focus or item.is_focus
+                was_attached = bool(existing.metadata.get("attached")) or bool(item.metadata.get("attached"))
                 # Prefer is_focus
                 if item.is_focus and not existing.is_focus or (priority_order.get(item.priority, 4) <
                       priority_order.get(existing.priority, 4)) or ((item.relevance_score or 0) >
                       (existing.relevance_score or 0)):
                     seen[item.id] = item
+                if was_focus:
+                    seen[item.id].metadata["is_focus"] = True
+                if was_attached:
+                    seen[item.id].metadata["attached"] = True
 
         return list(seen.values())
 

@@ -189,45 +189,51 @@ export interface MessageListRef {
 }
 
 /**
- * Returns a localized label for a context item priority level.
- *
- * @param p - Priority string ('critical', 'constraint', 'relevant', 'inspiration')
- * @param t - i18next translation function
- * @returns Localized priority label
+ * Auto-injected open editor tab (not explicitly attached or quoted by the user).
+ * Hidden from the chat context card so the active editor tab is not mistaken for
+ * AI retrieval results or explicit attachments.
  */
-const priorityLabel = (p: string | undefined, t: TFunction) => {
-  switch (p) {
-    case "critical":
-      return t("context.priority.critical", { ns: "chat" });
-    case "constraint":
-      return t("context.priority.constraint", { ns: "chat" });
-    case "relevant":
-      return t("context.priority.relevant", { ns: "chat" });
-    case "inspiration":
-      return t("context.priority.inspiration", { ns: "chat" });
-    default:
-      return t("context.priority.default", { ns: "chat" });
+const isAutoFocusOnlyContextItem = (item: AgentContextItem): boolean => {
+  const meta = item.metadata;
+  if (!meta || meta.is_focus !== true) return false;
+  if (meta.attached === true || meta.library_material === true || meta.relation === 'attached') {
+    return false;
   }
+  if (item.type === 'quote' || meta.is_quote === true) return false;
+  return true;
 };
 
+const visibleContextItems = (items: AgentContextItem[] | undefined): AgentContextItem[] =>
+  (items ?? []).filter((item) => !isAutoFocusOnlyContextItem(item));
+
 /**
- * Returns the shared badge variant for a context item's priority.
- *
- * @param p - Priority string ('critical', 'constraint', 'relevant', 'inspiration')
- * @returns Semantic badge variant
+ * Returns the calm origin badge label and shared semantic variant for a context item.
+ * Never uses red `error` styling for routine context items.
  */
-const priorityVariant = (p?: string): BadgeProps['variant'] => {
-  switch (p) {
-    case "critical":
-      return 'error';
-    case "constraint":
-      return 'info';
-    case "relevant":
-      return 'success';
-    case "inspiration":
-      return 'purple';
+const contextOriginBadge = (
+  item: AgentContextItem,
+  t: TFunction,
+): { label: string; variant: BadgeProps['variant'] } => {
+  const meta = item.metadata;
+  if (item.type === 'quote' || meta?.is_quote === true) {
+    return { label: t('context.origin.quote', { ns: 'chat' }), variant: 'neutral' };
+  }
+  if (meta?.attached === true || meta?.library_material === true || meta?.relation === 'attached') {
+    return { label: t('context.origin.attached', { ns: 'chat' }), variant: 'neutral' };
+  }
+  if (meta?.is_focus === true) {
+    return { label: t('context.origin.openFile', { ns: 'chat' }), variant: 'neutral' };
+  }
+  switch (item.priority) {
+    case 'constraint':
+      return { label: t('context.priority.constraint', { ns: 'chat' }), variant: 'info' };
+    case 'relevant':
+      return { label: t('context.priority.relevant', { ns: 'chat' }), variant: 'success' };
+    case 'inspiration':
+      return { label: t('context.priority.inspiration', { ns: 'chat' }), variant: 'purple' };
+    case 'critical':
     default:
-      return 'neutral';
+      return { label: t('context.origin.attached', { ns: 'chat' }), variant: 'neutral' };
   }
 };
 
@@ -592,26 +598,78 @@ const hasRenderableDisplayItem = (item: StreamRenderItem): boolean => {
   if (item.type === 'tool_calls') {
     return visibleToolCalls(item.toolCalls).length > 0;
   }
+  if (item.type === 'context') {
+    return visibleContextItems(item.items).length > 0;
+  }
   return true;
 };
 
+const ContextItemCard: React.FC<{ item: AgentContextItem }> = ({ item }) => {
+  const { t } = useTranslation(['chat']);
+  const [expanded, setExpanded] = React.useState(false);
+  const origin = contextOriginBadge(item, t);
+
+  return (
+    <div className={`${CHAT_CARD_SURFACE} overflow-hidden`}>
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className="w-full cursor-pointer select-none min-h-11 md:min-h-0 px-3 py-2 text-xs flex items-center gap-2 min-w-0 text-left rounded-xl hover:bg-[hsl(var(--bg-tertiary)/0.5)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))]"
+      >
+        <svg
+          aria-hidden="true"
+          className={`w-3 h-3 text-[hsl(var(--text-secondary))] motion-chevron shrink-0 ${expanded ? 'rotate-90' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <Badge className="shrink-0 max-w-28 [&>span]:truncate">
+          {contextTypeLabel(item, t)}
+        </Badge>
+        <span className="min-w-0 flex-1 truncate text-[hsl(var(--text-primary))]">
+          {contextItemTitle(item)}
+        </span>
+        <Badge
+          variant={origin.variant}
+          className="shrink-0 max-w-28 [&>span]:truncate"
+        >
+          {origin.label}
+        </Badge>
+      </button>
+
+      <AnimatedCollapse open={expanded} fast>
+        <div className="border-t border-[hsl(var(--separator-color))] px-3 py-2.5">
+          <div className="text-xs leading-relaxed text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words max-h-40 overflow-auto">
+            {item.content}
+          </div>
+        </div>
+      </AnimatedCollapse>
+    </div>
+  );
+};
+
 /**
- * Displays a collapsible list of context items (citations) used by the AI.
- * Each item shows its type, title, priority, and content preview.
+ * Displays a collapsible list of explicit context items (attachments & quotes) sent with the turn.
  */
 const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) => {
   const { t } = useTranslation(['chat']);
   const [isOpen, setIsOpen] = React.useState(false);
-  if (!items || items.length === 0) return null;
+  const visibleItems = visibleContextItems(items);
+  if (visibleItems.length === 0) return null;
 
   return (
     <div className="mt-2">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="cursor-pointer select-none min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors flex items-center gap-1 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
+        aria-expanded={isOpen}
+        className="cursor-pointer select-none min-h-11 md:min-h-0 -my-1.5 md:my-0 rounded text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors flex items-center gap-1 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary))]"
       >
         <svg
+          aria-hidden="true"
           className={`w-3 h-3 shrink-0 motion-chevron ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
@@ -621,53 +679,15 @@ const ContextItemsView: React.FC<{ items: AgentContextItem[] }> = ({ items }) =>
         </svg>
         <span>
           {t("context.label", { ns: "chat" })}
-          <span className="ml-1 tabular-nums">({items.length})</span>
+          <span className="ml-1 tabular-nums">({visibleItems.length})</span>
         </span>
       </button>
 
-      <AnimatedCollapse open={isOpen}>
+      <AnimatedCollapse open={isOpen} fast>
         <div className="mt-2 space-y-1.5">
-          {items.map((item, index) => {
-            return (
-              <details
-                key={item.id || `${item.type}-${index}`}
-                className={`group ${CHAT_CARD_SURFACE}`}
-              >
-                <summary className="cursor-pointer select-none min-h-11 md:min-h-0 px-3 py-2 text-xs flex items-center gap-2 min-w-0 list-none rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden"
-                  style={{ listStyle: 'none' }}
-                >
-                  <svg
-                    className="w-3 h-3 text-[hsl(var(--text-secondary))] motion-chevron group-open:rotate-90 shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <Badge
-                    className="shrink-0 max-w-28 [&>span]:truncate"
-                  >
-                    {contextTypeLabel(item, t)}
-                  </Badge>
-                  <span className="min-w-0 flex-1 truncate text-[hsl(var(--text-primary))]">
-                    {contextItemTitle(item)}
-                  </span>
-                  <Badge
-                    variant={priorityVariant(item.priority)}
-                    className="shrink-0 max-w-28 [&>span]:truncate"
-                  >
-                    {priorityLabel(item.priority, t)}
-                  </Badge>
-                </summary>
-
-                <div className="px-3 pb-2.5">
-                  <div className="text-xs text-[hsl(var(--text-primary))] whitespace-pre-wrap max-h-40 overflow-auto rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-primary))] p-2.5">
-                    {item.content}
-                  </div>
-                </div>
-              </details>
-            );
-          })}
+          {visibleItems.map((item, index) => (
+            <ContextItemCard key={item.id || `${item.type}-${index}`} item={item} />
+          ))}
         </div>
       </AnimatedCollapse>
     </div>
@@ -711,6 +731,10 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
           continue;
         }
         merged.push({ ...item, toolCalls: visible });
+      } else if (item.type === 'context') {
+        const visible = visibleContextItems(item.items);
+        if (visible.length === 0) continue;
+        merged.push({ ...item, items: visible });
       } else if (item.type === 'thinking_status' && item.transient) {
         const content = item.content?.trim();
         if (!content) continue;
@@ -761,7 +785,9 @@ function OrderedMessageItems({ items, onUndo, onRestoreDeletion, onOpenFile, onO
   {normalizedItems.map((item, index) => {
     if (item.type === 'thinking_status' && item.content) {
       // 1. thinking 事件 - 轻量状态小标签（不透明文字 token）
+      // Transient progress pills only render while currently active; superseded ones disappear cleanly.
       const isActiveStatus = isStreaming && index === lastActiveIndex && Boolean(item.transient);
+      if (item.transient && !isActiveStatus) return null;
       return (
         <div key={item.id} className="mb-2">
           <div

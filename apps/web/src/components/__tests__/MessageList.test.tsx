@@ -1701,7 +1701,7 @@ describe('MessageList', () => {
       expect(activeStatus).toHaveTextContent('正在准备编辑文件…（已生成 3,000 字）')
       expect(activeStatus.querySelector('.animate-spin')).toBeInTheDocument()
 
-      // Once tool_calls starts, the prep status is no longer active/spinning.
+      // Once tool_calls starts, superseded transient prep status disappears while non-transient handoff remains.
       rerender(
         <MessageList
           messages={[]}
@@ -1719,7 +1719,219 @@ describe('MessageList', () => {
         />,
       )
       expect(screen.queryByTestId('active-thinking-status')).not.toBeInTheDocument()
-      expect(screen.getByText('正在准备编辑文件…（已生成 3,000 字）')).toBeInTheDocument()
+      expect(screen.queryByText('正在准备编辑文件…（已生成 3,000 字）')).not.toBeInTheDocument()
+      expect(screen.getByText('接下来由内容创作者继续')).toBeInTheDocument()
+    })
+
+    it('hides superseded transient status pills when context, thinking, or prose arrive', () => {
+      const ts = new Date('2026-11-27T10:00:00Z')
+      const attachedCtx = {
+        id: 'ctx-1',
+        type: 'context' as const,
+        timestamp: ts,
+        items: [
+          {
+            id: 'file-3',
+            type: 'outline',
+            title: '第3章大纲',
+            content: '第三章核心冲突',
+            priority: 'critical' as const,
+            metadata: { file_type: 'outline', attached: true, is_focus: false },
+          },
+        ],
+      }
+
+      // 1. Initially active while assembling context
+      const { rerender } = render(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 't-1', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: ts },
+          ]}
+        />,
+      )
+      expect(screen.getByTestId('active-thinking-status')).toHaveTextContent('正在组装上下文...')
+
+      // 2. Once visible context arrives, 正在组装上下文... disappears
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 't-1', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: ts },
+            attachedCtx,
+          ]}
+        />,
+      )
+      expect(screen.queryByText('正在组装上下文...')).not.toBeInTheDocument()
+      expect(screen.getByText('context.label')).toBeInTheDocument()
+
+      // 3. Once 正在思考... follows after context, only 正在思考... is active; 正在组装上下文... stays gone
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 't-1', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: ts },
+            attachedCtx,
+            { id: 't-2', type: 'thinking_status' as const, content: '正在思考...', transient: true, timestamp: ts },
+          ]}
+        />,
+      )
+      expect(screen.queryByText('正在组装上下文...')).not.toBeInTheDocument()
+      expect(screen.getByTestId('active-thinking-status')).toHaveTextContent('正在思考...')
+
+      // 4. Once thinking_content or prose follows, 正在思考... disappears too
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 't-1', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: ts },
+            attachedCtx,
+            { id: 't-2', type: 'thinking_status' as const, content: '正在思考...', transient: true, timestamp: ts },
+            { id: 'tc-1', type: 'thinking_content' as const, content: '先读取第3章大纲', timestamp: ts },
+          ]}
+        />,
+      )
+      expect(screen.queryByText('正在组装上下文...')).not.toBeInTheDocument()
+      expect(screen.queryByText('正在思考...')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('active-thinking-status')).not.toBeInTheDocument()
+    })
+
+    it('hides auto-injected is_focus-only context items while keeping explicitly attached or quoted items', () => {
+      const ts = new Date('2026-11-27T10:00:00Z')
+      const focusOnlyItem = {
+        id: 'ch-1',
+        type: 'outline',
+        title: '第1章 天降剑仙',
+        content: '第一章大纲内容',
+        priority: 'critical' as const,
+        metadata: { file_type: 'outline', is_focus: true, relation: null },
+      }
+
+      // Auto-injected focus-only item alone renders no context card at all
+      const { container, rerender } = render(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 'ctx-focus', type: 'context' as const, timestamp: ts, items: [focusOnlyItem] },
+          ]}
+        />,
+      )
+      expect(container).toBeEmptyDOMElement()
+
+      // When a hidden focus-only context sits between 正在组装上下文... and 正在思考..., no zombie pill remains
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            { id: 't-1', type: 'thinking_status' as const, content: '正在组装上下文...', transient: true, timestamp: ts },
+            { id: 'ctx-focus', type: 'context' as const, timestamp: ts, items: [focusOnlyItem] },
+            { id: 't-2', type: 'thinking_status' as const, content: '正在思考...', transient: true, timestamp: ts },
+          ]}
+        />,
+      )
+      expect(screen.queryByText('正在组装上下文...')).not.toBeInTheDocument()
+      expect(screen.queryByText('context.label')).not.toBeInTheDocument()
+      expect(screen.getByTestId('active-thinking-status')).toHaveTextContent('正在思考...')
+
+      // If the same open file is ALSO explicitly @-attached (is_focus + attached), it IS shown
+      rerender(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            {
+              id: 'ctx-both',
+              type: 'context' as const,
+              timestamp: ts,
+              items: [
+                {
+                  ...focusOnlyItem,
+                  metadata: { file_type: 'outline', is_focus: true, attached: true, relation: 'attached' },
+                },
+              ],
+            },
+          ]}
+        />,
+      )
+      const toggle = screen.getByRole('button', { name: /context\.label/ })
+      expect(toggle).toHaveTextContent('(1)')
+      fireEvent.click(toggle)
+      expect(screen.getByText('第1章 天降剑仙')).toBeInTheDocument()
+      expect(screen.getByText('context.origin.attached')).toBeInTheDocument()
+    })
+
+    it('renders explicit attachments and quotes in single-border button cards with neutral origin badges and no details/summary or error styling', () => {
+      const ts = new Date('2026-11-27T10:00:00Z')
+      const { container } = render(
+        <MessageList
+          messages={[]}
+          streamRenderItems={[
+            {
+              id: 'ctx-explicit',
+              type: 'context' as const,
+              timestamp: ts,
+              items: [
+                {
+                  id: 'focus-hidden',
+                  type: 'outline',
+                  title: '第1章 天降剑仙',
+                  content: '未附加的当前打开文件',
+                  priority: 'critical' as const,
+                  metadata: { file_type: 'outline', is_focus: true },
+                },
+                {
+                  id: 'attached-ch3',
+                  type: 'outline',
+                  title: '第3章 伏笔回收',
+                  content: '第三章大纲正文内容',
+                  priority: 'critical' as const,
+                  metadata: { file_type: 'outline', attached: true, is_focus: false },
+                },
+                {
+                  id: 'quote-1',
+                  type: 'quote',
+                  title: '引用自: 第2章 试剑',
+                  content: '选中的精彩段落',
+                  priority: 'critical' as const,
+                  metadata: { file_title: '第2章 试剑', is_quote: true },
+                },
+              ],
+            },
+          ]}
+        />,
+      )
+
+      // Only the 2 explicit items are counted and shown (auto-focus item is excluded)
+      const sectionToggle = screen.getByRole('button', { name: /context\.label/ })
+      expect(sectionToggle).toHaveAttribute('aria-expanded', 'false')
+      expect(sectionToggle).toHaveTextContent('(2)')
+
+      fireEvent.click(sectionToggle)
+      expect(sectionToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.queryByText('第1章 天降剑仙')).not.toBeInTheDocument()
+
+      // No native <details> or <summary> elements
+      expect(container.querySelector('details')).toBeNull()
+      expect(container.querySelector('summary')).toBeNull()
+
+      // Neutral origin badges only — zero red error badge styling or legacy priority.critical label
+      expect(screen.getByText('context.origin.attached')).toBeInTheDocument()
+      expect(screen.getByText('context.origin.quote')).toBeInTheDocument()
+      expect(screen.queryByText('context.priority.critical')).not.toBeInTheDocument()
+      expect(container.innerHTML).not.toContain('var(--error)')
+
+      // Item triggers are accessible buttons with aria-expanded and inset focus ring
+      const attachedButton = screen.getByRole('button', { name: /第3章 伏笔回收/ })
+      expect(attachedButton).toHaveAttribute('aria-expanded', 'false')
+      expect(attachedButton.className).toContain('focus-visible:ring-inset')
+
+      fireEvent.click(attachedButton)
+      expect(attachedButton).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText('第三章大纲正文内容')).toBeInTheDocument()
+
+      // Expanded body uses a flat top divider inside the single outer card (no nested bordered card)
+      const card = attachedButton.parentElement as HTMLElement
+      expect(card.querySelectorAll('.border-t').length).toBe(1)
+      expect(card.querySelector('.rounded-lg.border')).toBeNull()
     })
   })
 })
