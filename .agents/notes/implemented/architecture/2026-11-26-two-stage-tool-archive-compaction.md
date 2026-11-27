@@ -23,8 +23,8 @@
    - 仅归档保护窗口之前、工具名属于 `ARCHIVABLE_READ_TOOLS`（`query_files` / `read_skill_resource` / `load_skill`）、输出长度 `>= 2000` 字符、且为成功 JSON 结果（`status="success"`、无 `error`/`error_type`、非已归档回执）的 `function_call_output`。绝不触碰任何写工具（`write_chapter` / `create_file` / `edit_file` / `delete_file` / `rename_file` / `update_project`）或错误结果。
    - 使用 `history.py` 单一纯函数 `build_tool_archive_receipt` 生成紧凑确定性 JSON 回执，保留 `status="success"`、`archived=true`、`tool_name`、提取的 `files`（`id`/`title`）或 `skill_id`/`skill_name`/`path`、`original_chars` 与简短重读提示；绝不放大原输出。
    - **准入条件**：用供应商同量纲估算器 `estimate_provider_items_tokens` 计算 `saved_tokens` 与 `after_tokens`，并结合实测 `history.last_prompt_tokens` 投射归档后真实水位 `projected_after = max(after_tokens, max(0, last_prompt_tokens - saved_tokens))`（防止实测含系统提示/工具 schema 高于估算导致归档后仍 > 300k、连续两轮击穿缓存）；仅当 `archived_count > 0`、`saved_tokens >= AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS` 且 `projected_after + turn_input_tokens <= AGENT_LOOP_COMPACT_AT_TOKENS` 时直接放行（0 次模型调用、0 延迟、100% 无损保留对话与写入记录）。
-3. **Stage 2 兜底与串联**：
-   - 若 Stage 1 未达准入条件，自动回落到既有 Stage 2 LLM 交接摘要；若 Stage 1 已归档至少一条旧只读输出（`archived_count > 0`），则直接将更小的已归档历史送入 Stage 2，降低摘要调用体积与延迟。
+3. **Stage 2 兜底与前缀缓存保护**：
+   - 若 Stage 1 未达准入条件，自动回落到既有 Stage 2 LLM 交接摘要，且直接使用原始 `history.items`（而非改写后的 `archive_result.items`）构造摘要请求，以命中上游已缓存的提示词前缀、避免按未缓存价格重新 prefill。
 4. **跨轮前缀稳定、冷库确定性回放与前后端兼容**：
    - Stage 1 成功后在 `message_metadata.compaction` 落库结构化记录：`{"mode": "tool_archive", "archived_through_message_id": ..., "archived_call_ids": [...], "archived_count": ..., "saved_tokens": ..., "before_tokens": ..., "after_tokens": ..., "projected_after_tokens": ..., "created_at": ...}`。
    - 保持 `valid_compaction()` 仅识别 LLM 摘要记录，确保既有 `message_manager.py` 的 `archive_pre_compaction_tool_calls_safe`、`session_loader.py` 与旧 LLM 摘要记录 100% 向后兼容；新增 `valid_tool_archive_compaction()` 与 `is_tool_archive_compaction()`。

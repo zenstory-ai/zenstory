@@ -8,8 +8,8 @@
   可重读只读工具输出（``query_files`` / ``read_skill_resource`` / ``load_skill``，绝不触碰写工具或错误结果）
   替换为紧凑确定性归档回执。若节省量 ``>= AGENT_LOOP_TOOL_ARCHIVE_MIN_SAVINGS_TOKENS`` 且归档后总量
   ``+ turn_input_tokens <= AGENT_LOOP_COMPACT_AT_TOKENS``，直接完成压缩（0 次模型调用、0 延迟、100% 无损对话）。
-- **Stage 2（LLM 交接摘要兜底）**：若 Stage 1 未达准入条件，回落到同模型交接摘要（若 Stage 1 已归档部分
-  旧只读输出，则把更小的已归档历史送入摘要调用以降低摘要延迟与成本）。校验非空、未截断且未混入工具调用标签，
+- **Stage 2（LLM 交接摘要兜底）**：若 Stage 1 未达准入条件，仍基于原始 ``history.items`` 回落到同模型交接摘要，
+  以保住上游提示词前缀缓存（不改写中段历史）。校验非空、未截断且未混入工具调用标签，
   失败时附带精炼重试说明再试一次，仍失败就不压缩、照常跑这一轮。
 
 正常轮次（未超过 ``AGENT_LOOP_COMPACT_AT_TOKENS``）从不触发 Stage 1，前缀逐字节稳定以保住 KV 缓存。
@@ -542,8 +542,8 @@ async def compact_history(
 ) -> CompactionOutcome:
     """两阶段压缩历史：先尝试 Stage 1 零 LLM ``tool_archive``，未达准入则回落到 Stage 2 交接摘要。
 
-    若 Stage 1 归档了部分旧只读输出但未达准入条件，则把更小的已归档历史送入 Stage 2 摘要调用，
-    减少摘要调用的输入量、延迟与成本；摘要仍不可用时返回 skipped，历史保持原样。
+    若 Stage 1 未达准入条件，Stage 2 直接基于原始 ``history.items`` 构造摘要请求以命中上游前缀缓存；
+    摘要仍不可用时返回 skipped，历史保持原样。
 
     每次 Stage 2 摘要调用都记进 ``run_meter``（请求级模型调用预算）。次数由
     ``_MAX_COMPACTION_ATTEMPTS`` 限定、发生在这一轮开始前，所以这里不看预算是否用完。
@@ -586,11 +586,10 @@ async def compact_history(
                 archived_unidentified_query_files=archive_result.archived_unidentified_query_files,
             )
         if archive_result.archived_count > 0:
-            source_items = archive_result.items
             log_with_context(
                 logger,
                 20,  # INFO
-                "Stage 1 tool_archive did not meet admission; feeding archived history into Stage 2 LLM summary",
+                "Stage 1 tool_archive did not meet admission; falling back to Stage 2 LLM summary with original history",
                 archived_count=archive_result.archived_count,
                 before_tokens=archive_result.before_tokens,
                 after_tokens=archive_result.after_tokens,

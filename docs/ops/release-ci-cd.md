@@ -254,6 +254,11 @@ staging API runs the new code. Do not add a startup schema check that fails
 surfacing a missed step, and it does not protect the old API from the new
 frontend.
 
+`scripts/archive_old_chat_messages.py` is one-way (moving rows out of
+`chat_message` into `chat_message_archive` with no restore script): only run it
+after confirming the deployed release will not be rolled back to a revision
+that reads `chat_message` alone.
+
 ## Upload storage acceptance
 
 `/health/ready` checks only the database and Redis, and stays that way: a bucket

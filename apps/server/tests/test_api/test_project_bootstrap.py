@@ -319,35 +319,44 @@ async def test_bootstrap_initial_file_fallbacks_and_empty_project(
     assert res_default.status_code == 200
     assert res_default.json()["initial_file"]["id"] == latest_file.id
 
-    # 2) Folder file_id -> falls back to latest editable file
+    # 2) Folder file_id -> returns null (does NOT fall back to downloading an unrelated file body)
     res_folder = await client.get(
         f"/api/v1/projects/{project.id}/bootstrap",
         params={"file_id": folder.id},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res_folder.status_code == 200
-    assert res_folder.json()["initial_file"]["id"] == latest_file.id
+    assert res_folder.json()["initial_file"] is None
 
-    # 3) Deleted file_id -> falls back to latest editable file
+    # 3) Deleted file_id -> returns null
     res_deleted = await client.get(
         f"/api/v1/projects/{project.id}/bootstrap",
         params={"file_id": deleted_file.id},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res_deleted.status_code == 200
-    assert res_deleted.json()["initial_file"]["id"] == latest_file.id
+    assert res_deleted.json()["initial_file"] is None
 
-    # 4) Foreign project's file_id -> never leaks foreign file, falls back to project's latest file
+    # 4) Foreign project's file_id -> never leaks foreign file and returns null
     res_foreign = await client.get(
         f"/api/v1/projects/{project.id}/bootstrap",
         params={"file_id": foreign_file.id},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res_foreign.status_code == 200
-    assert res_foreign.json()["initial_file"]["id"] == latest_file.id
+    assert res_foreign.json()["initial_file"] is None
     assert "绝密跨项目正文" not in json.dumps(res_foreign.json(), ensure_ascii=False)
 
-    # 5) Project with only folders -> initial_file is null
+    # 5) Non-existent file_id -> returns null
+    res_missing = await client.get(
+        f"/api/v1/projects/{project.id}/bootstrap",
+        params={"file_id": "non-existent-file-id"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res_missing.status_code == 200
+    assert res_missing.json()["initial_file"] is None
+
+    # 6) Project with only folders -> initial_file is null
     res_empty = await client.get(
         f"/api/v1/projects/{empty_project.id}/bootstrap",
         headers={"Authorization": f"Bearer {token}"},

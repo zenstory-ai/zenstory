@@ -474,16 +474,30 @@ def test_gradual_archival_aborts_and_cli_returns_nonzero_on_verification_failure
     }
     assert remaining_ids == set(created_ids)
 
-    # CLI exit code must be 1 on aborted run and 0 on clean run.
-    with patch(
-        "scripts.archive_old_chat_messages.run_gradual_archival",
-        return_value=GradualArchivalReport(aborted=True, verification_failed=True),
+    # CLI exit code must be 1 on aborted run and 0 on clean run (with explicit PostgreSQL URL).
+    with (
+        patch.dict(
+            "os.environ",
+            {"DATABASE_URL": "postgresql://archive_user:top_secret_pw@pg.internal:5432/zenstory"},
+            clear=False,
+        ),
+        patch(
+            "scripts.archive_old_chat_messages.run_gradual_archival",
+            return_value=GradualArchivalReport(aborted=True, verification_failed=True),
+        ),
     ):
         assert archive_cli_main(["--max-batches", "1"]) == 1
 
-    with patch(
-        "scripts.archive_old_chat_messages.run_gradual_archival",
-        return_value=GradualArchivalReport(aborted=False, verification_failed=False),
+    with (
+        patch.dict(
+            "os.environ",
+            {"DATABASE_URL": "postgresql://archive_user:top_secret_pw@pg.internal:5432/zenstory"},
+            clear=False,
+        ),
+        patch(
+            "scripts.archive_old_chat_messages.run_gradual_archival",
+            return_value=GradualArchivalReport(aborted=False, verification_failed=False),
+        ),
     ):
         assert archive_cli_main(["--max-batches", "1"]) == 0
 
@@ -2571,3 +2585,154 @@ def test_compact_archived_tool_calls_slims_read_and_search_files_without_touchin
     assert parsed[1]["result"]["files"][0]["archived_note"] == ARCHIVED_QUERY_CONTENT_NOTE
     # Skill cards are preserved byte-for-byte semantically.
     assert parsed[2]["result"] == {"skill_id": "sk-1", "skill_name": "短篇节奏", "instructions_chars": 1200}
+
+
+@pytest.mark.integration
+def test_a7_hot_cold_iterators_reprobe_archive_when_rows_archived_mid_iteration(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A7: If initial cold watermark probe returned empty and older un-fetched hot rows are
+    archived mid-iteration before hot pagination finishes, both _iter_session_messages_desc
+    and SessionLoader._iter_session_projection_desc re-probe chat_message_archive once."""
+    from agent.core.session_loader import SessionLoader
+    from agent.loop import history as loop_history
+
+    _user, _project, chat = _seed_user_project_session(db_session)
+    base = datetime(2026, 11, 10, 12, 0, 0)
+    rows = [
+        ChatMessage(
+            id=f"a7-msg-{idx}",
+            session_id=chat.id,
+            role="user" if idx % 2 == 0 else "assistant",
+            content=f"msg-{idx}",
+            created_at=base + timedelta(minutes=idx),
+        )
+        for idx in range(4)
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+
+    def _archive_oldest_two() -> None:
+        old_rows = db_session.exec(
+            select(ChatMessage).where(ChatMessage.id.in_(["a7-msg-0", "a7-msg-1"]))
+        ).all()
+        for row in old_rows:
+            db_session.add(
+                ChatMessageArchive(
+                    id=row.id,
+                    session_id=row.session_id,
+                    role=row.role,
+                    content=row.content,
+                    created_at=row.created_at,
+                    archived_at=base + timedelta(days=8),
+                )
+            )
+            db_session.delete(row)
+        db_session.commit()
+
+    # 1) _iter_session_messages_desc with _PAGE_SIZE=2: page 1 yields a7-msg-3 & a7-msg-2,
+    #    initial cold watermark is empty -> mid-iteration archival moves a7-msg-1 & a7-msg-0 ->
+    #    page 2 exhausts hot -> one cold re-probe catches a7-msg-1 & a7-msg-0!
+    monkeypatch.setattr(loop_history, "_PAGE_SIZE", 2)
+    seen_history_ids: list[str] = []
+    it = loop_history._iter_session_messages_desc(db_session, chat_session_id=chat.id)
+    for idx, row in enumerate(it):
+        seen_history_ids.append(row.id)
+        if idx == 0:
+            _archive_oldest_two()
+    assert seen_history_ids == ["a7-msg-3", "a7-msg-2", "a7-msg-1", "a7-msg-0"]
+
+    # 2) Reset a7-msg-0/1 back to hot and verify SessionLoader._iter_session_projection_desc!
+    _user2, _project2, chat2 = _seed_user_project_session(db_session)
+    rows2 = [
+        ChatMessage(
+            id=f"a7-proj-{idx}",
+            session_id=chat2.id,
+            role="assistant",
+            content=f"proj-{idx}",
+            created_at=base + timedelta(minutes=idx),
+        )
+        for idx in range(4)
+    ]
+    db_session.add_all(rows2)
+    db_session.commit()
+
+    def _archive_oldest_two_proj() -> None:
+        old_rows = db_session.exec(
+            select(ChatMessage).where(ChatMessage.id.in_(["a7-proj-0", "a7-proj-1"]))
+        ).all()
+        for row in old_rows:
+            db_session.add(
+                ChatMessageArchive(
+                    id=row.id,
+                    session_id=row.session_id,
+                    role=row.role,
+                    content=row.content,
+                    created_at=row.created_at,
+                    archived_at=base + timedelta(days=8),
+                )
+            )
+            db_session.delete(row)
+        db_session.commit()
+
+    seen_proj_contents: list[str] = []
+    proj_it = SessionLoader._iter_session_projection_desc(
+        db_session,
+        chat_session_id=chat2.id,
+        roles=("assistant",),
+        column_names=("content",),
+        page_size=2,
+    )
+    for idx, (content,) in enumerate(proj_it):
+        seen_proj_contents.append(content)
+        if idx == 0:
+            _archive_oldest_two_proj()
+    assert seen_proj_contents == ["proj-3", "proj-2", "proj-1", "proj-0"]
+
+
+@pytest.mark.unit
+def test_b4_archive_cli_requires_postgres_url_and_redacts_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """B4: archive_old_chat_messages CLI refuses missing/SQLite/non-PG DATABASE_URL fail-closed
+    and prints target dialect and redacted host (never credentials) in summary output."""
+    mock_run = patch(
+        "scripts.archive_old_chat_messages.run_gradual_archival",
+        return_value=GradualArchivalReport(dry_run=True, batches_run=1, total_scanned=3),
+    )
+
+    # 1) Unset DATABASE_URL -> fail closed (exit 2), never invokes archival
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    with mock_run as spy:
+        rc = archive_cli_main(["--dry-run"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert spy.call_count == 0
+    assert "DATABASE_URL" in captured.err
+
+    # 2) SQLite DATABASE_URL -> fail closed (exit 2), refuses non-PostgreSQL dialect
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./zenstory.db")
+    with mock_run as spy:
+        rc = archive_cli_main(["--dry-run"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert spy.call_count == 0
+    assert "sqlite" in captured.err.lower()
+
+    # 3) PostgreSQL DATABASE_URL with credentials -> succeeds, prints dialect + host, NEVER credentials
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://ops_admin:S3cr3tPassw0rd!@postgres.railway.internal:5432/zenstory_prod?sslmode=require",
+    )
+    with mock_run as spy:
+        rc = archive_cli_main(["--dry-run"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert spy.call_count == 1
+    assert "dialect=postgresql" in captured.out
+    assert "host=postgres.railway.internal" in captured.out
+    for secret in ("ops_admin", "S3cr3tPassw0rd!", "sslmode=require"):
+        assert secret not in captured.out
+        assert secret not in captured.err

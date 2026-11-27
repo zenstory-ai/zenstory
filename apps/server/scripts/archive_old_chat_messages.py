@@ -24,9 +24,10 @@ import os
 import sys
 
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL, make_url
 
 load_dotenv()
-os.environ.setdefault("DATABASE_URL", "sqlite:///./zenstory.db")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlmodel import Session  # noqa: E402
@@ -116,7 +117,48 @@ def _format_batch_line(
     )
 
 
-def _format_summary_line(report: GradualArchivalReport) -> str:
+def _resolve_postgres_target(raw_url: str | None) -> tuple[URL, str, str]:
+    """Validate an explicit PostgreSQL DATABASE_URL and return ``(sync_url, dialect, redacted_host)``.
+
+    Fails closed (raises ``ValueError`` without echoing credentials) when ``DATABASE_URL`` is unset,
+    unparseable, or targets a non-PostgreSQL dialect such as SQLite.
+    """
+    value = (raw_url or "").strip()
+    if not value:
+        raise ValueError("DATABASE_URL is required and must point to a PostgreSQL database.")
+    try:
+        parsed = make_url(value)
+    except Exception as exc:  # noqa: BLE001 - never echo raw DATABASE_URL or credentials
+        raise ValueError("DATABASE_URL could not be parsed as a valid PostgreSQL URL.") from exc
+    dialect = parsed.get_backend_name()
+    if dialect != "postgresql":
+        raise ValueError(
+            f"Refusing non-PostgreSQL DATABASE_URL (dialect={dialect}); this CLI only runs against PostgreSQL."
+        )
+    query_host = parsed.query.get("host")
+    host = parsed.host or (query_host if isinstance(query_host, str) and query_host else "local")
+    sync_url = parsed.set(drivername="postgresql+psycopg")
+    return sync_url, dialect, host
+
+
+def _build_postgres_sync_engine(sync_url: URL):
+    existing_options = sync_url.query.get("options", "")
+    if isinstance(existing_options, tuple):
+        existing_options = " ".join(existing_options)
+    sync_options = " ".join(part for part in (existing_options.strip(), "-c timezone=UTC") if part)
+    return create_engine(
+        sync_url,
+        connect_args={"options": sync_options},
+        pool_pre_ping=True,
+    )
+
+
+def _format_summary_line(
+    report: GradualArchivalReport,
+    *,
+    dialect: str = "unknown",
+    host: str = "unknown",
+) -> str:
     mode = "dry_run" if report.dry_run else "apply"
     oldest = (
         report.oldest_remaining_at.isoformat()
@@ -124,7 +166,7 @@ def _format_summary_line(report: GradualArchivalReport) -> str:
         else "none"
     )
     return (
-        f"[summary] mode={mode} batches={report.batches_run} "
+        f"[summary] dialect={dialect} host={host} mode={mode} batches={report.batches_run} "
         f"scanned={report.total_scanned} archived={report.total_archived} "
         f"deleted={report.total_deleted} bytes_before={report.total_bytes_before} "
         f"bytes_after={report.total_bytes_after} bytes_saved={report.bytes_saved} "
@@ -136,7 +178,13 @@ def _format_summary_line(report: GradualArchivalReport) -> str:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    from database import sync_engine
+    try:
+        sync_url, dialect, host = _resolve_postgres_target(os.getenv("DATABASE_URL"))
+    except ValueError as exc:
+        print(f"[error] {exc}", file=sys.stderr, flush=True)
+        return 2
+
+    engine = _build_postgres_sync_engine(sync_url)
 
     def _on_progress(
         batch_num: int,
@@ -145,17 +193,20 @@ def main(argv: list[str] | None = None) -> int:
     ) -> None:
         print(_format_batch_line(batch_num, batch_res, report), flush=True)
 
-    report = run_gradual_archival(
-        lambda: Session(sync_engine),
-        older_than_days=args.older_than_days,
-        batch_size=args.batch_size,
-        max_batches=args.max_batches,
-        sleep_ms=args.sleep_ms,
-        dry_run=args.dry_run,
-        vacuum_analyze=args.vacuum_analyze,
-        progress_callback=_on_progress,
-    )
-    print(_format_summary_line(report), flush=True)
+    try:
+        report = run_gradual_archival(
+            lambda: Session(engine),
+            older_than_days=args.older_than_days,
+            batch_size=args.batch_size,
+            max_batches=args.max_batches,
+            sleep_ms=args.sleep_ms,
+            dry_run=args.dry_run,
+            vacuum_analyze=args.vacuum_analyze,
+            progress_callback=_on_progress,
+        )
+    finally:
+        engine.dispose()
+    print(_format_summary_line(report, dialect=dialect, host=host), flush=True)
     return 1 if report.aborted else 0
 
 
