@@ -397,7 +397,6 @@ export const EditFileCard: React.FC<{
         <FailedEditsSection
           failedEdits={rawFailedEdits}
           defaultOpen={true}
-          isStreaming={isStreaming}
           t={t}
         />
       )}
@@ -809,7 +808,11 @@ export const BatchReplaceFilesCard: React.FC<{
               ? resolveToolFailure({ ...file, error_type: failureType }, t).message
               : t('chat:tool.taskNotCompleted');
             const canOpenFailed = Boolean(
-              onOpenFile && typeof file.id === 'string' && file.id.trim() && failureType !== 'file_not_found',
+              onOpenFile
+              && typeof file.id === 'string'
+              && file.id.trim()
+              && failureType !== 'file_not_found'
+              && failureType !== 'permission_denied',
             );
             return (
               <div

@@ -381,8 +381,11 @@ export function createStreamFileSyncHandlers(
     title?: string,
     outcome?: FileEditOutcome,
   ) => {
-    // Clear edit progress and mark tree refresh once.
-    refs.roundWroteFilesRef.current = true;
+    // Clear edit progress; only mark round-wrote / refresh tree when at least one edit actually applied.
+    const appliedWrite = editsApplied > 0 && !outcome?.allFailed;
+    if (appliedWrite) {
+      refs.roundWroteFilesRef.current = true;
+    }
     setEditProgress(null);
     if (
       refs.aiEditingTargetRef.current === fileId
@@ -391,11 +394,12 @@ export function createStreamFileSyncHandlers(
       refs.aiEditingTargetRef.current = null;
       setAiEditingFileId?.(null);
     }
-    scheduleFileTreeRefresh();
-
-    // Direct edit_file can fill a create_file placeholder without <file>
-    // chunks or file_content_end. Its committed body now owns the editor.
-    if (editsApplied > 0 && !outcome?.allFailed) finishFileStreaming(fileId);
+    if (appliedWrite) {
+      scheduleFileTreeRefresh();
+      // Direct edit_file can fill a create_file placeholder without <file>
+      // chunks or file_content_end. Its committed body now owns the editor.
+      finishFileStreaming(fileId);
+    }
 
     // 批量编辑可以部分失败：给出简洁提示并引导到对话内的持久卡片查看详情或重试。
     if (outcome && (outcome.failedCount > 0 || outcome.allFailed)) {

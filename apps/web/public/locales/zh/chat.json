@@ -316,9 +316,7 @@
     "failed": "{{label}}失败",
     "failureHint": {
       "notFound": "未在原文中找到对应段落，文件未改动。",
-      "notFoundStreaming": "未在原文中找到对应段落，AI 正在重新定位。",
       "ambiguous": "要修改的片段在原文中出现多处，文件未改动。",
-      "ambiguousStreaming": "要修改的片段在原文中出现多处，AI 正在确认位置。",
       "fileMissing": "目标文件已不存在或已被删除，文件未改动。",
       "repeatRead": "《{{title}}》刚才已经读过，AI 直接用已读内容继续。",
       "repeatReadUntitled": "这份资料刚才已经读过，AI 直接用已读内容继续。",
@@ -336,8 +334,7 @@
       "chapterTargetAmbiguous": "找到多个同编号章节，无法确认目标文件，文件未改动。",
       "invalidEdit": "修改参数不完整，此次修改未执行，文件未改动。",
       "permissionDenied": "无权修改该文件，文件未改动。",
-      "generic": "这一步未能完成，文件未改动。",
-      "genericStreaming": "这一步未能完成，AI 正在调整方式继续。"
+      "generic": "这一步未能完成，文件未改动。"
     },
     "skippedTitle": {
       "authorEdited": "保留了你改过的内容",

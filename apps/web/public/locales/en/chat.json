@@ -316,9 +316,7 @@
     "failed": "{{label}} failed",
     "failureHint": {
       "notFound": "Could not find the target passage in the text; the file was not changed.",
-      "notFoundStreaming": "Could not find that passage; the AI is locating it again.",
       "ambiguous": "That passage appears more than once in the text; the file was not changed.",
-      "ambiguousStreaming": "That passage appears several times; the AI is checking which one.",
       "fileMissing": "This file no longer exists; nothing was changed.",
       "repeatRead": "\"{{title}}\" was already read; continuing with it.",
       "repeatReadUntitled": "This was already read; continuing with it.",
@@ -336,8 +334,7 @@
       "chapterTargetAmbiguous": "Multiple chapters matched that number, so no file was changed.",
       "invalidEdit": "The edit instructions were incomplete, so the file was not changed.",
       "permissionDenied": "You don't have permission to modify this file; nothing was changed.",
-      "generic": "This step did not complete; the file was not changed.",
-      "genericStreaming": "That step didn't work; the AI is trying another way."
+      "generic": "This step did not complete; the file was not changed."
     },
     "skippedTitle": {
       "authorEdited": "Kept your changes",

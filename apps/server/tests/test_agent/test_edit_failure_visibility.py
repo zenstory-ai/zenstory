@@ -326,11 +326,13 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
             "new_preview": "新段落片段",
         }
     ]
-    serialized = json.dumps(card, ensure_ascii=False)
-    assert "SECRET_MODEL_PROMPT" not in serialized
-    assert "SECRET_ITEM_INSTRUCTION" not in serialized
+    serialized_all = json.dumps([e.data for e in events], ensure_ascii=False)
+    assert "SECRET_MODEL_PROMPT" not in serialized_all
+    assert "SECRET_ITEM_INSTRUCTION" not in serialized_all
 
-    # 2. edit_file partial success also strips raw item.error prose from tool_result data
+    # 2. edit_file partial success strips raw item.error & raw failure warnings across ALL SSE events,
+    #    and defensively clamps oversized previews to 200 chars + "...".
+    oversized_preview = "超长片段" * 80
     partial_json = json.dumps(
         {
             "status": "partial",
@@ -342,13 +344,17 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
                 "edits_applied": 1,
                 "partial_success": True,
                 "details": [{"op": "replace", "old_preview": "A", "new_preview": "B"}],
+                "warnings": [
+                    "Edit 1: failed and skipped (RAW_WARNING_LEAK_TRACE)",
+                    "Edit 2: empty edit ignored",
+                ],
                 "failed_edits": [
                     {
                         "index": 1,
                         "op": "replace",
                         "error": "Edit 1: RAW_MODEL_ONLY_HINT",
                         "error_type": "anchor_not_found",
-                        "old_preview": "旧片段",
+                        "old_preview": oversized_preview,
                         "new_preview": "新片段",
                     }
                 ],
@@ -367,17 +373,13 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
     ]
     partial_card = next(e.data for e in partial_events if e.type == EventType.TOOL_RESULT)
     assert partial_card["status"] == "success"
-    assert partial_card["data"]["failed_edits"] == [
-        {
-            "index": 1,
-            "op": "replace",
-            "error_type": "anchor_not_found",
-            "user_message": "未在原文中找到对应段落，文件未改动。",
-            "old_preview": "旧片段",
-            "new_preview": "新片段",
-        }
-    ]
-    assert "RAW_MODEL_ONLY_HINT" not in json.dumps(partial_card, ensure_ascii=False)
+    assert partial_card["data"]["warnings"] == ["Edit 2: empty edit ignored"]
+    assert partial_card["data"]["failed_edits"][0]["old_preview"].endswith("...")
+    assert len(partial_card["data"]["failed_edits"][0]["old_preview"]) == 203
+    assert partial_card["data"]["failed_edits"][0]["user_message"] == "未在原文中找到对应段落，文件未改动。"
+    partial_all_serialized = json.dumps([e.data for e in partial_events], ensure_ascii=False)
+    assert "RAW_MODEL_ONLY_HINT" not in partial_all_serialized
+    assert "RAW_WARNING_LEAK_TRACE" not in partial_all_serialized
 
     # 3. batch_replace_files all-skipped error forwards safe skipped_files without raw error prose
     batch_error_json = json.dumps(
@@ -421,6 +423,84 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
             "user_message": "该文件在 AI 读取后又被修改过，未在旧内容上改动。",
         }
     ]
-    batch_serialized = json.dumps(batch_card, ensure_ascii=False)
+    batch_serialized = json.dumps([e.data for e in batch_events], ensure_ascii=False)
     assert "RAW_BATCH_ERROR_INTERNAL" not in batch_serialized
     assert "RAW_SKIP_INTERNAL_TRACE" not in batch_serialized
+
+    # 4. Safe file error tool missing user_message still replaces raw error prose with neutral message
+    write_chapter_raw_err = json.dumps(
+        {
+            "status": "error",
+            "error": "RAW_DB_TRACEBACK_SECRET",
+            "error_type": "invalid_chapter",
+        },
+        ensure_ascii=False,
+    )
+    wc_events = [
+        sse
+        async for sse in adapter._process_workflow_event(
+            WorkflowStreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={"name": "write_chapter", "result": {"content": [{"text": write_chapter_raw_err}]}},
+            )
+        )
+    ]
+    assert wc_events[0].data["error"] == "此次修改未能生效，文件未改动。"
+    assert "RAW_DB_TRACEBACK_SECRET" not in json.dumps([e.data for e in wc_events], ensure_ascii=False)
+
+    # 5. Pre-edit atomic edit_file error with id (no applied_edits, no failed_edits) emits NO spurious file_edit_* events
+    pre_edit_err = json.dumps(
+        {
+            "status": "error",
+            "error": "RAW_STALE_MODEL_DIFF",
+            "error_type": "stale_content",
+            "user_message": "该文件在 AI 读取后又被修改过，未在旧内容上改动。",
+            "data": {"id": "f-3", "title": "第6章 黎明", "file_type": "draft", "details": [], "failed_edits": []},
+        },
+        ensure_ascii=False,
+    )
+    stale_events = [
+        sse
+        async for sse in adapter._process_workflow_event(
+            WorkflowStreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={"name": "edit_file", "result": {"content": [{"text": pre_edit_err}]}},
+            )
+        )
+    ]
+    assert [e.type for e in stale_events] == [EventType.TOOL_RESULT]
+    assert "RAW_STALE_MODEL_DIFF" not in json.dumps([e.data for e in stale_events], ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_mcp_edit_file_omits_file_id_on_forbidden_error(db_session, owner_project, monkeypatch):
+    from agent.tools.permissions import ForbiddenError
+
+    user, project = owner_project
+    chapter = _add_file(db_session, project, title="他人章节", file_type="draft")
+
+    def raise_forbidden(*_args, **_kwargs):
+        raise ForbiddenError("无权访问目标文件")
+
+    req_ctx = AgentRequestContext(
+        session=db_session,
+        user_id=user.id,
+        project_id=project.id,
+        session_id="s-forbid",
+    )
+    monkeypatch.setattr(FileEditor, "edit_file", raise_forbidden)
+    try:
+        resp = _payload(
+            await mcp_tools.edit_file(
+                {"id": chapter.id, "edits": [{"op": "append", "text": "x"}]},
+                request_context=req_ctx,
+            )
+        )
+    finally:
+        req_ctx.clear()
+
+    assert resp["status"] == "error"
+    assert resp["error_type"] == "permission_denied"
+    assert "id" not in resp
+    assert "title" not in resp

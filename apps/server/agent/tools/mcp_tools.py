@@ -1741,7 +1741,8 @@ def _edit_file_sync(
             return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
         except ForbiddenError as e:
             # 工具层自己的权限拒绝（不是内建的 PermissionError/OSError），都发生在写入之前。
-            return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED, id=file_id)
+            # 不附带未授权的 file_id，避免前端渲染打开/重试控件。
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
         except Exception as e:
             # 未分类异常可能发生在提交之后（例如台账记录），不能断言「一处都没生效」。
             return _make_edit_error(str(e), error_type=EDIT_ERROR_GENERIC, known_unapplied=False, id=file_id)

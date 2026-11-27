@@ -59,9 +59,8 @@ const CopyAttemptedTextButton: React.FC<{
 export const FailedEditsSection: React.FC<{
   failedEdits: NormalizedFailedEdit[];
   defaultOpen?: boolean;
-  isStreaming?: boolean;
   t: TranslateFn;
-}> = ({ failedEdits, defaultOpen = true, isStreaming = false, t }) => {
+}> = ({ failedEdits, defaultOpen = true, t }) => {
   if (failedEdits.length === 0) return null;
 
   return (
@@ -90,7 +89,6 @@ export const FailedEditsSection: React.FC<{
           const reason = resolveToolFailure(
             { error_type: item.errorType, user_message: item.userMessage },
             t,
-            { isStreaming },
           ).message;
           const targetSnippet = item.oldPreview || item.anchorPreview;
           const targetLabel = item.anchorPreview && !item.oldPreview

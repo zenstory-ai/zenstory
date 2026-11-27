@@ -50,7 +50,7 @@ export const ToolFailureCard: React.FC<{
 }) => {
   // 中途某一步没做成是常态，用中性样式，不用刺眼红色报错。
   const { label } = getToolDisplayInfo(toolName, t);
-  const { kind, message: userMessage } = resolveToolFailure(result, t, { isStreaming });
+  const { kind, message: userMessage } = resolveToolFailure(result, t);
   const intentionalSkip = INTENTIONAL_SKIP_KINDS.has(kind);
   const data = (result?.data && typeof result.data === 'object'
     ? result.data
@@ -81,11 +81,13 @@ export const ToolFailureCard: React.FC<{
     && toolName !== 'create_file'
     && targetFileId
     && kind !== 'fileMissing'
+    && kind !== 'permissionDenied'
     && !isPending
     && !interrupted,
   );
   const showFileRow =
     toolName !== 'create_file'
+    && kind !== 'permissionDenied'
     && (Boolean(targetTitle) || canOpenTargetFile);
 
   const topErrorType =
@@ -105,6 +107,7 @@ export const ToolFailureCard: React.FC<{
     RETRYABLE_FILE_EDIT_TOOLS.has(toolName)
     && !intentionalSkip
     && kind !== 'fileMissing'
+    && kind !== 'permissionDenied'
     && kind !== 'repeatRead'
     && kind !== 'noChange'
     && onRetryEditFailure
@@ -149,7 +152,6 @@ export const ToolFailureCard: React.FC<{
           <FailedEditsSection
             failedEdits={failedEdits}
             defaultOpen={true}
-            isStreaming={isStreaming}
             t={t}
           />
         )}
@@ -181,13 +183,14 @@ export const ToolFailureCard: React.FC<{
                 const failedFileType = readUserFacingText(file.file_type) ?? '';
                 const failureType = readUserFacingText(file.error_type) ?? readUserFacingText(file.reason);
                 const reason = failureType || readUserFacingText(file.user_message)
-                  ? resolveToolFailure({ ...file, error_type: failureType }, t, { isStreaming }).message
+                  ? resolveToolFailure({ ...file, error_type: failureType }, t).message
                   : t('chat:tool.taskNotCompleted');
                 const canOpenSkipped = Boolean(
                   onOpenFile
                   && typeof file.id === 'string'
                   && file.id.trim()
                   && failureType !== 'file_not_found'
+                  && failureType !== 'permission_denied'
                   && !isPending
                   && !interrupted,
                 );

@@ -1562,7 +1562,7 @@ class FileEditor:
                     failed_edit["batch_anchor_invalidated"] = True
                 failed_edits.append(failed_edit)
                 if continue_on_error:
-                    warnings.append(f"Edit {i}: failed and skipped ({e})")
+                    warnings.append(f"Edit {i}: failed and skipped ({error_type})")
                 # continue_on_error=false 时也继续检查后面的编辑（只在内存里），
                 # 一次把所有失败项报给模型；循环结束后整批回滚，不会落库。
 

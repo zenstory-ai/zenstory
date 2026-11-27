@@ -695,6 +695,8 @@ class StreamAdapter:
             )
             if failure_hints.get("user_message"):
                 error = failure_hints["user_message"]
+            elif status == "error" and tool_name in _SAFE_FILE_ERROR_TOOLS:
+                error = edit_error_user_message(failure_hints.get("error_type"))
 
             if (
                 status == "success"
@@ -800,11 +802,16 @@ class StreamAdapter:
                         yield event
 
             # Handle file edit。即便状态被降级为 error（全部编辑失败），
-            # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」。
+            # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」；
+            # 原子回滚或预检失败（status=error 且非 edit_all_failed）不发虚假的 file_edit_* 事件。
             # 被 RepeatEditGuard 软跳过（guard_skipped=True）的调用未执行，不发假 file_edit 事件。
-            if tool_name == "edit_file" and not (
-                (isinstance(result_data, dict) and result_data.get("guard_skipped") is True)
-                or (isinstance(parsed_result, dict) and parsed_result.get("guard_skipped") is True)
+            if (
+                tool_name == "edit_file"
+                and (status == "success" or edit_all_failed)
+                and not (
+                    (isinstance(result_data, dict) and result_data.get("guard_skipped") is True)
+                    or (isinstance(parsed_result, dict) and parsed_result.get("guard_skipped") is True)
+                )
             ):
                 async for event in self._handle_edit_file_result(result_data):
                     yield event
@@ -861,7 +868,29 @@ class StreamAdapter:
         return hints
 
     @staticmethod
-    def _client_safe_failed_edits(raw: Any) -> list[dict[str, Any]]:
+    def _clip_client_preview(value: str, max_len: int = 200) -> str:
+        """Defensively bound preview strings sent to clients without double-ellipsizing."""
+        if len(value) > max_len + 3 or (len(value) > max_len and not value.endswith("...")):
+            return f"{value[:max_len]}..."
+        return value
+
+    @staticmethod
+    def _client_safe_warnings(raw: Any) -> list[str]:
+        """过滤包含原始失败异常细节的 warning，保留纯结构性/无害提示。"""
+        if not isinstance(raw, list):
+            return []
+        safe: list[str] = []
+        for item in raw:
+            if not item:
+                continue
+            text = str(item)
+            if "failed and skipped (" in text:
+                continue
+            safe.append(text)
+        return safe
+
+    @classmethod
+    def _client_safe_failed_edits(cls, raw: Any) -> list[dict[str, Any]]:
         """只保留前端展示失败编辑项所需的有界安全字段，永不透传模型指令 error 原文。"""
         if not isinstance(raw, list):
             return []
@@ -873,10 +902,14 @@ class StreamAdapter:
             index = item.get("index")
             if isinstance(index, int) and not isinstance(index, bool):
                 entry["index"] = index
-            for key in ("op", "error_type", "old_preview", "anchor_preview", "new_preview", "text_preview"):
+            for key in ("op", "error_type"):
                 value = item.get(key)
                 if isinstance(value, str) and value:
                     entry[key] = value
+            for key in ("old_preview", "anchor_preview", "new_preview", "text_preview"):
+                value = item.get(key)
+                if isinstance(value, str) and value:
+                    entry[key] = cls._clip_client_preview(value)
             user_message = item.get("user_message")
             if isinstance(user_message, str) and user_message.strip():
                 entry["user_message"] = user_message.strip()
@@ -915,11 +948,16 @@ class StreamAdapter:
 
     @classmethod
     def _sanitize_client_tool_data(cls, tool_name: str, data: Any) -> Any:
-        """清理成功/部分成功文件工具结果中的失败明细，避免原始 error 文本泄漏给前端。"""
+        """清理成功/部分成功文件工具结果中的失败明细与原始告警，避免原始 error 文本泄漏给前端。"""
         if not isinstance(data, dict):
             return data
-        if tool_name == "edit_file" and "failed_edits" in data:
-            return {**data, "failed_edits": cls._client_safe_failed_edits(data.get("failed_edits"))}
+        if tool_name == "edit_file" and ("failed_edits" in data or "warnings" in data):
+            sanitized = dict(data)
+            if "failed_edits" in sanitized:
+                sanitized["failed_edits"] = cls._client_safe_failed_edits(sanitized.get("failed_edits"))
+            if "warnings" in sanitized:
+                sanitized["warnings"] = cls._client_safe_warnings(sanitized.get("warnings"))
+            return sanitized
         if tool_name == "batch_replace_files" and "skipped_files" in data:
             return {**data, "skipped_files": cls._client_safe_skipped_files(data.get("skipped_files"))}
         return data
@@ -2067,12 +2105,11 @@ class StreamAdapter:
         # Edit details are in "details" field, not "edits_applied"
         edits = result.get("details", [])
         applied_edits = [e for e in edits if isinstance(e, dict)] if isinstance(edits, list) else []
-        # 失败项与告警此前被整体丢弃：部分失败/全部失败的编辑在 UI 上呈现为
-        # 「全部成功」，用户以为改完了就继续往下写。失败必须与成功同样上屏。
-        failed_edits = self._normalize_edit_failures(result.get("failed_edits"))
-        warnings = [str(w) for w in result.get("warnings") or [] if w]
+        # 失败项与告警只保留前端安全字段，绝不把面向模型的原始 error / 异常细节放进 SSE。
+        failed_edits = self._client_safe_failed_edits(result.get("failed_edits"))
+        warnings = self._client_safe_warnings(result.get("warnings"))
 
-        if not file_id:
+        if not file_id or (not applied_edits and not failed_edits):
             return
 
         # Emit edit start —— 总数必须包含失败项，否则进度条会少算
@@ -2104,16 +2141,18 @@ class StreamAdapter:
                 error=error,
             )
 
-        # 失败项紧随其后，edit_index 继续顺延（保证事件 key 唯一）
+        # 失败项紧随其后，edit_index 继续顺延（保证事件 key 唯一），只发安全 user_message。
         for offset, failed in enumerate(failed_edits):
+            old_snip = failed.get("old_preview") or failed.get("anchor_preview")
+            new_snip = failed.get("new_preview") or failed.get("text_preview")
             yield file_edit_applied_event(
                 file_id=file_id,
                 edit_index=len(applied_edits) + offset,
                 op=failed.get("op") or "replace",
-                old_preview=None,
-                new_preview=None,
+                old_preview=old_snip[:50] if isinstance(old_snip, str) and old_snip else None,
+                new_preview=new_snip[:50] if isinstance(new_snip, str) and new_snip else None,
                 success=False,
-                error=failed.get("error") or "编辑失败",
+                error=failed.get("user_message") or edit_error_user_message(failed.get("error_type")),
             )
 
         # Emit edit end - use new_length from result directly

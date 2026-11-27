@@ -234,24 +234,6 @@ export const INTENTIONAL_SKIP_KINDS: ReadonlySet<ToolFailureKind> = new Set([
 ]);
 
 /**
- * Earlier backend builds persisted present-tense strings ("正在重新定位" / "正在确认" / "AI 会换个方式继续")
- * into chat history. When rendering settled/historical cards, prefer the calm localized settled copy.
- */
-const RETIRED_PRESENT_TENSE_USER_MESSAGES: ReadonlySet<string> = new Set([
-  'AI 没在原文里找到要改的那一段，正在重新定位。',
-  '要改的这句话在文中出现了好几次，AI 正在确认是哪一处。',
-  '整章替换要按章号写入，这一步没有改动，AI 会换个方式继续。',
-  '这次修改会让章节里出现重复的段落，没有保存，AI 会换个方式继续。',
-  '这一步没做成，AI 会换个方式继续。',
-]);
-
-const STREAMING_HINT_KINDS: ReadonlySet<ToolFailureKind> = new Set([
-  'notFound',
-  'ambiguous',
-  'generic',
-]);
-
-/**
  * 按 error_type 归到作者能看懂的几类。error_type 由各工具自己定义，这里只认
  * 语义明确的形态；认不出来的一律归为 generic，绝不回退到原始错误文本。
  */
@@ -305,22 +287,16 @@ export const readNotesAdded = (
 export const resolveToolFailure = (
   result: Record<string, unknown> | undefined,
   t: TranslateFn,
-  options?: { isStreaming?: boolean },
 ): { kind: ToolFailureKind; message: string } => {
   const nested = result?.data && typeof result.data === 'object'
     ? (result.data as Record<string, unknown>)
     : undefined;
   const errorType = readUserFacingText(result?.error_type) ?? readUserFacingText(nested?.error_type);
   const kind = classifyToolFailure(errorType);
-  const isStreaming = options?.isStreaming === true;
   // user_message is written in Chinese by the backend; other UI languages use the error_type mapping.
-  const rawUserMessage = isChineseUi()
+  const userMessage = isChineseUi()
     ? readUserFacingText(result?.user_message) ?? readUserFacingText(nested?.user_message)
     : null;
-  const userMessage =
-    rawUserMessage && (!isStreaming && RETIRED_PRESENT_TENSE_USER_MESSAGES.has(rawUserMessage))
-      ? null
-      : rawUserMessage;
   if (userMessage) return { kind, message: userMessage };
 
   const title = readUserFacingText(result?.title) ?? readUserFacingText(nested?.title);
@@ -331,9 +307,6 @@ export const resolveToolFailure = (
         ? t(`chat:tool.failureHint.${kind}`, { title })
         : t(`chat:tool.failureHint.${kind}Untitled`),
     };
-  }
-  if (isStreaming && STREAMING_HINT_KINDS.has(kind)) {
-    return { kind, message: t(`chat:tool.failureHint.${kind}Streaming`) };
   }
   return { kind, message: t(`chat:tool.failureHint.${kind}`) };
 };
@@ -391,6 +364,30 @@ const readRawArgString = (obj: Record<string, unknown> | undefined, keys: string
   return undefined;
 };
 
+const readEditArgSnippets = (
+  argEdit: Record<string, unknown> | undefined,
+  op: string,
+): {
+  rawOld?: string;
+  rawAnchor?: string;
+  rawNew?: string;
+  rawText?: string;
+} => ({
+  rawOld: readRawArgString(argEdit, ['old', 'from']),
+  rawAnchor: readRawArgString(argEdit, ['anchor']),
+  rawNew: op === 'replace'
+    ? readRawArgString(argEdit, ['new', 'to', 'text', 'content', 'new_text', 'replacement'])
+    : readRawArgString(argEdit, ['new']),
+  rawText: op !== 'replace'
+    ? readRawArgString(argEdit, ['text', 'content', 'new', 'new_text', 'replacement'])
+    : readRawArgString(argEdit, ['text']),
+});
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
 /**
  * Extract client-safe failed edit entries from tool result `failed_edits`,
  * falling back cleanly to bounded previews from `toolArguments.edits` on older records.
@@ -401,34 +398,22 @@ export const extractFailedEdits = (
   toolArguments?: Record<string, unknown>,
   fallbackErrorType?: string,
 ): NormalizedFailedEdit[] => {
-  const argEdits = Array.isArray(toolArguments?.edits)
-    ? toolArguments.edits.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
-    : [];
+  // Keep unfiltered array so 0-based `item.index` aligns even when earlier items are malformed.
+  const rawArgEdits = Array.isArray(toolArguments?.edits) ? toolArguments.edits : [];
   const rawFailed = Array.isArray(data?.failed_edits)
-    ? data.failed_edits.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    ? data.failed_edits.filter((item): item is Record<string, unknown> => Boolean(asRecord(item)))
     : [];
 
   if (rawFailed.length > 0) {
     return rawFailed.map((item, fallbackIdx) => {
       const idx = typeof item.index === 'number' && Number.isInteger(item.index) ? item.index : fallbackIdx;
-      const argEdit = argEdits[idx];
-      const op =
-        readUserFacingText(item.op)
-        ?? readUserFacingText(argEdit?.op)
-        ?? '';
-      const rawOld = readRawArgString(argEdit, ['old', 'from']);
-      const rawAnchor = readRawArgString(argEdit, ['anchor']);
-      const rawNew = op === 'replace'
-        ? readRawArgString(argEdit, ['new', 'to', 'text', 'content', 'new_text', 'replacement'])
-        : readRawArgString(argEdit, ['new']);
-      const rawText = op !== 'replace'
-        ? readRawArgString(argEdit, ['text', 'content', 'new', 'new_text', 'replacement'])
-        : readRawArgString(argEdit, ['text']);
+      const argEdit = asRecord(rawArgEdits[idx]);
+      const op = readUserFacingText(item.op) ?? readUserFacingText(argEdit?.op) ?? '';
+      const { rawOld, rawAnchor, rawNew, rawText } = readEditArgSnippets(argEdit, op);
       const oldPreview = readUserFacingText(item.old_preview) ?? (rawOld ? clipSnippet(rawOld) : undefined);
       const anchorPreview = readUserFacingText(item.anchor_preview) ?? (rawAnchor ? clipSnippet(rawAnchor) : undefined);
       const newPreview = readUserFacingText(item.new_preview) ?? (rawNew ? clipSnippet(rawNew) : undefined);
       const textPreview = readUserFacingText(item.text_preview) ?? (rawText ? clipSnippet(rawText) : undefined);
-      const copyText = rawNew ?? rawText ?? newPreview ?? textPreview;
       return {
         index: idx,
         op,
@@ -438,26 +423,20 @@ export const extractFailedEdits = (
         anchorPreview,
         newPreview,
         textPreview,
-        copyText,
+        copyText: rawNew ?? rawText ?? newPreview ?? textPreview,
       };
     });
   }
 
-  if (argEdits.length === 0) return [];
-
-  return argEdits.slice(0, 10).map((argEdit, idx) => {
+  const normalized: NormalizedFailedEdit[] = [];
+  for (let idx = 0; idx < rawArgEdits.length && normalized.length < 10; idx += 1) {
+    const argEdit = asRecord(rawArgEdits[idx]);
+    if (!argEdit) continue;
     const op = readUserFacingText(argEdit.op) ?? '';
-    const rawOld = readRawArgString(argEdit, ['old', 'from']);
-    const rawAnchor = readRawArgString(argEdit, ['anchor']);
-    const rawNew = op === 'replace'
-      ? readRawArgString(argEdit, ['new', 'to', 'text', 'content', 'new_text', 'replacement'])
-      : readRawArgString(argEdit, ['new']);
-    const rawText = op !== 'replace'
-      ? readRawArgString(argEdit, ['text', 'content', 'new', 'new_text', 'replacement'])
-      : readRawArgString(argEdit, ['text']);
+    const { rawOld, rawAnchor, rawNew, rawText } = readEditArgSnippets(argEdit, op);
     const newPreview = rawNew ? clipSnippet(rawNew) : undefined;
     const textPreview = rawText ? clipSnippet(rawText) : undefined;
-    return {
+    normalized.push({
       index: idx,
       op,
       errorType: fallbackErrorType,
@@ -466,8 +445,9 @@ export const extractFailedEdits = (
       newPreview,
       textPreview,
       copyText: rawNew ?? rawText ?? newPreview ?? textPreview,
-    };
-  });
+    });
+  }
+  return normalized;
 };
 
 export const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: React.ReactNode; label: string } => {
