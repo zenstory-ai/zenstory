@@ -1,20 +1,21 @@
 /**
- * Core API barrel — re-exports domain API modules under `./api/*` so all
- * callers keep importing from `lib/api`.
+ * Core API barrel — re-exports domain API modules under `./apiModules/*` so all
+ * callers keep importing from `lib/api` without exposing a `/src/lib/api/` path
+ * segment in Vite dev module URLs that collides with API route matchers.
  */
-export { authApi } from "./api/authApi";
-export { exportApi, type DraftExportResult } from "./api/exportApi";
+export { authApi } from "./apiModules/authApi";
+export { exportApi, type DraftExportResult } from "./apiModules/exportApi";
 export {
   projectApi,
   type ProjectTemplate,
   type ProjectBootstrapResponse,
-} from "./api/projectApi";
+} from "./apiModules/projectApi";
 export {
   fileVersionApi,
   fileApi,
   type FileChangeType,
   type FileChangeSource,
   type FileUpdateVersionIntent,
-} from "./api/fileApi";
-export { skillsApi, publicSkillsApi } from "./api/skillsApi";
-export { agentApiKeysApi } from "./api/agentApiKeysApi";
+} from "./apiModules/fileApi";
+export { skillsApi, publicSkillsApi } from "./apiModules/skillsApi";
+export { agentApiKeysApi } from "./apiModules/agentApiKeysApi";
