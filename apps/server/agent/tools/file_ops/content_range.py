@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import bisect
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -405,33 +406,19 @@ def paragraph_index_at_offset(content: str, offset: int) -> int:
     return prior + 1
 
 
-def find_literal_matches(
+def format_match_snippets(
     content: str,
+    positions: Sequence[int],
     needle: str,
     *,
     max_matches: int = 8,
     context_chars: int = 40,
-) -> tuple[int, list[dict[str, Any]]]:
-    """Pure literal substring search returning ``(total_count, structured_matches)``.
+) -> list[dict[str, Any]]:
+    """Build structured ``{paragraph, line, snippet}`` entries for literal match positions."""
+    if not content or not needle or not positions:
+        return []
 
-    Never compiles ``needle`` as a regex (zero ReDoS risk). Works for single-character
-    punctuation such as ``"?"``. Each match entry includes 1-based ``paragraph`` (non-blank
-    line index), 1-based ``line`` (physical line index), and a compact verbatim ``snippet``.
-    """
-    if not content or not needle:
-        return 0, []
-
-    positions: list[int] = []
-    pos = content.find(needle)
     step = len(needle)
-    while pos >= 0:
-        positions.append(pos)
-        pos = content.find(needle, pos + step)
-
-    total = len(positions)
-    if total == 0:
-        return 0, []
-
     lines = content.split("\n")
     line_starts: list[int] = []
     line_paragraphs: list[int] = []
@@ -474,4 +461,40 @@ def find_literal_matches(
                 "snippet": snippet,
             }
         )
-    return total, matches
+    return matches
+
+
+def find_literal_matches(
+    content: str,
+    needle: str,
+    *,
+    max_matches: int = 8,
+    context_chars: int = 40,
+) -> tuple[int, list[dict[str, Any]]]:
+    """Pure literal substring search returning ``(total_count, structured_matches)``.
+
+    Never compiles ``needle`` as a regex (zero ReDoS risk). Works for single-character
+    punctuation such as ``"?"``. Each match entry includes 1-based ``paragraph`` (non-blank
+    line index), 1-based ``line`` (physical line index), and a compact verbatim ``snippet``.
+    """
+    if not content or not needle:
+        return 0, []
+
+    positions: list[int] = []
+    pos = content.find(needle)
+    step = len(needle)
+    while pos >= 0:
+        positions.append(pos)
+        pos = content.find(needle, pos + step)
+
+    total = len(positions)
+    if total == 0:
+        return 0, []
+
+    return total, format_match_snippets(
+        content,
+        positions,
+        needle,
+        max_matches=max_matches,
+        context_chars=context_chars,
+    )

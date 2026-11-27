@@ -976,6 +976,12 @@ class AgentRequestContext:
     tool_ui_payloads: _ToolUiPayloadStore = dataclasses.field(
         default_factory=_ToolUiPayloadStore
     )
+    _batch_replace_processed_lock: threading.Lock = dataclasses.field(
+        default_factory=threading.Lock, repr=False
+    )
+    _batch_replace_processed: dict[tuple[str, str], set[str]] = dataclasses.field(
+        default_factory=dict, repr=False
+    )
     skill_tokens_used: dataclasses.InitVar[int] = 0
 
     def __post_init__(self, skill_tokens_used: int) -> None:
@@ -1056,7 +1062,39 @@ class AgentRequestContext:
         """Clear shared mutable request containers at request end."""
         self.pending_empty_file_state.clear_all()
         self.tool_ui_payloads.clear()
+        with self._batch_replace_processed_lock:
+            self._batch_replace_processed.clear()
         _current_tool_call_id_var.set(None)
+
+    # ---- Batch replace processed-file tracking -----------------------------
+    def record_batch_replace_processed(
+        self, old_text: str, new_text: str, file_ids: Sequence[str] | set[str]
+    ) -> None:
+        """Record file IDs already committed for ``(old_text, new_text)`` in this request."""
+        cleaned = {str(fid) for fid in file_ids if fid}
+        if not cleaned or not old_text:
+            return
+        key = (old_text, new_text)
+        with self._batch_replace_processed_lock:
+            bucket = self._batch_replace_processed.get(key)
+            if bucket is None:
+                self._batch_replace_processed[key] = cleaned
+            else:
+                bucket.update(cleaned)
+
+    def batch_replace_processed_ids(self, old_text: str, new_text: str) -> frozenset[str]:
+        """Return file IDs already modified for ``(old_text, new_text)`` in this request."""
+        with self._batch_replace_processed_lock:
+            bucket = self._batch_replace_processed.get((old_text, new_text))
+            return frozenset(bucket) if bucket else frozenset()
+
+    def invalidate_batch_replace_processed(self, file_id: str) -> None:
+        """Drop ``file_id`` from tracked batch-replace sets after a subsequent file write."""
+        if not file_id:
+            return
+        with self._batch_replace_processed_lock:
+            for bucket in self._batch_replace_processed.values():
+                bucket.discard(file_id)
 
     # ---- Read snapshots ----------------------------------------------------
     def tracks_reads(self) -> bool:
@@ -1133,9 +1171,12 @@ class AgentRequestContext:
         seen_spans: Sequence[tuple[int, int]] | None = None,
     ) -> None:
         """记下本请求自己写下的正文（立即生效）；full=整份写下，模型知道全文。"""
+        fid = str(file_id or "")
+        if fid:
+            self.invalidate_batch_replace_processed(fid)
         if isinstance(self.read_snapshots, _ReadSnapshots):
             self.read_snapshots.record(
-                str(file_id or ""), content or "", kind="written", full=full, seen_spans=seen_spans
+                fid, content or "", kind="written", full=full, seen_spans=seen_spans
             )
 
     def written_snapshot_state(self, file_id: str) -> Any:

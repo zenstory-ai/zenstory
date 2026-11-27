@@ -272,7 +272,7 @@ _LOOP_TOOL_USAGE_HEAD = """## 工具使用规则
 
 工具选型边界（详细参数见各工具 Schema）：
 - 写/重写正文章节（draft / script）→ `write_chapter` + 下一次回复 `<file>...</file>`；创建大纲/角色/设定/素材等资料 → `create_file`（录入作者原文传 `source_text`，生成新资料后用 `<file>...</file>`）。
-- 单文件局部修改 → `edit_file`；跨文件逐字统一改名/术语/标点 → `batch_replace_files`。
+- 单文件局部修改 → `edit_file`；跨文件逐字统一改名/术语/标点（或单文件内多处相同原文全部替换，须传 `file_ids=[当前文件ID]`）→ `batch_replace_files`。
 - rename_file：只改文件名（文件标题），id 与正文不变；delete_file：软删除，作者可在该删除卡片上一键恢复。
 - 按 ID 读已知文件全文（1–5 个）→ `read_files`；跨文件按关键词搜命中位置或按类型/目录列文件 → `search_files`。
 - 记录作者确定的项目信息/写作约定/作品名 → `update_project`。

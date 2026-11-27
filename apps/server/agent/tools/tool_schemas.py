@@ -153,7 +153,8 @@ READ_SKILL_RESOURCE_TOOL: dict[str, Any] = build_tool_schema(
 BATCH_REPLACE_FILES_TOOL: dict[str, Any] = build_tool_schema(
     "batch_replace_files",
     description=(
-        "跨多个文件执行确定性的逐字批量替换（如全书人名、专名、半角标点统一）。"
+        "跨多个文件（或限定单个文件）执行确定性的逐字批量替换（如全书人名/专名/半角标点统一，或单文件多处相同原文全部替换）。"
+        "只改单文件或指定文件时必须传 file_ids=[...]，切勿省略（省略会扫描整个项目）。"
         "只做逐字精确匹配，不做模糊猜测；支持 dry_run=true 先预览命中次数与示例片段，"
         "单次最多修改 30 个文件（超出时返回 remaining_files 供继续），每个修改文件均生成独立历史版本与撤销锚点。"
     ),
