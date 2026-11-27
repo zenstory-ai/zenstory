@@ -127,9 +127,10 @@ def test_load_loop_history_preserves_compaction_skipped_reason_from_db(db_sessio
     db_session.commit()
 
     history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert history.last_prompt_tokens == 0
     assert history.compaction_skipped_at_tokens == 335_000
     assert history.compaction_skipped_reason == SKIPPED_PROVIDER_ERROR
-    assert should_compact(history, threshold=300_000, retry_growth=100_000) is True
+    assert should_compact(history, threshold=300_000, retry_growth=100_000, extra_tokens=340_000) is True
 
     # A subsequent empty_or_truncated_summary skip DOES trigger backoff.
     db_session.add(ChatMessage(session_id=chat.id, role="user", content="继续", created_at=base + timedelta(seconds=2)))
@@ -151,9 +152,10 @@ def test_load_loop_history_preserves_compaction_skipped_reason_from_db(db_sessio
     db_session.commit()
 
     history2 = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    assert history2.last_prompt_tokens == 0
     assert history2.compaction_skipped_at_tokens == 350_000
     assert history2.compaction_skipped_reason == SKIPPED_EMPTY_OR_TRUNCATED
-    assert should_compact(history2, threshold=300_000, retry_growth=100_000) is False
+    assert should_compact(history2, threshold=300_000, retry_growth=100_000, extra_tokens=355_000) is False
 
 
 # ---------------------------------------------------------------------------
@@ -176,8 +178,33 @@ def test_should_compact_includes_current_turn_extra_tokens():
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
-async def test_agent_service_compacts_before_crossing_300k_with_current_turn_context(db_session: Session):
+async def test_agent_service_compacts_before_crossing_300k_with_current_turn_context(
+    db_session: Session, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from agent.core.message_manager import MessageManager
+    from agent.loop import wire_prefix_cache
     from agent.service import AgentService
+
+    class _FakeRedis:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+
+        def get(self, key: str) -> str | None:
+            return self.store.get(key)
+
+        def setex(self, key: str, _ttl: int, value: str) -> bool:
+            self.store[key] = value
+            return True
+
+        def delete(self, key: str) -> int:
+            return 1 if self.store.pop(key, None) is not None else 0
+
+    fake_redis = _FakeRedis()
+    monkeypatch.setenv("REDIS_URL", "redis://fake-test:6379/0")
+    monkeypatch.setattr(wire_prefix_cache, "get_redis_client", lambda: fake_redis)
+    wire_prefix_cache.reset_wire_prefix_cache_state()
 
     user, project = _make_user_and_project(db_session, "turn_ctx_compact")
     chat = ChatSession(user_id=user.id, project_id=project.id, title="会话")
@@ -187,20 +214,57 @@ async def test_agent_service_compacts_before_crossing_300k_with_current_turn_con
 
     base = datetime(2026, 11, 22, 11, 0, 0)
     db_session.add(ChatMessage(session_id=chat.id, role="user", content="写第1章", created_at=base))
-    db_session.add(
-        ChatMessage(
-            session_id=chat.id,
-            role="assistant",
-            content="第1章已写完。",
-            created_at=base + timedelta(seconds=1),
-            message_metadata=json.dumps({"engine": "loop", "prompt_tokens": 295_000}),
-        )
+    a1 = ChatMessage(
+        session_id=chat.id,
+        role="assistant",
+        content="第1章已写完。",
+        created_at=base + timedelta(seconds=1),
+        message_metadata=json.dumps({"engine": "loop", "prompt_tokens": 295_000}),
     )
+    db_session.add(a1)
     db_session.commit()
+    db_session.refresh(a1)
+
+    system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(
+        session=db_session, language="zh", skill_catalog=""
+    )
+    fake_provider = SimpleNamespace(
+        name="minimax",
+        model="MiniMax-M3.1-Flash",
+        key_slot="primary",
+        uses_responses_api=False,
+        reasoning_effort_for=lambda _req: "default",
+    )
+    provider_key = wire_prefix_cache.provider_cache_key(fake_provider)
+    assert provider_key is not None
+    assert wire_prefix_cache.store_wire_prefix(
+        session_id=chat.id,
+        project_id=project.id,
+        user_id=user.id,
+        last_assistant_message_id=a1.id,
+        system_prompt=system_prompt,
+        provider_key=provider_key,
+        tools_sha256=wire_prefix_cache.tools_schema_sha256(),
+        reasoning_effort="default",
+        items=[
+            {"role": "user", "content": "写第1章"},
+            {"role": "assistant", "content": "第1章已写完。"},
+        ],
+        history_meta={
+            "last_prompt_tokens": 295_000,
+            "compacted": False,
+            "compaction_skipped_at_tokens": 0,
+            "compaction_skipped_reason": None,
+            "trailing_output_truncations": 0,
+            "archived_call_ids": [],
+            "archived_file_ids": [],
+            "author_messages": ["写第1章"],
+        },
+    )
 
     compacted_record = {
         "summary": "交接摘要",
-        "covers_through_message_id": "row-1",
+        "covers_through_message_id": a1.id,
         "kept_author_messages": ["写第1章"],
         "created_at": "2026-11-22T11:05:00",
     }
@@ -221,6 +285,7 @@ async def test_agent_service_compacts_before_crossing_300k_with_current_turn_con
     # ~10k Chinese chars -> ~6,500 provider tokens; 295,000 + 6,500 > 300,000 -> must compact!
     long_prompt = "请结合以下设定续写下一章。" * 850
     with (
+        patch("agent.service.llm_failover.aordered_providers", new=AsyncMock(return_value=[fake_provider])),
         patch("agent.service.compact_history", compact_mock),
         patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
         patch("agent.service.create_session", side_effect=lambda: Session(db_session.get_bind())),

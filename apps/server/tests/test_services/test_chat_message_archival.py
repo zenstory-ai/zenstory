@@ -796,7 +796,7 @@ def test_load_loop_history_seamlessly_continues_returning_session_across_cold_an
         chat_session_id=chat.id,
     )
     assert cold_only_history.last_message_id == a1.id
-    assert cold_only_history.last_prompt_tokens == 1200
+    assert cold_only_history.last_prompt_tokens == 0
     assert [item["content"] for item in cold_only_history.items] == [
         "设定主角叫沈砚，擅长机关术。",
         "好的，已记住主角沈砚擅长机关术。",
@@ -837,7 +837,7 @@ def test_load_loop_history_seamlessly_continues_returning_session_across_cold_an
         chat_session_id=chat.id,
     )
     assert merged_history.last_message_id == a2.id
-    assert merged_history.last_prompt_tokens == 2400
+    assert merged_history.last_prompt_tokens == 0
     assert [item["content"] for item in merged_history.items] == [
         "设定主角叫沈砚，擅长机关术。",
         "好的，已记住主角沈砚擅长机关术。",
@@ -967,7 +967,7 @@ def test_load_loop_history_interleaved_hot_and_cold_preserves_order_and_compacti
         chat_session_id=chat.id,
     )
     assert history.last_message_id == "inter-3"
-    assert history.last_prompt_tokens == 3333
+    assert history.last_prompt_tokens == 0
     assert history.compacted is True
     assert history.items[0] == {"role": "user", "content": "第一轮问题"}
     assert "已覆盖到第二轮的交接摘要。" in history.items[1]["content"]

@@ -1,7 +1,8 @@
 """单循环 agent 的两阶段历史压缩（轮与轮之间，从不在一次工具循环中途）。
 
-上一轮最后一次模型调用的实测输入 token（``message_metadata.prompt_tokens``）加上本轮新增输入
-超过 ``AGENT_LOOP_COMPACT_AT_TOKENS`` 时，本轮开始前按两阶段执行压缩：
+热缓存（``wire_prefix_cache``）命中时用上一轮最后一次模型调用的实测输入 token 加上本轮新增输入，
+冷库回放（``load_loop_history``，``last_prompt_tokens == 0``）时用实际重建项 + 静态系统提示与工具 schema +
+本轮新增输入的供应商同量纲估算之和；超过 ``AGENT_LOOP_COMPACT_AT_TOKENS`` 时，本轮开始前按两阶段执行压缩：
 
 - **Stage 1（零 LLM 确定性 ``tool_archive``）**：在 ``AGENT_LOOP_TOOL_ARCHIVE_ENABLED`` 开启时，
   仅针对早于最近 ``AGENT_LOOP_TOOL_ARCHIVE_KEEP_RECENT_TURNS`` 个用户轮次的大体积（``>= 2000`` 字符）
