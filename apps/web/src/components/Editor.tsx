@@ -1,16 +1,16 @@
 /**
  * @fileoverview Content editor component for the zenstory writing workbench.
  *
- * This component provides the main file editing interface, handling:
- * - Rich text editing for outlines, drafts, characters, and lore files
- * - Automatic version creation on file save
- * - Streaming content updates during AI generation
- * - Diff review mode for AI-suggested edits
- * - Material preview and import from reference library
+ * Thin container shell composing:
+ * - Conflict review session & reviewed-file commit (`useEditorConflictReview`)
+ * - File loading, SWR monotonic sync, draft recovery & save (`useEditorFileSync`)
+ * - Safety banners (`EditorBanners`) and non-editing states (`EditorEmptyStates`)
+ * - Rich text / markdown editing (`SimpleEditor`)
  *
  * @module components/Editor
  */
-import React, { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo, useContext } from "react";
+
+import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useProject } from "../contexts/ProjectContext";
@@ -18,69 +18,35 @@ import { useAuth } from "../contexts/AuthContext";
 import { useMaterialLibraryContext } from "../contexts/MaterialLibraryContext";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { fileApi } from "../lib/api";
-import { ApiError } from "../lib/apiClient";
-import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
-import { isFileTitleTooLong } from "../lib/fileTitle";
 import { logger } from "../lib/logger";
 import { FirstWorkGuidance } from "./FirstWorkGuidance";
 import { Button } from "./ui/Button";
-import { DRAFT_IMPORT_ACCEPT, useDraftImport } from "../hooks/useDraftImport";
+import { useDraftImport } from "../hooks/useDraftImport";
 import { SimpleEditor } from "./SimpleEditor";
-import type { SaveOutcome, SaveResult, SaveSubmission } from "./SimpleEditor";
-
-const MaterialPreview = lazy(() =>
-  import("./MaterialPreview").then((m) => ({ default: m.MaterialPreview })),
-);
-const ImportMaterialDialog = lazy(() =>
-  import("./ImportMaterialDialog").then((m) => ({ default: m.ImportMaterialDialog })),
-);
-import type { File, FileTreeNode, TreeNodeType } from "../types";
-import { FOLDER_TYPE_MAP } from "../lib/folderTypeMap";
-import { FileText, Users, BookOpen, Sparkles, Folder, FolderOpen, Zap, Keyboard, ChevronDown, Clapperboard, Download, Upload, Plus } from "lucide-react";
+import type { TreeNodeType } from "../types";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
-import { getUpgradePromptDefinition } from "../config/upgradeExperience";
-import { claimAutoUpgradePrompt } from "../lib/upgradeTriggerStrategy";
-import { captureException, trackEvent } from "../lib/analytics";
-import { rearmAiFileOpened, reportActivationEvent } from "../lib/activationEvents";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import {
-  BEFORE_CHUNK_RELOAD_EVENT,
-  clearEditorDraftSnapshot,
-  createEditorDraftSnapshot,
-  writeEditorDraftSnapshot,
-  readDeletedEditorDraftSnapshots,
-  readEditorDraftSnapshot,
-  resolveEditorDraftRecovery,
-  type EditorDraftSnapshot,
-} from "../lib/editorDraftRecovery";
+  resolveCreateParentId,
+  type EmptyStateFileType,
+} from "./editor/editorFileHelpers";
 import {
-  trackEditorDraftRecoveryResolved,
-  trackEditorDraftRecoveryShown,
-  trackEditorSaveConflict409,
-} from "../lib/editorSafetyTelemetry";
-import { notifyEditorContentSaved, setOpenEditorFlush } from "../lib/editorSaveTracker";
-import { rebaseLocalEdits } from "../lib/rebaseLocalEdits";
-import { applyPendingEditsToDiffs, computeParagraphReviewDiffs } from "../lib/diffReview";
-import type { DiffReviewState } from "../types";
-import { FILE_REMOVED_EVENT, clearFileRemoved, isFileRemoved, notifyFileRemoved, setUnprotectedDeletedDraft, type FileRemovedDetail } from "../lib/fileRemovalEvents";
-import { clearLastOpenedFile } from "../lib/lastOpenedFile";
-import { consumePreloadedFile, peekPreloadedFile } from "../lib/preloadedFileCache";
+  DraftRecoveryBanner,
+  RemovedDraftsBanner,
+  ServerSyncIssueBanner,
+} from "./editor/EditorBanners";
 import {
-  WORKBENCH_BOOTSTRAP_FAILED_EVENT,
-  WORKBENCH_FRESH_FILE_EVENT,
-  consumeWorkbenchSwrSyncRequired,
-  type WorkbenchBootstrapFailedDetail,
-  type WorkbenchFreshFileDetail,
-} from "../lib/workbenchBootstrap";
+  EditorEmptyState,
+  EditorFolderState,
+  EditorMaterialPreview,
+} from "./editor/EditorEmptyStates";
 import {
-  invalidateWorkbenchSwrInitialFile,
-  updateWorkbenchSwrInitialFile,
-} from "../lib/workbenchSwrCache";
-
-/** Retry delays for re-reading the open file after an external write. */
-const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
+  useConflictReviewSession,
+  useReviewedFileCommit,
+} from "./editor/useEditorConflictReview";
+import { useEditorFileSync } from "./editor/useEditorFileSync";
 
 /**
  * Props interface for the Editor component.
@@ -89,77 +55,11 @@ const SERVER_SYNC_RETRY_DELAYS_MS = [1000, 3000];
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EditorProps {}
 
-type EmptyStateFileType = 'draft' | 'outline' | 'character' | 'lore' | 'snippet' | 'script';
-
-/**
- * The comparison Editor opened for "the author wrote on an older copy": the
- * author's own text on the left, the server copy merged with the author's
- * edits on the right. Every listed change is the other side's (the AI's).
- */
-interface ConflictReview {
-  fileId: string;
-  /** The author's text (left side). */
-  originalContent: string;
-  /** The server copy plus every author edit that applies cleanly (right side). */
-  modifiedContent: string;
-  /** The server copy the comparison was opened against (the save token's copy). */
-  serverContent: string;
-  /** The copy the author's text was written on. */
-  base: string;
-  /**
-   * Places where the author and the AI rewrote the same words. They start
-   * rejected, which keeps the author's words there; until the author decides
-   * one of them, a draft kept on leaving carries no save token, so reopening
-   * asks instead of silently writing over the AI's copy.
-   */
-  undecidedConflictIds: Set<string>;
-}
-
-/**
- * What opening the comparison found: the author's text is already in the
- * server copy ("server"), the server copy adds nothing to the author's text
- * ("local"), or there are changes from the other side to review ("review").
- */
-type ConflictReviewOutcome = "server" | "local" | "review";
-
-const isSameReview = (review: DiffReviewState | null, conflict: ConflictReview | null): boolean =>
-  review !== null &&
-  conflict !== null &&
-  review.fileId === conflict.fileId &&
-  review.originalContent === conflict.originalContent &&
-  review.modifiedContent === conflict.modifiedContent;
-
-/** Apple keyboards label the search shortcut ⌘ K; everything else uses Ctrl K. */
-const isApplePlatform = (): boolean => {
-  const uaDataPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform;
-  return /mac|iphone|ipad|ipod/i.test(uaDataPlatform || navigator.platform || '');
-};
-
-/**
- * Internal Editor component implementation.
- *
- * Renders the appropriate editor based on context and file state:
- * - MaterialPreview when viewing reference library content
- * - Empty state when no file is selected
- * - Folder hint when a folder is selected
- * - Loading spinner during initial file load
- * - Error message on load failure
- * - SimpleEditor for all documents
- *
- * Handles AI streaming content display and diff review mode for
- * accepting/rejecting AI-suggested edits.
- *
- * Uses React.memo for the exported component to prevent unnecessary re-renders.
- *
- * @returns The appropriate editor UI based on current state
- */
 const EditorComponent: React.FC<EditorProps> = () => {
-  const { t } = useTranslation(['editor', 'common']);
+  const { t } = useTranslation(["editor", "common"]);
   const queryClient = useContext(QueryClientContext);
   const { user } = useAuth();
   const currentUserId = user?.id ?? null;
-  const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
-  // Layout 在手机宽度下用 MobileLayoutProvider 包住编辑器，这里和它用同一个判断。
   const { isMobile, switchToChat, focusChatInput } = useMobileLayout();
   const {
     selectedItem,
@@ -174,7 +74,6 @@ const EditorComponent: React.FC<EditorProps> = () => {
     aiEditingFileId,
     isChatStreaming,
     requestAgentUiAction,
-    // Diff review state
     diffReviewState,
     enterDiffReview,
     acceptEdit,
@@ -186,1219 +85,105 @@ const EditorComponent: React.FC<EditorProps> = () => {
     applyDiffReviewChanges,
   } = useProject();
 
-  // Material library context
   const materialLib = useMaterialLibraryContext();
   const { addMaterial, isMaterialAttached, isAtLimit, maxMaterials = 5 } = useMaterialAttachment();
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  // Authors who arrive with a manuscript import it from the empty state and land on chapter 1.
-  const draftInputRef = useRef<HTMLInputElement>(null);
+
+  // Draft import from empty state
   const { importFiles: importDrafts, isImporting: isImportingDrafts } = useDraftImport();
   const importProjectIdRef = useRef(currentProjectId);
   useEffect(() => {
     importProjectIdRef.current = currentProjectId;
   }, [currentProjectId]);
+
   const handleImportDrafts = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(event.target.files ?? []);
     event.target.value = "";
     const projectId = currentProjectId;
     if (!projectId || picked.length === 0) return;
     const { files: created } = await importDrafts(projectId, picked, "editor_empty");
-    // The author moved to another work meanwhile: its tree and selection are not ours to change.
     if (!created.length || importProjectIdRef.current !== projectId) return;
     triggerFileTreeRefresh();
     const first = created[0];
     setSelectedItem({ id: first.id, title: first.title, type: first.file_type as TreeNodeType });
   };
 
-  // Data states
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Creation loading state
+  // Creation loading state & newly created desktop title focus
   const [isCreating, setIsCreating] = useState<string | null>(null);
-  // Newly created file ID waiting for initial desktop title focus
   const [newlyCreatedFileId, setNewlyCreatedFileId] = useState<string | null>(null);
 
-  // Empty state more options toggle
-  const [showMore, setShowMore] = useState(false);
-  const [showFileVersionUpgradeModal, setShowFileVersionUpgradeModal] = useState(false);
-
-  // Local editing states
-  const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
-  const editTitleRef = useRef(editTitle);
-  const longTitleWarnedRef = useRef<string | null>(null);
-  const editContentRef = useRef(editContent);
-  editTitleRef.current = editTitle;
-  editContentRef.current = editContent;
-  /**
-   * Bumped whenever the editor switches to a server copy outside SimpleEditor's
-   * own save flow, so SimpleEditor resets its draft, save token, dirty flag and
-   * word-count baseline to that copy instead of keeping an older one.
-   */
-  const [serverBaseline, setServerBaseline] = useState<{
-    version: number;
-    fileId: string;
-    title: string;
-    content: string;
-    updatedAt?: string;
-  } | null>(null);
-  const serverBaselineVersionRef = useRef(0);
-  /**
-   * Re-reading the open file after an AI write failed even after retries: the
-   * editor may show an older copy, so it says so and offers to load again.
-   */
-  const [serverSyncIssue, setServerSyncIssue] = useState<{ fileId: string; retrying: boolean } | null>(null);
-  const conflictReviewRef = useRef<ConflictReview | null>(null);
-  const removedFileHandlerRef = useRef<(fileId: string) => void>(() => {});
-  const [removedDrafts, setRemovedDrafts] = useState<Array<{ snapshot: EditorDraftSnapshot; persisted: boolean }>>([]);
-  const removedDraftsRef = useRef(removedDrafts);
-  removedDraftsRef.current = removedDrafts;
-  const clearRemovedDraftEntry = useCallback((scope: { userId: string; projectId: string; fileId: string }) => {
-    setRemovedDrafts((previous) =>
-      previous.filter(
-        (item) =>
-          item.snapshot.userId !== scope.userId ||
-          item.snapshot.projectId !== scope.projectId ||
-          item.snapshot.fileId !== scope.fileId,
-      ),
-    );
-  }, []);
-  // syncOpenFileFromServer (defined below), for reloads of the open file in loadData.
-  const syncOpenFileFromServerRef = useRef<() => Promise<void>>(async () => {});
-  const [draftRecovery, setDraftRecovery] = useState<{
-    snapshot: EditorDraftSnapshot;
-    serverTitle: string;
-    serverContent: string;
-    kind: "recover" | "conflict";
-    applied: boolean;
-  } | null>(null);
-  const hasLoadedRef = useRef(false);
-  const loadGenerationRef = useRef(0);
-  // Counts every server read/save that can advance the open editor copy, so an older
-  // loadData/syncOpenFileFromServer/bootstrap response answering late can never roll it back.
-  const serverSyncSeqRef = useRef(0);
-  const initialLoadSyncSeqRef = useRef<{ fileId: string; seq: number } | null>(null);
-  const restoredSelectionRef = useRef<string | null>(null);
-  const currentFileRef = useRef<File | null>(file);
-  const translateRef = useRef(t);
-  const activeProjectIdRef = useRef<string | null>(currentProjectId);
-  const selectedIdRef = useRef(selectedItem?.id);
   const currentReviewRef = useRef(diffReviewState);
-  selectedIdRef.current = selectedItem?.id;
   currentReviewRef.current = diffReviewState;
-  // Read by loadData for the new-user funnel without making it reload when these change.
-  const openContextRef = useRef({ isMobile, streamingFileId });
-  openContextRef.current = { isMobile, streamingFileId };
-  // The open file was selected by the AI's <file> stream (desktop auto-open), not by the author.
-  const autoOpenedFileIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    activeProjectIdRef.current = currentProjectId;
+
+  const {
+    conflictReviewRef,
+    openConflictReview,
+    handleAcceptEdit,
+    handleRejectEdit,
+    handleResetEdit,
+    handleAcceptAllEdits,
+    handleRejectAllEdits,
+  } = useConflictReviewSession({
+    currentReviewRef,
+    enterDiffReview,
+    acceptEdit,
+    rejectEdit,
+    resetEdit,
+    acceptAllEdits,
+    rejectAllEdits,
+    exitDiffReview,
+  });
+
+  const handleProjectChange = useCallback(() => {
     setIsCreating(null);
-    return () => {
-      activeProjectIdRef.current = null;
-      loadGenerationRef.current += 1;
-    };
-  }, [currentProjectId]);
-  currentFileRef.current = file;
-  useEffect(() => {
-    translateRef.current = t;
-  }, [t]);
-  const editorFlushRef = useRef<(() => Promise<SaveOutcome>) | null>(null);
-  const registerEditorFlush = useCallback((flush: (() => Promise<SaveOutcome>) | null) => {
-    const previous = editorFlushRef.current;
-    editorFlushRef.current = flush;
-    // The chat saves the author's typed text before it stops a round (see ChatPanel).
-    setOpenEditorFlush(flush, previous, () => currentFileRef.current?.id ?? null);
   }, []);
 
-  /**
-   * Resolve the best parent folder for a new file based on file type.
-   *
-   * Priority:
-   * 1) Canonical deterministic folder ID (<projectId>-<type>-folder)
-   * 2) Folder title mapping fallback (for legacy/migrated projects)
-   */
-  const resolveCreateParentId = useCallback(async (fileType: EmptyStateFileType): Promise<string | undefined> => {
-    if (!currentProjectId) return undefined;
-
-    try {
-      const { tree } = await fileApi.getTree(currentProjectId);
-
-      const rootFolders = (tree || []).filter((node) => node.file_type === 'folder');
-      const rootFolderIds = new Set(rootFolders.map((node) => node.id));
-
-      const canonicalSuffixByType: Record<EmptyStateFileType, string> = {
-        draft: 'draft-folder',
-        outline: 'outline-folder',
-        character: 'character-folder',
-        lore: 'lore-folder',
-        snippet: 'material-folder',
-        script: 'script-folder',
-      };
-
-      const canonicalFolderId = `${currentProjectId}-${canonicalSuffixByType[fileType]}`;
-      if (rootFolderIds.has(canonicalFolderId)) {
-        return canonicalFolderId;
-      }
-
-      const queue: FileTreeNode[] = [...(tree || [])];
-      while (queue.length > 0) {
-        const node = queue.shift();
-        if (!node) continue;
-
-        if (node.file_type === 'folder' && FOLDER_TYPE_MAP[node.title] === fileType) {
-          return node.id;
-        }
-
-        if (node.children?.length) {
-          queue.push(...node.children);
-        }
-      }
-    } catch (err) {
-      logger.warn('Failed to resolve create parent folder, falling back to root create', err);
-    }
-
-    return undefined;
-  }, [currentProjectId]);
-
-  /**
-   * Make `data` SimpleEditor's clean baseline (draft, save token, dirty flag and
-   * word-count base), for server copies that arrive outside its own save flow.
-   */
-  const markServerBaseline = useCallback((data: File) => {
-    serverBaselineVersionRef.current += 1;
-    setServerBaseline({
-      version: serverBaselineVersionRef.current,
-      fileId: data.id,
-      title: data.title,
-      content: data.content || "",
-      updatedAt: data.updated_at,
-    });
-  }, []);
-
-  /**
-   * Loads the file data for the currently selected item.
-   *
-   * Fetches file content from the API and updates local editing state. Only shows
-   * the loading spinner on initial load to prevent UI flicker when switching files.
-   *
-   * `followServer`: a reload of the open file after the AI finished writing it
-   * (the <file> stream). The loaded copy also becomes SimpleEditor's baseline,
-   * so the AI's words are not counted as the author's on the next save.
-   *
-   * Reloading the file that is already open (the AI's stream ended, or the AI
-   * selected it again) while the author has unsaved title or body text never replaces
-   * that text: it goes through syncOpenFileFromServer, which compares instead.
-   * `discardUnsaved`: a version restore the author confirmed (it discards the
-   * unsaved text by design).
-   */
-  const loadData = useCallback(async (options?: { followServer?: boolean; discardUnsaved?: boolean }) => {
-    if (activeProjectIdRef.current !== currentProjectId || selectedIdRef.current !== selectedItem?.id) return;
-    const generation = ++loadGenerationRef.current;
-    const currentFile = currentFileRef.current;
-    const restoredId = restoredSelectionRef.current;
-    restoredSelectionRef.current = null;
-    // A failed switch only restores navigation; refetching would replace the retained draft.
-    if (restoredId && restoredId === selectedItem?.id && restoredId === currentFile?.id) return;
-    if (currentFile && !isFileRemoved(currentProjectId, currentFile.id) && currentFile.id !== selectedItem?.id && editorFlushRef.current) {
-      const outcome = await editorFlushRef.current();
-      if (generation !== loadGenerationRef.current) return;
-      if (outcome !== "saved") {
-        if (currentProjectId && selectedItem?.id) {
-          consumePreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
-        }
-        toast.error(translateRef.current('editor:saveFailed'));
-        restoredSelectionRef.current = currentFile.id;
-        setSelectedItem({id:currentFile.id,type:currentFile.file_type,title:currentFile.title});
-        return;
-      }
-    }
-
-    if (!selectedItem || !currentProjectId) {
-      setFile(null);
-      setDraftRecovery(null);
-      hasLoadedRef.current = false;
-      return;
-    }
-
-    // Don't load folder content
-    if (selectedItem.type === "folder") {
-      setFile(null);
-      setDraftRecovery(null);
-      hasLoadedRef.current = false;
-      return;
-    }
-
-    if (
-      !options?.discardUnsaved &&
-      currentFile?.id === selectedItem.id &&
-      (editTitleRef.current !== currentFile.title ||
-        editContentRef.current !== (currentFile.content || ""))
-    ) {
-      void syncOpenFileFromServerRef.current();
-      return;
-    }
-
-    // Only show loading state if no file is currently loaded (initial load)
-    // This prevents flicker when switching between files
-    if (!hasLoadedRef.current) {
-      setLoading(true);
-    }
-    setError(null);
-    const followServer = options?.followServer === true && currentFile?.id === selectedItem.id;
-    const serverReadSeq = ++serverSyncSeqRef.current;
-
-    try {
-      const preloaded =
-        !options?.followServer &&
-        !options?.discardUnsaved &&
-        currentFile?.id !== selectedItem.id
-          ? peekPreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id)
-          : null;
-      const usedPreloaded = Boolean(preloaded);
-      let data: File;
-      if (preloaded) {
-        // Yield a microtask before consuming so StrictMode double-mounts do not
-        // drop the one-shot handoff before the surviving effect commits.
-        await Promise.resolve();
-        if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
-        if (isFileRemoved(currentProjectId, selectedItem.id)) return;
-        // Re-read after yield so a fresher /bootstrap overwrite written during the yield wins over stale SWR.
-        const latestPreloaded = peekPreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
-        consumePreloadedFile(queryClient, currentUserId, currentProjectId, selectedItem.id);
-        if (!latestPreloaded) {
-          // Entry was explicitly evicted (e.g. deleted-file notification from /bootstrap).
-          return;
-        }
-        data = latestPreloaded;
-      } else {
-        data = await fileApi.get(selectedItem.id);
-        if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
-      }
-      if (
-        !options?.discardUnsaved &&
-        currentFileRef.current?.id === data.id &&
-        (editTitleRef.current !== currentFileRef.current.title ||
-          editContentRef.current !== (currentFileRef.current.content || ""))
-      ) {
-        void syncOpenFileFromServerRef.current();
-        return;
-      }
-      clearFileRemoved(currentProjectId, data.id);
-      if (!usedPreloaded) {
-        updateWorkbenchSwrInitialFile(currentUserId, currentProjectId, data);
-      }
-      initialLoadSyncSeqRef.current = { fileId: data.id, seq: serverReadSeq };
-      currentFileRef.current = data;
-      setFile(data);
-      if (usedPreloaded && consumeWorkbenchSwrSyncRequired(queryClient, currentUserId, currentProjectId, data.id)) {
-        // /bootstrap failed transiently before this SWR-painted Editor finished mounting:
-        // trigger an authoritative server sync (or surface serverSyncIssue if still unreachable).
-        void syncOpenFileFromServerRef.current();
-      }
-      // New-user funnel: the author opened a file, or the AI finished writing the file the author
-      // had open. The server counts it only when the file has an AI-written version, once per
-      // account; failures are silent. An open made by the AI's own stream does not count, so the
-      // author's own open of that file is still recorded later.
-      const isNewOpen = !followServer && currentFile?.id !== data.id;
-      if (isNewOpen) {
-        autoOpenedFileIdRef.current = openContextRef.current.streamingFileId === data.id ? data.id : null;
-      }
-      if ((isNewOpen || followServer) && autoOpenedFileIdRef.current !== data.id) {
-        void reportActivationEvent(currentUserId, {
-          event_name: "ai_file_opened",
-          file_id: data.id,
-          is_mobile: openContextRef.current.isMobile,
-          while_ai_writing: followServer,
-        });
-      }
-      hasLoadedRef.current = true;
-      setServerSyncIssue((prev) => (prev?.fileId === data.id ? null : prev));
-      const serverContent = data.content || "";
-      const scope = currentUserId ? {
-        userId: currentUserId,
-        projectId: currentProjectId,
-        fileId: data.id,
-      } : null;
-      const memoryRemoved = scope
-        ? removedDraftsRef.current.find(
-            (item) =>
-              item.snapshot.userId === scope.userId &&
-              item.snapshot.projectId === scope.projectId &&
-              item.snapshot.fileId === scope.fileId,
-          )
-        : undefined;
-      const snapshot = (scope ? readEditorDraftSnapshot(localStorage, scope) : null) ?? memoryRemoved?.snapshot ?? null;
-      if (!snapshot) {
-        if (scope) clearRemovedDraftEntry(scope);
-        setDraftRecovery(null);
-        editTitleRef.current = data.title;
-        editContentRef.current = serverContent;
-        setEditTitle(data.title);
-        setEditContent(serverContent);
-        if (followServer) markServerBaseline(data);
-      } else {
-        const resolution = resolveEditorDraftRecovery(snapshot, {
-          title: data.title,
-          content: serverContent,
-          updatedAt: data.updated_at,
-        });
-        if (resolution === "identical") {
-          if (scope) {
-            clearEditorDraftSnapshot(localStorage, scope);
-            clearRemovedDraftEntry(scope);
-          }
-          setDraftRecovery(null);
-          editTitleRef.current = data.title;
-          editContentRef.current = serverContent;
-          setEditTitle(data.title);
-          setEditContent(serverContent);
-          if (followServer) markServerBaseline(data);
-        } else {
-          const liveSnapshot: EditorDraftSnapshot =
-            snapshot.reason === "file-deleted" ? { ...snapshot, reason: "page-exit" } : snapshot;
-          let storageAvailable = !memoryRemoved || memoryRemoved.persisted;
-          if (scope && (snapshot.reason === "file-deleted" || memoryRemoved)) {
-            const persistedNow = writeEditorDraftSnapshot(localStorage, liveSnapshot);
-            storageAvailable = persistedNow;
-            if (persistedNow && !liveSnapshot.recoveryDraft) {
-              clearRemovedDraftEntry(scope);
-            }
-          }
-          if (resolution === "recover") {
-            trackEditorDraftRecoveryShown({
-              surface: "draft_recovery",
-              isMobile: openContextRef.current.isMobile,
-              reason: "recover",
-              storageAvailable,
-            });
-            setDraftRecovery({
-              snapshot: liveSnapshot,
-              serverTitle: data.title,
-              serverContent,
-              kind: "recover",
-              applied: true,
-            });
-            setEditTitle(liveSnapshot.title);
-            setEditContent(liveSnapshot.content);
-          } else {
-            trackEditorDraftRecoveryShown({
-              surface: "draft_recovery",
-              isMobile: openContextRef.current.isMobile,
-              reason: "conflict",
-              storageAvailable,
-            });
-            setDraftRecovery({
-              snapshot: liveSnapshot,
-              serverTitle: data.title,
-              serverContent,
-              kind: "conflict",
-              applied: false,
-            });
-            setEditTitle(data.title);
-            setEditContent(serverContent);
-            if (followServer) markServerBaseline(data);
-          }
-        }
-      }
-    } catch (err: unknown) {
-      if (generation !== loadGenerationRef.current || serverReadSeq !== serverSyncSeqRef.current) return;
-      const error = err as { status?: number; errorCode?: string };
-      if (error?.status === 404 || error?.errorCode === "ERR_FILE_NOT_FOUND") {
-        notifyFileRemoved(currentProjectId, selectedItem.id);
-        return;
-      }
-      if (error?.status !== 401) {
-        logger.error("Failed to load data:", err);
-        if (followServer) {
-          // Re-reading the open file after the AI wrote it: keep the editor
-          // (and anything the author typed) and say it may be out of date.
-          setServerSyncIssue({ fileId: selectedItem.id, retrying: false });
-        } else {
-          setError(translateRef.current('editor:placeholder.loadFailed'));
-        }
-      }
-    } finally {
-      if (generation === loadGenerationRef.current) setLoading(false);
-    }
-  }, [
-    selectedItem,
-    currentProjectId,
-    setSelectedItem,
-    currentUserId,
+  const fileSync = useEditorFileSync({
+    t,
     queryClient,
-    markServerBaseline,
-    clearRemovedDraftEntry,
-  ]);
+    currentUserId,
+    currentProjectId,
+    selectedItem,
+    setSelectedItem,
+    streamingFileId,
+    editorRefreshVersion,
+    lastEditedFileId,
+    triggerFileTreeRefresh,
+    isMobile,
+    diffReviewState,
+    exitDiffReview,
+    conflictReviewRef,
+    openConflictReview,
+    onProjectChange: handleProjectChange,
+  });
 
-  useEffect(() => {
-    loadData();
-    return () => { loadGenerationRef.current += 1; };
-  }, [loadData]);
-
-  // Track previous streaming file id to detect when streaming ends
-  const prevStreamingFileIdRef = useRef<string | null>(null);
-  
-  // Reload file content when streaming ends for this file
-  useEffect(() => {
-    const prevId = prevStreamingFileIdRef.current;
-    prevStreamingFileIdRef.current = streamingFileId;
-    // The AI finished writing prevId: check it again for the new-user funnel when it is opened.
-    if (prevId && prevId !== streamingFileId) rearmAiFileOpened(currentUserId, prevId);
-    
-    // If streaming just ended for the current file, reload to get final content
-    if (prevId && prevId === file?.id && prevId === selectedItem?.id && streamingFileId === null) {
-      // Small delay to ensure backend has updated the content
-      const timer = setTimeout(() => {
-        void loadData({ followServer: true });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [streamingFileId, file?.id, selectedItem?.id, loadData, currentUserId]);
-
-  /**
-   * Show a newer server copy and make it the editor's clean baseline. A title
-   * the author renamed but has not saved yet is kept (and saved on top of the
-   * new copy by the next autosave); everything else follows the server.
-   */
-  const adoptServerCopy = useCallback((data: File, nextTitle: string) => {
-    currentFileRef.current = data;
-    setFile(data);
-    setEditTitle(nextTitle);
-    setEditContent(data.content || "");
-    markServerBaseline(data);
-    updateWorkbenchSwrInitialFile(currentUserId, data.project_id, data);
-  }, [currentUserId, markServerBaseline]);
-
-  /**
-   * Open the comparison for "the author has unsaved text written on an older
-   * copy (`base`) and the server now holds a newer one".
-   *
-   * The author's edits are replayed on top of the server copy (three-way
-   * merge). The comparison then shows the author's own text on the left and
-   * the merge on the right, so every listed change is the AI's, matching the
-   * review screen's "AI changes" wording: accepting takes the AI's words,
-   * rejecting keeps the author's, and rejecting everything gives back exactly
-   * the author's text. Places both sides rewrote start rejected, so finishing
-   * without choosing keeps the author's words there.
-   */
-  const openConflictReview = useCallback((
-    fileId: string,
-    base: string,
-    serverContent: string,
-    localContent: string,
-  ): ConflictReviewOutcome => {
-    const { merged, proposal, conflictEditIds } = rebaseLocalEdits(base, localContent, serverContent);
-    if (proposal === serverContent) return "server";
-    if (merged === localContent) return "local";
-    enterDiffReview(fileId, localContent, merged, 'conflict');
-    conflictReviewRef.current = {
-      fileId,
-      originalContent: localContent,
-      modifiedContent: merged,
-      serverContent,
-      base,
-      undecidedConflictIds: new Set(conflictEditIds),
-    };
-    for (const editId of conflictEditIds) rejectEdit(editId);
-    return "review";
-  }, [enterDiffReview, rejectEdit]);
-
-  /**
-   * The server copy adds nothing to the author's unsaved text (for example the
-   * AI only renamed the file): keep the author's text in the editor and make
-   * the server copy the save baseline, so the next save carries its token.
-   */
-  const keepLocalOnServerCopy = useCallback((data: File, nextTitle: string) => {
-    currentFileRef.current = data;
-    setFile(data);
-    setEditTitle(nextTitle);
-    markServerBaseline(data);
-    updateWorkbenchSwrInitialFile(currentUserId, data.project_id, data);
-  }, [currentUserId, markServerBaseline]);
-
-  /**
-   * What SimpleEditor keeps locally when the author leaves (or the page
-   * unloads) while this comparison is open: the text finishing would save
-   * now (undecided places keep the author's words).
-   *
-   * - Every place both sides rewrote has been decided by the author (or there
-   *   is none): on the server copy's token. Reopening restores it on top of
-   *   the AI's copy.
-   * - Some are undecided: no save token, so reopening shows "your draft
-   *   differs from the latest copy" with both versions to compare instead of
-   *   silently writing the author's side over the AI's there.
-   */
-  const getReviewLeaveDraft = useCallback(() => {
-    const review = currentReviewRef.current;
-    const opened = currentFileRef.current;
-    const conflict = conflictReviewRef.current;
-    if (!review || !opened || review.fileId !== opened.id || !conflict || !isSameReview(review, conflict)) {
-      return null;
-    }
-    const undecided = review.pendingEdits.some(
-      (edit) => edit.status === 'rejected' && conflict.undecidedConflictIds.has(edit.id),
-    );
-    const diffs = computeParagraphReviewDiffs(review.originalContent, review.modifiedContent);
-    return {
-      title: editTitleRef.current,
-      content: applyPendingEditsToDiffs(diffs, review.pendingEdits),
-      baseUpdatedAt: undecided ? undefined : opened.updated_at,
-    };
-  }, []);
-
-  useEffect(() => {
-    setRemovedDrafts(previous => {
-      // Context can change before a router decision. A failed storage write
-      // leaves this mounted editor as the only owner; keep that user's copies
-      // until an explicit leave rather than replacing them with the next scope.
-      const memory = previous.filter(({ snapshot, persisted }) => !persisted && snapshot.userId === currentUserId);
-      const stored = currentUserId && currentProjectId
-        ? readDeletedEditorDraftSnapshots(localStorage, { userId: currentUserId, projectId: currentProjectId })
-          .map(snapshot => ({ snapshot, persisted: true }))
-        : [];
-      return [...memory, ...stored.filter(({ snapshot }) => !memory.some(item => item.snapshot.projectId === snapshot.projectId && item.snapshot.fileId === snapshot.fileId))];
-    });
-  }, [currentUserId, currentProjectId]);
-
-  const unprotectedProjectIds = useMemo(() => [...new Set(removedDrafts
-    .filter(({ snapshot, persisted }) => !persisted && snapshot.userId === currentUserId)
-    .map(({ snapshot }) => snapshot.projectId))], [removedDrafts, currentUserId]);
-  useEffect(() => {
-    if (unprotectedProjectIds.length === 0) return;
-    unprotectedProjectIds.forEach(projectId => setUnprotectedDeletedDraft(projectId, true));
-    const protect = (event: Event) => {
-      event.preventDefault();
-      if (event.type === "beforeunload") (event as BeforeUnloadEvent).returnValue = "";
-    };
-    window.addEventListener("beforeunload", protect);
-    window.addEventListener(BEFORE_CHUNK_RELOAD_EVENT, protect);
-    return () => {
-      unprotectedProjectIds.forEach(projectId => setUnprotectedDeletedDraft(projectId, false));
-      window.removeEventListener("beforeunload", protect);
-      window.removeEventListener(BEFORE_CHUNK_RELOAD_EVENT, protect);
-    };
-  }, [unprotectedProjectIds]);
-
-  removedFileHandlerRef.current = (fileId) => {
-    if (!currentProjectId || selectedIdRef.current !== fileId) return;
-    const opened = currentFileRef.current;
-    const review = currentReviewRef.current;
-    const existing = draftRecovery?.snapshot.fileId === fileId ? draftRecovery.snapshot
-      : currentUserId ? readEditorDraftSnapshot(localStorage, { userId: currentUserId, projectId: currentProjectId, fileId }) : null;
-    if (opened?.id === fileId && currentUserId) {
-      const reviewDraft = getReviewLeaveDraft();
-      const pendingRecovery = draftRecovery?.snapshot.fileId === fileId && !draftRecovery.applied ? draftRecovery.snapshot : null;
-      const hasCurrentEdits = review?.fileId === fileId || editTitleRef.current !== opened.title || editContentRef.current !== (opened.content || "");
-      if (hasCurrentEdits || pendingRecovery || existing) {
-        // A page-exit copy can be older than this mounted editor. Only an
-        // explicit unanswered recovery deserves priority when no new edits exist.
-        const current = {
-          title: editTitleRef.current,
-          content: reviewDraft?.content ?? editContentRef.current,
-          baseUpdatedAt: reviewDraft ? reviewDraft.baseUpdatedAt : opened.updated_at,
-        };
-        const retained = !hasCurrentEdits && pendingRecovery ? pendingRecovery : current;
-        const recoveryDraft = pendingRecovery && hasCurrentEdits
-          && (pendingRecovery.title !== current.title || pendingRecovery.content !== current.content)
-          ? { title: pendingRecovery.title, content: pendingRecovery.content, baseUpdatedAt: pendingRecovery.baseUpdatedAt, capturedAt: pendingRecovery.capturedAt }
-          : undefined;
-        const snapshot = createEditorDraftSnapshot({
-          userId: currentUserId, projectId: currentProjectId, fileId,
-          ...retained, recoveryDraft, reason: "file-deleted",
-        });
-        const persisted = writeEditorDraftSnapshot(localStorage, snapshot);
-        setRemovedDrafts(previous => [...previous.filter(item => item.snapshot.fileId !== fileId || item.snapshot.projectId !== currentProjectId || item.snapshot.userId !== currentUserId), { snapshot, persisted }]);
-      }
-    }
-    if (opened?.id !== fileId && existing) {
-      const snapshot: EditorDraftSnapshot = { ...existing, reason: "file-deleted" };
-      const persisted = writeEditorDraftSnapshot(localStorage, snapshot);
-      setRemovedDrafts(previous => [...previous.filter(item => item.snapshot.fileId !== fileId || item.snapshot.projectId !== currentProjectId || item.snapshot.userId !== currentUserId), { snapshot, persisted }]);
-    }
-    // Invalidate a read already in flight before clearing navigation. Its old
-    // success/404 must not replace a newly selected file or restart this one.
-    loadGenerationRef.current += 1;
-    currentFileRef.current = null;
-    editorFlushRef.current = null;
-    hasLoadedRef.current = false;
-    setFile(null);
-    setLoading(false);
-    setServerSyncIssue(null);
-    consumePreloadedFile(queryClient, currentUserId, currentProjectId, fileId);
-    if (currentUserId) {
-      clearLastOpenedFile(currentUserId, currentProjectId);
-      invalidateWorkbenchSwrInitialFile(currentUserId, currentProjectId, fileId);
-    }
-    if (review?.fileId === fileId) exitDiffReview();
-    setSelectedItem(null);
-    toast.info(translateRef.current("editor:deletedFile.message"));
-  };
-
-  useEffect(() => {
-    const onRemoved = (event: Event) => {
-      const { projectId, fileId } = (event as CustomEvent<FileRemovedDetail>).detail;
-      if (projectId === activeProjectIdRef.current) removedFileHandlerRef.current(fileId);
-    };
-    window.addEventListener(FILE_REMOVED_EVENT, onRemoved);
-    return () => window.removeEventListener(FILE_REMOVED_EVENT, onRemoved);
-  }, []);
-
-  // The author's own choices in a conflict comparison (see ConflictReview).
-  const decideConflict = useCallback((editId?: string) => {
-    const conflict = conflictReviewRef.current;
-    if (!conflict) return;
-    if (editId === undefined) conflict.undecidedConflictIds.clear();
-    else conflict.undecidedConflictIds.delete(editId);
-  }, []);
-  const handleAcceptEdit = useCallback((editId: string) => {
-    decideConflict(editId);
-    acceptEdit(editId);
-  }, [acceptEdit, decideConflict]);
-  const handleRejectEdit = useCallback((editId: string) => {
-    decideConflict(editId);
-    rejectEdit(editId);
-  }, [decideConflict, rejectEdit]);
-  const handleResetEdit = useCallback((editId: string) => {
-    decideConflict(editId);
-    resetEdit(editId);
-  }, [decideConflict, resetEdit]);
-  const handleAcceptAllEdits = useCallback(() => {
-    decideConflict();
-    acceptAllEdits();
-  }, [acceptAllEdits, decideConflict]);
-  const handleRejectAllEdits = useCallback(() => {
-    decideConflict();
-    rejectAllEdits();
-  }, [decideConflict, rejectAllEdits]);
-
-  // Leaving the project with the comparison open: the draft is already kept
-  // locally (getReviewLeaveDraft) and is offered again when the file reopens,
-  // so the comparison must not reappear on top of it with an older token.
-  useEffect(() => () => {
-    if (isSameReview(currentReviewRef.current, conflictReviewRef.current)) exitDiffReview();
-  }, [exitDiffReview]);
-
-  /**
-   * Re-read the open file after someone else (the AI, an undo) wrote it.
-   *
-   * - No unsaved body text: follow the server copy (keeping an unsaved title
-   *   rename) and reset SimpleEditor's draft, save token and dirty state to it.
-   * - Unsaved body text written on top of an older copy: never replace it.
-   *   The server copy becomes the comparison baseline and the author's own
-   *   edits, replayed onto it, are the proposals.
-   */
-  const applyServerCopyToOpenFile = useCallback((data: File, syncSeq: number, generation: number) => {
-    if (!data) return;
-    const fileId = data.id;
-    const current = currentFileRef.current;
-    if (
-      !current ||
-      generation !== loadGenerationRef.current ||
-      current.id !== fileId ||
-      selectedIdRef.current !== fileId ||
-      activeProjectIdRef.current !== data.project_id
-    ) {
-      return;
-    }
-    // Every external write now refreshes the editor directly. A slower read from an
-    // earlier write must never arrive after a newer read and roll the body/token back.
-    if (syncSeq !== serverSyncSeqRef.current) return;
-    consumePreloadedFile(queryClient, currentUserId, data.project_id, fileId);
-    setServerSyncIssue((prev) => (prev?.fileId === fileId ? null : prev));
-    const serverContent = data.content || "";
-    const savedContent = current.content || "";
-    const localContent = editContentRef.current;
-    const localTitle = editTitleRef.current;
-    // A title the author has not renamed follows the server (the AI may have renamed it).
-    const nextTitle = localTitle === current.title ? data.title : localTitle;
-
-    const review = currentReviewRef.current;
-    if (review?.fileId === fileId) {
-      // A conflict comparison is open: its save carries the token it was
-      // opened with, so a newer server copy surfaces there as a conflict.
-      return;
-    }
-
-    if (
-      data.updated_at === current.updated_at &&
-      serverContent === savedContent &&
-      data.title === current.title
-    ) return;
-
-    if (localContent === savedContent || localContent === serverContent) {
-      adoptServerCopy(data, nextTitle);
-      return;
-    }
-
-    const outcome = openConflictReview(fileId, savedContent, serverContent, localContent);
-    if (outcome === "server") {
-      adoptServerCopy(data, nextTitle);
-      return;
-    }
-    if (outcome === "local") {
-      keepLocalOnServerCopy(data, nextTitle);
-      return;
-    }
-    const merged = { ...current, title: data.title, content: serverContent, updated_at: data.updated_at };
-    currentFileRef.current = merged;
-    setFile((prev) => (prev?.id === fileId ? merged : prev));
-    setEditTitle(nextTitle);
-    updateWorkbenchSwrInitialFile(currentUserId, data.project_id, merged);
-    trackEditorDraftRecoveryShown({
-      surface: "conflict_review",
-      isMobile: openContextRef.current.isMobile,
-      reason: "external_edit",
-    });
-    toast.error(translateRef.current('editor:aiEditedWhileDirty'));
-  }, [adoptServerCopy, currentUserId, keepLocalOnServerCopy, openConflictReview, queryClient]);
-
-  const syncOpenFileFromServer = useCallback(async () => {
-    const opened = currentFileRef.current;
-    if (!opened || selectedIdRef.current !== opened.id || isFileRemoved(activeProjectIdRef.current, opened.id)) return;
-    const fileId = opened.id;
-    const generation = loadGenerationRef.current;
-    const syncSeq = ++serverSyncSeqRef.current;
-    const isStillOpen = () =>
-      generation === loadGenerationRef.current &&
-      currentFileRef.current?.id === fileId &&
-      selectedIdRef.current === fileId;
-    let data: File | null = null;
-    for (let attempt = 0; data === null; attempt += 1) {
-      try {
-        data = await fileApi.get(fileId);
-      } catch (err) {
-        const failure = err as { status?: number; errorCode?: string };
-        if (failure?.status === 404 || failure?.errorCode === "ERR_FILE_NOT_FOUND") {
-          if (isStillOpen() && activeProjectIdRef.current) notifyFileRemoved(activeProjectIdRef.current, fileId);
-          return;
-        }
-        if (attempt >= SERVER_SYNC_RETRY_DELAYS_MS.length) {
-          // The save token still guards the server copy (saving stale text
-          // gets a 409, which opens the same comparison), but the author must
-          // not keep reading an older copy without knowing it.
-          logger.warn("Failed to re-read file after an external write:", err);
-          if (isStillOpen()) setServerSyncIssue({ fileId, retrying: false });
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, SERVER_SYNC_RETRY_DELAYS_MS[attempt]));
-        if (!isStillOpen()) return;
-      }
-    }
-    applyServerCopyToOpenFile(data, syncSeq, generation);
-  }, [applyServerCopyToOpenFile]);
-  syncOpenFileFromServerRef.current = syncOpenFileFromServer;
-
-  // Reconcile an SWR-painted open file when fresh /bootstrap returns without a duplicate GET.
-  // Never rolls back a newer saved or server-synced version.
-  useEffect(() => {
-    const onFreshFile = (event: Event) => {
-      const detail = (event as CustomEvent<WorkbenchFreshFileDetail>).detail;
-      if (!detail || detail.userId !== currentUserId || detail.projectId !== activeProjectIdRef.current) {
-        return;
-      }
-      const current = currentFileRef.current;
-      if (!current || current.id !== detail.file.id || selectedIdRef.current !== detail.file.id) {
-        return;
-      }
-      // ProjectEditor re-seeds preloadedFileCache before dispatching this event for
-      // late-mounting Editors. This mounted Editor already owns the file, so clear
-      // the one-shot cache entry unconditionally (even when this snapshot is ignored
-      // below) to prevent stale rollbacks on file-1 -> file-2 -> file-1 switches.
-      consumePreloadedFile(queryClient, currentUserId, detail.projectId, detail.file.id);
-      // If a local save or syncOpenFileFromServer already advanced this file after its initial load,
-      // ignore a slower /bootstrap snapshot so newer commits are never rolled back.
-      const loadedAt = initialLoadSyncSeqRef.current;
-      if (!loadedAt || loadedAt.fileId !== current.id || serverSyncSeqRef.current !== loadedAt.seq) {
-        return;
-      }
-      // Also guard by timestamp monotonicity so an older server updated_at can never replace a newer one.
-      const incomingMs = Date.parse(detail.file.updated_at);
-      const currentMs = Date.parse(current.updated_at);
-      if (Number.isFinite(incomingMs) && Number.isFinite(currentMs) && incomingMs < currentMs) {
-        return;
-      }
-      const generation = loadGenerationRef.current;
-      const syncSeq = ++serverSyncSeqRef.current;
-      applyServerCopyToOpenFile(detail.file, syncSeq, generation);
-    };
-    const onBootstrapFailed = (event: Event) => {
-      const detail = (event as CustomEvent<WorkbenchBootstrapFailedDetail>).detail;
-      if (!detail || detail.userId !== currentUserId || detail.projectId !== activeProjectIdRef.current) {
-        return;
-      }
-      const current = currentFileRef.current;
-      if (!current || current.id !== detail.fileId || selectedIdRef.current !== detail.fileId) {
-        return;
-      }
-      consumeWorkbenchSwrSyncRequired(queryClient, currentUserId, detail.projectId, detail.fileId);
-      const loadedAt = initialLoadSyncSeqRef.current;
-      if (!loadedAt || loadedAt.fileId !== current.id || serverSyncSeqRef.current !== loadedAt.seq) {
-        return;
-      }
-      void syncOpenFileFromServerRef.current();
-    };
-    window.addEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
-    window.addEventListener(WORKBENCH_BOOTSTRAP_FAILED_EVENT, onBootstrapFailed);
-    return () => {
-      window.removeEventListener(WORKBENCH_FRESH_FILE_EVENT, onFreshFile);
-      window.removeEventListener(WORKBENCH_BOOTSTRAP_FAILED_EVENT, onBootstrapFailed);
-    };
-  }, [applyServerCopyToOpenFile, currentUserId, queryClient]);
-
-  const retryServerSync = useCallback(() => {
-    const fileId = currentFileRef.current?.id;
-    if (!fileId) return;
-    setServerSyncIssue({ fileId, retrying: true });
-    void syncOpenFileFromServer();
-  }, [syncOpenFileFromServer]);
-
-  // A file the AI (or an undo) wrote may now have an AI version: check it again when opened.
-  useEffect(() => {
-    if (lastEditedFileId && editorRefreshVersion > 0) rearmAiFileOpened(currentUserId, lastEditedFileId);
-  }, [editorRefreshVersion, lastEditedFileId, currentUserId]);
-
-  // Re-read the open file when the AI (or an undo) wrote it
-  useEffect(() => {
-    if (lastEditedFileId && lastEditedFileId === file?.id && lastEditedFileId === selectedItem?.id && editorRefreshVersion > 0) {
-      // Small delay to ensure backend has committed the changes
-      const timer = setTimeout(() => {
-        void syncOpenFileFromServer();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [editorRefreshVersion, lastEditedFileId, file?.id, selectedItem?.id, syncOpenFileFromServer]);
-
-  const renderWithUpgradeModal = (content: React.ReactNode) => (
-    <>
-      <div className="flex h-full min-h-0 flex-col">
-      <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto">
-      {removedDrafts.filter(({ snapshot, persisted }) => snapshot.userId === currentUserId && (snapshot.projectId === currentProjectId || !persisted)).flatMap(({ snapshot, persisted }) => [
-        { snapshot, persisted },
-        ...(snapshot.recoveryDraft ? [{ snapshot: { ...snapshot, ...snapshot.recoveryDraft, recoveryDraft: undefined }, persisted }] : []),
-      ]).map(({ snapshot, persisted }, index) => (
-        <details key={`${snapshot.projectId}:${snapshot.fileId}:${index}`} open className="group min-w-0 shrink-0 border-b border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-6 py-3">
-          <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-start gap-2 py-2 text-sm font-medium text-[hsl(var(--text-primary))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] [&::-webkit-details-marker]:hidden">
-            <ChevronDown size={16} aria-hidden="true" className="mt-0.5 shrink-0 -rotate-90 text-[hsl(var(--text-secondary))] motion-chevron group-open:rotate-0" />
-            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t("editor:deletedFile.recovery", { title: snapshot.title })}</span>
-          </summary>
-          <div className="mt-1 space-y-3">
-          <p role={persisted ? "status" : "alert"} className={`text-sm leading-relaxed ${persisted ? "text-[hsl(var(--text-secondary))]" : "text-[hsl(var(--warning-text))]"}`}>{t(persisted ? "editor:deletedFile.saved" : "editor:deletedFile.storageFailed")}</p>
-          <button type="button" className="btn-secondary inline-flex min-h-11 items-center gap-2" onClick={() => {
-            const url = URL.createObjectURL(new Blob([`${snapshot.title}\n\n${snapshot.content}`], { type: "text/plain;charset=utf-8" }));
-            const anchor = document.createElement("a");
-            anchor.href = url;
-            anchor.download = `${snapshot.title || "draft"}.txt`;
-            document.body.appendChild(anchor);
-            anchor.click();
-            anchor.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 0);
-          }}><Download size={16} aria-hidden="true" />{t("editor:deletedFile.download")}</button>
-          <textarea aria-label={t("editor:deletedFile.draft")} readOnly value={snapshot.content} className="block h-24 w-full min-w-0 resize-y rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-3 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] sm:h-28" />
-          </div>
-        </details>
-      ))}
-      </div>
-      <div className="min-h-0 flex-1">{content}</div>
-      </div>
-      <UpgradePromptModal
-        open={showFileVersionUpgradeModal}
-        onClose={() => setShowFileVersionUpgradeModal(false)}
-        promptId="file_version_quota_blocked"
-        title={t("editor:versionHistory.fileVersionLimitTitle")}
-        description={t("editor:versionHistory.fileVersionLimitUpgrade")}
-        paidDescription={t("editor:versionHistory.fileVersionLimitPaid", {
-          defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
-        })}
-        primaryLabel={t("common:viewUpgrade")}
-        secondaryLabel={t("common:viewPlans")}
-      />
-    </>
-  );
-
-  /**
-   * Saves the current file with updated title and content.
-   *
-   * Updates the file via API, syncs local state, and triggers file tree
-   * refresh if the title has changed to keep the navigation in sync.
-   */
-  const handleSaveFile = async (submission: SaveSubmission): Promise<SaveResult> => {
-    if (!submission.fileId || isFileRemoved(currentProjectId, submission.fileId)) return { outcome: "failed" };
-
-    const targetFileId = submission.fileId;
-    const titleChanged = submission.title !== submission.previousTitle;
-
-    let updated;
-    try {
-      updated = await fileApi.update(targetFileId, {
-        // 上限之前存下的超长标题没改名时不重发：只改正文也必须能保存。
-        ...(titleChanged || !isFileTitleTooLong(submission.title) ? { title: submission.title } : {}),
-        content: submission.content,
-        // 乐观并发令牌：带上加载这份正文时的 updated_at。
-        // 编辑器提交的是整篇快照，光加锁挡不住丢更新——3 秒防抖期间 AI 的
-        // edit_file 先落库时，陈旧快照拿到锁后照样会原样覆盖它。
-        base_updated_at: submission.baseUpdatedAt,
-        ...submission.versionIntent,
-      });
-    } catch (error) {
-      if (isFileRemoved(currentProjectId, targetFileId)) return { outcome: "failed" };
-      if (error instanceof ApiError && (error.status === 404 || error.errorCode === "ERR_FILE_NOT_FOUND")) {
-        if (currentProjectId && selectedIdRef.current === targetFileId) notifyFileRemoved(currentProjectId, targetFileId);
-        return { outcome: "failed" };
-      }
-      if (error instanceof ApiError && error.errorCode === "ERR_FILE_TITLE_TOO_LONG") {
-        // 标题框和正文原样保留，作者缩短标题后下一次保存会一起写入。同一个标题只提示一次。
-        if (longTitleWarnedRef.current !== submission.title) {
-          longTitleWarnedRef.current = submission.title;
-          toast.error(t('editor:fileTree.titleTooLong'));
-        }
-        return { outcome: "failed" };
-      }
-      if (
-        error instanceof ApiError &&
-        error.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
-      ) {
-        if (fileVersionUpgradePrompt.surface === "modal") {
-          setShowFileVersionUpgradeModal(true);
-        } else {
-          toast.error(handleApiError(error));
-        }
-        return { outcome: "failed" };
-      }
-      if (
-        error instanceof ApiError &&
-        error.status === 409 &&
-        error.details?.reason === "stale_write"
-      ) {
-        const saveSurface =
-          submission.versionIntent?.change_type === "auto_save" || submission.versionIntent?.skip_version
-            ? "auto_save"
-            : "manual";
-        trackEditorSaveConflict409({
-          surface: saveSurface,
-          isMobile: openContextRef.current.isMobile,
-          reason: "stale_write",
-        });
-        // 文件在本次编辑期间被别人（AI 或另一个标签页）改过。
-        //
-        // 绝不能直接 setEditContent(服务端正文)：那会把用户尚未保存的本地编辑
-        // 整段替换掉，且没有任何备份/撤销入口——只是把「AI 被用户覆盖」换成了
-        // 「用户被服务端覆盖」，同样是不可逆的数据丢失。
-        //
-        // 正确做法：本地编辑原样留在编辑器里（一个字都不动），把服务端正文作为
-        // diff review 的基线送进现成的审阅通道，由用户逐处决定保留哪一份；
-        // 同时把 updated_at 同步成服务端的最新值，让审阅完成后的写回不会再撞 409。
-        const currentContent = error.details.current_content;
-        const currentUpdatedAt = error.details.current_updated_at;
-        const localContent = submission.content;
-        // The copy this draft was written on: what the editor last loaded or saved.
-        const openedFile = currentFileRef.current;
-        const isStillOpen =
-          activeProjectIdRef.current !== null &&
-          openedFile?.id === targetFileId &&
-          selectedIdRef.current === targetFileId;
-        if (typeof currentContent === "string") {
-          // A save queued before an open comparison (the author cannot type
-          // while it is open) was written on that comparison's base copy.
-          const openConflict = conflictReviewRef.current;
-          const queuedBehindConflict =
-            openConflict?.fileId === targetFileId && isSameReview(currentReviewRef.current, openConflict);
-          const baseContent = queuedBehindConflict
-            ? openConflict.base
-            : openedFile?.id === targetFileId ? openedFile.content || "" : currentContent;
-          const nextFile = (prev: File) => ({
-            ...prev,
-            content: currentContent,
-            updated_at:
-              typeof currentUpdatedAt === "string" ? currentUpdatedAt : prev.updated_at,
-          });
-          if (openedFile?.id === targetFileId) {
-            const refreshedServerCopy = nextFile(openedFile);
-            currentFileRef.current = refreshedServerCopy;
-            consumePreloadedFile(queryClient, currentUserId, refreshedServerCopy.project_id, targetFileId);
-            updateWorkbenchSwrInitialFile(currentUserId, refreshedServerCopy.project_id, refreshedServerCopy);
-          }
-          setFile((prev) => (prev?.id === targetFileId ? nextFile(prev) : prev));
-          if (currentContent !== localContent) {
-            // Only an editor that still shows this file may open the comparison;
-            // a save sent while leaving keeps its draft as a local snapshot.
-            const outcome = isStillOpen && openedFile
-              ? openConflictReview(targetFileId, baseContent, currentContent, localContent)
-              : null;
-            if (outcome === "server" && openedFile) {
-              // Everything the author wrote is already in the server copy.
-              adoptServerCopy(nextFile(openedFile), editTitleRef.current);
-              return { outcome: "conflict" };
-            }
-            if (outcome === "local" && openedFile) {
-              // The newer copy adds nothing to the author's text: keep it and
-              // save it on the newer token.
-              keepLocalOnServerCopy(nextFile(openedFile), editTitleRef.current);
-              return { outcome: "conflict" };
-            }
-            if (outcome === "review") {
-              trackEditorDraftRecoveryShown({
-                surface: "conflict_review",
-                isMobile: openContextRef.current.isMobile,
-                reason: "stale_write",
-              });
-            }
-            toast.error(t('editor:saveStaleWriteConflict'));
-            return { outcome: "conflict" };
-          }
-        }
-        toast.error(t('editor:saveStaleWrite'));
-        return { outcome: "conflict" };
-      }
-      throw error;
-    }
-
-    if (isFileRemoved(currentProjectId, targetFileId)) return { outcome: "failed" };
-
-    if (
-      updated?.version_quota_exceeded &&
-      // 自动保存会反复走到这里：本标签页内同一账号只主动提醒一次。
-      claimAutoUpgradePrompt(currentUserId, fileVersionUpgradePrompt.source)
-    ) {
-      // 正文已保存，只是版本快照没生成——提示升级，不能报成保存失败。
-      if (fileVersionUpgradePrompt.surface === "modal") {
-        setShowFileVersionUpgradeModal(true);
-      } else {
-        toast.error(t('editor:saveVersionQuotaExceeded'));
-      }
-    }
-
-    // Update local state（同步 updated_at，作为下一次保存的并发令牌）
-    const currentTargetFile = currentFileRef.current;
-    const savedSnapshot: File | null = currentTargetFile?.id === targetFileId
-      ? {
-          ...currentTargetFile,
-          title: submission.title,
-          content: submission.content,
-          updated_at: updated?.updated_at ?? currentTargetFile.updated_at,
-        }
-      : updated && typeof updated.id === "string"
-        ? {
-            ...updated,
-            title: submission.title,
-            content: submission.content,
-          }
-        : null;
-    if (currentTargetFile?.id === targetFileId && savedSnapshot) {
-      // Advance sync sequence so any slower in-flight /bootstrap snapshot is fenced out.
-      serverSyncSeqRef.current += 1;
-      currentFileRef.current = savedSnapshot;
-    }
-    const savedProjectId = updated?.project_id ?? savedSnapshot?.project_id ?? currentProjectId;
-    if (savedProjectId) {
-      consumePreloadedFile(queryClient, currentUserId, savedProjectId, targetFileId);
-    }
-    if (currentUserId && savedProjectId) {
-      if (savedSnapshot) {
-        updateWorkbenchSwrInitialFile(currentUserId, savedProjectId, savedSnapshot);
-      } else {
-        invalidateWorkbenchSwrInitialFile(currentUserId, savedProjectId, targetFileId);
-      }
-    }
-    setFile((prev) => {
-      if (prev?.id !== targetFileId) return prev;
-      return {
-        ...prev,
-        title: submission.title,
-        content: submission.content,
-        updated_at: updated?.updated_at ?? prev.updated_at,
-      };
-    });
-
-    // If title changed, refresh file tree and update selected item
-    if (titleChanged) {
-      triggerFileTreeRefresh();
-      // Update the selected item title to keep it in sync
-      if (
-        activeProjectIdRef.current === updated.project_id &&
-        selectedIdRef.current === targetFileId &&
-        currentFileRef.current?.id === targetFileId &&
-        selectedItem?.id === targetFileId
-      ) {
-        setSelectedItem({ ...selectedItem, title: submission.title });
-      }
-    }
-    if (
-      draftRecovery?.snapshot.fileId === targetFileId
-      && draftRecovery.applied
-      && currentUserId
-      && currentProjectId
-    ) {
-      const scope = {
-        userId: currentUserId,
-        projectId: currentProjectId,
-        fileId: targetFileId,
-      };
-      const hasMemoryRemoved = removedDraftsRef.current.some(
-        (item) =>
-          item.snapshot.userId === scope.userId &&
-          item.snapshot.projectId === scope.projectId &&
-          item.snapshot.fileId === scope.fileId,
-      );
-      const cleared = clearEditorDraftSnapshot(localStorage, scope);
-      clearRemovedDraftEntry(scope);
-      if (cleared || hasMemoryRemoved) {
-        if (draftRecovery.kind === "recover") {
-          trackEditorDraftRecoveryResolved({
-            surface: "draft_recovery",
-            isMobile: openContextRef.current.isMobile,
-            reason: "recover",
-            resolution: "restore_local",
-          });
-        }
-        setDraftRecovery(null);
-      }
-    }
-    notifyEditorContentSaved(updated?.project_id ?? currentFileRef.current?.project_id ?? "");
-    return { outcome: "saved", updatedAt: updated.updated_at };
-  };
-
-  const applyRecoveredDraft = useCallback(() => {
-    if (!draftRecovery) return;
-    trackEditorDraftRecoveryResolved({
-      surface: "draft_recovery",
-      isMobile: openContextRef.current.isMobile,
-      reason: draftRecovery.kind,
-      resolution: "restore_local",
-    });
-    setEditTitle(draftRecovery.snapshot.title);
-    setEditContent(draftRecovery.snapshot.content);
-    setDraftRecovery((current) => current ? { ...current, applied: true } : null);
-  }, [draftRecovery]);
-
-  const discardRecoveredDraft = useCallback(() => {
-    if (!draftRecovery || !currentUserId || !currentProjectId) return;
-    const scope = {
-      userId: currentUserId,
-      projectId: currentProjectId,
-      fileId: draftRecovery.snapshot.fileId,
-    };
-    const cleared = clearEditorDraftSnapshot(localStorage, scope);
-    const hasMemoryRemoved = removedDraftsRef.current.some(
-      (item) =>
-        item.snapshot.userId === scope.userId &&
-        item.snapshot.projectId === scope.projectId &&
-        item.snapshot.fileId === scope.fileId,
-    );
-    if (!cleared && !hasMemoryRemoved) return;
-    trackEditorDraftRecoveryResolved({
-      surface: "draft_recovery",
-      isMobile: openContextRef.current.isMobile,
-      reason: draftRecovery.kind,
-      resolution: draftRecovery.applied ? "discard" : "use_server",
-    });
-    clearRemovedDraftEntry(scope);
-    setEditTitle(draftRecovery.serverTitle);
-    setEditContent(draftRecovery.serverContent);
-    setDraftRecovery(null);
-  }, [draftRecovery, currentUserId, currentProjectId, clearRemovedDraftEntry]);
+  const { handleFinishReview } = useReviewedFileCommit({
+    queryClient,
+    t,
+    currentUserId,
+    currentProjectId,
+    selectedItem,
+    setSelectedItem,
+    triggerFileTreeRefresh,
+    diffReviewState,
+    exitDiffReview,
+    applyDiffReviewChanges,
+    file: fileSync.file,
+    setFile: fileSync.setFile,
+    setEditContent: fileSync.setEditContent,
+    draftRecovery: fileSync.draftRecovery,
+    setDraftRecovery: fileSync.setDraftRecovery,
+    adoptServerCopy: fileSync.adoptServerCopy,
+    markServerBaseline: fileSync.markServerBaseline,
+    openConflictReview,
+    conflictReviewRef,
+    activeProjectIdRef: fileSync.activeProjectIdRef,
+    selectedIdRef: fileSync.selectedIdRef,
+    currentFileRef: fileSync.currentFileRef,
+    currentReviewRef: fileSync.currentReviewRef,
+    editTitleRef: fileSync.editTitleRef,
+    serverSyncSeqRef: fileSync.serverSyncSeqRef,
+    openContextRef: fileSync.openContextRef,
+  });
 
   const handleRequestNaturalPolish = useCallback(
     (params: {
@@ -1420,666 +205,199 @@ const EditorComponent: React.FC<EditorProps> = () => {
     [requestAgentUiAction],
   );
 
-  const commitReviewedFile = useCallback(async (params: {
-    opened: File;
-    review: NonNullable<typeof diffReviewState>;
-    content: string;
-    conflictBase: string;
-    updateMeta: {
-      change_type: "ai_edit" | "edit";
-      change_summary?: string;
-      change_source?: "user";
-    };
-    errorLogMessage: string;
-    errorAction: string;
-    onSuccess?: () => void;
-    onStaleWrite?: (latest: File, outcome: ConflictReviewOutcome) => void;
-  }) => {
-    const {
-      opened,
-      review,
-      content,
-      conflictBase,
-      updateMeta,
-      errorLogMessage,
-      errorAction,
-      onSuccess,
-      onStaleWrite,
-    } = params;
-    const fileId = opened.id;
-    const projectId = opened.project_id;
-    // 审阅期间标题输入框是禁用的，但进入审阅前作者可能改了标题还没保存。
-    // 完成审阅后编辑器会被标记为已保存，所以标题必须随这次写回一起保存。
-    const reviewedTitle = editTitleRef.current;
-    const titleChanged = reviewedTitle !== opened.title;
-    const isStillCurrent = () =>
-      activeProjectIdRef.current === currentProjectId &&
-      selectedIdRef.current === fileId &&
-      currentFileRef.current?.id === fileId &&
-      currentReviewRef.current === review;
-
-    if (!isStillCurrent()) return;
-
-    try {
-      // 与 handleSaveFile 对齐的乐观并发令牌。这是一次整篇覆盖写，
-      // 不带令牌就会无声盖掉审阅期间落库的其它改动。
-      const updated = await fileApi.update(fileId, {
-        content,
-        ...(titleChanged ? { title: reviewedTitle } : {}),
-        ...updateMeta,
-        base_updated_at: opened.updated_at,
-      });
-      if (!isStillCurrent()) return;
-
-      // 必须把返回的 updated_at 一并回填并同步 SimpleEditor 基线：
-      // 这次 PUT 已经把服务端的 updated_at 推进了，本地若还停在审阅前的值，
-      // 用户接着敲一个字触发的 3 秒防抖自动保存就会带着陈旧令牌命中 409。
-      const base = currentFileRef.current ?? opened;
-      const saved: File = {
-        ...base,
-        content,
-        ...(titleChanged ? { title: reviewedTitle } : {}),
-        updated_at: updated?.updated_at ?? base.updated_at,
-      };
-      serverSyncSeqRef.current += 1;
-      currentFileRef.current = saved;
-      setFile(saved);
-      setEditContent(content);
-      markServerBaseline(saved);
-      consumePreloadedFile(queryClient, currentUserId, projectId, fileId);
-      updateWorkbenchSwrInitialFile(currentUserId, projectId, saved);
-      if (titleChanged && selectedItem?.id === fileId) {
-        setSelectedItem({ ...selectedItem, title: reviewedTitle });
-      }
-      // A copy kept locally while this comparison was open (or an applied
-      // recovered draft) is superseded by this save. An unanswered recovery
-      // banner keeps its draft; storage failures must not falsely clear state.
-      if (currentUserId && currentProjectId) {
-        if (draftRecovery?.snapshot.fileId === fileId && draftRecovery.applied) {
-          const cleared = clearEditorDraftSnapshot(localStorage, {
-            userId: currentUserId,
-            projectId: currentProjectId,
-            fileId,
-          });
-          if (cleared) {
-            if (draftRecovery.kind === "recover") {
-              trackEditorDraftRecoveryResolved({
-                surface: "draft_recovery",
-                isMobile: openContextRef.current.isMobile,
-                reason: "recover",
-                resolution: "restore_local",
-              });
-            }
-            setDraftRecovery(null);
-          }
-        } else if (draftRecovery?.snapshot.fileId !== fileId) {
-          clearEditorDraftSnapshot(localStorage, {
-            userId: currentUserId,
-            projectId: currentProjectId,
-            fileId,
-          });
-        }
-      }
-      onSuccess?.();
-      exitDiffReview();
-      triggerFileTreeRefresh();
-      notifyEditorContentSaved(projectId);
-    } catch (err) {
-      if (!isStillCurrent()) return;
-      if (err instanceof ApiError && err.status === 409 && err.details?.reason === "stale_write") {
-        trackEditorSaveConflict409({
-          surface: "manual",
-          isMobile: openContextRef.current.isMobile,
-          reason: "stale_write",
-        });
-        // 审阅结果绝不能因为并发写而丢：把服务端最新正文当作新基线，
-        // 连同本次审阅得到的定稿重新进入审阅通道，由用户决定最终版本。
-        const current = currentFileRef.current;
-        if (!current) return;
-        const serverContent =
-          typeof err.details.current_content === "string" ? err.details.current_content : "";
-        const serverUpdatedAt =
-          typeof err.details.current_updated_at === "string"
-            ? err.details.current_updated_at
-            : current.updated_at;
-        const latest: File = { ...current, content: serverContent, updated_at: serverUpdatedAt };
-        currentFileRef.current = latest;
-        setFile(latest);
-        consumePreloadedFile(queryClient, currentUserId, projectId, fileId);
-        const outcome = openConflictReview(fileId, conflictBase, serverContent, content);
-        onStaleWrite?.(latest, outcome);
-        if (outcome === "server") {
-          exitDiffReview();
-          adoptServerCopy(latest, reviewedTitle);
-        } else if (outcome === "local") {
-          // The newer copy adds nothing to the reviewed text: keep this review
-          // open so retrying saves on top of the fresh server token.
-          toast.error(t("editor:saveStaleWrite"));
-        } else {
-          trackEditorDraftRecoveryShown({
-            surface: "conflict_review",
-            isMobile: openContextRef.current.isMobile,
-            reason: "stale_write",
-          });
-          toast.error(t("editor:saveStaleWriteConflict"));
-        }
+  const handleCreateFromEmptyState = useCallback(
+    async (fileType: EmptyStateFileType, explicitParentId?: string) => {
+      if (!currentProjectId) {
+        toast.error(t("editor:error.noProject"));
         return;
       }
-      logger.error(errorLogMessage, err);
-      toast.error(handleApiError(err));
-      captureException(err, {
-        feature_area: "editor",
-        action: errorAction,
-        file_id: fileId,
-      });
-    }
-  }, [
-    currentProjectId,
-    currentUserId,
-    adoptServerCopy,
-    draftRecovery,
-    exitDiffReview,
-    markServerBaseline,
-    openConflictReview,
-    queryClient,
-    selectedItem,
-    setSelectedItem,
-    t,
-    triggerFileTreeRefresh,
-  ]);
 
-  /**
-   * Completes the diff review process and applies accepted changes.
-   *
-   * Gets the final content after all accept/reject decisions, updates the file,
-   * creates a new version for the reviewed changes, and exits review mode.
-   */
-  const handleFinishReview = useCallback(async () => {
-    if (!diffReviewState || !file?.id || diffReviewState.fileId !== file.id) return;
-    if (
-      activeProjectIdRef.current !== currentProjectId ||
-      selectedIdRef.current !== file.id ||
-      currentFileRef.current?.id !== file.id ||
-      currentReviewRef.current !== diffReviewState
-    ) return;
+      setIsCreating(fileType);
 
-    // Get the final content based on accept/reject decisions
-    const finalContent = applyDiffReviewChanges();
-    // A "your unsaved text vs a newer copy" comparison: the saved text is the
-    // author's (with whichever external/AI changes the author accepted).
-    const conflictReview = isSameReview(diffReviewState, conflictReviewRef.current)
-      ? conflictReviewRef.current
-      : null;
-    // The reviewed text was built on this review's server copy; replay
-    // only what the review changed on top of the newer one.
-    const reviewBase = conflictReview ? conflictReview.serverContent : diffReviewState.originalContent;
+      const defaultTitles: Record<EmptyStateFileType, string> = {
+        draft: t("editor:fileTree.newDraft"),
+        outline: t("editor:fileTree.newOutline"),
+        character: t("editor:fileTree.newCharacter"),
+        lore: t("editor:fileTree.newLore"),
+        snippet: t("editor:fileTree.newSnippet"),
+        script: t("editor:fileTree.newScript"),
+      };
 
-    await commitReviewedFile({
-      opened: file,
-      review: diffReviewState,
-      content: finalContent,
-      conflictBase: reviewBase,
-      updateMeta: {
-        // Paragraph diff review is used exclusively for unsaved-draft / stale-write
-        // conflict resolution: record it as the author's edit so the server's
-        // author-edit guard keeps protecting the author's words.
-        change_type: "edit",
-        change_source: "user",
-      },
-      errorLogMessage: "Failed to save reviewed changes:",
-      errorAction: "ai_edit_review_apply",
-      onSuccess: () => {
-        const acceptedEditCount = diffReviewState.pendingEdits.filter(
-          (edit) => edit.status !== "rejected"
-        ).length;
-        const rejectedEditCount = diffReviewState.pendingEdits.filter(
-          (edit) => edit.status === "rejected"
-        ).length;
-        const resolution =
-          acceptedEditCount > 0 && rejectedEditCount > 0
-            ? "merge"
-            : acceptedEditCount > 0
-              ? "use_server"
-              : rejectedEditCount > 0
-                ? "restore_local"
-                : "merge";
-        trackEditorDraftRecoveryResolved({
-          surface: "conflict_review",
-          isMobile: openContextRef.current.isMobile,
-          reason: "stale_write",
-          resolution,
+      try {
+        const parentId = explicitParentId ?? (await resolveCreateParentId(currentProjectId, fileType));
+        if (fileSync.activeProjectIdRef.current !== currentProjectId) return;
+        const newFile = await fileApi.create(currentProjectId, {
+          title: defaultTitles[fileType],
+          file_type: fileType,
+          parent_id: parentId,
+          content: "",
         });
-        trackEvent("ai_edit_review_applied", {
-          project_id: file.project_id,
-          file_id: file.id,
-          accepted_edit_count: acceptedEditCount,
-          rejected_edit_count: rejectedEditCount,
-        });
-      },
-    });
-  }, [
-    diffReviewState,
-    currentProjectId,
-    file,
-    applyDiffReviewChanges,
-    commitReviewedFile,
-  ]);
 
-  /**
-   * Creates a new file from the empty state action cards.
-   *
-   * Creates a file with the specified type, refreshes the file tree,
-   * selects the new file in the editor, and shows success/error feedback.
-   *
-   * @param fileType - The type of file to create ('draft', 'outline', 'character', 'lore', 'script')
-   */
-  const handleCreateFromEmptyState = useCallback(async (fileType: EmptyStateFileType, explicitParentId?: string) => {
-    if (!currentProjectId) {
-      toast.error(t('editor:error.noProject'));
-      return;
-    }
+        if (fileSync.activeProjectIdRef.current === currentProjectId) {
+          triggerFileTreeRefresh();
+          setNewlyCreatedFileId(newFile.id);
+          setSelectedItem({
+            id: newFile.id,
+            type: newFile.file_type,
+            title: newFile.title,
+          });
+        }
 
-    // Set loading state to prevent multiple clicks
-    setIsCreating(fileType);
-
-    // Default titles based on type
-    const defaultTitles: Record<EmptyStateFileType, string> = {
-      draft: t('editor:fileTree.newDraft'),
-      outline: t('editor:fileTree.newOutline'),
-      character: t('editor:fileTree.newCharacter'),
-      lore: t('editor:fileTree.newLore'),
-      snippet: t('editor:fileTree.newSnippet'),
-      script: t('editor:fileTree.newScript'),
-    };
-
-    try {
-      const parentId = explicitParentId ?? await resolveCreateParentId(fileType);
-      if (activeProjectIdRef.current !== currentProjectId) return;
-      const newFile = await fileApi.create(currentProjectId, {
-        title: defaultTitles[fileType],
-        file_type: fileType,
-        parent_id: parentId,
-        content: '',
-      });
-
-      if (activeProjectIdRef.current === currentProjectId) {
-        triggerFileTreeRefresh();
-        setNewlyCreatedFileId(newFile.id);
-        setSelectedItem({
-          id: newFile.id,
-          type: newFile.file_type,
-          title: newFile.title,
-        });
+        toast.success(t("editor:success.fileCreated"));
+      } catch (err) {
+        toast.error(t("editor:error.createFailed"));
+        logger.error("Failed to create file:", err);
+      } finally {
+        if (fileSync.activeProjectIdRef.current === currentProjectId) setIsCreating(null);
       }
+    },
+    [currentProjectId, fileSync.activeProjectIdRef, triggerFileTreeRefresh, setSelectedItem, t],
+  );
 
-      toast.success(t('editor:success.fileCreated'));
-    } catch (error) {
-      toast.error(t('editor:error.createFailed'));
-      logger.error('Failed to create file:', error);
-    } finally {
-      if (activeProjectIdRef.current === currentProjectId) setIsCreating(null);
-    }
-  }, [currentProjectId, triggerFileTreeRefresh, setSelectedItem, t, resolveCreateParentId]);
+  const renderWithUpgradeModal = (content: React.ReactNode) => (
+    <>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto">
+          <RemovedDraftsBanner
+            removedDrafts={fileSync.removedDrafts}
+            currentUserId={currentUserId}
+            currentProjectId={currentProjectId}
+          />
+        </div>
+        <div className="min-h-0 flex-1">{content}</div>
+      </div>
+      <UpgradePromptModal
+        open={fileSync.showFileVersionUpgradeModal}
+        onClose={() => fileSync.setShowFileVersionUpgradeModal(false)}
+        promptId="file_version_quota_blocked"
+        title={t("editor:versionHistory.fileVersionLimitTitle")}
+        description={t("editor:versionHistory.fileVersionLimitUpgrade")}
+        paidDescription={t("editor:versionHistory.fileVersionLimitPaid", {
+          defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
+        })}
+        primaryLabel={t("common:viewUpgrade")}
+        secondaryLabel={t("common:viewPlans")}
+      />
+    </>
+  );
 
   // Render material preview mode
   if (materialLib.previewEntityInfo && (materialLib.isPreviewLoading || materialLib.preview)) {
-    const previewEntityInfo = materialLib.previewEntityInfo;
     return renderWithUpgradeModal(
-      <>
-        <Suspense
-          fallback={
-            <div className="flex flex-col items-center justify-center h-full gap-4">
-              <LoadingSpinner size="lg" color="primary" />
-              <p className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading')}</p>
-            </div>
-          }
-        >
-          <MaterialPreview
-            preview={materialLib.preview}
-            isLoading={materialLib.isPreviewLoading}
-            onAddToProject={() => setImportDialogOpen(true)}
-            onAttachToChat={() => {
-              if (!materialLib.preview) return;
-              const virtualId = `lib_${previewEntityInfo.novelId}_${previewEntityInfo.entityType}_${previewEntityInfo.entityId}`;
-              if (isMaterialAttached?.(virtualId)) {
-                toast.info(t('editor:fileTree.alreadyAttached'));
-                return;
-              }
-              const added = addMaterial(
-                virtualId,
-                materialLib.preview.title,
-                {
-                  novelId: previewEntityInfo.novelId,
-                  entityType: previewEntityInfo.entityType,
-                  entityId: previewEntityInfo.entityId,
-                }
-              );
-              if (!added) {
-                toast.info(
-                  isAtLimit === false
-                    ? t('editor:fileTree.alreadyAttached')
-                    : t('editor:fileTree.maxMaterials', { max: maxMaterials }),
-                );
-                return;
-              }
-              materialLib.clearPreview();
-            }}
-            onBack={() => materialLib.clearPreview()}
-          />
-        </Suspense>
-        {importDialogOpen && materialLib.preview && (
-          <Suspense fallback={null}>
-            <ImportMaterialDialog
-              isOpen={importDialogOpen}
-              onClose={() => setImportDialogOpen(false)}
-              preview={materialLib.preview}
-              novelId={previewEntityInfo.novelId}
-              entityType={previewEntityInfo.entityType}
-              entityId={previewEntityInfo.entityId}
-              onSuccess={() => {
-                setImportDialogOpen(false);
-                materialLib.clearPreview();
-                triggerFileTreeRefresh();
-              }}
-            />
-          </Suspense>
-        )}
-      </>
+      <EditorMaterialPreview
+        previewEntityInfo={materialLib.previewEntityInfo}
+        preview={materialLib.preview}
+        isPreviewLoading={materialLib.isPreviewLoading}
+        isMaterialAttached={isMaterialAttached}
+        addMaterial={addMaterial}
+        isAtLimit={isAtLimit}
+        maxMaterials={maxMaterials}
+        clearPreview={materialLib.clearPreview}
+        triggerFileTreeRefresh={triggerFileTreeRefresh}
+      />,
     );
   }
 
   // Render empty state
   if (!selectedItem) {
-    const isScreenplay = currentProject?.project_type === 'screenplay';
-    const primaryFileType: EmptyStateFileType = isScreenplay ? 'script' : 'draft';
     return renderWithUpgradeModal(
-      // Centred while it fits; on a short window it scrolls from the top instead of pushing the
-      // heading under the header and the last hints out of reach.
-      <div className="h-full overflow-y-auto">
-      <div className="relative flex min-h-full flex-col items-center justify-center p-6 md:p-8">
-        <div className="max-w-md w-full space-y-6">
-          {/* Headline */}
-          <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[hsl(var(--accent-primary)/0.1)] mb-3">
-              <Sparkles className="w-7 h-7 text-[hsl(var(--accent-primary))]" />
-            </div>
-            <h2 className="text-xl md:text-2xl font-semibold text-[hsl(var(--text-primary))]">
-              {t('editor:emptyStateTitle')}
-            </h2>
-            <p className="text-sm text-[hsl(var(--text-secondary))]">
-              {isScreenplay ? t('editor:emptyStateDescriptionScript') : t('editor:emptyStateDescription')}
-            </p>
-          </div>
-
-          {/* The view's one primary action: the chat, where an empty first conversation offers
-              starter cards. Phones switch panels without raising the keyboard over those cards. */}
-          <Button
-            type="button"
-            data-testid="empty-state-ask-ai"
-            size={isMobile ? 'touch' : 'md'}
-            className="w-full"
-            leftIcon={<Zap className="w-4 h-4" />}
-            onClick={isMobile ? switchToChat : focusChatInput}
-          >
-            {t('editor:emptyStateHint')}
-          </Button>
-
-          {/* Write it yourself - 2 cards */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Create Draft (screenplay projects: Script) */}
-            <button
-              type="button"
-              disabled={isCreating === primaryFileType}
-              onClick={() => handleCreateFromEmptyState(primaryFileType)}
-              className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <div className="w-11 h-11 rounded-xl bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
-                {isCreating === primaryFileType ? (
-                  <LoadingSpinner size="md" color="primary" />
-                ) : isScreenplay ? (
-                  <Clapperboard className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-                ) : (
-                  <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-                )}
-              </div>
-              <span className="text-sm font-medium text-[hsl(var(--text-primary))] text-center">
-                {isScreenplay ? t('editor:fileTree.newScript') : t('editor:fileTree.newDraft')}
-              </span>
-            </button>
-
-            {/* Create Outline */}
-            <button
-              type="button"
-              disabled={isCreating === 'outline'}
-              onClick={() => handleCreateFromEmptyState('outline')}
-              className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <div className="w-11 h-11 rounded-xl bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
-                {isCreating === 'outline' ? <LoadingSpinner size="md" color="primary" /> : <FileText className="w-5 h-5 text-[hsl(var(--accent-primary))]" />}
-              </div>
-              <span className="text-sm font-medium text-[hsl(var(--text-primary))] text-center">
-                {t('editor:fileTree.newOutline')}
-              </span>
-            </button>
-          </div>
-
-          {/* More Options Toggle */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              aria-expanded={showMore}
-              onClick={() => setShowMore(!showMore)}
-              className="w-full min-h-11 md:min-h-0 flex items-center justify-center gap-1.5 rounded-lg text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--accent-primary))] transition-colors py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] group"
-            >
-              <span>{showMore ? t('editor:showLess') : t('editor:showMore')}</span>
-              <ChevronDown className={`w-3.5 h-3.5 motion-chevron ${showMore ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* Secondary Actions - collapsible */}
-            {showMore && (
-              <div className="grid grid-cols-3 gap-3 motion-disclosure-enter">
-                {/* Create Character */}
-                <button
-                  type="button"
-                  disabled={isCreating === 'character'}
-                  onClick={() => handleCreateFromEmptyState('character')}
-                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
-                    {isCreating === 'character' ? <LoadingSpinner size="sm" color="primary" /> : <Users className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
-                  </div>
-                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
-                    {t('editor:fileTree.newCharacter')}
-                  </span>
-                </button>
-
-                {/* Create Lore */}
-                <button
-                  type="button"
-                  disabled={isCreating === 'lore'}
-                  onClick={() => handleCreateFromEmptyState('lore')}
-                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
-                    {isCreating === 'lore' ? <LoadingSpinner size="sm" color="primary" /> : <Sparkles className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
-                  </div>
-                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
-                    {t('editor:fileTree.newLore')}
-                  </span>
-                </button>
-
-                {/* Create Snippet / Material */}
-                <button
-                  type="button"
-                  disabled={isCreating === 'snippet'}
-                  onClick={() => handleCreateFromEmptyState('snippet')}
-                  className="group flex flex-col items-center gap-2 p-3 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] hover:border-[hsl(var(--accent-primary)/0.4)] hover:bg-[hsl(var(--bg-tertiary)/0.4)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center">
-                    {isCreating === 'snippet' ? <LoadingSpinner size="sm" color="primary" /> : <FolderOpen className="w-4 h-4 text-[hsl(var(--accent-primary))]" />}
-                  </div>
-                  <span className="text-xs font-medium text-[hsl(var(--text-primary))] text-center">
-                    {t('editor:fileTree.newSnippet')}
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Hints Section */}
-          <div className="space-y-3 pt-2">
-            <input
-              ref={draftInputRef}
-              type="file"
-              accept={DRAFT_IMPORT_ACCEPT}
-              multiple
-              className="hidden"
-              aria-label={t('editor:emptyStateImportDrafts')}
-              data-testid="empty-state-import-input"
-              onChange={(event) => { void handleImportDrafts(event); }}
-            />
-            <button
-              type="button"
-              data-testid="empty-state-import-drafts"
-              onClick={() => draftInputRef.current?.click()}
-              disabled={isImportingDrafts || !currentProjectId}
-              className="mx-auto flex min-h-[44px] md:min-h-0 items-center justify-center gap-2 rounded-md px-2 py-1 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-50 group"
-            >
-              <span className="p-1.5 rounded-md bg-[hsl(var(--bg-tertiary))] group-hover:bg-[hsl(var(--accent-primary)/0.08)] transition-colors">
-                {isImportingDrafts ? <LoadingSpinner size="sm" color="primary" /> : <Upload className="w-3.5 h-3.5" />}
-              </span>
-              <span>{t('editor:emptyStateImportDrafts')}</span>
-            </button>
-
-            {/* Keyboard Shortcut Hint (no physical keyboard on phones) */}
-            {!isMobile && (
-              <div className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--text-secondary))] group cursor-default">
-                <div className="p-1.5 rounded-md bg-[hsl(var(--bg-tertiary))] group-hover:bg-[hsl(var(--accent-primary)/0.08)] transition-colors">
-                  <Keyboard className="w-3.5 h-3.5" />
-                </div>
-                <span className="flex items-center gap-1.5">
-                  <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-[10px] font-mono shadow-sm">{isApplePlatform() ? '⌘' : 'Ctrl'}</kbd>
-                  <kbd className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] text-[10px] font-mono shadow-sm">K</kbd>
-                  <span className="text-[hsl(var(--text-tertiary))]">{t('editor:fileTree.searchFiles')}</span>
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      </div>
+      <EditorEmptyState
+        isScreenplay={currentProject?.project_type === "screenplay"}
+        isMobile={isMobile}
+        isCreating={isCreating}
+        isImportingDrafts={isImportingDrafts}
+        currentProjectId={currentProjectId}
+        onAskAi={isMobile ? switchToChat : focusChatInput}
+        onCreateFile={(fileType) => void handleCreateFromEmptyState(fileType)}
+        onImportDrafts={handleImportDrafts}
+      />,
     );
   }
 
   // Render folder selected state
   if (selectedItem.type === "folder") {
-    const mappedType = FOLDER_TYPE_MAP[selectedItem.title];
-    const folderFileType: EmptyStateFileType =
-      mappedType === 'outline' ||
-      mappedType === 'character' ||
-      mappedType === 'lore' ||
-      mappedType === 'snippet' ||
-      mappedType === 'script' ||
-      mappedType === 'draft'
-        ? mappedType
-        : currentProject?.project_type === 'screenplay'
-          ? 'script'
-          : 'draft';
-    const folderCreateLabels: Record<EmptyStateFileType, string> = {
-      draft: t('editor:fileTree.newDraft'),
-      outline: t('editor:fileTree.newOutline'),
-      character: t('editor:fileTree.newCharacter'),
-      lore: t('editor:fileTree.newLore'),
-      snippet: t('editor:fileTree.newSnippet'),
-      script: t('editor:fileTree.newScript'),
-    };
     return renderWithUpgradeModal(
-      <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--text-secondary))] gap-3 p-6 text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))]">
-          <Folder size={28} className="text-[hsl(var(--text-secondary))]" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-[hsl(var(--text-primary))]">{t('editor:placeholder.folderSelected')}{selectedItem.title}</p>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">{t('editor:placeholder.folderHint')}</p>
-        </div>
-        <Button
-          type="button"
-          size={isMobile ? 'touch' : 'md'}
-          isLoading={isCreating === folderFileType}
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => void handleCreateFromEmptyState(folderFileType, selectedItem.id)}
-          data-testid="folder-empty-create-button"
-          className="mt-1"
-        >
-          {folderCreateLabels[folderFileType]}
-        </Button>
-      </div>
+      <EditorFolderState
+        folderId={selectedItem.id}
+        folderTitle={selectedItem.title}
+        isScreenplay={currentProject?.project_type === "screenplay"}
+        isMobile={isMobile}
+        isCreating={isCreating}
+        onCreateInFolder={(fileType, folderId) => void handleCreateFromEmptyState(fileType, folderId)}
+      />,
     );
   }
 
   // Render loading state
-  if (loading) {
+  if (fileSync.loading) {
     return renderWithUpgradeModal(
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <LoadingSpinner size="lg" color="primary" />
-        <p className="text-sm text-[hsl(var(--text-secondary))]">{t('common:loading')}</p>
-      </div>
+        <p className="text-sm text-[hsl(var(--text-secondary))]">{t("common:loading")}</p>
+      </div>,
     );
   }
 
   // Render error state
-  if (error) {
+  if (fileSync.error) {
     return renderWithUpgradeModal(
-      <div role="alert" className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center text-[hsl(var(--error-text))]">
-        <p className="text-sm">{error}</p>
+      <div
+        role="alert"
+        className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center text-[hsl(var(--error-text))]"
+      >
+        <p className="text-sm">{fileSync.error}</p>
         <Button
           type="button"
           variant="secondary"
-          size={isMobile ? 'touch' : 'sm'}
-          onClick={() => void loadData()}
+          size={isMobile ? "touch" : "sm"}
+          onClick={() => void fileSync.loadData()}
         >
-          {t('common:retry')}
+          {t("common:retry")}
         </Button>
-      </div>
+      </div>,
     );
   }
 
   // Render file editor for all file types
-  if (file) {
-    // Check if this file is currently being streamed
+  if (fileSync.file) {
+    const file = fileSync.file;
     const isStreaming = file.id === streamingFileId;
-
-    // Check if this file is in diff review mode
     const isInReviewMode = diffReviewState?.isReviewing && diffReviewState.fileId === file.id;
 
-    // Common editor props
     const editorProps = {
-      emptyHint: (focusEditor: () => void) => <FirstWorkGuidance userId={currentUserId || null} projectId={currentProjectId} fileId={file.id} focusEditor={focusEditor} />,
+      emptyHint: (focusEditor: () => void) => (
+        <FirstWorkGuidance
+          userId={currentUserId || null}
+          projectId={currentProjectId}
+          fileId={file.id}
+          focusEditor={focusEditor}
+        />
+      ),
       userId: currentUserId || undefined,
       fileId: file.id,
       projectId: currentProjectId || undefined,
       fileType: file.file_type,
-      fileTitle: editTitle,
+      fileTitle: fileSync.editTitle,
       baseUpdatedAt: file.updated_at,
       savedContent: file.content ?? "",
-      title: editTitle,
-      content: editContent,
+      title: fileSync.editTitle,
+      content: fileSync.editContent,
       streamingContent: isStreaming ? streamingContent : undefined,
-      onTitleChange: setEditTitle,
-      onContentChange: setEditContent,
-      onSave: handleSaveFile,
-      onHistoryRestore: () => loadData({ discardUnsaved: true }),
-      onFlushReady: registerEditorFlush,
-      serverBaseline: serverBaseline?.fileId === file.id ? serverBaseline : undefined,
-      getReviewLeaveDraft,
+      onTitleChange: fileSync.setEditTitle,
+      onContentChange: fileSync.setEditContent,
+      onSave: fileSync.handleSaveFile,
+      onHistoryRestore: () => fileSync.loadData({ discardUnsaved: true }),
+      onFlushReady: fileSync.registerEditorFlush,
+      serverBaseline:
+        fileSync.serverBaseline?.fileId === file.id ? fileSync.serverBaseline : undefined,
+      getReviewLeaveDraft: fileSync.getReviewLeaveDraft,
       isStreaming,
       isChatStreaming: Boolean(isChatStreaming),
-      // AI 正在编辑这份文件时挂起自动保存，避免过期整篇快照覆盖 AI 的改动
       isAiEditing: aiEditingFileId === file.id,
       autoFocusTitle: !isMobile && newlyCreatedFileId === file.id,
-      onAutoFocusConsumed: newlyCreatedFileId === file.id ? () => setNewlyCreatedFileId(null) : undefined,
+      onAutoFocusConsumed:
+        newlyCreatedFileId === file.id ? () => setNewlyCreatedFileId(null) : undefined,
       onNaturalPolish: handleRequestNaturalPolish,
-      // Diff review props
       diffReviewState: isInReviewMode ? diffReviewState : null,
       onAcceptEdit: handleAcceptEdit,
       onRejectEdit: handleRejectEdit,
@@ -2087,93 +405,39 @@ const EditorComponent: React.FC<EditorProps> = () => {
       onAcceptAllEdits: handleAcceptAllEdits,
       onRejectAllEdits: handleRejectAllEdits,
       onFinishReview: handleFinishReview,
-      recoveredDraft: draftRecovery?.applied && draftRecovery.snapshot.fileId === file.id
-        ? {
-            capturedAt: draftRecovery.snapshot.capturedAt,
-            serverTitle: draftRecovery.serverTitle,
-            serverContent: draftRecovery.serverContent,
-          }
-        : undefined,
+      recoveredDraft:
+        fileSync.draftRecovery?.applied && fileSync.draftRecovery.snapshot.fileId === file.id
+          ? {
+              capturedAt: fileSync.draftRecovery.snapshot.capturedAt,
+              serverTitle: fileSync.draftRecovery.serverTitle,
+              serverContent: fileSync.draftRecovery.serverContent,
+            }
+          : undefined,
     };
 
     return renderWithUpgradeModal(
       <div className="flex h-full min-h-0 flex-col">
         <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto">
-        {draftRecovery?.snapshot.fileId === file.id && (
-          <div
-            role={draftRecovery.kind === "conflict" && !draftRecovery.applied ? "alert" : "status"}
-            className="border-b border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-4 py-3 text-sm text-[hsl(var(--text-primary))]"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p>
-                {t(draftRecovery.kind === "conflict" && !draftRecovery.applied
-                  ? "editor:draftRecovery.conflict"
-                  : "editor:draftRecovery.restored")}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {draftRecovery.kind === "conflict" && !draftRecovery.applied && (
-                  <Button
-                    type="button"
-                    size={isMobile ? "touch" : "sm"}
-                    onClick={applyRecoveredDraft}
-                  >
-                    {t("editor:draftRecovery.restore")}
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size={isMobile ? "touch" : "sm"}
-                  onClick={discardRecoveredDraft}
-                >
-                  {t("editor:draftRecovery.discard")}
-                </Button>
-              </div>
-            </div>
-            {draftRecovery.kind === "conflict" && !draftRecovery.applied && (
-              <details className="mt-2">
-                <summary className="inline-flex min-h-11 cursor-pointer items-center text-xs font-medium">
-                  {t("editor:draftRecovery.compare")}
-                </summary>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div>
-                    <p className="mb-1 text-xs font-medium">{t("editor:draftRecovery.serverVersion")}</p>
-                    <p className="mb-1 text-xs text-[hsl(var(--text-secondary))]">{draftRecovery.serverTitle}</p>
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-[hsl(var(--bg-primary))] p-2 text-xs">{draftRecovery.serverContent}</pre>
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium">{t("editor:draftRecovery.localVersion")}</p>
-                    <p className="mb-1 text-xs text-[hsl(var(--text-secondary))]">{draftRecovery.snapshot.title}</p>
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-[hsl(var(--bg-primary))] p-2 text-xs">{draftRecovery.snapshot.content}</pre>
-                  </div>
-                </div>
-              </details>
-            )}
-          </div>
-        )}
-        {serverSyncIssue?.fileId === file.id && (
-          <div
-            role="alert"
-            className="border-b border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] px-4 py-3 text-sm text-[hsl(var(--text-primary))]"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p>{t("editor:serverSyncFailed.message")}</p>
-              <Button
-                type="button"
-                size={isMobile ? "touch" : "sm"}
-                onClick={retryServerSync}
-                disabled={serverSyncIssue.retrying}
-              >
-                {t(serverSyncIssue.retrying ? "editor:serverSyncFailed.retrying" : "editor:serverSyncFailed.retry")}
-              </Button>
-            </div>
-          </div>
-        )}
+          {fileSync.draftRecovery?.snapshot.fileId === file.id && (
+            <DraftRecoveryBanner
+              draftRecovery={fileSync.draftRecovery}
+              isMobile={isMobile}
+              onApply={fileSync.applyRecoveredDraft}
+              onDiscard={fileSync.discardRecoveredDraft}
+            />
+          )}
+          {fileSync.serverSyncIssue?.fileId === file.id && (
+            <ServerSyncIssueBanner
+              serverSyncIssue={fileSync.serverSyncIssue}
+              isMobile={isMobile}
+              onRetry={fileSync.retryServerSync}
+            />
+          )}
         </div>
         <div className="min-h-0 flex-1">
           <SimpleEditor {...editorProps} />
         </div>
-      </div>
+      </div>,
     );
   }
 

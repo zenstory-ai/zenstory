@@ -1,513 +1,130 @@
-import { claimAutoUpgradePrompt } from "../lib/upgradeTriggerStrategy";
 /**
  * @fileoverview ChatPanel component - AI chat interface for the zenstory writing workbench.
  *
- * This component provides the main AI conversation interface, handling:
- * - Message history loading and persistence
- * - User input handling and draft persistence
- * - File attachment and text quote context assembly
- * - Resizable input panel with height persistence
- * - Coordination between useAgentStream and useChatStreaming hooks
+ * Thin orchestration shell composing:
+ * - History, pagination & session lifecycle (`useChatHistory`)
+ * - Quota tracking, midnight resets & stop/refund notes (`useChatQuotaAndStops`)
+ * - Suggestions cache & refresh (`useChatSuggestionsController`)
+ * - Auto-scroll, ResizeObserver settle & desktop input resize (`useChatScrollAndResize`)
+ * - Undo confirmation & deletion restore (`useChatUndoAndRestore`)
+ * - Starters, NextStepCard & dashboard inspiration auto-send (`useChatStartersAndNextStep`)
+ * - Streaming UI & SSE transport (`useChatStreaming` + `useAgentStream`)
  *
- * Streaming UI state management is delegated to {@link useChatStreaming} hook, which handles:
- * - Stream render items with throttled updates for performance
- * - Edit progress tracking for AI file modifications
- * - Skill matching state
- * - Callback handlers for all SSE events from useAgentStream
- *
- * Note: Suggestion refresh is kept in ChatPanel because it depends on current
- * project + live message history (which are owned by this component). Suggestions
- * are requested automatically only when a project opens without a cached set and
- * once after each completed turn (deduplicated); there is no idle polling.
- *
- * @see useChatStreaming - Streaming UI state management hook
- * @see useAgentStream - SSE streaming hook for AI responses
  * @module components/ChatPanel
  */
-import { MAX_AGENT_MESSAGE_CHARS } from "../lib/agentLimits";
-import { clearFileRemoved, hasAnyUnprotectedDeletedDraft, notifyFileRemoved, subscribeDeletedDraftProtection } from "../lib/fileRemovalEvents";
-import React, { lazy, Suspense, useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
+
+import React, {
+  lazy,
+  Suspense,
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, Sparkles } from "lucide-react";
 import { useProject } from "../contexts/ProjectContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useFirstWork, needsStaticFirstWorkGuidance } from "../hooks/useFirstWork";
-import { firstWorkApi, firstWorkQueryKey } from "../lib/firstWorkApi";
+import { firstWorkQueryKey } from "../lib/firstWorkApi";
 import { useMobileLayout } from "../contexts/MobileLayoutContext";
 import { useMaterialAttachment } from "../contexts/MaterialAttachmentContext";
 import { useTextQuote } from "../contexts/TextQuoteContext";
-import { useAgentStream } from "../hooks/useAgentStream";
-import type { MessageSegment, StreamCompletionMeta } from "../hooks/useAgentStream";
-import { dropProgressOnlyItems, parseChatDisplayEvents } from "../lib/chatDisplayEvents";
+import {
+  useAgentStream,
+  type MessageSegment,
+  type StreamCompletionMeta,
+} from "../hooks/useAgentStream";
 import { useChatStreaming } from "../hooks/useChatStreaming";
-import { MessageList } from "./MessageList";
-import type { Message, MessageListRef, MessageStatusCard } from "./MessageList";
+import { dropProgressOnlyItems } from "../lib/chatDisplayEvents";
+import { MessageList, type Message, type MessageStatusCard } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import { AlertTriangle, Sparkles, Loader2, Plus, Edit3, Database, ArrowDown } from "lucide-react";
-import { QuotaBadge } from "./subscription/QuotaBadge";
-import {
-  CHAT_CARD_SECONDARY_BUTTON,
-  CHAT_CARD_SURFACE,
-  CHAT_CARD_WARNING_SURFACE,
-} from "./chatCardStyles";
-import { Button } from "./ui/Button";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { IconButton } from "./ui/IconButton";
-import { subscriptionApi, subscriptionQueryKeys } from "../lib/subscriptionApi";
-import { isAiMessageQuotaExhausted } from "../hooks/useAiMessageQuota";
-import {
-  EDITOR_CONTENT_SAVED_EVENT,
-  flushOpenEditor,
-  type EditorContentSavedDetail,
-  type OpenEditorFlushResult,
-} from "../lib/editorSaveTracker";
-import type {
-  AgentRequest,
-  FileEditUndoTarget,
-  FileType,
-  SSEWorkflowStoppedData,
-} from "../types";
+import { subscriptionQueryKeys } from "../lib/subscriptionApi";
+import { flushOpenEditor } from "../lib/editorSaveTracker";
+import type { AgentRequest, FileType, SSEWorkflowStoppedData } from "../types";
 import { logger } from "../lib/logger";
-import {
-  getRecentMessages,
-  createNewSession,
-  submitMessageFeedback,
-  type ChatMessage,
-  type MessageFeedbackData,
-  type MessageFeedbackVote,
-} from "../lib/chatApi";
-import { fileApi, fileVersionApi, projectApi } from "../lib/api";
-import {
-  BOOTSTRAP_DEFAULT_CHAT_LIMIT,
-  markBootstrappedChatConsumed,
-  peekBootstrappedChat,
-} from "../lib/workbenchBootstrap";
+import { fileApi } from "../lib/api";
 import { NextStepCard } from "./NextStepCard";
-import { StarterCards, type ManuscriptStarterKind } from "./StarterCards";
-import { hasPendingInspiration } from "../lib/pendingInspiration";
-import { useNextStepDismissal } from "../hooks/useNextStepDismissal";
-import { duplicatesNextStep, latestRoundAwaitsReply } from "../lib/nextStep";
-import { fetchSuggestions, type QuotaRefundKind, type RemovedPlaceholderFile } from "../lib/agentApi";
-import { optionsOfferedInReply } from "../lib/replyOptions";
-import { UndoBlockedContext, UndoneEditsContext, undoneEditKey } from "../lib/undoneEdits";
-import { collectUndoCardRefs, undoBlockedByLaterWrite } from "../lib/aiWriteCards";
-import { parseUTCDate } from "../lib/dateUtils";
+import { StarterCards } from "./StarterCards";
+import { duplicatesNextStep } from "../lib/nextStep";
+import { UndoBlockedContext, UndoneEditsContext } from "../lib/undoneEdits";
 import { ApiError } from "../lib/apiClient";
-import { handleApiError } from "../lib/errorHandler";
 import { toast } from "../lib/toast";
 import { appendDraftForProject, useDraftPersistence } from "../hooks/useDraftPersistence";
 import { UpgradePromptModal } from "./subscription/UpgradePromptModal";
 import { ChatQuotaCard } from "./subscription/ChatQuotaCard";
-import { nextAiQuotaResetMs, aiQuotaPeriodKey } from "../hooks/useAiMessageQuota";
-import { getUpgradePromptDefinition } from "../config/upgradeExperience";
 import { trackEvent } from "../lib/analytics";
-import { reportActivationEvent } from "../lib/activationEvents";
 import { useLeaveWhileGenerating } from "../hooks/useLeaveWhileGenerating";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { StreamActivityLine } from "./StreamActivityLine";
-import { createBodyWriteProgress, createProseCounter, isWriteToolResult } from "../lib/agentRoundProgress";
+import {
+  createBodyWriteProgress,
+  createProseCounter,
+  isWriteToolResult,
+} from "../lib/agentRoundProgress";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
-import { exhaustionLeftFilesUnfinished, formatRoundDelivery, hasSubstantiveDisplayItems, parseIterationExhaustedFiles, parseRoundStopOutcome, type RoundWrittenFile } from "../lib/chatRoundEnd";
+import {
+  exhaustionLeftFilesUnfinished,
+  hasSubstantiveDisplayItems,
+} from "../lib/chatRoundEnd";
+import {
+  hasAnyUnprotectedDeletedDraft,
+  notifyFileRemoved,
+  subscribeDeletedDraftProtection,
+} from "../lib/fileRemovalEvents";
 import type { QuotaResponse } from "../types/subscription";
+import {
+  extractCompletedToolResults,
+  isAccountRunRefusal,
+  isNetworkQuotaRefusal,
+  keepUnsavedFile,
+} from "./chat/chatHistoryHelpers";
+import { useChatSuggestionsController } from "./chat/useChatSuggestionsController";
+import {
+  CHAT_INPUT_PANEL_MAX_HEIGHT_PX,
+  useChatScrollAndResize,
+} from "./chat/useChatScrollAndResize";
+import {
+  useChatQuotaEffectsAndNotes,
+  useChatQuotaState,
+} from "./chat/useChatQuotaAndStops";
+import { useChatUndoAndRestore } from "./chat/useChatUndoAndRestore";
+import {
+  useChatStartersAndNextStepEffects,
+  useProjectProgressState,
+} from "./chat/useChatStartersAndNextStep";
+import { useChatHistory } from "./chat/useChatHistory";
+import { ChatPanelHeader } from "./chat/ChatPanelHeader";
+import {
+  ChatStreamErrorCard,
+  EditProgressCard,
+  JumpToLatestOverlay,
+  LoadEarlierMessagesButton,
+  RoundStatusNotes,
+  SessionRecoveryAlert,
+} from "./chat/ChatStatusBanners";
+
+// eslint-disable-next-line react-refresh/only-export-components
+export { mergeEarlierHistoryMessages } from "./chat/chatHistoryHelpers";
 
 const ProjectStatusDialog = lazy(() =>
   import("./ProjectStatusDialog").then((m) => ({ default: m.ProjectStatusDialog })),
 );
 const LeaveWhileGeneratingDialog = lazy(() =>
-  import("./LeaveWhileGeneratingDialog").then((m) => ({ default: m.LeaveWhileGeneratingDialog })),
+  import("./LeaveWhileGeneratingDialog").then((m) => ({
+    default: m.LeaveWhileGeneratingDialog,
+  })),
 );
 
-const clampNumber = (value: number, min: number, max: number): number => {
-  return Math.min(max, Math.max(min, value));
-};
-
-const parseMessageMetadataObject = (metadataRaw?: string | null): Record<string, unknown> | null => {
-  if (!metadataRaw) return null;
-
-  try {
-    const parsed: unknown = JSON.parse(metadataRaw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const parseMessageStatusCardsFromMetadata = (
-  metadata: Record<string, unknown> | null,
-): Message["statusCards"] | undefined => {
-  if (!metadata) return undefined;
-
-  const statusCards = metadata.status_cards;
-  if (!Array.isArray(statusCards)) return undefined;
-
-  const normalized = statusCards
-    .map((card): NonNullable<Message["statusCards"]>[number] | null => {
-      if (!card || typeof card !== "object") return null;
-
-      const cardType = (card as { type?: unknown }).type;
-      if (cardType === "workflow_stopped") {
-        const reason = (card as { reason?: unknown }).reason;
-        const agentType = (card as { agentType?: unknown }).agentType;
-        const message = (card as { message?: unknown }).message;
-        const question = (card as { question?: unknown }).question;
-        const context = (card as { context?: unknown }).context;
-        const details = (card as { details?: unknown }).details;
-
-        return {
-          type: "workflow_stopped",
-          reason: typeof reason === "string" ? reason : undefined,
-          agentType: typeof agentType === "string" ? agentType : undefined,
-          message: typeof message === "string" ? message : undefined,
-          question: typeof question === "string" ? question : undefined,
-          context: typeof context === "string" ? context : undefined,
-          details: Array.isArray(details)
-            ? details.filter((detail): detail is string => typeof detail === "string")
-            : undefined,
-        };
-      }
-
-      if (cardType === "iteration_exhausted") {
-        const layer = (card as { layer?: unknown }).layer;
-        const iterationsUsed = (card as { iterationsUsed?: unknown }).iterationsUsed;
-        const maxIterations = (card as { maxIterations?: unknown }).maxIterations;
-        const reason = (card as { reason?: unknown }).reason;
-        const lastAgent = (card as { lastAgent?: unknown }).lastAgent;
-        const limit = (card as { limit?: unknown }).limit;
-        const unfinished = parseIterationExhaustedFiles(
-          (card as { unfinishedFiles?: unknown }).unfinishedFiles,
-          (card as { rolledBackFiles?: unknown }).rolledBackFiles,
-        );
-
-        return {
-          type: "iteration_exhausted",
-          layer: layer === "collaboration" || layer === "tool_call" || layer === "empty_file_correction" || layer === "unexecuted_tool_text" ? layer : undefined,
-          ...unfinished,
-          iterationsUsed: typeof iterationsUsed === "number" ? iterationsUsed : undefined,
-          maxIterations: typeof maxIterations === "number" ? maxIterations : undefined,
-          reason: typeof reason === "string" ? reason : undefined,
-          lastAgent: typeof lastAgent === "string" ? lastAgent : undefined,
-          limit: typeof limit === "string" ? limit : undefined,
-        };
-      }
-
-      return null;
-    })
-    .filter((card): card is NonNullable<Message["statusCards"]>[number] => card !== null);
-
-  return normalized.length > 0 ? normalized : undefined;
-};
-
-/**
- * A saved round that ended in an error (stop_outcome) or stopped with a file that never got its
- * text (an iteration_exhausted card saying so, in the saved timeline or the legacy status cards).
- */
-const roundEndedUnfinished = (message: Message): boolean =>
-  message.stopOutcome?.reason === "error"
-  || message.stopOutcome?.reason === "incomplete"
-  || Boolean(message.statusCards?.some((card) => card.type === "iteration_exhausted" && exhaustionLeftFilesUnfinished(card)))
-  || Boolean(message.displayItems?.some((item) => item.type === "iteration_exhausted" && exhaustionLeftFilesUnfinished(item)));
-
-const parseToolCallsFromHistory = (toolCallsRaw?: string | null): Pick<Message, "toolCalls" | "toolResults"> & { orderedToolCalls?: import("../types").ToolCall[] } => {
-  if (!toolCallsRaw) return {};
-
-  try {
-    const parsed = JSON.parse(toolCallsRaw) as unknown;
-    if (!Array.isArray(parsed)) return {};
-
-    const normalized = parsed
-      .map((item): import("../types").ToolCall | null => {
-        if (!item || typeof item !== "object") return null;
-
-        const id = (item as { id?: unknown }).id;
-        const toolName = (item as { name?: unknown }).name;
-        const rawArguments = (item as { arguments?: unknown }).arguments;
-        const status = (item as { status?: unknown }).status;
-        const result = (item as { result?: unknown }).result;
-        const error = (item as { error?: unknown }).error;
-
-        let normalizedArguments: Record<string, unknown> = {};
-        if (rawArguments && typeof rawArguments === "object") {
-          normalizedArguments = rawArguments as Record<string, unknown>;
-        } else if (typeof rawArguments === "string") {
-          try {
-            const parsedArguments = JSON.parse(rawArguments) as unknown;
-            if (parsedArguments && typeof parsedArguments === "object") {
-              normalizedArguments = parsedArguments as Record<string, unknown>;
-            }
-          } catch {
-            normalizedArguments = {};
-          }
-        }
-
-        return {
-          id: typeof id === "string" && id.trim() ? id : `history-tool-${Math.random().toString(36).slice(2, 10)}`,
-          tool_name: typeof toolName === "string" ? toolName : "unknown",
-          arguments: normalizedArguments,
-          status:
-            status === "pending" || status === "error" || status === "success"
-              ? status
-              : "success",
-          result: result && typeof result === "object" ? (result as Record<string, unknown>) : undefined,
-          error: typeof error === "string" ? error : undefined,
-        };
-      })
-      .filter((item): item is import("../types").ToolCall => item !== null);
-
-    if (normalized.length === 0) return {};
-
-    return {
-      orderedToolCalls: normalized,
-      toolCalls: normalized.filter((toolCall) => toolCall.status === "pending"),
-      toolResults: normalized.filter((toolCall) => toolCall.status !== "pending"),
-    };
-  } catch {
-    return {};
-  }
-};
-
-/**
- * Props for the ChatPanel component.
- * The panel integrates with global contexts for project state, materials, and quotes.
- */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ChatPanelProps {}
 
-/** Local storage key for persisting chat input panel height */
-/**
- * Stop options for "the editor could not save the author's text before the round
- * ends": the server keeps that file even if it looks blank.
- */
-const keepUnsavedFile = (result: OpenEditorFlushResult): { keepFileIds: string[] } | undefined =>
-  !result.saved && result.fileId ? { keepFileIds: [result.fileId] } : undefined;
-
-/** The account's task slots are taken: the server started and charged nothing. */
-const isAccountRunRefusal = (code: string | null | undefined) =>
-  code === "ERR_ACCOUNT_RUNS_BUSY";
-
-/**
- * This network's shared free allowance is used up: nothing was started or charged. Sending stays
- * open (the author may change networks, and the server decides). This account's own count is
- * untouched, so this is not reported as the used-up day.
- */
-const isNetworkQuotaRefusal = (code: string | null | undefined) =>
-  code === "ERR_QUOTA_FREE_NETWORK_DAILY_EXCEEDED";
-
-const STARTER_HIGHLIGHT_MS = 1600;
-/** How long a work's first chat waits for its progress before showing the example starter. */
-const STARTER_PROGRESS_WAIT_MS = 1500;
-const SUGGESTION_COUNT = 3;
-const CHAT_INPUT_PANEL_HEIGHT_KEY = "zenstory_chat_input_panel_height_px";
-const SUGGESTION_CACHE_KEY_PREFIX = "zenstory_suggestions_cache_";
-const SUGGESTION_CACHE_TTL_MS = 10 * 60 * 1000;
-const SUGGESTION_INITIAL_TIMEOUT_MS = 1500;
-
-/** Minimum height of the chat input panel in pixels (fits handle + padding + accessories + two-row capsule) */
-const CHAT_INPUT_PANEL_MIN_HEIGHT_PX = 188;
-
-/** Maximum height of the chat input panel in pixels */
-const CHAT_INPUT_PANEL_MAX_HEIGHT_PX = 520;
-
-/**
- * Maximum height ratio of the input panel relative to the chat panel.
- * Keeps the layout balanced by limiting input panel size.
- */
-const CHAT_INPUT_PANEL_MAX_RATIO = 0.45;
-
-/** Minimum height reserved for the messages list in pixels */
-const CHAT_INPUT_PANEL_MIN_MESSAGES_PX = 160;
-
-// 历史加载完后这么久之内，列表变高（懒加载的 Markdown 渲染完）还继续贴底。
-const HISTORY_SETTLE_FOLLOW_MS = 5000;
-
-const isNearBottom = (el: HTMLElement, thresholdPx = 48) => {
-  return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
-};
-
-type SuggestionDisplayState = "loading" | "ready" | "fallback";
-
-interface SuggestionCachePayload {
-  suggestions: string[];
-  updatedAt: number;
-}
-
-const extractCompletedToolResults = (segments: MessageSegment[]): Message["toolResults"] | undefined => {
-  const completedToolResults = segments.flatMap((segment) => {
-    if (segment.type !== "tool_calls" || !segment.toolCalls?.length) {
-      return [];
-    }
-
-    return segment.toolCalls
-      .filter((toolCall) => toolCall.status !== "pending")
-      .map((toolCall) => ({
-        ...toolCall,
-        arguments: toolCall.arguments ?? {},
-      }));
-  });
-
-  return completedToolResults.length > 0 ? completedToolResults : undefined;
-};
-
-const parseMessageFeedbackFromMetadata = (
-  metadata: Record<string, unknown> | null,
-): Message["feedback"] | undefined => {
-  if (!metadata) return undefined;
-
-  const feedback = metadata.feedback;
-  if (!feedback || typeof feedback !== "object") return undefined;
-
-  const vote = (feedback as { vote?: unknown }).vote;
-  if (vote !== "up" && vote !== "down") return undefined;
-
-  const preset = (feedback as { preset?: unknown }).preset;
-  const comment = (feedback as { comment?: unknown }).comment;
-  const updatedAt = (feedback as { updated_at?: unknown }).updated_at;
-
-  return {
-    vote,
-    preset: typeof preset === "string" ? preset : null,
-    comment: typeof comment === "string" ? comment : null,
-    updated_at: typeof updatedAt === "string" ? updatedAt : null,
-  };
-};
-
-const normalizeFeedbackFromResponse = (
-  feedback: MessageFeedbackData | undefined,
-  fallbackVote: MessageFeedbackVote,
-  fallbackUpdatedAt: string,
-): Message["feedback"] => {
-  return {
-    vote: feedback?.vote ?? fallbackVote,
-    preset: feedback?.preset ?? null,
-    comment: feedback?.comment ?? null,
-    updated_at: feedback?.updated_at ?? fallbackUpdatedAt,
-  };
-};
-
-const normalizeMessageContent = (content: string): string => {
-  return content.replace(/\s+/g, " ").trim();
-};
-
-const findUnassignedAssistantMessage = (
-  recentMessages: ChatMessage[],
-  assignedBackendIds: Set<string>,
-  expectedContent: string,
-  expectedSessionId?: string | null,
-): ChatMessage | null => {
-  const candidates = recentMessages.filter(
-    (message) =>
-      message.role === "assistant"
-      && !assignedBackendIds.has(message.id)
-      && (!expectedSessionId || message.session_id === expectedSessionId),
-  );
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  const normalizedExpectedContent = normalizeMessageContent(expectedContent);
-  if (normalizedExpectedContent) {
-    for (let index = candidates.length - 1; index >= 0; index -= 1) {
-      const candidate = candidates[index];
-      if (normalizeMessageContent(candidate.content) === normalizedExpectedContent) {
-        return candidate;
-      }
-    }
-  }
-
-  return candidates[candidates.length - 1] ?? null;
-};
-
-
-/**
- * AI chat interface component providing the main conversation experience.
- *
- * This component serves as the UI layer for the chat interface, coordinating:
- * - Message display and history management
- * - User input handling with draft persistence
- * - Context assembly from file attachments and text quotes
- * - Resizable input panel with persisted height
- *
- * Streaming logic is delegated to specialized hooks:
- * - {@link useChatStreaming} - Manages streaming UI state (render items, edit progress, suggestions)
- * - {@link useAgentStream} - Handles SSE connection and event processing
- *
- * The component wires these hooks together, passing callbacks from useChatStreaming
- * to useAgentStream to handle streaming events with proper state updates.
- *
- * @returns React element containing the complete chat interface
- *
- * @example
- * // The ChatPanel is typically rendered in the main layout:
- * <ChatPanel />
- */
-// eslint-disable-next-line react-refresh/only-export-components
-export function mergeEarlierHistoryMessages(
-  fetchedHistory: Message[],
-  currentMessages: Message[],
-): Message[] {
-  if (currentMessages.length === 0) return fetchedHistory;
-  if (fetchedHistory.length === 0) return currentMessages;
-
-  const currentKeys = new Set<string>();
-  for (const msg of currentMessages) {
-    currentKeys.add(msg.id);
-    if (msg.backendMessageId) {
-      currentKeys.add(msg.backendMessageId);
-    }
-  }
-
-  const anchor = currentMessages[0];
-  const anchorKeys = new Set<string>([anchor.id]);
-  if (anchor.backendMessageId) {
-    anchorKeys.add(anchor.backendMessageId);
-  }
-
-  const anchorIndex = fetchedHistory.findIndex(
-    (msg) =>
-      anchorKeys.has(msg.id) ||
-      (msg.backendMessageId ? anchorKeys.has(msg.backendMessageId) : false),
-  );
-
-  let earlierCandidates: Message[];
-  if (anchorIndex !== -1) {
-    earlierCandidates = fetchedHistory.slice(0, anchorIndex);
-  } else {
-    // currentMessages[0] is absent from the fetched window (e.g. >35 new messages or
-    // un-synced optimistic IDs). Only prepend if every fetched message is strictly
-    // older than currentMessages[0] and does not overlap any existing message.
-    const anchorMs = anchor.timestamp instanceof Date ? anchor.timestamp.getTime() : NaN;
-    const allStrictlyOlder =
-      Number.isFinite(anchorMs) &&
-      fetchedHistory.every((msg) => {
-        const msgMs = msg.timestamp instanceof Date ? msg.timestamp.getTime() : NaN;
-        const overlapsCurrent =
-          currentKeys.has(msg.id) ||
-          (msg.backendMessageId ? currentKeys.has(msg.backendMessageId) : false);
-        return Number.isFinite(msgMs) && msgMs < anchorMs && !overlapsCurrent;
-      });
-    if (!allStrictlyOlder) {
-      return currentMessages;
-    }
-    earlierCandidates = fetchedHistory;
-  }
-
-  const earlierMessages = earlierCandidates.filter(
-    (msg) =>
-      !currentKeys.has(msg.id) &&
-      !(msg.backendMessageId && currentKeys.has(msg.backendMessageId)),
-  );
-
-  if (earlierMessages.length === 0) return currentMessages;
-  return [...earlierMessages, ...currentMessages];
-}
-
 const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
-  const { t, i18n } = useTranslation(['chat', 'common', 'dashboard', 'home', 'editor', 'versions']);
-  const chatQuotaUpgradePrompt = getUpgradePromptDefinition("chat_quota_blocked");
-  const fileVersionUpgradePrompt = getUpgradePromptDefinition("file_version_quota_blocked");
-
+  const { t, i18n } = useTranslation(["chat", "common", "dashboard", "home", "editor", "versions"]);
   const {
     currentProjectId,
     currentProject,
@@ -525,69 +142,18 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     startFileStreaming,
     streamingFileId,
     refreshProject,
-  } =
-    useProject();
+  } = useProject();
+
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const firstWork = useFirstWork(userId);
   const staticFirstWork = needsStaticFirstWorkGuidance(firstWork.data, currentProjectId);
-  // Same query (and cache) as the header's QuotaBadge, which also polls it.
-  const { data: quota } = useQuery({
-    queryKey: subscriptionQueryKeys.quota(),
-    queryFn: () => subscriptionApi.getQuota(),
-  });
-  const aiMessageQuota = quota?.ai_conversations;
-  // Same rule as the home page (a plan without a positive daily limit is never "used up").
-  const quotaExhausted = isAiMessageQuotaExhausted(aiMessageQuota);
-  // Pro (no daily limit) never hears about today's count, and neither does anyone while the
-  // quota is still loading (it may turn out to be Pro).
-  const showDailyCount = Boolean(aiMessageQuota) && aiMessageQuota?.limit !== -1;
-  /** Refresh the quota pill (and other quota readers) after the server charged or refunded. */
-  const invalidateQuota = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: subscriptionQueryKeys.quota() });
-  }, [queryClient]);
-  /** Today's used count in the cache when this round was sent (before the server reserved one). */
-  const roundQuotaBaselineRef = useRef<number | null>(null);
-  /**
-   * The server confirmed this round's AI message was refunded: put the cached count back to
-   * where it was before the round right away (the refetch can take seconds, and the refund
-   * note already says 「不计入」). min() makes a repeated frame a no-op; the refetch that
-   * follows corrects anything used elsewhere meanwhile.
-   */
-  const applyConfirmedRefund = useCallback(() => {
-    const baseline = roundQuotaBaselineRef.current;
-    if (baseline == null) return;
-    const restore = (old: QuotaResponse | undefined) =>
-      old && old.ai_conversations.limit !== -1
-        ? { ...old, ai_conversations: { ...old.ai_conversations, used: Math.min(old.ai_conversations.used, baseline) } }
-        : old;
-    queryClient.setQueryData<QuotaResponse>(subscriptionQueryKeys.quota(), restore);
-  }, [queryClient]);
-  const { isMobile, activePanel, chatFocusRequest, switchToEditor, focusChatInput } = useMobileLayout();
-  /** New-user funnel: a send was held back because today's AI messages are used up (once per account). */
-  const reportQuotaBlockedSend = useCallback((serverRefused: boolean) => {
-    void reportActivationEvent(userId, {
-      event_name: "ai_send_blocked_quota",
-      surface: "chat",
-      project_id: currentProjectId,
-      server_refused: serverRefused,
-      is_mobile: isMobile,
-    });
-  }, [userId, currentProjectId, isMobile]);
-  // Sent here by the empty editor's 「让 AI 帮你写开头」: focusing the input alone looked like nothing
-  // happened (2026-10-20 new-user audit), so the starter cards light up briefly as well.
-  const [settledChatFocusRequest, setSettledChatFocusRequest] = useState(chatFocusRequest);
-  const starterHighlighted = chatFocusRequest !== settledChatFocusRequest;
-  useEffect(() => {
-    if (!starterHighlighted) return;
-    const timer = window.setTimeout(() => setSettledChatFocusRequest(chatFocusRequest), STARTER_HIGHLIGHT_MS);
-    return () => window.clearTimeout(timer);
-  }, [chatFocusRequest, starterHighlighted]);
+  const { isMobile, activePanel, chatFocusRequest, switchToEditor, focusChatInput } =
+    useMobileLayout();
   const { attachedFileIds, attachedLibraryMaterials, clearMaterials } = useMaterialAttachment();
   const { quotes, clearQuotes } = useTextQuote();
 
-  // Use ref to track latest streamingFileId for use in callbacks
   const streamingFileIdRef = useRef<string | null>(streamingFileId);
   useEffect(() => {
     streamingFileIdRef.current = streamingFileId;
@@ -597,70 +163,110 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     selectedItemRef.current = selectedItem;
   }, [selectedItem]);
 
+  const currentProjectIdRef = useRef<string | null>(currentProjectId);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [feedbackPendingMessageId, setFeedbackPendingMessageId] = useState<string | null>(null);
-  const [showQuotaUpgradeModal, setShowQuotaUpgradeModal] = useState(false);
-  const [showFileVersionUpgradeModal, setShowFileVersionUpgradeModal] = useState(false);
-  // 后端确实退还了这一轮的 AI 消息时才有值（quota_refunded 帧），按项目隔离，下一轮开始时清空。
-  const [quotaRefund, setQuotaRefund] = useState<{
-    projectId: string;
-    kind: QuotaRefundKind;
-    removedFiles: RemovedPlaceholderFile[];
-  } | null>(null);
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null);
-  // 作者点了「停止生成」后的结束说明，按项目隔离，下一轮开始或新建会话时清空。
-  const [userStop, setUserStop] = useState<{
-    projectId: string;
-    wroteFiles: boolean;
-    counted: boolean;
-    /** The files the server says this round wrote (done.written_files); empty from older servers. */
-    writtenFiles: RoundWrittenFile[];
-    unwrittenFiles?: RoundWrittenFile[];
-  } | null>(null);
-  /**
-   * What this round has done so far, for the stop note and the leave dialog: a write
-   * left text in a file / the server charged / real output exists (a write, or a reply
-   * segment long enough to be prose rather than a one-line narration before a tool call).
-   */
-  // endedIncomplete: the round stopped with a file that never got its text (see exhaustionLeftFilesUnfinished).
-  const roundProgressRef = useRef({ wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false });
-  /** Reply text since the last segment boundary, counted like the server (see createProseCounter). */
+  const roundProgressRef = useRef({
+    wroteFiles: false,
+    charged: false,
+    producedOutput: false,
+    endedInError: false,
+    endedIncomplete: false,
+  });
   const proseCounterRef = useRef(createProseCounter());
-  /** Which file is getting its text right now, for the waiting line (see createBodyWriteProgress). */
   const bodyWriteRef = useRef(createBodyWriteProgress());
   const readBodyWrite = useCallback(() => bodyWriteRef.current.snapshot(), []);
-  /** The author pressed 停止 in this project's current round; the note waits for how the round ended. */
   const stopRequestedProjectRef = useRef<string | null>(null);
-  /** Reentrancy guard: two sends in the same tick (closure isStreaming still stale) start one round. */
   const sendLockRef = useRef(false);
-  /**
-   * 「新对话」 is waiting for the stopped round to wrap up. After `done` isStreaming is already
-   * false while the stream is still open, so sending stays blocked on this too: a message sent
-   * then would start in the old session and be cut off by the new chat's reset().
-   * The ref guards same-tick calls; the state drives the input.
-   */
   const newChatAfterStopRef = useRef(false);
   const [newChatPending, setNewChatPending] = useState(false);
-  const creatingSessionRef = useRef<number | null>(null);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const sessionRecoveryBlockedRef = useRef<string | null>(null);
-  const [sessionRecoveryError, setSessionRecoveryError] = useState<string | null>(null);
   const pendingMaterialClearRef = useRef(false);
   const pendingQuoteClearRef = useRef(false);
   const currentAgentSessionIdRef = useRef<string | null>(null);
-  const [pendingUndoTarget, setPendingUndoTarget] = useState<FileEditUndoTarget | null>(null);
-  const [undoneEdits, setUndoneEdits] = useState<ReadonlySet<string>>(() => new Set());
-  // Cards whose undo the server refused as stale in this session (the file no longer holds that
-  // edit's text). They can never be undone, so they stop holding back an earlier card's undo.
-  const [staleUndoEdits, setStaleUndoEdits] = useState<ReadonlySet<string>>(() => new Set());
-  const [isUndoing, setIsUndoing] = useState(false);
+  const terminalStatusCardsRef = useRef<MessageStatusCard[]>([]);
   const lastRetryRequestRef = useRef<{
     projectId: string;
     request: Omit<AgentRequest, "project_id">;
   } | null>(null);
+  const [lastRetryMeta, setLastRetryMeta] = useState<{
+    projectId: string;
+    entry: unknown;
+  } | null>(null);
 
+  const [showAIMemory, setShowAIMemory] = useState(false);
+  const [aiMemoryInitialSection, setAIMemoryInitialSection] = useState<
+    "writing-agreements" | undefined
+  >();
+  const openAIMemory = useCallback((initialSection?: "writing-agreements") => {
+    setAIMemoryInitialSection(initialSection);
+    setShowAIMemory(true);
+  }, []);
+  const openWritingAgreements = useCallback(
+    () => openAIMemory("writing-agreements"),
+    [openAIMemory],
+  );
 
-  // Use the useChatStreaming hook for streaming UI state management
+  const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  const blockedCandidateRef = useRef<{
+    id: string;
+    content: string;
+    skillIds: string[];
+    keepIfBusy?: boolean;
+  } | null>(null);
+  const [refusedSend, setRefusedSend] = useState<{
+    seq: number;
+    message: string;
+    skillIds: string[];
+  } | null>(null);
+  const returnBlockedMessageToInput = useCallback(() => {
+    const candidate = blockedCandidateRef.current;
+    blockedCandidateRef.current = null;
+    if (!candidate) return false;
+    setMessages((prev) => prev.filter((message) => message.id !== candidate.id));
+    setRefusedSend((prev) => ({
+      seq: (prev?.seq ?? 0) + 1,
+      message: candidate.content,
+      skillIds: candidate.skillIds,
+    }));
+    const typedSince = draftRef.current;
+    if (!typedSince.trim()) {
+      saveDraft(candidate.content);
+    } else if (!typedSince.includes(candidate.content)) {
+      saveDraft(`${candidate.content}\n\n${typedSince}`);
+    }
+    return true;
+  }, [saveDraft]);
+
+  useEffect(() => {
+    lastRetryRequestRef.current = null;
+    setLastRetryMeta(null);
+    blockedCandidateRef.current = null;
+  }, [currentProjectId]);
+
+  const quotaState = useChatQuotaState({
+    currentProjectId,
+    userId,
+    isMobile,
+    queryClient,
+  });
+  const {
+    invalidateQuota,
+    roundQuotaBaselineRef,
+    reportQuotaBlockedSend,
+    setShowQuotaUpgradeModal,
+    setUserStop,
+  } = quotaState;
+
   const {
     streamRenderItems,
     getStreamItemsSnapshot,
@@ -671,162 +277,65 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setMatchedSkills,
     getStreamCallbacks,
   } = useChatStreaming();
-  const [suggestionDisplayState, setSuggestionDisplayState] = useState<SuggestionDisplayState>("loading");
-  /**
-   * The project whose chat opened with no messages at all: its empty chat shows the starter
-   * cards instead of requesting /suggest, and the first message typed there carries
-   * `entry: "first_message"` (the server checks the work really has no AI reply yet).
-   * A chat the author starts with 「新对话」 keeps the suggestions.
-   */
-  const [starterProjectId, setStarterProjectId] = useState<string | null>(null);
-  const starterProjectIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    starterProjectIdRef.current = starterProjectId;
-  }, [starterProjectId]);
-  const suggestionRequestSeqRef = useRef(0);
-  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
-  const [isRefreshingSuggestions, setIsRefreshingSuggestions] = useState(false);
-  const aiSuggestionsRef = useRef<string[]>([]);
 
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [hasMoreHistory, setHasMoreHistory] = useState(false);
-  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false);
-  const historyLimitRef = useRef(50);
-  const [showAIMemory, setShowAIMemory] = useState(false);
-  const [aiMemoryInitialSection, setAIMemoryInitialSection] = useState<'writing-agreements' | undefined>();
-  const openAIMemory = useCallback((initialSection?: 'writing-agreements') => {
-    setAIMemoryInitialSection(initialSection);
-    setShowAIMemory(true);
+  const suggestions = useChatSuggestionsController({
+    currentProjectId,
+    currentProjectIdRef,
+    userId,
+    queryClient,
+    messagesRef,
+  });
+  const {
+    requestInitialSuggestions,
+    schedulePostTurnSuggestions,
+    invalidateInFlightSuggestions,
+    resetSuggestionsForNewRound,
+    clearSuggestionsForUnfinishedRound,
+    setAiSuggestions,
+    setSuggestionDisplayState,
+  } = suggestions;
+
+  const progressState = useProjectProgressState(currentProjectIdRef);
+  const {
+    starterProjectIdRef,
+    refreshNextStep,
+    resetProgressForProject,
+    setStarterProjectId,
+  } = progressState;
+
+  // Reset scroll helper ref bridged once scroll controller initializes below
+  const resetScrollStateRef = useRef<() => void>(() => {});
+  const onResetScrollForError = useCallback(() => {
+    resetScrollStateRef.current();
   }, []);
-  const openWritingAgreements = useCallback(() => openAIMemory('writing-agreements'), [openAIMemory]);
-  const { draft, saveDraft, clearDraft } = useDraftPersistence(currentProjectId);
-  const draftRef = useRef(draft);
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
-  /** The bubble just sent, until the server accepts the round (it is not stored before that). */
-  const blockedCandidateRef = useRef<{ id: string; content: string; skillIds: string[]; keepIfBusy?: boolean } | null>(null);
-  /**
-   * The server refused the round before starting it: put the words back in the input.
-   * Anything typed into the box since sending stays, after the returned message.
-   */
-  const [refusedSend, setRefusedSend] = useState<{ seq: number; message: string; skillIds: string[] } | null>(null);
-  const returnBlockedMessageToInput = useCallback(() => {
-    const candidate = blockedCandidateRef.current;
-    blockedCandidateRef.current = null;
-    if (!candidate) return false;
-    setMessages((prev) => prev.filter((message) => message.id !== candidate.id));
-    setRefusedSend((prev) => ({ seq: (prev?.seq ?? 0) + 1, message: candidate.content, skillIds: candidate.skillIds }));
-    const typedSince = draftRef.current;
-    if (!typedSince.trim()) {
-      saveDraft(candidate.content);
-    } else if (!typedSince.includes(candidate.content)) {
-      saveDraft(`${candidate.content}\n\n${typedSince}`);
-    }
-    return true;
-  }, [saveDraft]);
-  const messageListRef = useRef<MessageListRef>(null);
-  const messagesScrollContainerRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScrollRef = useRef(true);
-  const followLoadedHistoryUntilRef = useRef(0);
-  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const { isMounted: isJumpToLatestMounted, isExiting: isJumpToLatestExiting } = useAnimatedPresence(
-    showJumpToLatest,
-    130,
-  );
-  const autoScrollFrameRef = useRef<number | null>(null);
-  const lastLoadedProjectRef = useRef<string | null>(null);
-  const historyRequestSeqRef = useRef(0);
-  const newSessionRequestSeqRef = useRef(0);
 
-  useEffect(() => {
-    lastRetryRequestRef.current = null;
-    blockedCandidateRef.current = null;
-  }, [currentProjectId]);
+  const history = useChatHistory({
+    currentProjectIdRef,
+    userId,
+    queryClient,
+    t,
+    setMessages,
+    currentAgentSessionIdRef,
+    setSuggestionDisplayState,
+    onResetScrollForError,
+  });
 
-  const currentProjectIdRef = useRef<string | null>(currentProjectId);
-  const handleOpenFile = useCallback((fileId: string, fileType: string, title: string) => {
-    if (!currentProjectId || currentProject?.id !== currentProjectId || currentProjectIdRef.current !== currentProjectId) return;
-    const typeMap: Record<string, FileType> = {
-      folder: "folder", outline: "outline", draft: "draft", document: "document", script: "script",
-      character: "character", lore: "lore", snippet: "material", material: "material",
-    };
-    const selectedAtClick = selectedItemRef.current?.id ?? null;
-    const open = (type: string, openTitle: string) => {
-      // The author may have switched projects, or picked another file, while the type was looked up.
-      if (currentProjectIdRef.current !== currentProjectId) return;
-      if ((selectedItemRef.current?.id ?? null) !== selectedAtClick) return;
-      // Reselecting an open file would reload it, including an unsaved title-only draft.
-      if (selectedItemRef.current?.id !== fileId) {
-        setSelectedItem({ id: fileId, type: typeMap[type] || "draft", title: openTitle });
-      }
-      if (isMobile) switchToEditor();
-    };
-    if (fileType) {
-      open(fileType, title);
-      return;
-    }
-    // A saved round receipt names files without their type (or a later rename): read it, so the
-    // selection (and the next message's current-file context) carries the real one. A failed lookup
-    // (deleted, inaccessible, offline) still opens it, so the editor shows its usual load error.
-    void fileApi.get(fileId).then(
-      (file) => open(file.file_type, file.title || title),
-      () => open("draft", title),
-    );
-  }, [currentProjectId, currentProject, setSelectedItem, isMobile, switchToEditor]);
+  const {
+    creatingSessionRef,
+    newSessionRequestSeqRef,
+    sessionRecoveryBlockedRef,
+    historyRequestSeqRef,
+    lastLoadedProjectRef,
+    loadChatHistory,
+    hydrateAssistantBackendMessage,
+    loadEarlierMessages,
+    setHasMoreHistory,
+    setIsLoadingMoreHistory,
+    setFeedbackPendingMessageId,
+    setIsCreatingSession,
+    setSessionRecoveryError,
+  } = history;
 
-  // "Write chapter 1" once a framework exists but no prose yet; refreshed on open, after each round
-  // and after an editor save while the card can show.
-  const [frameworkReadyProjectId, setFrameworkReadyProjectId] = useState<string | null>(null);
-  // 与 frameworkReadyProjectId 同步的镜像，供保存事件监听器读取当前值。
-  const frameworkReadyRef = useRef<string | null>(null);
-  const nextStepDismissal = useNextStepDismissal();
-  // 供保存事件监听器读取最新的「先不用」判定。
-  const isNextStepDismissedRef = useRef(nextStepDismissal.isDismissed);
-  useEffect(() => {
-    isNextStepDismissedRef.current = nextStepDismissal.isDismissed;
-  }, [nextStepDismissal.isDismissed]);
-  // 只认最后一次发出的进度请求，先发后到的旧结果（如保存前发出的轮末刷新）不能把卡片翻回来。
-  const nextStepRequestSeqRef = useRef(0);
-  // The same progress also picks the starter cards: a work that already has prose gets the
-  // manuscript requests. The cards wait for the first answer (or its failure, which falls back
-  // to the example) so they do not flash the example first.
-  const [manuscriptProjectId, setManuscriptProjectId] = useState<string | null>(null);
-  const [progressKnownProjectId, setProgressKnownProjectId] = useState<string | null>(null);
-  const refreshNextStep = useCallback(async (projectId: string) => {
-    const seq = ++nextStepRequestSeqRef.current;
-    try {
-      const [progress] = await projectApi.getProgress(projectId);
-      if (currentProjectIdRef.current !== projectId || seq !== nextStepRequestSeqRef.current) return;
-      const ready = progress?.framework_ready ? projectId : null;
-      frameworkReadyRef.current = ready;
-      setFrameworkReadyProjectId(ready);
-      setManuscriptProjectId((progress?.written_units ?? 0) > 0 ? projectId : null);
-      setProgressKnownProjectId(projectId);
-    } catch (error) {
-      logger.warn("Failed to load the project's progress:", error);
-      if (currentProjectIdRef.current === projectId && seq === nextStepRequestSeqRef.current) {
-        setProgressKnownProjectId(projectId);
-      }
-    }
-  }, []);
-  // The project whose first chat shows the example starter card, mirrored for the save listener:
-  // prose the author types there switches the cards to the manuscript requests.
-  const starterExampleShownRef = useRef<string | null>(null);
-  // 作者手动保存/自动保存正文后立即重查进度，写出第一章正文后卡片当场消失，
-  // 不必等下一轮或重开项目。只在卡片可能显示（框架就绪且未「先不用」，或首个对话正显示示例卡）时才请求，
-  // 卡片消失或换成正文卡后的保存不再请求。
-  useEffect(() => {
-    const onSaved = (event: Event) => {
-      const projectId = (event as CustomEvent<EditorContentSavedDetail>).detail?.projectId;
-      if (!projectId || projectId !== currentProjectIdRef.current) return;
-      const nextStepDue = frameworkReadyRef.current === projectId && !isNextStepDismissedRef.current(projectId);
-      if (!nextStepDue && starterExampleShownRef.current !== projectId) return;
-      void refreshNextStep(projectId);
-    };
-    window.addEventListener(EDITOR_CONTENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(EDITOR_CONTENT_SAVED_EVENT, onSaved);
-  }, [refreshNextStep]);
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
     creatingSessionRef.current = null;
@@ -837,271 +346,90 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       currentProjectIdRef.current = null;
       newSessionRequestSeqRef.current += 1;
     };
-  }, [currentProjectId]);
+  }, [
+    currentProjectId,
+    creatingSessionRef,
+    newSessionRequestSeqRef,
+    sessionRecoveryBlockedRef,
+    setIsCreatingSession,
+    setSessionRecoveryError,
+  ]);
 
-  const chatPanelRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const inputPanelRef = useRef<HTMLDivElement>(null);
-  const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
-  const [inputPanelHeight, setInputPanelHeight] = useState<number | null>(() => {
-    const saved = localStorage.getItem(CHAT_INPUT_PANEL_HEIGHT_KEY);
-    const height = saved ? Number(saved) : Number.NaN;
-    if (!Number.isFinite(height)) return null;
-    return clampNumber(height, CHAT_INPUT_PANEL_MIN_HEIGHT_PX, CHAT_INPUT_PANEL_MAX_HEIGHT_PX);
-  });
-  const latestInputPanelHeightRef = useRef<number | null>(inputPanelHeight);
-  useEffect(() => {
-    latestInputPanelHeightRef.current = inputPanelHeight;
-  }, [inputPanelHeight]);
-  const suggestionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const messagesRef = useRef<Message[]>(messages);  // Track latest messages for callbacks
+  const handleOpenFile = useCallback(
+    (fileId: string, fileType: string, title: string) => {
+      if (
+        !currentProjectId ||
+        currentProject?.id !== currentProjectId ||
+        currentProjectIdRef.current !== currentProjectId
+      ) {
+        return;
+      }
+      const typeMap: Record<string, FileType> = {
+        folder: "folder",
+        outline: "outline",
+        draft: "draft",
+        document: "document",
+        script: "script",
+        character: "character",
+        lore: "lore",
+        snippet: "material",
+        material: "material",
+      };
+      const selectedAtClick = selectedItemRef.current?.id ?? null;
+      const open = (type: string, openTitle: string) => {
+        if (currentProjectIdRef.current !== currentProjectId) return;
+        if ((selectedItemRef.current?.id ?? null) !== selectedAtClick) return;
+        if (selectedItemRef.current?.id !== fileId) {
+          setSelectedItem({ id: fileId, type: typeMap[type] || "draft", title: openTitle });
+        }
+        if (isMobile) switchToEditor();
+      };
+      if (fileType) {
+        open(fileType, title);
+        return;
+      }
+      void fileApi.get(fileId).then(
+        (file) => open(file.file_type, file.title || title),
+        () => open("draft", title),
+      );
+    },
+    [currentProjectId, currentProject, setSelectedItem, isMobile, switchToEditor],
+  );
 
-  /**
-   * 最近一次自动请求建议时的会话位置（项目 + 消息数 + 末条消息 id）。
-   * 每轮对话结束只自动请求一次：同一位置重复触发（例如 onComplete 被调用两次）
-   * 直接跳过，不重复打 /suggest。
-   */
-  const lastAutoSuggestionKeyRef = useRef<string | null>(null);
-  const lastAutoSuggestionStateRef = useRef<"ready" | "fallback">("ready");
-
-  // Keep messagesRef in sync
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    aiSuggestionsRef.current = aiSuggestions;
-  }, [aiSuggestions]);
-
-  // Terminal status cards emitted during the current stream (e.g. clarification needed).
-  // These should be persisted into the final assistant message so they render as part of it,
-  // rather than as a separate timestamped "message".
-  const terminalStatusCardsRef = useRef<MessageStatusCard[]>([]);
-
-  // Get stream callbacks from useChatStreaming hook with dependencies
-  const streamCallbacks = useMemo(() => {
-    return getStreamCallbacks({
+  const streamCallbacks = useMemo(
+    () =>
+      getStreamCallbacks({
+        triggerFileTreeRefresh,
+        triggerEditorRefresh,
+        setAiEditingFileId,
+        setSelectedItem,
+        getCurrentSelectedItem: () => selectedItemRef.current,
+        appendFileContent,
+        finishFileStreaming,
+        startFileStreaming,
+        getCurrentStreamingFileId: () => streamingFileIdRef.current,
+        activeProjectId: currentProjectId,
+        currentUserId: userId,
+        onProjectRenamed: (projectId) => {
+          void refreshProject(projectId);
+        },
+        t: (key, options) => t(key as string, options as Record<string, unknown>),
+      }),
+    [
+      getStreamCallbacks,
       triggerFileTreeRefresh,
       triggerEditorRefresh,
       setAiEditingFileId,
       setSelectedItem,
-      getCurrentSelectedItem: () => selectedItemRef.current,
       appendFileContent,
       finishFileStreaming,
       startFileStreaming,
-      getCurrentStreamingFileId: () => streamingFileIdRef.current,
-      activeProjectId: currentProjectId,
-      currentUserId: userId,
-      // update_project 报告服务端给默认名项目改了名：只重读这一个项目，顶栏换上新名字。
-      // 不走 refreshProjects——它会打开全局 loading，整个工作台（含本面板）被换成加载页。
-      onProjectRenamed: (projectId) => {
-        void refreshProject(projectId);
-      },
-      t: (key, options) => t(key as string, options as Record<string, unknown>),
-    });
-  }, [
-    getStreamCallbacks,
-    triggerFileTreeRefresh,
-    triggerEditorRefresh,
-    setAiEditingFileId,
-    setSelectedItem,
-    appendFileContent,
-    finishFileStreaming,
-    startFileStreaming,
-    currentProjectId,
-    userId,
-    refreshProject,
-    t,
-  ]);
-
-  const toRecentMessages = useCallback((sourceMessages: Message[]) => {
-    return sourceMessages.slice(-5).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-  }, []);
-
-  const getSuggestionCacheKey = useCallback((projectId: string): string => {
-    return `${SUGGESTION_CACHE_KEY_PREFIX}${projectId}`;
-  }, []);
-
-  const readCachedSuggestions = useCallback((projectId: string): string[] | null => {
-    try {
-      const raw = localStorage.getItem(getSuggestionCacheKey(projectId));
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as SuggestionCachePayload;
-      if (!Array.isArray(parsed.suggestions) || typeof parsed.updatedAt !== "number") {
-        return null;
-      }
-      if (Date.now() - parsed.updatedAt > SUGGESTION_CACHE_TTL_MS) {
-        localStorage.removeItem(getSuggestionCacheKey(projectId));
-        return null;
-      }
-      return parsed.suggestions.filter((s): s is string => typeof s === "string" && Boolean(s.trim())).slice(0, 3);
-    } catch {
-      return null;
-    }
-  }, [getSuggestionCacheKey]);
-
-  const clearSuggestionCache = useCallback((projectId: string) => {
-    try {
-      localStorage.removeItem(getSuggestionCacheKey(projectId));
-    } catch {
-      // Ignore cache failures (non-critical UX optimization)
-    }
-  }, [getSuggestionCacheKey]);
-
-  const writeSuggestionCache = useCallback((projectId: string, suggestions: string[]) => {
-    try {
-      const payload: SuggestionCachePayload = {
-        suggestions: suggestions.slice(0, 3),
-        updatedAt: Date.now(),
-      };
-      localStorage.setItem(getSuggestionCacheKey(projectId), JSON.stringify(payload));
-    } catch {
-      // Ignore cache write failures (non-critical UX optimization)
-    }
-  }, [getSuggestionCacheKey]);
-
-  const canRequestSuggestions = useCallback(async (projectId: string) => {
-    if (!userId) return false;
-    try {
-      const state = await queryClient.fetchQuery({
-        queryKey: firstWorkQueryKey(userId), queryFn: firstWorkApi.get, retry: false, staleTime: 1000,
-      });
-      return !needsStaticFirstWorkGuidance(state, projectId);
-    } catch {
-      // Unknown status must not spend an AI request. Author-initiated chat and writing remain available.
-      return false;
-    }
-  }, [queryClient, userId]);
-
-  const fetchAndApplySuggestions = useCallback(async (
-    projectId: string,
-    sourceMessages: Message[],
-    options?: { allowFallback?: boolean; lead?: string[]; requestSeq?: number }
-  ): Promise<string[] | null> => {
-    // Every request holds the suggestion token current when it started (callers that write
-    // around it pass theirs). A newer request, a new round, an error or unfinished stop, or a
-    // project / chat switch moves the token on: a response arriving after that writes nothing,
-    // neither chips nor cache.
-    const requestSeq = options?.requestSeq ?? ++suggestionRequestSeqRef.current;
-    const stillCurrent = () =>
-      currentProjectIdRef.current === projectId && suggestionRequestSeqRef.current === requestSeq;
-    // Options the last reply offered in the author's words lead, shown at once; the model fills
-    // the remaining slots, so a step forward ("write chapter 2") stays one tap away.
-    const lead = options?.lead ?? [];
-    const keepLead = () => {
-      if (!stillCurrent()) return null;
-      writeSuggestionCache(projectId, lead);
-      return lead;
-    };
-    if (lead.length > 0) {
-      if (!stillCurrent()) return null;
-      setAiSuggestions(lead);
-      setSuggestionDisplayState("ready");
-      if (lead.length >= SUGGESTION_COUNT) return keepLead();
-    }
-    const allowed = await canRequestSuggestions(projectId);
-    if (!stillCurrent()) return null;
-    if (!allowed) {
-      setAiSuggestions(lead);
-      setSuggestionDisplayState("ready");
-      return lead;
-    }
-    const fetched = await fetchSuggestions(projectId, toRecentMessages(sourceMessages), SUGGESTION_COUNT);
-
-    // Ignore stale responses from previous projects/requests/rounds.
-    if (!stillCurrent()) {
-      return null;
-    }
-
-    if (fetched !== null) {
-      const suggestions = [...lead, ...fetched.filter((item) => !lead.includes(item))].slice(0, SUGGESTION_COUNT);
-      setAiSuggestions(suggestions);
-      setSuggestionDisplayState("ready");
-      writeSuggestionCache(projectId, suggestions);
-      return suggestions;
-    }
-    if (lead.length > 0) return keepLead();
-
-    if (options?.allowFallback && aiSuggestionsRef.current.length === 0) {
-      setSuggestionDisplayState("fallback");
-    }
-    return null;
-  }, [canRequestSuggestions, setAiSuggestions, toRecentMessages, writeSuggestionCache]);
-
-  const requestInitialSuggestions = useCallback(async (
-    projectId: string,
-    sourceMessages: Message[],
-  ) => {
-    suggestionRequestSeqRef.current += 1;
-    const requestSeq = suggestionRequestSeqRef.current;
-    const allowed = await canRequestSuggestions(projectId);
-    if (currentProjectIdRef.current !== projectId || requestSeq !== suggestionRequestSeqRef.current) return;
-    if (!allowed) {
-      setAiSuggestions([]);
-      setSuggestionDisplayState("ready");
-      return;
-    }
-    const lastLoaded = sourceMessages[sourceMessages.length - 1];
-    if (lastLoaded?.role === "assistant" && roundEndedUnfinished(lastLoaded)) {
-      // The last round ended in an error or stopped unfinished (see onCompleteHandler): no
-      // follow-up chips after a refresh either.
-      clearSuggestionCache(projectId);
-      setAiSuggestions([]);
-      setSuggestionDisplayState("ready");
-      return;
-    }
-    const cached = readCachedSuggestions(projectId);
-    const offered = cached === null && lastLoaded?.role === "assistant"
-      ? optionsOfferedInReply(lastLoaded.content)
-      : null;
-    if (offered) {
-      await fetchAndApplySuggestions(projectId, sourceMessages, { lead: offered, requestSeq });
-      return;
-    }
-
-    if (cached !== null) {
-      // 有缓存就直接用，不再后台刷新：打开/切换项目不该凭空多打一次 /suggest。
-      // 下一轮对话结束后会按新上下文自动刷新一次。
-      setAiSuggestions(cached);
-      setSuggestionDisplayState("ready");
-      return;
-    }
-
-    setSuggestionDisplayState("loading");
-    const fetchPromise = fetchAndApplySuggestions(projectId, sourceMessages, { requestSeq });
-
-    const firstResult = await Promise.race([
-      fetchPromise.then((suggestions) => ({ timedOut: false, suggestions })),
-      new Promise<{ timedOut: true; suggestions: null }>((resolve) => {
-        setTimeout(() => resolve({ timedOut: true, suggestions: null }), SUGGESTION_INITIAL_TIMEOUT_MS);
-      }),
-    ]);
-
-    if (currentProjectIdRef.current !== projectId || requestSeq !== suggestionRequestSeqRef.current) {
-      return;
-    }
-
-    if (firstResult.timedOut) {
-      if (aiSuggestionsRef.current.length === 0) {
-        setSuggestionDisplayState("fallback");
-      }
-      const eventual = await fetchPromise;
-      if (currentProjectIdRef.current !== projectId || requestSeq !== suggestionRequestSeqRef.current) {
-        return;
-      }
-      if (eventual === null && aiSuggestionsRef.current.length === 0) {
-        setSuggestionDisplayState("fallback");
-      }
-      return;
-    }
-
-    if (firstResult.suggestions === null && aiSuggestionsRef.current.length === 0) {
-      setSuggestionDisplayState("fallback");
-    }
-  }, [canRequestSuggestions, clearSuggestionCache, fetchAndApplySuggestions, readCachedSuggestions, setAiSuggestions]);
+      currentProjectId,
+      userId,
+      refreshProject,
+      t,
+    ],
+  );
 
   const finalizePendingContextClears = useCallback(() => {
     if (pendingMaterialClearRef.current) {
@@ -1119,263 +447,124 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     pendingQuoteClearRef.current = false;
   }, []);
 
-  const hydrateAssistantBackendMessage = useCallback(async (
-    projectId: string,
-    localMessageId: string,
-    expectedContent: string,
-    options?: {
-      assistantMessageId?: string;
-      expectedSessionId?: string | null;
-    },
-  ) => {
-    if (currentProjectIdRef.current !== projectId) {
-      return;
-    }
+  const onCompleteHandler = useCallback(
+    async (completedSegments: MessageSegment[], completionMeta?: StreamCompletionMeta) => {
+      void queryClient.invalidateQueries({ queryKey: firstWorkQueryKey(userId) });
 
-    try {
-      const recentMessages = options?.assistantMessageId
-        ? await getRecentMessages(projectId, 50, undefined, options.assistantMessageId)
-        : await getRecentMessages(projectId, 50);
-      if (currentProjectIdRef.current !== projectId) {
-        return;
+      const accumulatedContent = completedSegments
+        .filter((s) => s.type === "content")
+        .map((s) => s.content || "")
+        .filter((c) => c.trim())
+        .join("\n\n");
+
+      const statusCards = terminalStatusCardsRef.current;
+      terminalStatusCardsRef.current = [];
+      const toolResults = extractCompletedToolResults(completedSegments);
+      const displayItems = getStreamItemsSnapshot?.() ?? [];
+      const endedEarly =
+        completionMeta?.partial === true || completionMeta?.stoppedByAuthor === true;
+      const assistantMessageId = completionMeta?.assistantMessageId;
+
+      const finishedItems = dropProgressOnlyItems(displayItems);
+      const hasNonBlankFinishedItem = finishedItems.some(
+        (item) =>
+          (item.type !== "content" && item.type !== "thinking_content") ||
+          Boolean(item.content?.trim()),
+      );
+      const hasSubstance =
+        Boolean(
+          accumulatedContent.trim() ||
+            statusCards.length > 0 ||
+            toolResults?.length ||
+            completionMeta?.deliveryOutcome,
+        ) ||
+        (endedEarly ? hasSubstantiveDisplayItems(displayItems) : hasNonBlankFinishedItem);
+
+      if (hasSubstance) {
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+          backendMessageId: assistantMessageId,
+          role: "assistant",
+          content: accumulatedContent,
+          timestamp: new Date(),
+          statusCards: statusCards.length > 0 ? statusCards : undefined,
+          toolResults,
+          stopOutcome: completionMeta?.deliveryOutcome,
+          displayItems: finishedItems.length ? finishedItems : undefined,
+          feedbackUnavailable: endedEarly && !assistantMessageId ? true : undefined,
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+
+        if (currentProjectId && (!endedEarly || assistantMessageId)) {
+          void hydrateAssistantBackendMessage(
+            currentProjectId,
+            aiMessage.id,
+            accumulatedContent,
+            {
+              assistantMessageId,
+              expectedSessionId: completionMeta?.sessionId ?? currentAgentSessionIdRef.current,
+            },
+          );
+        }
       }
 
-      setMessages((prev) => {
-        const localMessage = prev.find((item) => item.id === localMessageId);
-        if (
-          !localMessage
-          || (
-            localMessage.backendMessageId
-            && localMessage.backendMessageId !== options?.assistantMessageId
-          )
-        ) {
-          return prev;
-        }
-
-        const assignedBackendIds = new Set(
-          prev
-            .filter((item) => item.id !== localMessageId)
-            .map((item) => item.backendMessageId)
-            .filter((id): id is string => Boolean(id)),
-        );
-
-        const matchedMessage = options?.assistantMessageId
-          ? recentMessages.find(
-            (message) =>
-              message.id === options.assistantMessageId
-              && message.role === "assistant"
-              && !assignedBackendIds.has(message.id),
-          ) ?? null
-          : findUnassignedAssistantMessage(
-            recentMessages,
-            assignedBackendIds,
-            expectedContent,
-            options?.expectedSessionId,
-          );
-        if (!matchedMessage) {
-          return prev;
-        }
-
-        const matchedFeedback = parseMessageFeedbackFromMetadata(
-          parseMessageMetadataObject(matchedMessage.metadata),
-        );
-
-        return prev.map((item) =>
-          item.id === localMessageId
-            ? {
-              ...item,
-              backendMessageId: matchedMessage.id,
-              feedback: matchedFeedback ?? item.feedback,
-              timestamp: parseUTCDate(matchedMessage.created_at),
-            }
-            : item,
-        );
-      });
-    } catch (error) {
-      logger.error("Failed to hydrate assistant backend message:", error);
-    }
-  }, []);
-
-  /**
-   * Handles completion of an AI response stream.
-   * Adds message to the messages array and fetches suggestions.
-   * The hook's onComplete handles the rest (cleanup, final file refresh).
-   *
-   * @param completedSegments - Array of message segments from the completed stream
-   */
-  const onCompleteHandler = useCallback(async (
-    completedSegments: MessageSegment[],
-    completionMeta?: StreamCompletionMeta,
-  ) => {
-    void queryClient.invalidateQueries({ queryKey: firstWorkQueryKey(userId) });
-
-    // 【关键修复】将流式内容持久化到 messages，防止下一轮对话时丢失
-    const accumulatedContent = completedSegments
-      .filter(s => s.type === 'content')
-      .map(s => s.content || '')
-      .filter(c => c.trim())  // 过滤空内容
-      .join('\n\n');  // 用换行分隔不同的 content segment
-
-    // Persist terminal workflow status cards (e.g. clarification needed) into the final assistant
-    // message so they render as part of that message (no extra timestamped "message" row).
-    const statusCards = terminalStatusCardsRef.current;
-    terminalStatusCardsRef.current = [];
-    const toolResults = extractCompletedToolResults(completedSegments);
-    // React state can still be throttled when the final SSE event arrives.
-    const displayItems = getStreamItemsSnapshot?.() ?? [];
-    // Stopped / failed / dropped rounds: never guess which saved message this bubble is
-    // ("the latest unassigned one" can be an older stopped round); bind only by id.
-    const endedEarly = completionMeta?.partial === true || completionMeta?.stoppedByAuthor === true;
-    const assistantMessageId = completionMeta?.assistantMessageId;
-
-    // 添加到 messages（正文、状态卡片、已完成的工具结果都会随消息一起保留）。
-    // A round that ended early with only transient progress lines (「正在组装上下文…」)
-    // leaves no bubble: the error card / stop note below says what happened.
-    // The finished bubble keeps what the round did, not 「正在组装上下文… / 正在思考… / 正在规划工作流…」.
-    const finishedItems = dropProgressOnlyItems(displayItems);
-    const hasNonBlankFinishedItem = finishedItems.some(
-      (item) => (item.type !== 'content' && item.type !== 'thinking_content') || Boolean(item.content?.trim()),
-    );
-    const hasSubstance = Boolean(accumulatedContent.trim() || statusCards.length > 0 || toolResults?.length || completionMeta?.deliveryOutcome)
-      || (endedEarly ? hasSubstantiveDisplayItems(displayItems) : hasNonBlankFinishedItem);
-    if (hasSubstance) {
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-        backendMessageId: assistantMessageId,
-        role: 'assistant',
-        content: accumulatedContent,
-        timestamp: new Date(),
-        statusCards: statusCards.length > 0 ? statusCards : undefined,
-        toolResults,
-        stopOutcome: completionMeta?.deliveryOutcome,
-        displayItems: finishedItems.length ? finishedItems : undefined,
-        feedbackUnavailable: endedEarly && !assistantMessageId ? true : undefined,
-      };
-      setMessages(prev => [...prev, aiMessage]);
-
-      if (currentProjectId && (!endedEarly || assistantMessageId)) {
-        void hydrateAssistantBackendMessage(currentProjectId, aiMessage.id, accumulatedContent, {
-          assistantMessageId,
-          expectedSessionId: completionMeta?.sessionId ?? currentAgentSessionIdRef.current,
+      const stoppedThisRound =
+        completionMeta?.stoppedByAuthor === true ||
+        (completionMeta?.partial === true && stopRequestedProjectRef.current === currentProjectId);
+      stopRequestedProjectRef.current = null;
+      if (stoppedThisRound && currentProjectId) {
+        const { wroteFiles, charged } = roundProgressRef.current;
+        const producedOutput =
+          completionMeta?.producedOutput ?? roundProgressRef.current.producedOutput;
+        const writtenFiles = completionMeta?.writtenFiles ?? [];
+        setUserStop({
+          projectId: currentProjectId,
+          wroteFiles: wroteFiles || writtenFiles.length > 0,
+          counted: completionMeta?.charged ?? (charged && producedOutput),
+          writtenFiles,
+          unwrittenFiles: completionMeta?.unwrittenFiles,
         });
       }
-    }
 
-    // The stop note says how a stopped round ended, so it waits for the end of the round:
-    // only a done that says the author stopped it (or the stop's fallback that dropped the
-    // connection) gets one. A round that finished on its own before the stop took effect
-    // completed normally and gets no 「已停止」.
-    const stoppedThisRound = completionMeta?.stoppedByAuthor === true
-      || (completionMeta?.partial === true && stopRequestedProjectRef.current === currentProjectId);
-    stopRequestedProjectRef.current = null;
-    if (stoppedThisRound && currentProjectId) {
-      const { wroteFiles, charged } = roundProgressRef.current;
-      const producedOutput = completionMeta?.producedOutput ?? roundProgressRef.current.producedOutput;
-      const writtenFiles = completionMeta?.writtenFiles ?? [];
-      setUserStop({
-        projectId: currentProjectId,
-        wroteFiles: wroteFiles || writtenFiles.length > 0,
-        // Prefer the server's post-settlement done.charged receipt; fall back to the legacy
-        // output-based estimate only when talking to an older server that omits done.charged.
-        counted: completionMeta?.charged ?? (charged && producedOutput),
-        writtenFiles,
-        unwrittenFiles: completionMeta?.unwrittenFiles,
-      });
-    }
+      finalizePendingContextClears();
+      invalidateQuota();
+      if (currentProjectId) void refreshNextStep(currentProjectId);
 
-    finalizePendingContextClears();
-    invalidateQuota();
-    if (currentProjectId) void refreshNextStep(currentProjectId);
+      void streamCallbacks.onComplete(completedSegments, completionMeta);
 
-    // Let the streaming hook finalize cleanup in the background.
-    void streamCallbacks.onComplete(
-      completedSegments,
-      completionMeta,
-    );
+      const nothingWritten = completionMeta?.stoppedByAuthor
+        ? completionMeta.producedOutput === false
+        : completionMeta?.partial === true && !roundProgressRef.current.producedOutput;
+      const endedInError =
+        completionMeta?.partial === true && roundProgressRef.current.endedInError;
+      const endedUnfinished =
+        endedInError ||
+        completionMeta?.deliveryOutcome?.reason === "error" ||
+        completionMeta?.deliveryOutcome?.reason === "incomplete" ||
+        roundProgressRef.current.endedIncomplete;
 
-    // Delay and request fresh project-aware suggestions (once per completed turn).
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-    }
-    // Stopped / dropped before anything was written: chips would assume prose that does not
-    // exist ("接着写第二章"), and asking for them costs an extra model call. Show none; the
-    // stop note offers 「重新发送」.
-    const nothingWritten = completionMeta?.stoppedByAuthor
-      ? completionMeta.producedOutput === false
-      : completionMeta?.partial === true && !roundProgressRef.current.producedOutput;
-    // Ended in an error (stream error frame, including the time limit, or a dropped connection),
-    // or stopped with a file that never got its text (the 「这一轮没写完」 card): work is unfinished
-    // in ways chips cannot see (rework pending, unconfirmed files, an interrupted writer). The
-    // error note / card and manual input are the next step: no reply options, no /suggest, and
-    // no chips cached from an earlier round.
-    const endedInError = completionMeta?.partial === true && roundProgressRef.current.endedInError;
-    const endedUnfinished = endedInError
-      || completionMeta?.deliveryOutcome?.reason === 'error'
-      || completionMeta?.deliveryOutcome?.reason === 'incomplete'
-      || roundProgressRef.current.endedIncomplete;
-    if (nothingWritten || endedUnfinished) {
-      suggestionRequestSeqRef.current += 1;  // a request still in flight from before writes nothing
-      if (endedUnfinished && currentProjectId) clearSuggestionCache(currentProjectId);
-      setAiSuggestions([]);
-      setSuggestionDisplayState("ready");
-      return;
-    }
-    setSuggestionDisplayState("loading");
-    const completionRequestSeq = ++suggestionRequestSeqRef.current;
-    suggestionTimeoutRef.current = setTimeout(async () => {
-      const currentMessages = messagesRef.current;  // Use ref to get latest messages
-      if (suggestionRequestSeqRef.current !== completionRequestSeq) return;  // the next round already started
-      if (currentProjectId) {
-        const lastMessage = currentMessages[currentMessages.length - 1];
-        const suggestionKey = `${currentProjectId}:${currentMessages.length}:${lastMessage?.id ?? ""}`;
-        if (lastAutoSuggestionKeyRef.current === suggestionKey) {
-          setSuggestionDisplayState(lastAutoSuggestionStateRef.current);
-          return;
-        }
-        lastAutoSuggestionKeyRef.current = suggestionKey;
-        const offered = lastMessage?.role === "assistant" ? optionsOfferedInReply(lastMessage.content) : null;
-        try {
-          const result = await fetchAndApplySuggestions(currentProjectId, currentMessages, {
-            allowFallback: true,
-            lead: offered ?? undefined,
-            requestSeq: completionRequestSeq,
-          });
-          if (
-            currentProjectIdRef.current !== currentProjectId
-            || lastAutoSuggestionKeyRef.current !== suggestionKey
-            || suggestionRequestSeqRef.current !== completionRequestSeq
-          ) return;
-          const displayState = result === null && aiSuggestionsRef.current.length === 0 ? "fallback" : "ready";
-          lastAutoSuggestionStateRef.current = displayState;
-          setSuggestionDisplayState(displayState);
-        } catch (error) {
-          if (
-            currentProjectIdRef.current !== currentProjectId
-            || lastAutoSuggestionKeyRef.current !== suggestionKey
-            || suggestionRequestSeqRef.current !== completionRequestSeq
-          ) return;
-          // Silent failure - suggestion is non-critical
-          logger.error("Failed to fetch suggestions:", error);
-          const displayState = aiSuggestionsRef.current.length === 0 ? "fallback" : "ready";
-          lastAutoSuggestionStateRef.current = displayState;
-          setSuggestionDisplayState(displayState);
-        }
+      if (nothingWritten || endedUnfinished) {
+        clearSuggestionsForUnfinishedRound(currentProjectId, endedUnfinished);
+        return;
       }
-    }, 1500);
-  }, [
-    streamCallbacks,
-    getStreamItemsSnapshot,
-    currentProjectId,
-    clearSuggestionCache,
-    fetchAndApplySuggestions,
-    finalizePendingContextClears,
-    hydrateAssistantBackendMessage,
-    invalidateQuota,
-    refreshNextStep,
-    queryClient, userId,
-  ]);
+      schedulePostTurnSuggestions(currentProjectId);
+    },
+    [
+      clearSuggestionsForUnfinishedRound,
+      currentProjectId,
+      finalizePendingContextClears,
+      getStreamItemsSnapshot,
+      hydrateAssistantBackendMessage,
+      invalidateQuota,
+      queryClient,
+      refreshNextStep,
+      schedulePostTurnSuggestions,
+      setUserStop,
+      streamCallbacks,
+      userId,
+    ],
+  );
 
-  // Agent stream hook - uses callbacks from useChatStreaming hook
   const {
     state,
     startStream,
@@ -1392,61 +581,59 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     sessionId,
     sendSteeringMessage,
   } = useAgentStream(currentProjectId!, {
-    // Lifecycle callbacks
     onStart: () => {
       streamCallbacks.onStart();
       setStreamStartedAt(Date.now());
       terminalStatusCardsRef.current = [];
-      setQuotaRefund(null);
-      setUserStop(null);
-      roundProgressRef.current = { wroteFiles: false, charged: false, producedOutput: false, endedInError: false, endedIncomplete: false };
-      suggestionRequestSeqRef.current += 1;  // suggestions for the previous round no longer apply
+      quotaState.setQuotaRefund(null);
+      quotaState.setUserStop(null);
+      roundProgressRef.current = {
+        wroteFiles: false,
+        charged: false,
+        producedOutput: false,
+        endedInError: false,
+        endedIncomplete: false,
+      };
+      suggestions.invalidateInFlightSuggestions();
       proseCounterRef.current.reset();
       bodyWriteRef.current.reset();
       stopRequestedProjectRef.current = null;
     },
-
-    // Context and Thinking callbacks
     onContext: (items) => {
       streamCallbacks.onContext(items);
     },
-
     onThinking: streamCallbacks.onThinking,
     onThinkingContent: streamCallbacks.onThinkingContent,
     onHistoryCompacted: streamCallbacks.onHistoryCompacted,
-
-    // Segment callbacks
     onSegmentStart: streamCallbacks.onSegmentStart,
     onSegmentUpdate: (segmentId, content) => {
-      if (proseCounterRef.current.update(segmentId, content)) roundProgressRef.current.producedOutput = true;
+      if (proseCounterRef.current.update(segmentId, content)) {
+        roundProgressRef.current.producedOutput = true;
+      }
       streamCallbacks.onSegmentUpdate(segmentId, content);
     },
     onSegmentUpdateToolCalls: streamCallbacks.onSegmentUpdateToolCalls,
-
-    // Completion and error callbacks
     onComplete: onCompleteHandler,
-    onError: (message, code, retryable) => {
+    onError: (message, code, retryableFlag) => {
       roundProgressRef.current.endedInError = true;
-      suggestionRequestSeqRef.current += 1;
-      streamCallbacks.onError(message, code, retryable);
-      invalidateQuota();
-      if (code === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED' || code === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED') {
+      suggestions.invalidateInFlightSuggestions();
+      streamCallbacks.onError(message, code, retryableFlag);
+      quotaState.invalidateQuota();
+      if (
+        code === "ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED" ||
+        code === "ERR_QUOTA_AI_DAILY_COST_EXCEEDED"
+      ) {
         returnBlockedMessageToInput();
-        reportQuotaBlockedSend(true);
+        quotaState.reportQuotaBlockedSend(true);
       }
       if (isAccountRunRefusal(code) || isNetworkQuotaRefusal(code)) {
-        // Nothing was accepted: the round's end must not clear the attachments and quotes staged with it.
         resetPendingContextClears();
-        // The words go back to the input, so there is nothing left to retry. A retry has no
-        // bubble to return, and a resend's old attachments exist only in its request: both stay
-        // as they are, with their manual retry button.
         if (!blockedCandidateRef.current?.keepIfBusy && returnBlockedMessageToInput()) {
           lastRetryRequestRef.current = null;
+          setLastRetryMeta(null);
         }
       }
     },
-
-    // Tool call/result callbacks: the server's prose counter starts a new segment at both.
     onToolCall: (toolName, args) => {
       proseCounterRef.current.boundary();
       bodyWriteRef.current.toolCall(toolName, args);
@@ -1460,8 +647,6 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
       streamCallbacks.onToolResult(toolName, status, result, toolError);
     },
-
-    // File operation callbacks
     onFileCreated: (fileId, fileType, title) => {
       proseCounterRef.current.boundary();
       bodyWriteRef.current.fileCreated(fileId, title);
@@ -1482,75 +667,138 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     onFileEditStart: streamCallbacks.onFileEditStart,
     onFileEditApplied: streamCallbacks.onFileEditApplied,
     onFileEditEnd: streamCallbacks.onFileEditEnd,
-
-    // Skill matching callbacks
     onSkillMatched: streamCallbacks.onSkillMatched,
-
-    // Workflow status callbacks
-    onIterationExhausted: (layer, iterationsUsed, maxIterations, reason, lastAgent, limit, files) => {
-      if (exhaustionLeftFilesUnfinished({ layer, ...files })) roundProgressRef.current.endedIncomplete = true;
-      terminalStatusCardsRef.current = [{
-        type: "iteration_exhausted",
+    onIterationExhausted: (
+      layer,
+      iterationsUsed,
+      maxIterations,
+      reason,
+      lastAgent,
+      limit,
+      files,
+    ) => {
+      if (exhaustionLeftFilesUnfinished({ layer, ...files })) {
+        roundProgressRef.current.endedIncomplete = true;
+      }
+      terminalStatusCardsRef.current = [
+        {
+          type: "iteration_exhausted",
+          layer,
+          iterationsUsed,
+          maxIterations,
+          reason,
+          lastAgent,
+          limit,
+          ...files,
+        },
+      ];
+      streamCallbacks.onIterationExhausted(
         layer,
         iterationsUsed,
         maxIterations,
         reason,
         lastAgent,
         limit,
-        ...files,
-      }];
-      streamCallbacks.onIterationExhausted(layer, iterationsUsed, maxIterations, reason, lastAgent, limit, ...(files ? [files] : []));
+        ...(files ? [files] : []),
+      );
     },
     onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
-      terminalStatusCardsRef.current = [{
-        type: "workflow_stopped",
-        reason: data.reason,
-        agentType: data.agent_type,
-        message: data.message,
-        question: data.question,
-        context: data.context,
-        details: data.details,
-      }];
+      terminalStatusCardsRef.current = [
+        {
+          type: "workflow_stopped",
+          reason: data.reason,
+          agentType: data.agent_type,
+          message: data.message,
+          question: data.question,
+          context: data.context,
+          details: data.details,
+        },
+      ];
       streamCallbacks.onWorkflowStopped(data);
     },
-    onSessionStarted: (sessionId) => {
+    onSessionStarted: (startedSessionId) => {
       blockedCandidateRef.current = null;
-      currentAgentSessionIdRef.current = sessionId;
-      streamCallbacks.onSessionStarted(sessionId);
-      // The server has already charged this round's AI message by now.
+      currentAgentSessionIdRef.current = startedSessionId;
+      streamCallbacks.onSessionStarted(startedSessionId);
       roundProgressRef.current.charged = true;
-      invalidateQuota();
+      quotaState.invalidateQuota();
       void queryClient.invalidateQueries({ queryKey: firstWorkQueryKey(userId) });
     },
     onSteeringReceived: streamCallbacks.onSteeringReceived,
     onQuotaRefunded: (kind, removedFiles = []) => {
-      if (currentProjectId) setQuotaRefund({ projectId: currentProjectId, kind, removedFiles });
-      applyConfirmedRefund();
-      invalidateQuota();
+      if (currentProjectId) {
+        quotaState.setQuotaRefund({ projectId: currentProjectId, kind, removedFiles });
+      }
+      quotaState.applyConfirmedRefund();
+      quotaState.invalidateQuota();
       if (removedFiles.length > 0) {
-        // The server removed blank files this stopped round had created.
-        if (currentProjectId) removedFiles.forEach(file => notifyFileRemoved(currentProjectId, file.id));
+        if (currentProjectId) {
+          removedFiles.forEach((file) => notifyFileRemoved(currentProjectId, file.id));
+        }
         const removedIds = new Set(removedFiles.map((file) => file.id));
-        if (selectedItemRef.current && removedIds.has(selectedItemRef.current.id)) setSelectedItem(null);
+        if (selectedItemRef.current && removedIds.has(selectedItemRef.current.id)) {
+          setSelectedItem(null);
+        }
         triggerFileTreeRefresh();
       }
     },
   });
-  // Stopping already ends the round on its own; no need to ask before leaving then.
+
+  const scroll = useChatScrollAndResize({
+    currentProjectId,
+    messagesRef,
+    messagesLength: messages.length,
+    streamContent: state.content,
+    streamRenderItemCount: streamRenderItems?.length ?? 0,
+    isStreaming,
+    isThinking,
+    isLoadingHistory: history.isLoadingHistory,
+  });
+  resetScrollStateRef.current = scroll.resetScrollState;
+
+  const undo = useChatUndoAndRestore({
+    currentProjectId,
+    messages,
+    setMessages,
+    streamRenderItems,
+    triggerFileTreeRefresh,
+    triggerEditorRefresh,
+    t,
+  });
+
+  const hasLastRetryForProject = lastRetryMeta?.projectId === currentProjectId;
+
+  const quotaNotes = useChatQuotaEffectsAndNotes({
+    currentProjectId,
+    aiMessageQuota: quotaState.aiMessageQuota,
+    quotaExhausted: quotaState.quotaExhausted,
+    showDailyCount: quotaState.showDailyCount,
+    quotaRefund: quotaState.quotaRefund,
+    userStop: quotaState.userStop,
+    setShowQuotaUpgradeModal: quotaState.setShowQuotaUpgradeModal,
+    isStreaming,
+    isThinking,
+    isLoadingHistory: history.isLoadingHistory,
+    error,
+    errorCode,
+    clearError,
+    messages,
+    hasLastRetryForProject,
+    t,
+    language: i18n?.language,
+  });
+
   const unprotectedDeletedDraft = useSyncExternalStore(
     subscribeDeletedDraftProtection,
     hasAnyUnprotectedDeletedDraft,
     () => false,
   );
-  const leaveGuard = useLeaveWhileGenerating((isStreaming && !isStopping) || unprotectedDeletedDraft);
-  // Leaving mid-round: the server settles (and may refund) after the chat is gone.
+  const leaveGuard = useLeaveWhileGenerating(
+    (isStreaming && !isStopping) || unprotectedDeletedDraft,
+  );
   useQuotaRefreshAfterLeave(isStreaming, currentProjectId ?? null);
-  /** A confirmed leave is waiting for the editor's save. */
+
   const leaveAfterSavePendingRef = useRef(false);
-  // Leaving mid-round drops the stream; a refunded round then removes its still-blank
-  // files. Save the editor first (as the stop button does) so text typed into a chapter
-  // the AI just created counts; if that save fails or times out, stop the round naming
-  // the open file so the server keeps it, then leave.
   const handleConfirmLeave = () => {
     const confirmLeave = leaveGuard.confirmLeave;
     if (!isStreaming || leaveGuard.roundEnded) {
@@ -1571,364 +819,60 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       confirmLeave();
     });
   };
-  // AI write cards that must wait for a later AI write to the same file to be undone first.
-  const undoBlocked = useMemo(
-    () => undoBlockedByLaterWrite(collectUndoCardRefs(
-      [...messages, { displayItems: streamRenderItems ?? [] }],
-      staleUndoEdits.size > 0 ? new Set([...undoneEdits, ...staleUndoEdits]) : undoneEdits,
-    )),
-    [messages, streamRenderItems, undoneEdits, staleUndoEdits],
-  );
-  const streamRenderItemCount = streamRenderItems?.length ?? 0;
-
-  // 成本兜底与每日条数共用同一套标题和说明：不向作者透露第二个额度。
-  const isAiQuotaLimit =
-    errorCode === 'ERR_QUOTA_AI_CONVERSATIONS_EXCEEDED'
-    || errorCode === 'ERR_QUOTA_AI_DAILY_COST_EXCEEDED';
-  // The server refused a round for today's AI messages. The cached count can still show room
-  // (the cost backstop, or a stale cache), so remember the refusal until the next Beijing
-  // midnight: the chat then behaves like the used-up day (card, blocked send, no next-step
-  // offer) and never names a count it cannot back up.
-  const [aiLimitHitUntil, setAiLimitHitUntil] = useState<number | null>(null);
-  useEffect(() => {
-    if (isAiQuotaLimit) setAiLimitHitUntil(nextAiQuotaResetMs(Date.now()));
-  }, [isAiQuotaLimit]);
-  const isNetworkQuotaLimit = isNetworkQuotaRefusal(errorCode);
-  useEffect(() => {
-    if (!isNetworkQuotaLimit) return;
-    // A new Beijing day: yesterday's refusal must not stay on screen.
-    const timer = setTimeout(clearError, Math.max(0, nextAiQuotaResetMs(Date.now()) - Date.now()));
-    return () => clearTimeout(timer);
-  }, [isNetworkQuotaLimit, clearError]);
-  // Upgraded elsewhere: paid plans are exempt, and the next send goes through.
-  useEffect(() => {
-    if (isNetworkQuotaLimit && aiMessageQuota?.limit === -1) clearError();
-  }, [isNetworkQuotaLimit, aiMessageQuota?.limit, clearError]);
-  const isAiQuotaLimitRef = useRef(isAiQuotaLimit);
-  useEffect(() => {
-    isAiQuotaLimitRef.current = isAiQuotaLimit;
-  }, [isAiQuotaLimit]);
-  useEffect(() => {
-    if (aiLimitHitUntil === null) return;
-    const timer = setTimeout(() => {
-      setAiLimitHitUntil(null);
-      // A new Beijing day: yesterday's refusal must not come back as an error card.
-      if (isAiQuotaLimitRef.current) clearError();
-    }, Math.max(0, aiLimitHitUntil - Date.now()));
-    return () => clearTimeout(timer);
-  }, [aiLimitHitUntil, clearError]);
-  const aiLimitHit = aiLimitHitUntil !== null && aiMessageQuota?.limit !== -1;
-  /** Today's AI messages are used up, by the cached count or by the server's refusal. */
-  const aiSendBlocked = quotaExhausted || aiLimitHit;
-  // Never pair a refund note with the used-up card: that would hint at a second, cost-based limit.
-  // Pro has no daily count: a refunded stop still says nothing was written (with Resend);
-  // other refunds have nothing to explain.
-  const quotaRefundNote = quotaRefund && quotaRefund.projectId === currentProjectId && !isStreaming && !isAiQuotaLimit
-    ? [
-      showDailyCount
-        ? t(
-          quotaRefund.kind === 'no_progress' || quotaRefund.kind === 'no_change'
-            ? 'chat:panel.notCharged'
-            : quotaRefund.kind === 'stopped'
-              ? 'chat:panel.notChargedStopped'
-              : 'chat:panel.notChargedError',
-        )
-        : quotaRefund.kind === 'stopped'
-          ? t('chat:panel.stoppedNothingWritten', { defaultValue: '已停止，这一轮还没有开始生成。' })
-          : null,
-    ].filter(Boolean).join('').trim() || null
-    : null;
-  // Stopped before the AI started generating: offer to send the same round again (same skills,
-  // attachments and quotes as the original request).
-  const resendAfterStop = Boolean(
-    quotaRefundNote
-    && quotaRefund?.kind === 'stopped'
-    && lastRetryRequestRef.current?.projectId === currentProjectId,
-  );
-  // 「已写入」只在这一轮确实有写入成功时才说；没扣费（还没开始）或 Pro 不提今日 AI 消息。
-  // The server's refund receipt wins over the click-time guess: a refunded stop shows
-  // only the refund note above (with Resend), never "计入" next to "不计入".
-  const stopRefunded = quotaRefund?.projectId === currentProjectId && quotaRefund?.kind === 'stopped';
-  const userStopNote = userStop && userStop.projectId === currentProjectId && !isStreaming && !stopRefunded
-    ? [
-        t('chat:panel.userStopped', { defaultValue: '已停止' }),
-        // Names the files like the end-of-round line after a refresh (RoundEndNote) does.
-        userStop.writtenFiles.length > 0 || (userStop.unwrittenFiles?.length ?? 0) > 0
-          ? formatRoundDelivery(t, userStop.writtenFiles, userStop.unwrittenFiles ?? [], i18n?.language)
-          : userStop.wroteFiles ? t('chat:panel.userStoppedSaved', { defaultValue: '已写入的内容已保存' }) : null,
-        // Counted once the server entered model execution (done.charged); Pro has no daily count to mention.
-        userStop.counted && showDailyCount
-          ? t('chat:panel.userStoppedCounted', { defaultValue: '本条计入今日 AI 消息' })
-          : null,
-      ].filter(Boolean).join(' · ')
-    : null;
-
-  const lastMessage = messages[messages.length - 1];
-  const unansweredUserMessage = lastMessage?.role === 'user'
-    && !isStreaming
-    && !isThinking
-    && !isLoadingHistory
-    && !error
-    ? lastMessage
-    : null;
-
-  const quotaAccount = subscriptionQueryKeys.status()[1];
-  const quotaPeriod = aiQuotaPeriodKey(aiMessageQuota?.reset_at);
-  useEffect(() => {
-    if (isAiQuotaLimit && chatQuotaUpgradePrompt.surface === "modal" && claimAutoUpgradePrompt(quotaAccount, chatQuotaUpgradePrompt.source, quotaPeriod)) {
-      setShowQuotaUpgradeModal(true);
-    }
-  }, [chatQuotaUpgradePrompt.surface, chatQuotaUpgradePrompt.source, isAiQuotaLimit, quotaAccount, quotaPeriod]);
-
-  /**
-   * Loads chat history for a specific project from the server.
-   * Converts backend message format to frontend Message type, including
-   * parsing and transforming tool_calls data.
-   *
-   * @param projectId - The ID of the project to load chat history for
-   */
-  const mapBackendHistoryMessages = useCallback((historyMessages: ChatMessage[]): Message[] => (
-    historyMessages.map((msg) => {
-      const parsedMetadata = parseMessageMetadataObject(msg.metadata);
-      const createdAt = parseUTCDate(msg.created_at);
-      const feedback = parseMessageFeedbackFromMetadata(parsedMetadata);
-      const statusCards = parseMessageStatusCardsFromMetadata(parsedMetadata);
-      const { toolCalls, toolResults, orderedToolCalls } = parseToolCallsFromHistory(msg.tool_calls);
-
-      return {
-        id: msg.id,
-        backendMessageId: msg.id,
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-        timestamp: createdAt,
-        feedback,
-        statusCards,
-        toolCalls,
-        toolResults,
-        displayItems: parseChatDisplayEvents(parsedMetadata, orderedToolCalls ?? [], createdAt, t),
-        stopOutcome: msg.role === "assistant" ? parseRoundStopOutcome(parsedMetadata) ?? undefined : undefined,
-      };
-    })
-  ), [t]);
-
-  // Load chat history when project changes
-  const loadChatHistory = useCallback(async (projectId: string, recoverSession = false): Promise<Message[] | null> => {
-    sessionRecoveryBlockedRef.current = projectId;
-    setSessionRecoveryError(null);
-    const requestId = ++historyRequestSeqRef.current;
-    setIsLoadingHistory(true);
-    try {
-      let historyMessages: ChatMessage[] | null = null;
-      let hasMore = false;
-      let hydratedSessionId: string | null = null;
-      let loadedLimit = 50;
-
-      if (!recoverSession) {
-        const pendingBootstrap = peekBootstrappedChat(queryClient, userId, projectId);
-        if (pendingBootstrap) {
-          const bootstrapped = await pendingBootstrap.promise;
-          if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
-            return null;
-          }
-          markBootstrappedChatConsumed(queryClient, userId, projectId, pendingBootstrap);
-          if (bootstrapped?.chatReady) {
-            historyMessages = bootstrapped.data.recent_messages || [];
-            hasMore = Boolean(bootstrapped.data.has_more_messages);
-            hydratedSessionId = bootstrapped.data.chat_session?.id ?? null;
-            loadedLimit = Math.max(BOOTSTRAP_DEFAULT_CHAT_LIMIT, historyMessages.length);
-          }
-        }
-      }
-
-      if (historyMessages === null) {
-        historyMessages = await getRecentMessages(projectId, 50);
-        hasMore = historyMessages.length >= 50;
-        loadedLimit = 50;
-      }
-
-      // A newer history load or new session supersedes this response, even
-      // when the active project ID has returned to the same value.
-      if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
-        return null;
-      }
-
-      // Convert to Message format
-      const loadedMessages = mapBackendHistoryMessages(historyMessages);
-
-      setMessages(loadedMessages);
-      historyLimitRef.current = loadedLimit;
-      setHasMoreHistory(hasMore);
-      sessionRecoveryBlockedRef.current = null;
-      setSessionRecoveryError(null);
-      if (recoverSession) {
-        currentAgentSessionIdRef.current = historyMessages.at(-1)?.session_id ?? null;
-      } else {
-        currentAgentSessionIdRef.current =
-          hydratedSessionId ?? historyMessages.at(-1)?.session_id ?? null;
-      }
-      return loadedMessages;
-    } catch (err) {
-      logger.error("Failed to load chat history:", err);
-      // Don't clear messages or request suggestions for a superseded load.
-      if (currentProjectIdRef.current !== projectId || requestId !== historyRequestSeqRef.current) {
-        return null;
-      }
-      setMessages([]);
-      setHasMoreHistory(false);
-      shouldAutoScrollRef.current = true;
-      setShowJumpToLatest(false);
-      setFeedbackPendingMessageId(null);
-      setSessionRecoveryError(projectId);
-      setSuggestionDisplayState("ready");
-      return null;
-    } finally {
-      if (requestId === historyRequestSeqRef.current && currentProjectIdRef.current === projectId) {
-        setIsLoadingHistory(false);
-      }
-    }
-  }, [mapBackendHistoryMessages, queryClient, userId]);
 
   const isHistoryLoadBlocked =
-    isStreaming || isThinking || isCreatingSession || newChatPending;
+    isStreaming || isThinking || history.isCreatingSession || newChatPending;
   const isHistoryLoadBlockedRef = useRef(isHistoryLoadBlocked);
   isHistoryLoadBlockedRef.current = isHistoryLoadBlocked;
 
-  const handleLoadEarlierMessages = useCallback(async () => {
-    const projectId = currentProjectIdRef.current;
-    if (
-      !projectId ||
-      isLoadingMoreHistory ||
-      isLoadingHistory ||
-      isHistoryLoadBlockedRef.current ||
-      sendLockRef.current ||
-      creatingSessionRef.current !== null ||
-      newChatAfterStopRef.current
-    ) {
-      return;
-    }
-    const targetLimit = historyLimitRef.current < 50 ? 50 : 100;
-    const fetchLimit = targetLimit < 100 ? targetLimit + 1 : 100;
-    const requestId = ++historyRequestSeqRef.current;
-    const container = messagesScrollContainerRef.current;
-    const prevScrollHeight = container?.scrollHeight ?? 0;
-    const prevScrollTop = container?.scrollTop ?? 0;
+  const {
+    messagesScrollContainerRef,
+    shouldAutoScrollRef,
+    followLatestMessage,
+    resetScrollState,
+  } = scroll;
 
-    setIsLoadingMoreHistory(true);
-    try {
-      const olderMessages = await getRecentMessages(projectId, fetchLimit);
-      if (
-        currentProjectIdRef.current !== projectId ||
-        requestId !== historyRequestSeqRef.current ||
-        isHistoryLoadBlockedRef.current ||
-        sendLockRef.current ||
-        creatingSessionRef.current !== null ||
-        newChatAfterStopRef.current
-      ) {
-        return;
-      }
-      const hasMore = targetLimit < 100 && olderMessages.length > targetLimit;
-      const displayedMessages = hasMore
-        ? olderMessages.slice(olderMessages.length - targetLimit)
-        : olderMessages;
-      shouldAutoScrollRef.current = false;
-      const mappedEarlier = mapBackendHistoryMessages(displayedMessages);
-      setMessages((prev) => mergeEarlierHistoryMessages(mappedEarlier, prev));
-      historyLimitRef.current = targetLimit;
-      setHasMoreHistory(hasMore);
-      if (container) {
-        requestAnimationFrame(() => {
-          const delta = container.scrollHeight - prevScrollHeight;
-          if (delta > 0) {
-            container.scrollTop = prevScrollTop + delta;
-          }
-        });
-      }
-    } catch (err) {
-      logger.error("Failed to load earlier chat history:", err);
-    } finally {
-      if (currentProjectIdRef.current === projectId && requestId === historyRequestSeqRef.current) {
-        setIsLoadingMoreHistory(false);
-      }
-    }
-  }, [isLoadingHistory, isLoadingMoreHistory, mapBackendHistoryMessages]);
-
-  const handleSubmitFeedback = useCallback(async (message: Message, vote: MessageFeedbackVote) => {
-    const backendMessageId = message.backendMessageId ?? null;
-    if (!backendMessageId) {
-      toast.error(t("chat:feedback.unsupported"));
-      return;
-    }
-
-    setFeedbackPendingMessageId(message.id);
-    try {
-      const response = await submitMessageFeedback(backendMessageId, { vote });
-      const normalizedFeedback = normalizeFeedbackFromResponse(response.feedback, vote, response.updated_at);
-
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === message.id
-            ? {
-              ...item,
-              backendMessageId,
-              feedback: normalizedFeedback,
-            }
-            : item,
-        ),
-      );
-    } catch (error) {
-      logger.error("Failed to submit message feedback:", error);
-      toast.error(t("chat:feedback.submitFailed"));
-    } finally {
-      setFeedbackPendingMessageId(null);
-    }
-  }, [t]);
+  const handleLoadEarlierMessages = useCallback(
+    () =>
+      loadEarlierMessages({
+        isHistoryLoadBlockedRef,
+        sendLockRef,
+        newChatAfterStopRef,
+        messagesScrollContainerRef,
+        shouldAutoScrollRef,
+      }),
+    [loadEarlierMessages, messagesScrollContainerRef, shouldAutoScrollRef],
+  );
 
   // Load history when project changes
+
   useEffect(() => {
-    if (!currentProjectId) {
-      return;
-    }
+    if (!currentProjectId) return;
+    if (lastLoadedProjectRef.current === currentProjectId) return;
 
-    // Skip if already loaded this project (prevents duplicate requests)
-    if (lastLoadedProjectRef.current === currentProjectId) {
-      return;
-    }
-
-    // Mark as loaded to prevent duplicate requests
     lastLoadedProjectRef.current = currentProjectId;
 
-    // Reset chat UI state
     currentAgentSessionIdRef.current = null;
     setMessages([]);
     setHasMoreHistory(false);
     setIsLoadingMoreHistory(false);
-    shouldAutoScrollRef.current = true;
-    setShowJumpToLatest(false);
+    resetScrollState();
     setFeedbackPendingMessageId(null);
     setEditProgress(null);
-    // 旧项目的流式渲染残留（半截正文/工具卡片/技能芯片/冲突）不能带进新项目会话：
-    // 旧流已被 useAgentStream 的项目切换 effect 中止，其 onComplete 永远不会执行，
-    // 所以必须在这里主动清空。
     clearStreamItems();
     setMatchedSkills([]);
     reset();
-    suggestionRequestSeqRef.current += 1;  // the previous project's suggestions never land here
+    invalidateInFlightSuggestions();
     setAiSuggestions([]);
     setSuggestionDisplayState("loading");
 
-    frameworkReadyRef.current = null;
-    setFrameworkReadyProjectId(null);
-    setManuscriptProjectId(null);
-    setProgressKnownProjectId(null);
+    resetProgressForProject();
     void refreshNextStep(currentProjectId);
 
-    // Load chat history first, then request project suggestions immediately.
-    setStarterProjectId(null);
     void (async () => {
       const loadedMessages = await loadChatHistory(currentProjectId);
       if (loadedMessages === null) return;
       if (loadedMessages.length === 0) {
-        // A work's first conversation: starter cards, no automatic /suggest request.
         setStarterProjectId(currentProjectId);
         setAiSuggestions([]);
         setSuggestionDisplayState("ready");
@@ -1936,279 +880,193 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
       await requestInitialSuggestions(currentProjectId, loadedMessages);
     })();
-  }, [currentProjectId, loadChatHistory, requestInitialSuggestions, refreshNextStep, setAiSuggestions, setEditProgress, clearStreamItems, setMatchedSkills, reset]); // 依赖 loadChatHistory
-
-  // Auto-scroll to bottom when new messages arrive or streaming content meaningfully changes.
-  // Coalesce scrolls in a single RAF to avoid completion-time jitter from multiple back-to-back
-  // state commits (final message append, stream cleanup, backend hydration).
-  useEffect(() => {
-    if (shouldAutoScrollRef.current) {
-      if (autoScrollFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollFrameRef.current);
-      }
-      autoScrollFrameRef.current = requestAnimationFrame(() => {
-        autoScrollFrameRef.current = null;
-        messageListRef.current?.scrollToBottom(false);
-      });
-      return;
-    }
-    setShowJumpToLatest(true);
   }, [
-    messages.length,
-    state.content,
-    streamRenderItemCount,
-    isStreaming,
-    isThinking,
+    currentProjectId,
+    lastLoadedProjectRef,
+    loadChatHistory,
+    requestInitialSuggestions,
+    invalidateInFlightSuggestions,
+    refreshNextStep,
+    resetProgressForProject,
+    resetScrollState,
+    setAiSuggestions,
+    setSuggestionDisplayState,
+    setStarterProjectId,
+    setHasMoreHistory,
+    setIsLoadingMoreHistory,
+    setFeedbackPendingMessageId,
+    setEditProgress,
+    clearStreamItems,
+    setMatchedSkills,
+    reset,
   ]);
 
-  useEffect(() => {
-    return () => {
-      if (autoScrollFrameRef.current !== null) {
-        cancelAnimationFrame(autoScrollFrameRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const scrollEl = messagesScrollContainerRef.current;
-    if (!scrollEl) {
-      return;
-    }
-
-    const handleScroll = () => {
-      const nearBottom = isNearBottom(scrollEl);
-      shouldAutoScrollRef.current = nearBottom;
-      if (nearBottom) {
-        setShowJumpToLatest(false);
-      } else if (
-        messagesRef.current.length > 0 &&
-        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight > 120
+  const startRound = useCallback(
+    (
+      request: Omit<AgentRequest, "project_id">,
+      options: { userBubble: boolean; keepIfBusy?: boolean },
+    ): boolean => {
+      if (
+        sendLockRef.current ||
+        isStreaming ||
+        newChatAfterStopRef.current ||
+        creatingSessionRef.current !== null ||
+        sessionRecoveryBlockedRef.current
       ) {
-        setShowJumpToLatest(true);
+        return false;
       }
-    };
+      sendLockRef.current = true;
+      setTimeout(() => {
+        sendLockRef.current = false;
+      }, 0);
 
-    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => {
-      scrollEl.removeEventListener("scroll", handleScroll);
-    };
-  }, [currentProjectId]);
+      historyRequestSeqRef.current += 1;
+      setIsLoadingMoreHistory(false);
+      resetSuggestionsForNewRound();
 
-  // 刷新 / 重新登录后，历史消息的 Markdown 在第一次贴底之后才渲染完、把列表撑高，
-  // 列表就停在倒数第二轮（2026-10-12 生产审计）。历史加载完的几秒内、作者还没动过
-  // 这个列表时，内容变高就继续贴底；作者一滚动、点按或按键就不再跟。
-  useEffect(() => {
-    if (!isLoadingHistory) {
-      followLoadedHistoryUntilRef.current = performance.now() + HISTORY_SETTLE_FOLLOW_MS;
-    }
-  }, [isLoadingHistory]);
-
-  useEffect(() => {
-    const scrollEl = messagesScrollContainerRef.current;
-    const contentEl = scrollEl?.firstElementChild;
-    if (!scrollEl || !contentEl || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const stopFollowing = () => {
-      followLoadedHistoryUntilRef.current = 0;
-    };
-    const observer = new ResizeObserver((entries) => {
-      if (!shouldAutoScrollRef.current) return;
-      // The list itself got shorter (the chips row appeared above the input after the first
-      // scroll-to-bottom): a reader at the bottom stays there, or the latest reply drops out of view.
-      const listResized = entries.some((entry) => entry.target === scrollEl);
-      if (listResized || performance.now() < followLoadedHistoryUntilRef.current) {
-        messageListRef.current?.scrollToBottom(false);
-      }
-    });
-    observer.observe(contentEl);
-    observer.observe(scrollEl);
-    const interactions = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
-    for (const type of interactions) {
-      scrollEl.addEventListener(type, stopFollowing, { passive: true });
-    }
-    return () => {
-      observer.disconnect();
-      for (const type of interactions) {
-        scrollEl.removeEventListener(type, stopFollowing);
-      }
-    };
-  }, [currentProjectId]);
-
-  const handleJumpToLatest = useCallback(() => {
-    shouldAutoScrollRef.current = true;
-    setShowJumpToLatest(false);
-    messageListRef.current?.scrollToBottom(true);
-  }, []);
-
-  /**
-   * The author just sent (or re-sent) something: follow the conversation again
-   * even if they had scrolled up to read earlier messages.
-   */
-  const followLatestMessage = useCallback(() => {
-    shouldAutoScrollRef.current = true;
-    setShowJumpToLatest(false);
-    if (autoScrollFrameRef.current !== null) {
-      cancelAnimationFrame(autoScrollFrameRef.current);
-    }
-    autoScrollFrameRef.current = requestAnimationFrame(() => {
-      autoScrollFrameRef.current = null;
-      messageListRef.current?.scrollToBottom(false);
-    });
-  }, []);
-
-  /**
-   * Starts one round: every send, resend and retry goes through here. The ref lock makes a
-   * double click in the same tick start only one round (the closure's isStreaming is stale
-   * until React re-renders).
-   */
-  const startRound = useCallback((
-    request: Omit<AgentRequest, "project_id">,
-    options: { userBubble: boolean; keepIfBusy?: boolean },
-  ): boolean => {
-    if (sendLockRef.current || isStreaming || newChatAfterStopRef.current || creatingSessionRef.current !== null || sessionRecoveryBlockedRef.current) return false;
-    // Held until the next task: by then React has re-rendered with isStreaming = true,
-    // which guards every later click.
-    sendLockRef.current = true;
-    setTimeout(() => {
-      sendLockRef.current = false;
-    }, 0);
-
-    // Invalidate any in-flight history / "Load earlier messages" request so it cannot
-    // race with or clobber this newly started round.
-    historyRequestSeqRef.current += 1;
-    setIsLoadingMoreHistory(false);
-
-    // Clear AI suggestions when user sends a message (and drop any still in flight)
-    suggestionRequestSeqRef.current += 1;
-    setAiSuggestions([]);
-    setSuggestionDisplayState("loading");
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-    }
-
-    const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-    if (options.userBubble) {
-      // Add user message to chat (optimistic update)
-      const userMessage: Message = {
-        id: userMessageId,
-        role: "user",
-        content: request.message,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-    }
-    blockedCandidateRef.current = options.userBubble
-      ? {
+      const userMessageId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      if (options.userBubble) {
+        const userMessage: Message = {
           id: userMessageId,
+          role: "user",
           content: request.message,
-          skillIds: request.selected_skill_ids ?? [],
-          keepIfBusy: options.keepIfBusy,
-        }
-      : null;
-    roundQuotaBaselineRef.current =
-      queryClient.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota())?.ai_conversations.used ?? null;
-    followLatestMessage();
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+      }
+      blockedCandidateRef.current = options.userBubble
+        ? {
+            id: userMessageId,
+            content: request.message,
+            skillIds: request.selected_skill_ids ?? [],
+            keepIfBusy: options.keepIfBusy,
+          }
+        : null;
+      roundQuotaBaselineRef.current =
+        queryClient.getQueryData<QuotaResponse>(subscriptionQueryKeys.quota())?.ai_conversations
+          .used ?? null;
+      followLatestMessage();
 
-    if (currentProjectId) {
-      lastRetryRequestRef.current = { projectId: currentProjectId, request };
-    }
-    startStream(request);
-    return true;
-  }, [isStreaming, currentProjectId, queryClient, followLatestMessage, setAiSuggestions, startStream]);
+      if (currentProjectId) {
+        lastRetryRequestRef.current = { projectId: currentProjectId, request };
+        setLastRetryMeta({ projectId: currentProjectId, entry: request.metadata?.entry });
+      }
+      startStream(request);
+      return true;
+    },
+    [
+      creatingSessionRef,
+      currentProjectId,
+      followLatestMessage,
+      historyRequestSeqRef,
+      isStreaming,
+      queryClient,
+      resetSuggestionsForNewRound,
+      roundQuotaBaselineRef,
+      sessionRecoveryBlockedRef,
+      setIsLoadingMoreHistory,
+      startStream,
+    ],
+  );
 
-  /**
-   * Handles sending a user message to the AI agent.
-   * Creates a user message, adds it to the chat, constructs the agent request
-   * with context (selected file, attachments, quotes), and initiates streaming.
-   * Clears draft and attachments after sending.
-   *
-   * Every send entry (input box, suggestion chips via the input, the dashboard idea
-   * auto-send) goes through here, so this is also where the view jumps back to the
-   * latest message.
-   *
-   * @param message - The user's message text to send (shown and stored as-is)
-   * @param selectedSkillIds - Skills explicitly selected via chips (sent as selected_skill_ids)
-   * @param extraMetadata - Extra request metadata (e.g. `{ entry: "dashboard_idea" }`)
-   * @param options.keepComposer - Send only these words: the draft, attachments and quotes
-   *   staged in the composer stay there (a follow-up sent on after its round wrapped up)
-   */
-  // Handle sending a message
-  const handleSendMessage = useCallback(async (
-    message: string,
-    selectedSkillIds?: string[],
-    extraMetadata?: Record<string, unknown>,
-    { keepComposer = false }: { keepComposer?: boolean } = {},
-  ) => {
-    if (!message.trim() || isStreaming || sendLockRef.current || newChatAfterStopRef.current || creatingSessionRef.current !== null || sessionRecoveryBlockedRef.current) return false;
+  const handleSendMessage = useCallback(
+    async (
+      message: string,
+      selectedSkillIds?: string[],
+      extraMetadata?: Record<string, unknown>,
+      { keepComposer = false }: { keepComposer?: boolean } = {},
+    ) => {
+      if (
+        !message.trim() ||
+        isStreaming ||
+        sendLockRef.current ||
+        newChatAfterStopRef.current ||
+        creatingSessionRef.current !== null ||
+        sessionRecoveryBlockedRef.current
+      ) {
+        return false;
+      }
 
-    // Used up for today: keep the words as the draft and explain, instead of sending.
-    if (aiSendBlocked) {
-      if (!keepComposer) saveDraft(message);
-      reportQuotaBlockedSend(false);
-      setShowQuotaUpgradeModal(true);
-      return false;
-    }
+      if (quotaNotes.aiSendBlocked) {
+        if (!keepComposer) saveDraft(message);
+        reportQuotaBlockedSend(false);
+        setShowQuotaUpgradeModal(true);
+        return false;
+      }
 
-    // Clear draft after sending
-    if (!keepComposer) clearDraft();
-    const sentFileIds = keepComposer ? [] : attachedFileIds;
-    const sentLibraryMaterials = keepComposer ? [] : attachedLibraryMaterials;
-    const sentQuotes = keepComposer ? [] : quotes;
+      if (!keepComposer) clearDraft();
+      const sentFileIds = keepComposer ? [] : attachedFileIds;
+      const sentLibraryMaterials = keepComposer ? [] : attachedLibraryMaterials;
+      const sentQuotes = keepComposer ? [] : quotes;
 
-    // The first message typed in a work's first conversation gets the server's first-message
-    // hint (write an opening, then offer directions) like the starter example does.
-    const entry = typeof extraMetadata?.entry === "string"
-      ? extraMetadata.entry
-      : starterProjectIdRef.current === currentProjectId && messagesRef.current.length === 0
-        ? "first_message"
-        : undefined;
-    const requestMetadata = entry ? { ...extraMetadata, entry } : extraMetadata;
+      const entry =
+        typeof extraMetadata?.entry === "string"
+          ? extraMetadata.entry
+          : starterProjectIdRef.current === currentProjectId &&
+              messagesRef.current.length === 0
+            ? "first_message"
+            : undefined;
+      const requestMetadata = entry ? { ...extraMetadata, entry } : extraMetadata;
 
-    // Get current editor content as context
-    const request: Omit<AgentRequest, "project_id"> = {
-      message,
-      selected_text: undefined, // Editor selection via text quote feature - see TextQuoteContext
-      selected_skill_ids: selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
-      metadata: {
-        // Current focused file info (used by backend context assembler)
-        current_file_id: selectedItem?.id,
-        current_file_type: selectedItem?.type,
-        current_file_title: selectedItem?.title,
+      const request: Omit<AgentRequest, "project_id"> = {
+        message,
+        selected_text: undefined,
+        selected_skill_ids:
+          selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
+        metadata: {
+          current_file_id: selectedItem?.id,
+          current_file_type: selectedItem?.type,
+          current_file_title: selectedItem?.title,
+          attached_file_ids: sentFileIds.length > 0 ? sentFileIds : undefined,
+          attached_library_materials:
+            sentLibraryMaterials.length > 0 ? sentLibraryMaterials : undefined,
+          text_quotes:
+            sentQuotes.length > 0
+              ? sentQuotes.map((q) => ({
+                  text: q.text,
+                  fileId: q.fileId,
+                  fileTitle: q.fileTitle,
+                }))
+              : undefined,
+          ...requestMetadata,
+        },
+      };
 
-        // Include attached material IDs (project files)
-        attached_file_ids: sentFileIds.length > 0 ? sentFileIds : undefined,
+      pendingMaterialClearRef.current =
+        sentFileIds.length > 0 || sentLibraryMaterials.length > 0;
+      pendingQuoteClearRef.current = sentQuotes.length > 0;
 
-        // Include attached library materials
-        attached_library_materials: sentLibraryMaterials.length > 0 ? sentLibraryMaterials : undefined,
+      trackEvent("ai_chat_submitted", {
+        project_id: currentProjectId,
+        entry: entry ?? "typed",
+        selected_item_type: selectedItem?.type,
+        attached_file_count: sentFileIds.length,
+        attached_library_material_count: sentLibraryMaterials.length,
+        quote_count: sentQuotes.length,
+      });
 
-        // Include text quotes
-        text_quotes: sentQuotes.length > 0 ? sentQuotes.map(q => ({
-          text: q.text,
-          fileId: q.fileId,
-          fileTitle: q.fileTitle,
-        })) : undefined,
-
-        ...requestMetadata,
-      },
-    };
-
-    pendingMaterialClearRef.current = sentFileIds.length > 0 || sentLibraryMaterials.length > 0;
-    pendingQuoteClearRef.current = sentQuotes.length > 0;
-
-    trackEvent("ai_chat_submitted", {
-      project_id: currentProjectId,
-      // Where this message came from: next_step / dashboard_idea / starter_example / starter_manuscript / first_message, otherwise typed.
-      entry: entry ?? "typed",
-      selected_item_type: selectedItem?.type,
-      attached_file_count: sentFileIds.length,
-      attached_library_material_count: sentLibraryMaterials.length,
-      quote_count: sentQuotes.length,
-    });
-
-    return startRound(request, { userBubble: true });
-  }, [isStreaming, aiSendBlocked, saveDraft, reportQuotaBlockedSend, selectedItem?.id, selectedItem?.type, selectedItem?.title, attachedFileIds, attachedLibraryMaterials, quotes, clearDraft, currentProjectId, startRound]);
+      return startRound(request, { userBubble: true });
+    },
+    [
+      attachedFileIds,
+      attachedLibraryMaterials,
+      clearDraft,
+      creatingSessionRef,
+      currentProjectId,
+      isStreaming,
+      quotaNotes.aiSendBlocked,
+      quotes,
+      reportQuotaBlockedSend,
+      saveDraft,
+      selectedItem?.id,
+      selectedItem?.title,
+      selectedItem?.type,
+      sessionRecoveryBlockedRef,
+      setShowQuotaUpgradeModal,
+      starterProjectIdRef,
+      startRound,
+    ],
+  );
 
   // Share chat streaming status with the editor so editor-initiated AI actions disable while busy.
   useEffect(() => {
@@ -2223,28 +1081,29 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   // Handle one-shot structured UI actions dispatched from the editor (e.g. 去AI味).
   const lastHandledUiActionIdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!pendingAgentUiAction || !currentProjectId || pendingAgentUiAction.projectId !== currentProjectId) {
+    if (
+      !pendingAgentUiAction ||
+      !currentProjectId ||
+      pendingAgentUiAction.projectId !== currentProjectId
+    ) {
       return;
     }
-    if (lastHandledUiActionIdRef.current === pendingAgentUiAction.id) {
-      return;
-    }
+    if (lastHandledUiActionIdRef.current === pendingAgentUiAction.id) return;
     lastHandledUiActionIdRef.current = pendingAgentUiAction.id;
     consumeAgentUiAction?.(pendingAgentUiAction.id);
-    if (pendingAgentUiAction.action !== "natural_polish") {
-      return;
-    }
+    if (pendingAgentUiAction.action !== "natural_polish") return;
+
     if (
-      isStreaming
-      || sendLockRef.current
-      || newChatAfterStopRef.current
-      || creatingSessionRef.current !== null
-      || sessionRecoveryBlockedRef.current
+      isStreaming ||
+      sendLockRef.current ||
+      newChatAfterStopRef.current ||
+      creatingSessionRef.current !== null ||
+      sessionRecoveryBlockedRef.current
     ) {
       toast.info(t("editor:naturalPolishBusy"));
       return;
     }
-    if (aiSendBlocked) {
+    if (quotaNotes.aiSendBlocked) {
       reportQuotaBlockedSend(false);
       setShowQuotaUpgradeModal(true);
       return;
@@ -2253,12 +1112,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     const title = pendingAgentUiAction.fileTitle?.trim();
     const hasSelection = Boolean(pendingAgentUiAction.selectedText?.trim());
     const userMessage = hasSelection
-      ? (title
-          ? t("editor:naturalPolishPromptSelection", { title })
-          : t("editor:naturalPolishPromptSelectionFallback"))
-      : (title
-          ? t("editor:naturalPolishPromptChapter", { title })
-          : t("editor:naturalPolishPromptChapterFallback"));
+      ? title
+        ? t("editor:naturalPolishPromptSelection", { title })
+        : t("editor:naturalPolishPromptSelectionFallback")
+      : title
+        ? t("editor:naturalPolishPromptChapter", { title })
+        : t("editor:naturalPolishPromptChapterFallback");
 
     const request: Omit<AgentRequest, "project_id"> = {
       message: userMessage,
@@ -2285,16 +1144,15 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     currentProjectId,
     consumeAgentUiAction,
     isStreaming,
-    aiSendBlocked,
+    creatingSessionRef,
+    sessionRecoveryBlockedRef,
+    quotaNotes.aiSendBlocked,
     reportQuotaBlockedSend,
+    setShowQuotaUpgradeModal,
     t,
     startRound,
   ]);
 
-  /**
-   * 「重新发送」 after a stop that wrote nothing: the same round again, with the original
-   * request's skills, attachments and quotes (they may already be cleared from the input).
-   */
   const resendLastRound = useCallback(() => {
     const last = lastRetryRequestRef.current;
     if (!last || last.projectId !== currentProjectId) return;
@@ -2308,393 +1166,172 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     );
   }, [currentProjectId, startRound]);
 
-  /** Retry after a stream error: reuse the same (unanswered) user message, no new bubble. */
   const handleRetry = useCallback(() => {
     const lastRequest = lastRetryRequestRef.current;
-    if (!retryable || isStreaming || !currentProjectId || lastRequest?.projectId !== currentProjectId) {
+    if (
+      !retryable ||
+      isStreaming ||
+      !currentProjectId ||
+      lastRequest?.projectId !== currentProjectId
+    ) {
       return;
     }
     const started = startRound(
       { ...lastRequest.request, metadata: { ...lastRequest.request.metadata, retry_unanswered: true } },
       { userBubble: false },
     );
-    // Remember the author's own request, not the retry variant (a later resend is a new round).
-    if (started) lastRetryRequestRef.current = lastRequest;
+    if (started) {
+      lastRetryRequestRef.current = lastRequest;
+      setLastRetryMeta({
+        projectId: lastRequest.projectId,
+        entry: lastRequest.request.metadata?.entry,
+      });
+    }
   }, [currentProjectId, isStreaming, retryable, startRound]);
 
-  /** The last message got no reply (failed earlier, seen after a refresh): ask again in place. */
-  const retryUnanswered = useCallback((message: Message) => {
-    trackEvent("ai_chat_submitted", {
-      project_id: currentProjectId,
-      entry: "retry_unanswered",
-    });
-    // Still the work's first message (no reply yet): keep the first-message hint on the retry.
-    const firstMessage = messagesRef.current.every((item) => item.role === "user");
-    startRound(
-      {
-        message: message.content,
-        metadata: {
-          retry_unanswered: true,
-          ...(firstMessage ? { entry: "first_message" } : {}),
+  const retryUnanswered = useCallback(
+    (message: Message) => {
+      trackEvent("ai_chat_submitted", {
+        project_id: currentProjectId,
+        entry: "retry_unanswered",
+      });
+      const firstMessage = messagesRef.current.every((item) => item.role === "user");
+      startRound(
+        {
+          message: message.content,
+          metadata: {
+            retry_unanswered: true,
+            ...(firstMessage ? { entry: "first_message" } : {}),
+          },
         },
-      },
-      { userBubble: false },
-    );
-  }, [currentProjectId, startRound]);
+        { userBubble: false },
+      );
+    },
+    [currentProjectId, startRound],
+  );
 
-  /**
-   * Send a steering (follow-up) instruction while the agent is generating.
-   * The backend queues it and the agent picks it up at its next step, so the
-   * toast sets that expectation ("applies at the next step").
-   */
-  // A follow-up that reached the server after the round stopped reading them (404 from
-  // /agent/steer): sent once as the next message when the reply settles. `stopped`: the
-  // author pressed Stop meanwhile, so no paid round starts unasked; the words go back
-  // into the input instead.
-  const [steerFallback, setSteerFallback] = useState<
-    { projectId: string; message: string; stopped?: boolean } | null
-  >(null);
+  const [steerFallback, setSteerFallback] = useState<{
+    projectId: string;
+    message: string;
+    stopped?: boolean;
+  } | null>(null);
 
-  const handleSteer = useCallback(async (message: string) => {
-    // 不能直接 return 或忽略异常：调用方（MessageInput）以「没有抛错 = 已送达」
-    // 来决定是否清空输入框，而 setInput("") 会连带把持久化草稿覆写成空串，
-    // 用户敲的这段追加指令在 textarea 和 localStorage 里都不复存在。
-    try {
-      if (!message.trim()) {
-        throw new Error("Empty steering message");
+  const handleSteer = useCallback(
+    async (message: string) => {
+      try {
+        if (!message.trim()) {
+          throw new Error("Empty steering message");
+        }
+        if (!isStreaming) {
+          throw new Error("No active stream for steering");
+        }
+        await sendSteeringMessage(message);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404 && currentProjectId) {
+          setSteerFallback({ projectId: currentProjectId, message });
+          toast.success(t("chat:input.steerSentAsNextMessage"));
+          return;
+        }
+        logger.error("Failed to send steering message", err);
+        toast.error(t("chat:input.steerFailed"));
+        throw err;
       }
-      // 流可能在用户按下回车前就结束了（按钮的可见性是上一帧的快照）。
-      if (!isStreaming) {
-        throw new Error("No active stream for steering");
-      }
-      await sendSteeringMessage(message);
-    } catch (err) {
-      // 404: no run will read it (the round has wrapped up), and nothing was queued or
-      // counted. Send it as the next message instead. Any other failure may already be
-      // queued, so the words stay in the input rather than risk a second send.
-      if (err instanceof ApiError && err.status === 404 && currentProjectId) {
-        setSteerFallback({ projectId: currentProjectId, message });
-        toast.success(t("chat:input.steerSentAsNextMessage"));
-        return;
-      }
-      logger.error("Failed to send steering message", err);
-      toast.error(t("chat:input.steerFailed"));
-      // 继续抛出，让输入框保留用户已输入的内容。
-      throw err;
-    }
-    toast.success(t("chat:input.steerSent"));
-  }, [currentProjectId, isStreaming, sendSteeringMessage, t]);
+      toast.success(t("chat:input.steerSent"));
+    },
+    [currentProjectId, isStreaming, sendSteeringMessage, t],
+  );
 
   useEffect(() => {
     if (!steerFallback || isStreaming) return;
     setSteerFallback(null);
     const { projectId, message, stopped } = steerFallback;
     if (currentProjectIdRef.current !== projectId) {
-      // The author switched works while waiting: the words go into that work's input.
-      if (appendDraftForProject(projectId, message)) toast.success(t("chat:input.steerReturnedToInput"));
-      else toast.error(t("chat:input.steerFailed"));
+      if (appendDraftForProject(projectId, message)) {
+        toast.success(t("chat:input.steerReturnedToInput"));
+      } else {
+        toast.error(t("chat:input.steerFailed"));
+      }
       return;
     }
-    const backToInput = () => saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
+    const backToInput = () =>
+      saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
     if (stopped) {
       backToInput();
       toast.success(t("chat:input.steerReturnedToInput"));
       return;
     }
-    // Only these words go out: what the author typed or staged meanwhile stays in the composer.
     void handleSendMessage(message, undefined, undefined, { keepComposer: true }).then((sent) => {
-      // Could not start a round (new chat pending, used up for today, …): back in the input.
       if (!sent) backToInput();
     });
   }, [steerFallback, isStreaming, handleSendMessage, saveDraft, draft, t]);
 
   const handleIterationAssistAction = useCallback(
-    (action: 'continue' | 'split' | 'manual') => {
-      if (action === 'continue') {
-        saveDraft(t('chat:workflow.actionPrompt.continue'));
+    (action: "continue" | "split" | "manual") => {
+      if (action === "continue") {
+        saveDraft(t("chat:workflow.actionPrompt.continue"));
         return;
       }
-      if (action === 'split') {
-        saveDraft(t('chat:workflow.actionPrompt.split'));
+      if (action === "split") {
+        saveDraft(t("chat:workflow.actionPrompt.split"));
         return;
       }
-      saveDraft(t('chat:workflow.actionPrompt.manual'));
+      saveDraft(t("chat:workflow.actionPrompt.manual"));
     },
-    [saveDraft, t]
+    [saveDraft, t],
   );
 
-  // A dashboard idea about to be sent for this project: no starter cards for those 500 ms.
-  // Read on every render: the auto-send effect removes an expired idea without changing any
-  // state. An expired idea is never sent, so it does not hold the cards back.
-  const hasPendingDashboardIdea = Boolean(currentProjectId)
-    && messages.length === 0
-    && hasPendingInspiration(currentProjectId);
-  // Used up for today: the existing quota card explains instead (a press could not send).
-  const starterCardsDue = Boolean(currentProjectId)
-    && starterProjectId === currentProjectId
-    && messages.length === 0
-    && !aiSendBlocked
-    && !hasPendingDashboardIdea
-    && !newChatPending
-    && !isCreatingSession;
-  const showStarterCards = starterCardsDue && progressKnownProjectId === currentProjectId;
-  const starterHasManuscript = manuscriptProjectId === currentProjectId;
-  useEffect(() => {
-    starterExampleShownRef.current = showStarterCards && !starterHasManuscript ? currentProjectId : null;
-  }, [showStarterCards, starterHasManuscript, currentProjectId]);
+  const starters = useChatStartersAndNextStepEffects({
+    currentProjectId,
+    currentProjectIdRef,
+    currentProjectType: currentProject?.project_type,
+    fileTreeVersion,
+    messages,
+    isLoadingHistory: history.isLoadingHistory,
+    isStreaming,
+    isThinking,
+    error,
+    aiSendBlocked: quotaNotes.aiSendBlocked,
+    newChatPending,
+    isCreatingSession: history.isCreatingSession,
+    sessionRecoveryError: history.sessionRecoveryError,
+    resendAfterStop: quotaNotes.resendAfterStop,
+    lastRetryEntry: hasLastRetryForProject ? lastRetryMeta?.entry : undefined,
+    chatFocusRequest,
+    focusChatInput,
+    draft,
+    saveDraft,
+    handleSendMessage,
+    creatingSessionRef: history.creatingSessionRef,
+    newChatAfterStopRef,
+    sessionRecoveryBlockedRef: history.sessionRecoveryBlockedRef,
+    sendLockRef,
+    progressState,
+  });
 
-  // A progress request that hangs must not leave the first chat blank: after a short wait the
-  // example shows, and an answer that arrives later still switches to the manuscript requests.
-  const starterProgressPending = starterCardsDue && progressKnownProjectId !== currentProjectId;
-  useEffect(() => {
-    if (!starterProgressPending || !currentProjectId) return;
-    const projectId = currentProjectId;
-    const timer = setTimeout(() => {
-      if (currentProjectIdRef.current === projectId) setProgressKnownProjectId(projectId);
-    }, STARTER_PROGRESS_WAIT_MS);
-    return () => clearTimeout(timer);
-  }, [starterProgressPending, currentProjectId]);
-
-  // A file imported (or created) while the first chat's cards show: re-read the progress so the
-  // cards follow what the work now holds. The first value is the open's own request.
-  const starterTreeVersionRef = useRef(fileTreeVersion);
-  useEffect(() => {
-    if (starterTreeVersionRef.current === fileTreeVersion) return;
-    starterTreeVersionRef.current = fileTreeVersion;
-    if (showStarterCards && currentProjectId) void refreshNextStep(currentProjectId);
-  }, [fileTreeVersion, showStarterCards, currentProjectId, refreshNextStep]);
-
-  const starterViewedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!showStarterCards || !currentProjectId || starterViewedRef.current === currentProjectId) return;
-    starterViewedRef.current = currentProjectId;
-    trackEvent("starter_viewed", {
-      project_id: currentProjectId,
-      project_type: currentProject?.project_type,
-      variant: starterHasManuscript ? "manuscript" : "example",
+  const handleNewSession = () =>
+    history.runNewSession({
+      projectId: currentProjectId,
+      setStarterProjectId: progressState.setStarterProjectId,
+      resetSuggestionsForNewRound: suggestions.resetSuggestionsForNewRound,
+      resetPendingContextClears,
+      resetScrollState: scroll.resetScrollState,
+      clearStreamItems,
+      clearMatchedSkills: () => setMatchedSkills([]),
+      resetStream: reset,
+      clearQuotaAndStop: () => {
+        quotaState.setQuotaRefund(null);
+        quotaState.setUserStop(null);
+      },
+      requestInitialSuggestions: suggestions.requestInitialSuggestions,
     });
-  }, [showStarterCards, currentProjectId, currentProject?.project_type, starterHasManuscript]);
 
-  const handleStarterSend = useCallback((message: string) => {
-    trackEvent("starter_sent", { project_id: currentProjectId, variant: "example" });
-    void handleSendMessage(message, undefined, { entry: "starter_example" });
-  }, [currentProjectId, handleSendMessage]);
-
-  // Sent exactly as shown, like the example. Whether a request stays read-only (「先不改原文」) is
-  // the router's reading of these words, as for anything the author types.
-  const handleStarterManuscriptSend = useCallback((message: string, kind: ManuscriptStarterKind) => {
-    trackEvent("starter_sent", { project_id: currentProjectId, variant: "manuscript", kind });
-    void handleSendMessage(message, undefined, { entry: "starter_manuscript" });
-  }, [currentProjectId, handleSendMessage]);
-
-  const handleStarterEdit = useCallback((message: string) => {
-    trackEvent("starter_edited", { project_id: currentProjectId });
-    // Keep anything the author already typed; the example goes after it.
-    saveDraft(draft.trim() ? `${draft.trimEnd()}\n${message}` : message);
-    focusChatInput();
-  }, [currentProjectId, draft, saveDraft, focusChatInput]);
-
-  // Check for inspiration from Dashboard and auto-send
-  const inspirationProcessedRef = useRef<Set<string>>(new Set());
-  const inspirationSendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    // Every work, the untouched first work included, receives an idea only from the dashboard's
-    // 「开始创作」, written for it just now (feature/2026-10-31-first-work-rollout-polish.md), so
-    // sending does not wait for first-work status; the freshness rule below is the same for all.
-    if (!currentProjectId || isLoadingHistory || isStreaming || newChatPending || isCreatingSession || sessionRecoveryError) return;
-    
-    // Skip if we've already processed this project's inspiration
-    if (inspirationProcessedRef.current.has(currentProjectId)) return;
-    
-    const inspirationKey = `zenstory_inspiration_${currentProjectId}`;
-    const stored = localStorage.getItem(inspirationKey);
-    
-    if (stored) {
-      try {
-        const { content, timestamp } = JSON.parse(stored);
-
-        if (typeof content === "string" && content.length > MAX_AGENT_MESSAGE_CHARS) {
-          // Keep legacy oversized ideas editable even after the auto-send window.
-          // Do not remove the only durable copy when browser storage is full.
-          inspirationProcessedRef.current.add(currentProjectId);
-          const saved = saveDraft(draft && !draft.includes(content) ? `${draft}\n\n${content}` : draft || content);
-          if (saved) localStorage.removeItem(inspirationKey);
-          return;
-        }
-
-        // Only use if recent (within 5 minutes) and content is not empty
-        const isRecent = Date.now() - timestamp < 5 * 60 * 1000;
-
-        if (isRecent && typeof content === "string" && content.trim()) {
-          // Send the author's idea as-is: the bubble and the stored message are the
-          // author's own words. `entry` lets the server add its first-message hint
-          // to the model context without persisting it (older servers ignore it).
-          const idea = content;
-
-
-          // Delay slightly to ensure UI is ready. Tracked in a ref so it can be
-          // cleared on unmount/deps-change, otherwise a stray auto-send could
-          // fire after the user has navigated away.
-          // The "processed" mark and localStorage removal are deferred to the
-          // timer callback: if this effect re-runs within the 500ms window (e.g.
-          // handleSendMessage is recreated), the cleanup clears the pending timer
-          // and the re-run must be able to reschedule — marking processed up front
-          // would permanently drop the auto-send.
-          const projectIdForSend = currentProjectId;
-          if (inspirationSendTimerRef.current) {
-            clearTimeout(inspirationSendTimerRef.current);
-          }
-          inspirationSendTimerRef.current = setTimeout(() => {
-            inspirationSendTimerRef.current = null;
-            // A ready task can precede effect cleanup. Keep its durable idea
-            // until the owning chat is ready; the state change reschedules it.
-            if (currentProjectIdRef.current !== projectIdForSend || creatingSessionRef.current !== null || newChatAfterStopRef.current || sessionRecoveryBlockedRef.current || sendLockRef.current) return;
-            inspirationProcessedRef.current.add(projectIdForSend);
-            localStorage.removeItem(inspirationKey);
-            void handleSendMessage(idea, undefined, { entry: "dashboard_idea" });
-          }, 500);
-        } else {
-          // Clear old or invalid inspiration
-          localStorage.removeItem(inspirationKey);
-        }
-      } catch (e) {
-        logger.error("Failed to parse inspiration:", e);
-        localStorage.removeItem(inspirationKey);
-      }
-    }
-
-    return () => {
-      if (inspirationSendTimerRef.current) {
-        clearTimeout(inspirationSendTimerRef.current);
-        inspirationSendTimerRef.current = null;
-      }
-    };
-  }, [currentProjectId, isLoadingHistory, isStreaming, newChatPending, isCreatingSession, sessionRecoveryError, handleSendMessage, draft, saveDraft]);
-
-  /**
-   * Starts a new chat session for the current project.
-   * Clears existing messages, creates a new session on the server,
-   * and resets the agent stream state.
-   */
-  // Handle new session
-  const handleNewSession = async () => {
-    if (!currentProjectId || creatingSessionRef.current !== null) return;
-    const projectId = currentProjectId;
-    const requestSeq = ++newSessionRequestSeqRef.current;
-    creatingSessionRef.current = requestSeq;
-    setIsCreatingSession(true);
-    setStarterProjectId(null);
-    suggestionRequestSeqRef.current += 1;  // the old chat's suggestions never land in the new one
-    setAiSuggestions([]);
-    setSuggestionDisplayState("loading");
-    if (suggestionTimeoutRef.current) clearTimeout(suggestionTimeoutRef.current);
-    const ownsRequest = () => currentProjectIdRef.current === projectId && requestSeq === newSessionRequestSeqRef.current;
-
-    try {
-      const created = await createNewSession(projectId);
-      if (!ownsRequest()) return;
-      resetPendingContextClears();
-      currentAgentSessionIdRef.current = created.id;
-      sessionRecoveryBlockedRef.current = null;
-      setSessionRecoveryError(null);
-      historyRequestSeqRef.current += 1;
-      setIsLoadingHistory(false);
-      setHasMoreHistory(false);
-      setIsLoadingMoreHistory(false);
-      setMessages([]);
-      shouldAutoScrollRef.current = true;
-      setShowJumpToLatest(false);
-      setFeedbackPendingMessageId(null);
-      clearStreamItems();
-      setMatchedSkills([]);
-      reset();
-      setQuotaRefund(null);
-      setUserStop(null);
-      // Suggestions cannot turn a committed session into a creation failure.
-      void requestInitialSuggestions(projectId, []).catch(error => {
-        logger.error("Failed to load new-session suggestions:", error);
-        if (ownsRequest()) setSuggestionDisplayState("fallback");
-      });
-    } catch (err) {
-      logger.error("Failed to create new session:", err);
-      if (!ownsRequest()) return;
-      currentAgentSessionIdRef.current = null;
-      reset();
-      clearStreamItems();
-      setMatchedSkills([]);
-      setSuggestionDisplayState("fallback");
-      // A failed response may follow a committed creation. Read the actual
-      // active history; never replay the POST or guess that the old chat won.
-      const recoveredMessages = await loadChatHistory(projectId, true);
-      if (recoveredMessages !== null && ownsRequest()) {
-        toast.error(t("chat:panel.newSessionFailed"));
-      }
-    } finally {
-      if (ownsRequest() && creatingSessionRef.current === requestSeq) {
-        creatingSessionRef.current = null;
-        setIsCreatingSession(false);
-      }
-    }
-  };
-  
-  // Cleanup suggestion timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (suggestionTimeoutRef.current) {
-        clearTimeout(suggestionTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  /**
-   * Manually refreshes AI suggestions based on recent conversation context.
-   * Cancels any pending suggestion timers and fetches new suggestions
-   * from the server. Prevents duplicate fetches with loading state check.
-   */
-  // Manual suggestion refresh (triggered by the refresh button)
-  const refreshSuggestionsNow = useCallback(async () => {
-    if (!currentProjectId) return;
-    if (isRefreshingSuggestions) return;
-
-    // Avoid double-fetch: cancel any pending suggestion timer
-    if (suggestionTimeoutRef.current) {
-      clearTimeout(suggestionTimeoutRef.current);
-      suggestionTimeoutRef.current = null;
-    }
-
-    setIsRefreshingSuggestions(true);
-    const requestSeq = ++suggestionRequestSeqRef.current;  // supersedes any earlier request
-    try {
-      setSuggestionDisplayState("loading");
-      await fetchAndApplySuggestions(currentProjectId, messagesRef.current, { allowFallback: true, requestSeq });
-    } catch (error) {
-      logger.error("Failed to refresh suggestions:", error);
-      if (suggestionRequestSeqRef.current === requestSeq && aiSuggestionsRef.current.length === 0) {
-        setSuggestionDisplayState("fallback");
-      }
-    } finally {
-      setIsRefreshingSuggestions(false);
-    }
-  }, [currentProjectId, isRefreshingSuggestions, setIsRefreshingSuggestions, fetchAndApplySuggestions]);
-
-  /** A stop is waiting for the editor's save: further clicks must not send a second stop. */
   const stopAfterSavePendingRef = useRef(false);
-  /**
-   * The author stops this round: the server ends it on the open stream (see
-   * useAgentStream.stop). Resolves once the stop request has settled (not the round).
-   */
   const stopRound = (): Promise<void> => {
     if (stopAfterSavePendingRef.current) return Promise.resolve();
-    // The note itself waits for the end of the round (onCompleteHandler): the round may
-    // still finish on its own before the stop reaches the server. Marked before stop():
-    // a stop pressed before run_started ends the round synchronously inside stop().
     if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
-    setSteerFallback((pending) => (pending && !pending.stopped ? { ...pending, stopped: true } : pending));
-    // Text the author typed in the editor (for example into a chapter the AI just created)
-    // is saved first: on a refunded stop the server removes this round's still-blank files,
-    // and it can only see text that has been saved. When that save fails or times out, the
-    // stop names the open file so the server keeps it.
+    setSteerFallback((pending) =>
+      pending && !pending.stopped ? { ...pending, stopped: true } : pending,
+    );
     const editorSaved = flushOpenEditor();
     if (!editorSaved) return stop();
     stopAfterSavePendingRef.current = true;
@@ -2703,15 +1340,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return stop(keepUnsavedFile(result));
     });
   };
-  // Stop button.
   const handleCancel = () => {
     void stopRound();
   };
 
-  // 「新对话」 mid-round. Dropping the stream right away (reset) would leave the server to
-  // settle the round as a lost connection; ask first, like leaving the page, then stop the
-  // round through the server and start the new chat once its stream has closed, so the round
-  // is an author stop under the usual refund rule.
   const [newChatConfirmOpen, setNewChatConfirmOpen] = useState(false);
   const { isMounted: isLeaveDialogMounted } = useAnimatedPresence(leaveGuard.leavePending, 180);
   const { isMounted: isNewChatConfirmMounted } = useAnimatedPresence(newChatConfirmOpen, 180);
@@ -2719,10 +1351,10 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   useEffect(() => {
     handleNewSessionRef.current = handleNewSession;
   });
+
   const startNewChatAfterRound = async (stopFirst: boolean) => {
     const projectId = currentProjectId;
     if (!projectId || newChatAfterStopRef.current) return;
-    // Further presses do nothing, and nothing can be sent until the new chat has started.
     newChatAfterStopRef.current = true;
     setNewChatPending(true);
     try {
@@ -2735,236 +1367,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     if (currentProjectIdRef.current !== projectId) return;
     await handleNewSessionRef.current();
   };
+
   const requestNewChat = () => {
-    if (newChatAfterStopRef.current || creatingSessionRef.current !== null) return;
+    if (newChatAfterStopRef.current || history.creatingSessionRef.current !== null) return;
     if (!isStreaming) {
       void handleNewSession();
       return;
     }
-    // Already stopping: nothing left to ask, start over once the round has wrapped up.
     if (isStopping) {
       void startNewChatAfterRound(false);
       return;
     }
     setNewChatConfirmOpen(true);
   };
+
   const confirmNewChat = () => {
     setNewChatConfirmOpen(false);
-    // The round may have ended while the dialog was open: then there is nothing to stop.
     void startNewChatAfterRound(isStreaming && !isStopping);
   };
-
-  /**
-   * Handles undoing the exact AI edit represented by a persisted tool result.
-   *
-   * @param target - Immutable before-version and post-edit concurrency token
-   */
-  // Handle undo AI edit using the immutable provenance stored with that edit.
-  // The click only opens the in-app confirm dialog; the rollback runs on confirm.
-  const handleUndo = useCallback((target: FileEditUndoTarget) => {
-    setPendingUndoTarget(target);
-  }, []);
-
-  const handleCloseUndoDialog = useCallback(() => {
-    if (isUndoing) return;
-    setPendingUndoTarget(null);
-  }, [isUndoing]);
-
-  const handleConfirmUndo = useCallback(async () => {
-    const target = pendingUndoTarget;
-    if (!target) return;
-    setIsUndoing(true);
-    try {
-      const result = await fileVersionApi.rollback(
-        target.fileId,
-        target.beforeVersionNumber,
-        target.expectedAfterUpdatedAt,
-        {
-          chatMessageId: target.chatMessageId,
-          toolUseId: target.toolUseId,
-          expectedAfterContentSha256: target.expectedAfterContentSha256,
-        },
-      );
-      // The text is back to before this edit: the card stops offering it (a repeat would only conflict).
-      setUndoneEdits((previous) => new Set(previous).add(undoneEditKey(target)));
-      if (!result.snapshot_created) {
-        if (result.version_quota_exceeded) {
-          toast.error(t('versions:quota.limitDescription'));
-          if (fileVersionUpgradePrompt.surface === "modal") {
-            setShowFileVersionUpgradeModal(true);
-          }
-        } else {
-          toast.error(t('versions:rollbackHistoryNotSaved'));
-        }
-      }
-      triggerFileTreeRefresh();
-      triggerEditorRefresh(target.fileId);
-    } catch (err) {
-      // The file changed after this AI edit: the card's version anchor can never match again, so
-      // 「请刷新后重试」 would fail forever. The version guard stays; the history panel restores safely.
-      if (
-        err instanceof ApiError &&
-        err.errorCode === "ERR_RESOURCE_CONFLICT" &&
-        err.details?.reason === "stale_write"
-      ) {
-        toast.error(t('versions:undoStaleWrite'));
-        // For example the later change was undone where its card was not recorded (mid-stream,
-        // from the history panel): an earlier card the server can still undo is offered again.
-        setStaleUndoEdits((previous) => new Set(previous).add(undoneEditKey(target)));
-        return;
-      }
-      if (
-        err instanceof ApiError &&
-        err.errorCode === "ERR_QUOTA_FILE_VERSIONS_EXCEEDED"
-      ) {
-        toast.error(handleApiError(err));
-        if (fileVersionUpgradePrompt.surface === "modal") {
-          setShowFileVersionUpgradeModal(true);
-        }
-        return;
-      }
-      logger.error("Failed to undo:", err);
-      toast.error(
-        err instanceof ApiError
-          ? handleApiError(err)
-          : t('editor:versionHistory.rollbackFailed'),
-      );
-    } finally {
-      setIsUndoing(false);
-      setPendingUndoTarget(null);
-    }
-  }, [pendingUndoTarget, fileVersionUpgradePrompt.surface, triggerFileTreeRefresh, triggerEditorRefresh, t]);
-
-  const handleRestoreDeletion = useCallback(
-    async (fileId: string, card?: { chatMessageId?: string; toolUseId?: string }) => {
-      try {
-        const restored = await fileApi.restore(fileId, card);
-        if (currentProjectId) {
-          clearFileRemoved(currentProjectId, fileId);
-          for (const id of restored.file_ids ?? []) {
-            clearFileRemoved(currentProjectId, id);
-          }
-        }
-        if (card?.chatMessageId && card?.toolUseId) {
-          const markToolRestored = <T extends { id?: string; result?: unknown }>(item: T): T => {
-            if (item.id !== card.toolUseId) return item;
-            const prevResult =
-              item.result && typeof item.result === "object"
-                ? (item.result as Record<string, unknown>)
-                : { id: fileId };
-            return { ...item, result: { ...prevResult, restored: true } };
-          };
-          setMessages((prev) =>
-            prev.map((msg) => {
-              if (msg.backendMessageId !== card.chatMessageId && msg.id !== card.chatMessageId) {
-                return msg;
-              }
-              return {
-                ...msg,
-                displayItems: msg.displayItems?.map((item) =>
-                  item.type === "tool_calls" && item.toolCalls
-                    ? { ...item, toolCalls: item.toolCalls.map(markToolRestored) }
-                    : item,
-                ),
-                toolCalls: msg.toolCalls?.map(markToolRestored),
-                toolResults: msg.toolResults?.map(markToolRestored),
-              };
-            }),
-          );
-        }
-        triggerFileTreeRefresh();
-        toast.success(t('chat:tool.deletionRestored'));
-      } catch (err) {
-        logger.error("Failed to restore deleted file:", err);
-        toast.error(err instanceof ApiError ? handleApiError(err) : t('common:error'));
-        throw err;
-      }
-    },
-    [currentProjectId, triggerFileTreeRefresh, t],
-  );
-
-  /**
-   * Calculates the maximum allowed height for the input panel.
-   * Considers both fixed pixel limits and layout ratio constraints
-   * to maintain a balanced interface.
-   *
-   * @returns Maximum height in pixels for the input panel
-   */
-  const getMaxInputPanelHeight = useCallback(() => {
-    const rootEl = chatPanelRef.current;
-    if (!rootEl) return CHAT_INPUT_PANEL_MAX_HEIGHT_PX;
-
-    const rootHeight = rootEl.getBoundingClientRect().height;
-    const headerHeight = headerRef.current?.getBoundingClientRect().height || 48;
-
-    const maxByLayout = rootHeight - headerHeight - CHAT_INPUT_PANEL_MIN_MESSAGES_PX;
-    const maxByRatio = rootHeight * CHAT_INPUT_PANEL_MAX_RATIO;
-
-    const max = Math.min(CHAT_INPUT_PANEL_MAX_HEIGHT_PX, maxByLayout, maxByRatio);
-    const safeMax = Math.max(max, CHAT_INPUT_PANEL_MIN_HEIGHT_PX);
-
-    return clampNumber(safeMax, CHAT_INPUT_PANEL_MIN_HEIGHT_PX, CHAT_INPUT_PANEL_MAX_HEIGHT_PX);
-  }, []);
-
-  const handleInputPanelResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    const panelEl = inputPanelRef.current;
-    if (!panelEl) return;
-
-    const startHeight = panelEl.getBoundingClientRect().height;
-    resizeDragRef.current = { startY: e.clientY, startHeight };
-
-    // Ensure subsequent pointer events are delivered
-    e.currentTarget.setPointerCapture(e.pointerId);
-
-    // If height is currently "auto", lock it to the current measured height
-    if (inputPanelHeight === null) {
-      const maxHeight = getMaxInputPanelHeight();
-      setInputPanelHeight(clampNumber(startHeight, CHAT_INPUT_PANEL_MIN_HEIGHT_PX, maxHeight));
-    }
-  };
-
-  const handleInputPanelResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = resizeDragRef.current;
-    if (!drag) return;
-
-    const deltaY = e.clientY - drag.startY;
-    const maxHeight = getMaxInputPanelHeight();
-    const nextHeight = clampNumber(
-      drag.startHeight - deltaY,
-      CHAT_INPUT_PANEL_MIN_HEIGHT_PX,
-      maxHeight,
-    );
-
-    setInputPanelHeight(nextHeight);
-  };
-
-  const handleInputPanelResizeEnd = () => {
-    if (!resizeDragRef.current) return;
-    resizeDragRef.current = null;
-
-    const height = latestInputPanelHeightRef.current;
-    if (height === null) return;
-    localStorage.setItem(CHAT_INPUT_PANEL_HEIGHT_KEY, String(Math.round(height)));
-  };
-
-  const resetInputPanelHeight = () => {
-    setInputPanelHeight(null);
-    localStorage.removeItem(CHAT_INPUT_PANEL_HEIGHT_KEY);
-  };
-
-  // Enforce max threshold on mount and window resize (e.g. viewport changes)
-  useEffect(() => {
-    const clampToMax = () => {
-      const h = latestInputPanelHeightRef.current;
-      if (h === null) return;
-      const max = getMaxInputPanelHeight();
-      if (h > max) setInputPanelHeight(max);
-    };
-
-    clampToMax();
-    window.addEventListener("resize", clampToMax);
-    return () => window.removeEventListener("resize", clampToMax);
-  }, [getMaxInputPanelHeight]);
 
   const leaveConfirmation = isLeaveDialogMounted ? (
     <Suspense fallback={null}>
@@ -2973,7 +1393,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         unprotectedDraft={unprotectedDeletedDraft}
         roundEnded={unprotectedDeletedDraft ? !isStreaming : leaveGuard.roundEnded}
         producedOutput={roundProgressRef.current.producedOutput}
-        showDailyCount={showDailyCount}
+        showDailyCount={quotaState.showDailyCount}
         onStay={leaveGuard.cancelLeave}
         onLeave={handleConfirmLeave}
       />
@@ -2983,455 +1403,289 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   if (!currentProjectId) {
     return (
       <>
-      <div className="h-full flex flex-col items-center justify-center bg-[hsl(var(--bg-rail))] text-[hsl(var(--text-secondary))] p-4 text-center">
-        <Sparkles size={48} className="mb-4 opacity-50" />
-        <p className="text-sm">{t('chat:panel.selectProject')}</p>
-      </div>
-      {leaveConfirmation}
+        <div className="h-full flex flex-col items-center justify-center bg-[hsl(var(--bg-rail))] text-[hsl(var(--text-secondary))] p-4 text-center">
+          <Sparkles size={48} className="mb-4 opacity-50" />
+          <p className="text-sm">{t("chat:panel.selectProject")}</p>
+        </div>
+        {leaveConfirmation}
       </>
     );
   }
 
-  // A refunded stop of the 「写第一章正文」 request already offers 「重新发送」 for the same
-  // request: one button for it, not two.
-  const resendRepeatsNextStep = resendAfterStop
-    && lastRetryRequestRef.current?.request.metadata?.entry === 'next_step';
-  const showNextStep = Boolean(
-    frameworkReadyProjectId
-      && frameworkReadyProjectId === currentProjectId
-      && !nextStepDismissal.isDismissed(frameworkReadyProjectId)
-      && !isStreaming
-      && !isThinking
-      && !error
-      && !aiSendBlocked
-      && !resendRepeatsNextStep
-      // 历史还没载入时不知道上一轮是不是在等作者回答；AI 正在「等你回复」时，
-      // 卡片固定的「按大纲写第一章正文」答不了它的问题，只会再问一遍。
-      && !isLoadingHistory
-      && sessionRecoveryError !== currentProjectId
-      && !latestRoundAwaitsReply(messages),
+  const isAlreadyEmptyNewChat =
+    !history.isLoadingHistory &&
+    messages.length === 0 &&
+    !isStreaming &&
+    !isThinking &&
+    !error &&
+    !quotaState.userStop &&
+    !quotaState.quotaRefund &&
+    history.sessionRecoveryError !== currentProjectId;
+
+  const canRetryStreamError = Boolean(
+    retryable && !quotaNotes.aiSendBlocked && hasLastRetryForProject,
   );
 
   return (
     <div
-      ref={chatPanelRef}
-      className={`flex flex-col h-full bg-[hsl(var(--bg-rail))] overflow-hidden ${isMobile ? 'pb-safe-or-2' : ''}`}
-      style={{ maxHeight: '100%' }}
+      ref={scroll.chatPanelRef}
+      className={`flex flex-col h-full bg-[hsl(var(--bg-rail))] overflow-hidden ${isMobile ? "pb-safe-or-2" : ""}`}
+      style={{ maxHeight: "100%" }}
     >
-      {/* Header */}
-      <div
-        ref={headerRef}
-        className="shrink-0 flex items-center justify-between border-b border-[hsl(var(--separator-color))] h-12 px-3"
-      >
-        {/* 右栏可能只有 300px 宽：标题不折行，状态词放不下就省略，额度用紧凑胶囊。 */}
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" data-testid="chat-panel-header-title">
-          <span className="min-w-0 truncate whitespace-nowrap text-sm font-medium text-[hsl(var(--text-primary))]">{t('chat:panel.title')}</span>
-          {isStreaming && (
-            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success-text))] animate-[breathe_1.5s_ease-in-out_infinite] motion-reduce:animate-none">
-              · {t('chat:panel.processing')}
-            </span>
-          )}
-          {isLoadingHistory && (
-            <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--text-secondary))]">· {t('chat:panel.loadingHistory')}</span>
-          )}
-        </div>
-        <div className={`flex shrink-0 items-center ${isMobile ? 'gap-1' : 'gap-2'}`} data-testid="chat-panel-header-actions">
-          <QuotaBadge compact />
-          <IconButton
-            onClick={() => openAIMemory()}
-            size={isMobile ? 'touch' : 'md'}
-            label={t('chat:panel.aiMemory')}
-            icon={<Database size={isMobile ? 18 : 16} />}
-          />
-          {(() => {
-            const isAlreadyEmptyNewChat =
-              !isLoadingHistory &&
-              messages.length === 0 &&
-              !isStreaming &&
-              !isThinking &&
-              !error &&
-              !userStop &&
-              !quotaRefund &&
-              sessionRecoveryError !== currentProjectId;
-            return (
-              <IconButton
-                onClick={requestNewChat}
-                disabled={isCreatingSession || newChatPending || isAlreadyEmptyNewChat}
-                aria-busy={isCreatingSession}
-                size={isMobile ? 'touch' : 'md'}
-                label={t('chat:panel.newSession')}
-                title={
-                  isAlreadyEmptyNewChat && !isCreatingSession && !newChatPending
-                    ? t('chat:panel.alreadyNewSession')
-                    : t('chat:panel.newSession')
-                }
-                icon={
-                  isCreatingSession ? (
-                    <>
-                      <Loader2 size={isMobile ? 18 : 16} className="animate-spin" />
-                      <span className="sr-only" role="status">{t("chat:panel.creatingSession")}</span>
-                    </>
-                  ) : (
-                    <Plus size={isMobile ? 18 : 16} />
-                  )
-                }
-              />
-            );
-          })()}
-        </div>
-      </div>
+      <ChatPanelHeader
+        headerRef={scroll.headerRef}
+        isMobile={isMobile}
+        isStreaming={isStreaming}
+        isLoadingHistory={history.isLoadingHistory}
+        isCreatingSession={history.isCreatingSession}
+        newChatPending={newChatPending}
+        isAlreadyEmptyNewChat={isAlreadyEmptyNewChat}
+        onOpenAIMemory={() => openAIMemory()}
+        onRequestNewChat={requestNewChat}
+      />
 
       {/* Messages - scrollable area */}
       <div className="relative flex-1 min-h-0 flex flex-col">
-        {/* data-testid: message-list - Message container for message display tests */}
-        <div ref={messagesScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-message-feed-fade" data-testid="message-list">
-        <div className={`pt-3.5 pb-6 ${isMobile ? 'px-3' : 'px-4'}`}>
-          {sessionRecoveryError === currentProjectId && (
-            <div role="alert" className={`mb-3 p-3 ${CHAT_CARD_SURFACE}`}>
-              <p className="text-xs leading-5 text-[hsl(var(--text-primary))]">{t("chat:panel.sessionRecoveryFailed")}</p>
-              <button
-                type="button"
-                className={`mt-2.5 ${CHAT_CARD_SECONDARY_BUTTON}`}
-                disabled={isLoadingHistory}
-                onClick={() => { if (currentProjectId) void loadChatHistory(currentProjectId, true); }}
-              >
-                {t("common:retry")}
-              </button>
-            </div>
-          )}
-          {isLoadingHistory ? (
-            <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
-              <Loader2 size={32} className="mb-4 animate-spin opacity-50" />
-              <p className="text-sm">{t('chat:panel.loadingMessages')}</p>
-            </div>
-          ) : messages.length === 0 && !isStreaming && !isThinking && !(error && retryable) && sessionRecoveryError !== currentProjectId ? (
-            showStarterCards ? (
-              <StarterCards
-                highlighted={starterHighlighted}
-                projectType={currentProject?.project_type}
-                remainingToday={showDailyCount && aiMessageQuota ? Math.max(0, aiMessageQuota.limit - aiMessageQuota.used) : null}
-                onSend={handleStarterSend}
-                onEdit={handleStarterEdit}
-                hasManuscript={starterHasManuscript}
-                onSendManuscript={handleStarterManuscriptSend}
+        <div
+          ref={scroll.messagesScrollContainerRef}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden chat-message-feed-fade"
+          data-testid="message-list"
+        >
+          <div className={`pt-3.5 pb-6 ${isMobile ? "px-3" : "px-4"}`}>
+            {history.sessionRecoveryError === currentProjectId && (
+              <SessionRecoveryAlert
+                isLoadingHistory={history.isLoadingHistory}
+                onRetry={() => {
+                  if (currentProjectId) void history.loadChatHistory(currentProjectId, true);
+                }}
               />
-            ) : starterCardsDue ? (
-              // The work's progress has not answered yet: keep the space without a welcome flash.
-              <div data-testid="starter-pending" className="h-[200px]" />
+            )}
+            {history.isLoadingHistory ? (
+              <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
+                <Loader2 size={32} className="mb-4 animate-spin opacity-50" />
+                <p className="text-sm">{t("chat:panel.loadingMessages")}</p>
+              </div>
+            ) : messages.length === 0 &&
+              !isStreaming &&
+              !isThinking &&
+              !(error && retryable) &&
+              history.sessionRecoveryError !== currentProjectId ? (
+              starters.showStarterCards ? (
+                <StarterCards
+                  highlighted={starters.starterHighlighted}
+                  projectType={currentProject?.project_type}
+                  remainingToday={
+                    quotaState.showDailyCount && quotaState.aiMessageQuota
+                      ? Math.max(0, quotaState.aiMessageQuota.limit - quotaState.aiMessageQuota.used)
+                      : null
+                  }
+                  onSend={starters.handleStarterSend}
+                  onEdit={starters.handleStarterEdit}
+                  hasManuscript={starters.starterHasManuscript}
+                  onSendManuscript={starters.handleStarterManuscriptSend}
+                />
+              ) : starters.starterCardsDue ? (
+                <div data-testid="starter-pending" className="h-[200px]" />
+              ) : (
+                <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
+                  <Sparkles size={48} className="mb-4 opacity-30" />
+                  <p className={`text-center ${isMobile ? "text-xs mb-1.5 px-2" : "text-sm mb-2"}`}>
+                    {t("chat:panel.welcome")}
+                  </p>
+                  <p
+                    className={`text-[hsl(var(--text-secondary))] text-center ${
+                      isMobile ? "text-xs px-4" : "text-xs"
+                    }`}
+                  >
+                    {t("chat:panel.suggestions")}
+                  </p>
+                </div>
+              )
             ) : (
-            <div className="h-[200px] flex flex-col items-center justify-center text-[hsl(var(--text-secondary))]">
-              <Sparkles size={48} className="mb-4 opacity-30" />
-              <p className={`text-center ${isMobile ? 'text-xs mb-1.5 px-2' : 'text-sm mb-2'}`}>{t('chat:panel.welcome')}</p>
-              <p className={`text-[hsl(var(--text-secondary))] text-center ${isMobile ? 'text-xs px-4' : 'text-xs'}`}>
-                {t('chat:panel.suggestions')}
-              </p>
-            </div>
-            )
-          ) : (
-            <div className="motion-content-reveal">
-              {hasMoreHistory && !isLoadingHistory && messages.length > 0 && (
-                <div className="mb-3 flex justify-center">
-                  <button
-                    type="button"
-                    data-testid="chat-load-earlier-messages"
-                    disabled={isLoadingMoreHistory || isHistoryLoadBlocked}
-                    onClick={() => void handleLoadEarlierMessages()}
-                    className={`inline-flex min-h-11 md:min-h-0 items-center gap-1.5 rounded-full border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3.5 py-2 md:px-3 md:py-1 text-xs text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))]`}
-                  >
-                    {isLoadingMoreHistory ? (
-                      <>
-                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
-                        {t("chat:panel.loadingEarlierMessages")}
-                      </>
-                    ) : (
-                      t("chat:panel.loadEarlierMessages")
-                    )}
-                  </button>
-                </div>
-              )}
-              {/* Chat messages */}
-              <UndoneEditsContext.Provider value={undoneEdits}>
-              <UndoBlockedContext.Provider value={undoBlocked}>
-              <MessageList
-                ref={messageListRef}
-                messages={messages}
-                streamRenderItems={streamRenderItems}
-                onIterationAssistAction={handleIterationAssistAction}
-                nextStepsBlocked={aiSendBlocked}
-                onUndo={handleUndo}
-                onRestoreDeletion={handleRestoreDeletion}
-                onOpenFile={currentProjectId && currentProject?.id === currentProjectId ? handleOpenFile : undefined}
-                onOpenAIMemory={currentProjectId ? openWritingAgreements : undefined}
-                onSubmitFeedback={handleSubmitFeedback}
-                feedbackPendingMessageId={feedbackPendingMessageId}
-                showDailyCount={showDailyCount}
-                scrollContainerRef={messagesScrollContainerRef}
-              />
-              </UndoBlockedContext.Provider>
-              </UndoneEditsContext.Provider>
-
-              {/* Edit progress indicator */}
-              {editProgress && (
-                <div className="mt-2.5">
-                  <div className={`${CHAT_CARD_SURFACE} ${isMobile ? 'px-3 py-2.5' : 'p-3'}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Edit3 className="w-4 h-4 shrink-0 text-[hsl(var(--accent-primary))]" />
-                      <span className={`text-[hsl(var(--text-primary))] font-medium ${isMobile ? 'text-xs truncate flex-1' : 'text-sm'}`}>
-                        {t('chat:panel.editing')} {editProgress.title}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-[hsl(var(--bg-tertiary))] rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="h-full w-full bg-[hsl(var(--accent-primary))] motion-progress-fill"
-                          style={{
-                            transform: `scaleX(${editProgress.totalEdits > 0 ? Math.min(1, editProgress.completedEdits / editProgress.totalEdits) : 0})`,
-                          }}
-                        />
-                      </div>
-                      <span className="tabular-nums text-xs text-[hsl(var(--text-secondary))]">
-                        {editProgress.completedEdits}/{editProgress.totalEdits}
-                      </span>
-                    </div>
-                    {editProgress.currentOp && (
-                      <div className="mt-1.5 text-xs text-[hsl(var(--text-secondary))] truncate">
-                        {t('chat:panel.operation')} {editProgress.currentOp}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Error */}
-              {error && !(isAiQuotaLimit && aiSendBlocked) && (
-                <div role="alert" className={`mt-2.5 p-3 ${CHAT_CARD_WARNING_SURFACE}`}>
-                  <div className="flex items-start gap-2.5">
-                    <AlertTriangle
-                      size={15}
-                      aria-hidden="true"
-                      className="text-[hsl(var(--warning-text))] mt-0.5 shrink-0"
+              <div className="motion-content-reveal">
+                {history.hasMoreHistory && !history.isLoadingHistory && messages.length > 0 && (
+                  <LoadEarlierMessagesButton
+                    isLoadingMoreHistory={history.isLoadingMoreHistory}
+                    isDisabled={history.isLoadingMoreHistory || isHistoryLoadBlocked}
+                    onLoadEarlier={() => void handleLoadEarlierMessages()}
+                  />
+                )}
+                <UndoneEditsContext.Provider value={undo.undoneEdits}>
+                  <UndoBlockedContext.Provider value={undo.undoBlocked}>
+                    <MessageList
+                      ref={scroll.messageListRef}
+                      messages={messages}
+                      streamRenderItems={streamRenderItems}
+                      onIterationAssistAction={handleIterationAssistAction}
+                      nextStepsBlocked={quotaNotes.aiSendBlocked}
+                      onUndo={undo.handleUndo}
+                      onRestoreDeletion={undo.handleRestoreDeletion}
+                      onOpenFile={
+                        currentProjectId && currentProject?.id === currentProjectId
+                          ? handleOpenFile
+                          : undefined
+                      }
+                      onOpenAIMemory={currentProjectId ? openWritingAgreements : undefined}
+                      onSubmitFeedback={history.handleSubmitFeedback}
+                      feedbackPendingMessageId={history.feedbackPendingMessageId}
+                      showDailyCount={quotaState.showDailyCount}
+                      scrollContainerRef={scroll.messagesScrollContainerRef}
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[hsl(var(--warning-text))] text-xs font-semibold leading-5">
-                        {isAiQuotaLimit
-                          ? t('chat:panel.quotaExceededTitle')
-                          : isNetworkQuotaLimit
-                            ? t('chat:panel.networkQuotaExceededTitle')
-                          : isAccountRunRefusal(errorCode)
-                            ? t('chat:panel.accountRunsBusyTitle')
-                            : t('chat:panel.streamErrorTitle')}
-                      </p>
-                      {!isAiQuotaLimit && !isNetworkQuotaLimit && (
-                        <p className="mt-0.5 text-[hsl(var(--text-primary))] text-xs leading-5 break-words whitespace-pre-line">
-                          {/* Today's messages are used up: 「回复继续」/ retry could not send, the quota card below says when it comes back. */}
-                          {aiSendBlocked ? t('chat:panel.streamErrorQuotaPaused') : error}
-                        </p>
-                      )}
-                      {retryable && !aiSendBlocked && lastRetryRequestRef.current?.projectId === currentProjectId && (
-                        <button
-                          type="button"
-                          onClick={handleRetry}
-                          className={`mt-2.5 ${CHAT_CARD_SECONDARY_BUTTON}`}
-                        >
-                          {t('common:retry')}
-                        </button>
-                      )}
-                      {(isAiQuotaLimit || isNetworkQuotaLimit) && (
-                        <div className="mt-1 space-y-2.5">
-                          <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
-                            {isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
-                          </p>
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size={isMobile ? "touch" : "sm"}
-                            onClick={() => setShowQuotaUpgradeModal(true)}
-                          >
-                            {t('dashboard:billing.ctaUpgradePro')}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+                  </UndoBlockedContext.Provider>
+                </UndoneEditsContext.Provider>
 
-              {isStreaming && (
-                <StreamActivityLine startedAt={streamStartedAt} isMobile={isMobile} bodyWrite={readBodyWrite} />
-              )}
+                {editProgress && (
+                  <EditProgressCard editProgress={editProgress} isMobile={isMobile} />
+                )}
 
-              {/* 作者点了「停止生成」：给出明确的结束状态 */}
-              {userStopNote && (
-                <p
-                  data-testid="chat-user-stop-note"
-                  role="status"
-                  className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
-                >
-                  {userStopNote}
-                </p>
-              )}
+                {error && !(quotaNotes.isAiQuotaLimit && quotaNotes.aiSendBlocked) && (
+                  <ChatStreamErrorCard
+                    error={error}
+                    errorCode={errorCode}
+                    isAiQuotaLimit={quotaNotes.isAiQuotaLimit}
+                    isNetworkQuotaLimit={quotaNotes.isNetworkQuotaLimit}
+                    aiSendBlocked={quotaNotes.aiSendBlocked}
+                    canRetry={canRetryStreamError}
+                    isMobile={isMobile}
+                    onRetry={handleRetry}
+                    onOpenUpgradeModal={() => quotaState.setShowQuotaUpgradeModal(true)}
+                  />
+                )}
 
-              {/* 这一轮确实没扣 AI 消息（后端退还落库后才会收到） */}
-              {quotaRefundNote && (
-                <p
-                  data-testid="chat-quota-refund-note"
-                  role="status"
-                  className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
-                >
-                  {quotaRefundNote}
-                  {resendAfterStop && (
-                    <button
-                      type="button"
-                      data-testid="chat-resend-after-stop"
-                      onClick={resendLastRound}
-                      className="ml-2 rounded-sm text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-primary))]"
-                    >
-                      {t('chat:panel.resend')}
-                    </button>
-                  )}
-                </p>
-              )}
+                {isStreaming && (
+                  <StreamActivityLine
+                    startedAt={streamStartedAt}
+                    isMobile={isMobile}
+                    bodyWrite={readBodyWrite}
+                  />
+                )}
 
-              {/* The last message never got a reply (an earlier failure, seen after a refresh). */}
-              {unansweredUserMessage && !resendAfterStop && (
-                <p
-                  data-testid="chat-unanswered-note"
-                  className="mt-2 text-xs text-[hsl(var(--text-secondary))]"
-                >
-                  {t('chat:panel.unanswered', { defaultValue: '这条消息没有收到回复。' })}
-                  <button
-                    type="button"
-                    data-testid="chat-retry-unanswered"
-                    onClick={() => retryUnanswered(unansweredUserMessage)}
-                    disabled={aiSendBlocked}
-                    className="ml-2 rounded-sm text-[hsl(var(--accent-primary))] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-primary))] disabled:cursor-not-allowed disabled:text-[hsl(var(--text-tertiary))] disabled:no-underline"
-                  >
-                    {t('chat:panel.resend')}
-                  </button>
-                </p>
-              )}
-
-            </div>
-          )}
-        </div>
-        </div>
-
-        {/* Jump-to-latest button (overlay outside scroll flow so toggling never mutates scrollHeight) */}
-        {isJumpToLatestMounted && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center">
-            <button
-              type="button"
-              onClick={handleJumpToLatest}
-              aria-hidden={isJumpToLatestExiting ? true : undefined}
-              inert={isJumpToLatestExiting ? true : undefined}
-              className={`inline-flex min-h-11 md:min-h-0 items-center gap-1.5 rounded-full bg-[hsl(var(--bg-secondary))] border border-[hsl(var(--border-color))] px-3.5 py-2 md:px-3 md:py-1.5 text-xs text-[hsl(var(--text-primary))] shadow-md hover:bg-[hsl(var(--bg-tertiary))] transition-[transform,background-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-primary))] ${
-                isJumpToLatestExiting
-                  ? "motion-popover-exit-up pointer-events-none"
-                  : "motion-popover-enter-up pointer-events-auto"
-              }`}
-              aria-label={t('chat:panel.jumpToLatest')}
-              title={t('chat:panel.jumpToLatest')}
-            >
-              <ArrowDown size={14} />
-              {t('chat:panel.jumpToLatest')}
-            </button>
+                <RoundStatusNotes
+                  userStopNote={quotaNotes.userStopNote}
+                  quotaRefundNote={quotaNotes.quotaRefundNote}
+                  resendAfterStop={quotaNotes.resendAfterStop}
+                  unansweredUserMessage={quotaNotes.unansweredUserMessage}
+                  aiSendBlocked={quotaNotes.aiSendBlocked}
+                  onResendLastRound={resendLastRound}
+                  onRetryUnanswered={retryUnanswered}
+                />
+              </div>
+            )}
           </div>
+        </div>
+
+        {scroll.isJumpToLatestMounted && (
+          <JumpToLatestOverlay
+            isExiting={scroll.isJumpToLatestExiting}
+            onJump={scroll.handleJumpToLatest}
+          />
         )}
       </div>
 
       {/* Input panel (resizable on desktop, fixed on mobile) */}
       <div
-        ref={inputPanelRef}
+        ref={scroll.inputPanelRef}
         data-testid="chat-input-panel"
-        className={`shrink-0 flex flex-col overflow-hidden ${isMobile ? 'border-t border-[hsl(var(--separator-color))]' : ''}`}
+        className={`shrink-0 flex flex-col overflow-hidden ${
+          isMobile ? "border-t border-[hsl(var(--separator-color))]" : ""
+        }`}
         style={
           isMobile
-            ? { maxHeight: '45vh' }
-            : inputPanelHeight !== null
-              ? { height: `${Math.round(inputPanelHeight)}px` }
+            ? { maxHeight: "45vh" }
+            : scroll.inputPanelHeight !== null
+              ? { height: `${Math.round(scroll.inputPanelHeight)}px` }
               : { maxHeight: `${CHAT_INPUT_PANEL_MAX_HEIGHT_PX}px` }
         }
       >
-        {/* Resize handle (drag to adjust input panel height) - hidden on mobile */}
         {!isMobile && (
           <div
             role="separator"
             aria-orientation="horizontal"
-            className={`shrink-0 h-3.5 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color)/0.55)] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${resizeDragRef.current ? 'bg-[hsl(var(--accent-primary)/0.1)]' : ''}`}
-            onPointerDown={handleInputPanelResizeStart}
-            onPointerMove={handleInputPanelResizeMove}
-            onPointerUp={handleInputPanelResizeEnd}
-            onPointerCancel={handleInputPanelResizeEnd}
-            onDoubleClick={resetInputPanelHeight}
-            title={t('chat:panel.resizeHandle')}
-            aria-label={t('chat:panel.resizeHandle')}
+            className={`shrink-0 h-3.5 flex items-center justify-center select-none touch-none cursor-row-resize group border-t border-[hsl(var(--separator-color)/0.55)] hover:bg-[hsl(var(--accent-primary)/0.08)] active:bg-[hsl(var(--accent-primary)/0.15)] ${
+              scroll.resizeDragRef.current ? "bg-[hsl(var(--accent-primary)/0.1)]" : ""
+            }`}
+            onPointerDown={scroll.handleInputPanelResizeStart}
+            onPointerMove={scroll.handleInputPanelResizeMove}
+            onPointerUp={scroll.handleInputPanelResizeEnd}
+            onPointerCancel={scroll.handleInputPanelResizeEnd}
+            onDoubleClick={scroll.resetInputPanelHeight}
+            title={t("chat:panel.resizeHandle")}
+            aria-label={t("chat:panel.resizeHandle")}
           >
             <div className="w-10 h-1 rounded-full bg-[hsl(var(--border-color))] opacity-40 group-hover:opacity-70 group-active:opacity-80 transition-opacity" />
           </div>
         )}
 
         <div
-          className={`${
+          className={
             isMobile
               ? "px-2 py-2"
-              : `px-3 py-2 ${inputPanelHeight !== null ? "flex-1 min-h-0" : ""}`
-          }`}
+              : `px-3 py-2 ${scroll.inputPanelHeight !== null ? "flex-1 min-h-0" : ""}`
+          }
         >
-          {showNextStep && frameworkReadyProjectId && (
+          {starters.showNextStep && progressState.frameworkReadyProjectId && (
             <NextStepCard
               projectType={currentProject?.project_type}
               onStart={(message) => {
-                trackEvent("ai_next_step_clicked", { project_id: frameworkReadyProjectId });
-                frameworkReadyRef.current = null;
-                setFrameworkReadyProjectId(null);
+                const readyProjectId = progressState.frameworkReadyProjectId!;
+                trackEvent("ai_next_step_clicked", { project_id: readyProjectId });
+                progressState.frameworkReadyRef.current = null;
+                progressState.setFrameworkReadyProjectId(null);
                 void handleSendMessage(message, undefined, { entry: "next_step" });
               }}
               onDismiss={() => {
-                trackEvent("ai_next_step_dismissed", { project_id: frameworkReadyProjectId });
-                nextStepDismissal.dismiss(frameworkReadyProjectId);
+                const readyProjectId = progressState.frameworkReadyProjectId!;
+                trackEvent("ai_next_step_dismissed", { project_id: readyProjectId });
+                progressState.nextStepDismissal.dismiss(readyProjectId);
               }}
             />
           )}
-          {/* Only once the round has ended: the 10th message is still being answered until then. */}
           <ChatQuotaCard
-            open={aiSendBlocked && !isStreaming && !isThinking}
-            // The count is named only when the cached quota itself shows the day used up.
-            limit={quotaExhausted ? aiMessageQuota?.limit : undefined}
-            resetAt={aiMessageQuota?.reset_at ?? null}
+            open={quotaNotes.aiSendBlocked && !isStreaming && !isThinking}
+            limit={quotaState.quotaExhausted ? quotaState.aiMessageQuota?.limit : undefined}
+            resetAt={quotaState.aiMessageQuota?.reset_at ?? null}
           />
           <MessageInput
             focusRequest={!isMobile || activePanel === "chat" ? chatFocusRequest : 0}
             onSend={handleSendMessage}
             refusedSend={refusedSend}
-            // Allow drafting while AI is streaming/thinking, but prevent sending until it finishes.
-            disabled={isLoadingHistory}
-            sendDisabled={isStreaming || isThinking || isLoadingHistory || newChatPending || isCreatingSession || sessionRecoveryError === currentProjectId}
-            // Quota used up: drafting stays possible; send / Enter explains instead of sending.
-            onBlockedSend={aiSendBlocked ? () => { reportQuotaBlockedSend(false); setShowQuotaUpgradeModal(true); } : undefined}
-            // Waiting for the round to wrap up before a new chat: still 「正在停止…」.
+            disabled={history.isLoadingHistory}
+            sendDisabled={
+              isStreaming ||
+              isThinking ||
+              history.isLoadingHistory ||
+              newChatPending ||
+              history.isCreatingSession ||
+              history.sessionRecoveryError === currentProjectId
+            }
+            onBlockedSend={
+              quotaNotes.aiSendBlocked
+                ? () => {
+                    quotaState.reportQuotaBlockedSend(false);
+                    quotaState.setShowQuotaUpgradeModal(true);
+                  }
+                : undefined
+            }
             onCancel={isStreaming || newChatPending ? handleCancel : undefined}
             isStopping={isStopping || newChatPending}
-            // Steering: while streaming with an active session, the user can send
-            // a follow-up instruction that the agent picks up at its next step.
             onSteer={handleSteer}
             canSteer={isStreaming && !!sessionId}
             placeholder={
               isStreaming || isThinking || newChatPending
                 ? t("chat:input.placeholderWhileProcessing")
-                : aiSendBlocked
+                : quotaNotes.aiSendBlocked
                   ? t("chat:input.placeholderQuotaExhausted")
                   : undefined
             }
-            aiSuggestions={aiSuggestions}
-            // While the card offers "write chapter 1", chips (AI or fallback) saying the same are dropped: one entry for it.
-            hideSuggestion={showNextStep ? duplicatesNextStep : undefined}
-            hideSuggestions={aiSendBlocked && !isStreaming && !isThinking}
-            suggestionDisplayState={staticFirstWork || !firstWork.isSuccess ? "ready" : suggestionDisplayState}
-            onRefreshSuggestions={refreshSuggestionsNow}
-            isRefreshingSuggestions={isRefreshingSuggestions}
-            // Mobile input panel uses a max-height (not a fixed height). Using "fill" can cause
-            // flex-shrink overflow overlaps when the keyboard reduces viewport height.
-            layout={!isMobile && inputPanelHeight !== null ? "fill" : "auto"}
+            aiSuggestions={suggestions.aiSuggestions}
+            hideSuggestion={starters.showNextStep ? duplicatesNextStep : undefined}
+            hideSuggestions={quotaNotes.aiSendBlocked && !isStreaming && !isThinking}
+            suggestionDisplayState={
+              staticFirstWork || !firstWork.isSuccess ? "ready" : suggestions.suggestionDisplayState
+            }
+            onRefreshSuggestions={suggestions.refreshSuggestionsNow}
+            isRefreshingSuggestions={suggestions.isRefreshingSuggestions}
+            layout={!isMobile && scroll.inputPanelHeight !== null ? "fill" : "auto"}
             matchedSkills={matchedSkills}
             externalDraft={draft}
             onDraftChange={saveDraft}
@@ -3440,46 +1694,53 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       </div>
 
       <UpgradePromptModal
-        open={showQuotaUpgradeModal}
-        onClose={() => setShowQuotaUpgradeModal(false)}
+        open={quotaState.showQuotaUpgradeModal}
+        onClose={() => quotaState.setShowQuotaUpgradeModal(false)}
         promptId="chat_quota_blocked"
-        title={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededTitle') : t('chat:panel.quotaExceededTitle')}
-        description={isNetworkQuotaLimit ? t('chat:panel.networkQuotaExceededHint') : t('chat:panel.quotaExceededHint')}
-        primaryLabel={t('dashboard:billing.ctaUpgradePro')}
-        secondaryLabel={t('home:pricingTeaser.viewPricing')}
+        title={
+          quotaNotes.isNetworkQuotaLimit
+            ? t("chat:panel.networkQuotaExceededTitle")
+            : t("chat:panel.quotaExceededTitle")
+        }
+        description={
+          quotaNotes.isNetworkQuotaLimit
+            ? t("chat:panel.networkQuotaExceededHint")
+            : t("chat:panel.quotaExceededHint")
+        }
+        primaryLabel={t("dashboard:billing.ctaUpgradePro")}
+        secondaryLabel={t("home:pricingTeaser.viewPricing")}
       />
 
       <UpgradePromptModal
-        open={showFileVersionUpgradeModal}
-        onClose={() => setShowFileVersionUpgradeModal(false)}
+        open={undo.showFileVersionUpgradeModal}
+        onClose={() => undo.setShowFileVersionUpgradeModal(false)}
         promptId="file_version_quota_blocked"
-        title={t('editor:versionHistory.fileVersionLimitTitle')}
-        description={t('editor:versionHistory.fileVersionLimitUpgrade')}
-        paidDescription={t('editor:versionHistory.fileVersionLimitPaid', {
-          defaultValue: '正文照常保存，只是这个文件不再生成新版本。',
+        title={t("editor:versionHistory.fileVersionLimitTitle")}
+        description={t("editor:versionHistory.fileVersionLimitUpgrade")}
+        paidDescription={t("editor:versionHistory.fileVersionLimitPaid", {
+          defaultValue: "正文照常保存，只是这个文件不再生成新版本。",
         })}
-        primaryLabel={t('common:viewUpgrade')}
-        secondaryLabel={t('common:viewPlans')}
+        primaryLabel={t("common:viewUpgrade")}
+        secondaryLabel={t("common:viewPlans")}
       />
 
-      {/* Undo an AI edit: the copy is the file-level undo message owned by the editor
-          namespace, shown in the in-app dialog instead of the browser's native confirm. */}
       <ConfirmDialog
-        open={pendingUndoTarget !== null}
-        onClose={handleCloseUndoDialog}
-        onConfirm={handleConfirmUndo}
-        title={t('chat:tool.undo_edit')}
-        message={t('editor:versionHistory.confirmUndoAIEdit', '撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。')}
-        confirmLabel={t('chat:actions.undo')}
-        cancelLabel={t('common:cancel')}
+        open={undo.pendingUndoTarget !== null}
+        onClose={undo.handleCloseUndoDialog}
+        onConfirm={undo.handleConfirmUndo}
+        title={t("chat:tool.undo_edit")}
+        message={t(
+          "editor:versionHistory.confirmUndoAIEdit",
+          "撤销这次 AI 修改？正文会换回修改前的内容，已有的历史版本都会保留。",
+        )}
+        confirmLabel={t("chat:actions.undo")}
+        cancelLabel={t("common:cancel")}
         variant="warning"
-        loading={isUndoing}
+        loading={undo.isUndoing}
       />
 
-      {/* Leaving the workbench mid-round drops the stream and ends the round. */}
       {leaveConfirmation}
 
-      {/* 新对话 mid-round stops this round first. */}
       {isNewChatConfirmMounted && (
         <Suspense fallback={null}>
           <LeaveWhileGeneratingDialog
@@ -3487,14 +1748,13 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             open={newChatConfirmOpen}
             roundEnded={newChatConfirmOpen && !isStreaming}
             producedOutput={roundProgressRef.current.producedOutput}
-            showDailyCount={showDailyCount}
+            showDailyCount={quotaState.showDailyCount}
             onStay={() => setNewChatConfirmOpen(false)}
             onLeave={confirmNewChat}
           />
         </Suspense>
       )}
 
-      {/* AI Memory Dialog */}
       {showAIMemory && currentProjectId && (
         <Suspense fallback={null}>
           <ProjectStatusDialog
