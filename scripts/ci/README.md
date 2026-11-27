@@ -69,7 +69,6 @@ The historical 7/14-day suite-promotion criteria are recorded in the [April lane
 ## Other helpers
 
 - `diagnose-gha-failfast.sh <run-id>` or `--sha <commit>` reads check annotations when Actions fail before test execution.
-- `changed-path-quick-gate.sh` is an unconnected helper with stale references to deleted workflows. It is not a supported substitute for the current gates.
 - `check-workflow-results.mjs` validates CI/E2E result states. Deployment promotion, read-only receipts and staging cutover each have dedicated controls in this directory.
 
 For browser authoring, reports and fixtures, see [the Playwright guide](../../apps/web/e2e/README.md). For production authorization, source receipts, migrations and Worker draining, use [the release contract](../../docs/ops/release-ci-cd.md).
