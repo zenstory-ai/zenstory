@@ -145,10 +145,14 @@ _LONE_FILE_START_LINE_PATTERN = re.compile(rf"[ \t]*{_TAG_OPEN_PREFIX}file\s*>[ 
 PREBODY_FILE_ID = "reply-prebody"
 
 # 模型陷入循环、把一大段原样一遍遍重写（生产 10-26：一段约五千字的正文连续重复九遍，
-# 直到单轮时限才停；生产 11-18：``dl/`` 短词或 18 字短句重复上千遍）：最近这么多字符按同一间隔
-# 连续出现第三遍，且包含足够多的文字/字母/数字（排除纯标点分隔线、表格横线与空白），就算循环。
+# 直到单轮时限才停；生产 11-18：``dl/`` 短词或 18 字短句重复上千遍；生产 11-27：``\n\n　　——``
+# 破折号行连续重复 11,559 段写爆 7.6 万字）：
+# 1) 末尾连续出现 ≥20 行相同的非空白纯标点/分隔符行即判为循环并回退到循环之前；
+# 2) 最近 REPEAT_WINDOW_CHARS 个字符按同一间隔连续出现第三遍，且包含足够多的非空白字符（排除纯空白），
+#    同样判为循环。
 REPEAT_WINDOW_CHARS = 800
 _REPEAT_MIN_ALNUM_CHARS = 64
+_REPEAT_SYMBOL_MIN_LINES = 20
 
 # 悬置（ambiguous）标记候选的等待上限：一个 </file> 候选因反引号/围栏未闭合被
 # 挂起后，若其后又累积了这么多字符仍无法判定，就按真实结束标记处理。没有这个
@@ -1282,17 +1286,129 @@ def extract_reply_prebody(text: str) -> str | None:
     return None
 
 
+def _prev_line_bounds(text: str, end: int) -> tuple[int, int, bool]:
+    """返回以 ``end`` 结尾的上一行 ``(line_start, content_end, has_eol)``。
+
+    仅按 ``\\r\\n`` / ``\\n`` / ``\\r`` 倒序查找，不对整段正文调用 ``splitlines()``，
+    常态（末尾为正常文字）仅扫描最后一行、零列表分配。
+    """
+    has_eol = False
+    content_end = end
+    if content_end > 0 and text[content_end - 1] == "\n":
+        has_eol = True
+        content_end -= 1
+        if content_end > 0 and text[content_end - 1] == "\r":
+            content_end -= 1
+    elif content_end > 0 and text[content_end - 1] == "\r":
+        has_eol = True
+        content_end -= 1
+    prev_nl = text.rfind("\n", 0, content_end)
+    prev_cr = text.rfind("\r", 0, content_end)
+    line_start = max(prev_nl, prev_cr) + 1
+    return line_start, content_end, has_eol
+
+
+def _find_symbol_line_repetition_start(
+    text: str,
+    *,
+    min_lines: int = _REPEAT_SYMBOL_MIN_LINES,
+) -> int | None:
+    """检测末尾连续重复的纯标点/分隔符行死循环（例如 ``\\n\\n　　——`` 连续重复 20+ 次）。
+
+    正常正文里的少量场景分隔线或表格分隔行不会连续出现 20 行；纯空白行不计入。
+    从末尾倒序扫描，常态 O(末行长度) 直接返回 None；命中时返回循环起点（含紧贴其前的空行分隔），
+    截断后保留前文干净结尾；整段都是符号循环时返回 0。
+    """
+    if not text or min_lines < 2:
+        return None
+
+    end = len(text)
+    last_start = 0
+    last_stripped = ""
+    last_has_eol = False
+    while end > 0:
+        line_start, content_end, has_eol = _prev_line_bounds(text, end)
+        stripped = text[line_start:content_end].strip()
+        if stripped:
+            last_start = line_start
+            last_stripped = stripped
+            last_has_eol = has_eol
+            break
+        end = line_start
+    else:
+        return None
+
+    if any(ch.isalnum() for ch in last_stripped):
+        return None
+
+    ref_stripped = last_stripped
+    scan_end = end
+    run_first_start = last_start
+    # 流式检查恰好落在最后一行写到一半时（如 ``　　—``），允许它是前一行符号的严格前缀。
+    if not last_has_eol and last_start > 0:
+        peek_end = last_start
+        while peek_end > 0:
+            p_start, p_content_end, _p_eol = _prev_line_bounds(text, peek_end)
+            p_stripped = text[p_start:p_content_end].strip()
+            if p_stripped:
+                if (
+                    not any(ch.isalnum() for ch in p_stripped)
+                    and p_stripped != last_stripped
+                    and p_stripped.startswith(last_stripped)
+                ):
+                    ref_stripped = p_stripped
+                    scan_end = peek_end
+                    run_first_start = p_start
+                break
+            peek_end = p_start
+
+    count = 0
+    cur_end = scan_end
+    while cur_end > 0:
+        line_start, content_end, _has_eol = _prev_line_bounds(text, cur_end)
+        stripped = text[line_start:content_end].strip()
+        if not stripped:
+            cur_end = line_start
+            continue
+        if stripped == ref_stripped:
+            count += 1
+            run_first_start = line_start
+            cur_end = line_start
+            continue
+        break
+
+    if count < min_lines:
+        return None
+
+    cut_offset = run_first_start
+    while cut_offset > 0:
+        line_start, content_end, _has_eol = _prev_line_bounds(text, cut_offset)
+        if text[line_start:content_end].strip():
+            break
+        cut_offset = line_start
+    if cut_offset == 0:
+        return 0
+    while cut_offset > 0 and text[cut_offset - 1] in "\r\n":
+        cut_offset -= 1
+    return cut_offset
+
+
 def find_repetition_start(text: str, window: int = REPEAT_WINDOW_CHARS) -> int | None:
     """text 末尾 window 个字符按同一间隔在前文里又原样出现了两遍（连续第三遍）时，返回重复开始的位置；否则 None。
 
     末尾这段上一次出现的位置与它现在的位置之差就是一遍的长度；从末尾这段往前，逐字
     与前一遍对照，一直相同的部分也属于重复，第一处不同（或文本开头）之后就是重复的起点。
+    另补充纯标点/分隔符行连续重复（≥20 行）与长单行纯符号洪泛检测，防止 ``isalnum()==0`` 穿透防线。
     """
+    symbol_cut = _find_symbol_line_repetition_start(text)
+    if symbol_cut is not None:
+        return symbol_cut
     if len(text) < window * 2:
         return None
     tail = text[-window:]
-    min_alnum = min(_REPEAT_MIN_ALNUM_CHARS, max(2, window // 12))
-    if sum(1 for ch in tail if ch.isalnum()) < min_alnum:
+    min_chars = min(_REPEAT_MIN_ALNUM_CHARS, max(2, window // 12))
+    # 纯空白不算循环；超长连续非空白字符（含正文以及无换行的纯符号/标点洪泛如 1600+ 字符 ``——``）进入 3 遍周期检测。
+    if sum(1 for ch in tail if not ch.isspace()) < min_chars:
         return None
     start = len(text) - window
     previous = text.rfind(tail, 0, start - 1 + window)

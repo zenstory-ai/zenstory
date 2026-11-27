@@ -58,6 +58,25 @@ def text_contains_cjk(text: object) -> bool:
     return isinstance(text, str) and bool(_CJK_CHAR_RE.search(text))
 
 
+_FILE_TAG_PREFIXES: tuple[str, ...] = ("<file", "]<\x5dminimax")
+
+
+def _is_file_tag_chunk(text: str) -> bool:
+    """片段是否以 ``<file>``（或其流式首片段如 ``<`` / ``<fi`` / MiniMax 分隔符）开头。
+
+    用于避免在续跑首段或工具后紧接的 ``<file>`` 正文前补空行；同时不对普通以 ``<`` 开头的
+    剧本/正文（如 ``<第一幕>``）误跳分隔。
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return False
+    lowered = stripped.lower()
+    if any(lowered.startswith(prefix) for prefix in _FILE_TAG_PREFIXES):
+        return True
+    # 流式拆包场景："<file>" 的前 1-4 个字符（"<" / "<f" / "<fi" / "<fil"）
+    return any(prefix.startswith(lowered) for prefix in _FILE_TAG_PREFIXES)
+
+
 class AgentTextShaper:
     """一个 agent run 的 TEXT 流在发给作者之前的整理。
 
@@ -65,7 +84,7 @@ class AgentTextShaper:
       （审计 P3-16：规划师的「…外形标签定死」和内容创作者的「我先确认三个剧本文件的当前
       内容。」粘成了一句）。
     - 同一个 agent 隔着工具调用的两段文字也隔开（I03：U094 一连五句「正在…」在保存的回复里
-      首尾相连）。直播时工具卡片把它们分开，但存进历史、复制出去的是拼起来的一整段。以 ``<``
+      首尾相连）。直播时工具卡片把它们分开，但存进历史、复制出去的是拼起来的一整段。以 ``<file``
       开头的一段（``<file>`` 正文）不补。
     - drop_english_narration（作者写中文时开启）：每段文字先攒着，看出是中文就立刻发；
       以英文为主、并且紧接着就调用工具的一小段（过程说明）丢掉；超过
@@ -94,9 +113,9 @@ class AgentTextShaper:
             return ""
         if not self._started:
             self._started = True
-            if self._previous_text.strip():
+            if self._previous_text.strip() and not _is_file_tag_chunk(text):
                 text = self._separated(self._tail, text)
-        elif self._after_tool_call and not text.lstrip().startswith("<"):
+        elif self._after_tool_call and not _is_file_tag_chunk(text):
             text = self._separated(self._tail, text)
         self._after_tool_call = False
         self._tail = (self._tail + text)[-2:]

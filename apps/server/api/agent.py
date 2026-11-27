@@ -568,6 +568,8 @@ class _AgentStreamSettlement:
     deadline_pause_done: str | None = None
     _stop_wait_timed_out: bool = False
     _committed_seen: int = 0
+    _observed_tool_call_ids: set[str] = field(default_factory=set)
+    _observed_anon_tool_calls: int = 0
 
     def attach_pump(self, pump: SSEStreamPump) -> None:
         self.pump = pump
@@ -583,6 +585,14 @@ class _AgentStreamSettlement:
         self.written_files.observe(frame)
         if isinstance(frame, str) and frame.startswith("event: done\n"):
             self.source_done = True
+        elif isinstance(frame, str) and frame.startswith("event: tool_call\n"):
+            _, tc_data = _parse_sse(frame)
+            if isinstance(tc_data, dict):
+                tc_id = str(tc_data.get("tool_use_id") or "").strip()
+                if tc_id:
+                    self._observed_tool_call_ids.add(tc_id)
+                else:
+                    self._observed_anon_tool_calls += 1
         elif isinstance(frame, str) and frame.startswith("event: iteration_exhausted\n"):
             _, card_data = _parse_sse(frame)
             if isinstance(card_data, dict):
@@ -1076,6 +1086,12 @@ class _AgentStreamSettlement:
                 self.activation_entry,
             )
 
+        # 断线/取消路径上 process_stream 的 finally 可能尚未执行；用泵在入队前观察到的
+        # tool_call 帧数作下界兜底，避免 agent_round_metric 与摘要日志记成 tool_calls_count=0。
+        observed_tool_calls = len(self._observed_tool_call_ids) + self._observed_anon_tool_calls
+        if observed_tool_calls > int(run_report.get("tool_calls_count") or 0):
+            run_report["tool_calls_count"] = observed_tool_calls
+
         # 每次 run 一行结构化摘要：模型、token、调用次数、LLM 耗时、结束原因、计费。
         # 取消/时限路径上 process_stream 的收尾在后台进行，摘要字段可能不全。
         log_with_context(
@@ -1113,7 +1129,15 @@ class _AgentStreamSettlement:
             fallback_stop_reason = (
                 USER_STOPPED_REASON
                 if self.user_stopped
-                else (RUN_DEADLINE_STOP_REASON if self.deadline_exceeded else None)
+                else (
+                    RUN_DEADLINE_STOP_REASON
+                    if self.deadline_exceeded
+                    else (
+                        STOP_KIND_CLIENT_DISCONNECTED
+                        if self.client_disconnected and not self.tracker.saw_terminal_event
+                        else None
+                    )
+                )
             )
             metric = build_agent_round_metric(
                 user_id=self.user_id,

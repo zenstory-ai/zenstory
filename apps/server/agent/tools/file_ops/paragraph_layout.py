@@ -403,6 +403,8 @@ def layout_insertion(
     if has_prev and has_next:
         indent = prev_indent if prev_indent and prev_indent == next_indent else ""
         first_newline = gap.find("\n")
+        if first_newline > 0 and gap[first_newline - 1] == "\r":
+            first_newline -= 1
         separator = gap[first_newline : last_newline + 1]
         placed_at = prev_end
         written = separator + _apply_indent(core.rstrip(), indent, heading_indent)

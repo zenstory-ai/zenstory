@@ -398,10 +398,14 @@ def test_repetition_detector_catches_short_token_and_short_sentence_loops():
     assert cut == len("【引子】") + len(sentence)
     assert repeated[:cut].count("桌上就只剩这支笔") == 1
 
-    # 纯标点分隔线、Markdown 表格分隔行、空行仍不算循环
-    assert find_repetition_start("——\n\n" * 3000) is None
-    assert find_repetition_start("---\n" * 3000) is None
-    assert find_repetition_start("| --- | --- |\n" * 500) is None
+    # 正常的少量分隔线、Markdown 表格分隔行、纯空行不算循环；连续大量重复纯标点行则必须截停
+    assert find_repetition_start("——\n\n" * 5) is None
+    assert find_repetition_start("---\n" * 5) is None
+    assert find_repetition_start("| 列A | 列B |\n| --- | --- |\n| 甲 | 乙 |\n") is None
+    assert find_repetition_start("\n\n" * 1000) is None
+    assert find_repetition_start("——\n\n" * 3000) == 0
+    assert find_repetition_start("---\n" * 3000) == 0
+    assert find_repetition_start("| --- | --- |\n" * 500) == 0
 
 
 # ---------------------------------------------------------------------------
