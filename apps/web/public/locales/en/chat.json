@@ -123,6 +123,11 @@
     "copiedReply": "Copied"
   },
   "context": {
+    "origin": {
+      "quote": "Quote",
+      "attached": "Attached",
+      "openFile": "Open file"
+    },
     "priority": {
       "critical": "Critical",
       "constraint": "Key",
@@ -130,7 +135,7 @@
       "inspiration": "Reference",
       "default": "Source"
     },
-    "label": "Context"
+    "label": "Attached context"
   },
   "workflow": {
     "iterationExhausted": "Pausing here for now",

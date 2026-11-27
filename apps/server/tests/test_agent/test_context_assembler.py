@@ -736,6 +736,45 @@ class TestContextAssembler:
         # Should prefer the one with higher priority (attached > sibling)
         assert deduplicated[0].metadata.get("relation") == "attached"
 
+    def test_deduplicate_items_preserves_attached_flag_when_focus_file_is_also_attached(
+        self,
+        db_session,
+        test_project,
+        create_file,
+    ):
+        """When the user explicitly @-attaches the currently open focus file,
+        deduplication must keep metadata['attached']=True alongside is_focus=True
+        so serialized SSE context items distinguish explicit attachment from auto-focus.
+        """
+        outline = create_file(
+            file_type="outline",
+            title="第1章 大纲",
+            content="大纲正文",
+        )
+
+        assembler = ContextAssembler()
+        attached_items = assembler.get_attached_files(db_session, test_project.id, [outline.id])
+        focus_item = assembler.file_to_context_item(outline, is_focus=True)
+
+        deduplicated = assembler.deduplicate_items([*attached_items, focus_item])
+
+        assert len(deduplicated) == 1
+        serialized = deduplicated[0].to_dict()
+        assert serialized["metadata"]["is_focus"] is True
+        assert serialized["metadata"]["attached"] is True
+        # Original input items must not be mutated in place.
+        assert not focus_item.metadata.get("attached")
+
+        # Order-independent: fresh items with focus before attached preserve both flags too.
+        fresh_focus_item = assembler.file_to_context_item(outline, is_focus=True)
+        fresh_attached_items = assembler.get_attached_files(db_session, test_project.id, [outline.id])
+        reversed_dedup = assembler.deduplicate_items([fresh_focus_item, *fresh_attached_items])
+        assert len(reversed_dedup) == 1
+        reversed_serialized = reversed_dedup[0].to_dict()
+        assert reversed_serialized["metadata"]["is_focus"] is True
+        assert reversed_serialized["metadata"]["attached"] is True
+        assert not fresh_focus_item.metadata.get("attached")
+
     def test_format_context_sections(
         self,
         db_session,

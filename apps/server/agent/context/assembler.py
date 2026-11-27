@@ -1284,11 +1284,25 @@ class ContextAssembler:
                 seen[item.id] = item
             else:
                 existing = seen[item.id]
+                was_focus = existing.is_focus or item.is_focus
+                was_attached = bool(existing.metadata.get("attached")) or bool(item.metadata.get("attached"))
                 # Prefer is_focus
                 if item.is_focus and not existing.is_focus or (priority_order.get(item.priority, 4) <
                       priority_order.get(existing.priority, 4)) or ((item.relevance_score or 0) >
                       (existing.relevance_score or 0)):
-                    seen[item.id] = item
+                    winner = item
+                else:
+                    winner = existing
+                extra: dict[str, Any] = {}
+                if was_focus and not winner.is_focus:
+                    extra["is_focus"] = True
+                if was_attached and not winner.metadata.get("attached"):
+                    extra["attached"] = True
+                seen[item.id] = (
+                    winner.model_copy(update={"metadata": {**winner.metadata, **extra}})
+                    if extra
+                    else winner
+                )
 
         return list(seen.values())
 

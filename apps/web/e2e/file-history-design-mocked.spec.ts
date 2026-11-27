@@ -115,28 +115,36 @@ for (const theme of ['light', 'dark'] as const) {
     await page.locator('#chat-tab').click();
     await page.getByTestId('chat-input').fill('查看参考正文');
     await page.getByTestId('send-button').click();
-    await page.getByRole('button', { name: /^来源/ }).click();
-    const rows = page.locator('#chat-panel details');
+    await page.getByRole('button', { name: /^已附上下文/ }).click();
+    await expect(page.locator('#chat-panel details')).toHaveCount(0);
+    const rows = page.locator('#chat-panel [data-testid="context-item-card"]');
     await expect(rows).toHaveCount(5);
     for (const [index, row] of (await rows.all()).entries()) {
-      const badge = row.locator('summary > span').last();
+      const trigger = row.locator('> button');
+      const badge = trigger.locator('> span').last();
       const style = await badge.evaluate(el => {
         const computed = getComputedStyle(el);
         return { fontSize: computed.fontSize, background: computed.backgroundColor, color: computed.color };
       });
       expect(style.fontSize).toBe('12px');
-      if (index < 4) {
-        // Semantic metadata should be a light tint, never a solid action button.
+      expect(style.color).not.toBe('rgb(255, 255, 255)');
+      if (index >= 1 && index <= 3) {
+        // Legacy priority tiers (constraint/relevant/inspiration) keep a light semantic tint, never a solid button.
         expect(style.background).toMatch(/^rgba\(/);
         expect(parseFloat(style.background.split(',').at(-1)!)).toBeLessThanOrEqual(0.2);
-        expect(style.color).not.toBe('rgb(255, 255, 255)');
+      } else {
+        // Attached / critical items use calm neutral origin badges rather than red error styling.
+        await expect(badge).toHaveText('已附加');
       }
-      await row.locator('summary').click();
+      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-expanded', 'true');
       await expect(row.getByText('作者提供的参考正文。', { exact: true })).toBeVisible();
-      await row.locator('summary').click();
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-expanded', 'false');
     }
     await page.screenshot({ path: testInfo.outputPath('context-labels.png') });
-    const accessibility = await new AxeBuilder({ page }).include('#chat-panel details').withRules(['color-contrast']).analyze();
+    const accessibility = await new AxeBuilder({ page }).include('#chat-panel [data-testid="context-item-card"]').withRules(['color-contrast']).analyze();
     expect(accessibility.violations).toEqual([]);
   });
 }
