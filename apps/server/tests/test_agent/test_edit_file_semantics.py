@@ -506,7 +506,7 @@ def test_missing_file_raises_file_not_found(db_session, test_user):
     assert exc.value.error_type == EDIT_ERROR_FILE_NOT_FOUND
     assert "不要猜测、枚举或改写相似 id" in str(exc.value)
     assert "不能把失败解释成权限问题" in str(exc.value)
-    assert exc.value.user_message == "AI 没找到目标文件，这一步没有改动。"
+    assert exc.value.user_message == "未找到目标文件，文件未改动。"
 
 
 # ----------------------------------------------- 工具层：错误载荷与计费/守卫 --
@@ -549,7 +549,7 @@ async def test_rolled_back_batch_payload_has_stable_type_and_author_message():
     assert payload["error"].startswith("本次调用的 3 处编辑全部未生效（已整体回滚）")
     assert "找不到要替换的原文片段" in payload["error"], "模型重新定位所需的原始错误必须保留"
     assert payload["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
-    assert payload["user_message"] == "AI 没在原文里找到要改的那一段，正在重新定位。"
+    assert payload["user_message"] == "未在原文中找到对应段落，文件未改动。"
     assert payload["edits_applied"] == 0
     assert payload["mutation_applied"] is False
     assert payload["edits_total"] == 3
@@ -564,12 +564,12 @@ async def test_ambiguous_and_generic_errors_get_author_messages():
     )
     _, payload = await _call_edit_file(ambiguous, [{"op": "replace"}])
     assert payload["error_type"] == EDIT_ERROR_ANCHOR_AMBIGUOUS
-    assert payload["user_message"] == "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。"
+    assert payload["user_message"] == "要修改的片段在原文中出现多处，文件未改动。"
 
     _, payload = await _call_edit_file(RuntimeError("db exploded"), [{"op": "append", "text": "x"}])
     assert payload["error"] == "db exploded"
     assert payload["error_type"] == "edit_failed"
-    assert payload["user_message"] == "这一步没做成，AI 会换个方式继续。"
+    assert payload["user_message"] == "此次修改未能生效，文件未改动。"
     # 未分类异常可能发生在提交之后，不能断言「一处都没生效」
     assert "mutation_applied" not in payload
 

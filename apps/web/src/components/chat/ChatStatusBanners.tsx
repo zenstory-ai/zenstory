@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowDown, Edit3, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, Edit3, Loader2, RotateCcw } from "lucide-react";
 import type { EditProgress } from "../../hooks/useChatStreaming";
 import type { Message } from "../MessageList";
 import { Button } from "../ui/Button";
@@ -121,6 +121,7 @@ export const ChatStreamErrorCard: React.FC<{
   canRetry: boolean;
   isMobile: boolean;
   onRetry: () => void;
+  onRetryToolFailureLimit?: () => void;
   onOpenUpgradeModal: () => void;
 }> = ({
   error,
@@ -131,9 +132,15 @@ export const ChatStreamErrorCard: React.FC<{
   canRetry,
   isMobile,
   onRetry,
+  onRetryToolFailureLimit,
   onOpenUpgradeModal,
 }) => {
   const { t } = useTranslation(["chat", "common", "dashboard"]);
+  const showToolFailureLimitRetry =
+    !canRetry
+    && !aiSendBlocked
+    && errorCode === "ERR_AGENT_TOOL_FAILURE_LIMIT"
+    && Boolean(onRetryToolFailureLimit);
   return (
     <div role="alert" className={`mt-2.5 p-3 ${CHAT_CARD_WARNING_SURFACE}`}>
       <div className="flex items-start gap-2.5">
@@ -164,6 +171,16 @@ export const ChatStreamErrorCard: React.FC<{
               className={`mt-2.5 ${CHAT_CARD_SECONDARY_BUTTON}`}
             >
               {t("common:retry")}
+            </button>
+          )}
+          {showToolFailureLimitRetry && onRetryToolFailureLimit && (
+            <button
+              type="button"
+              onClick={onRetryToolFailureLimit}
+              className={`mt-2.5 gap-1.5 ${CHAT_CARD_SECONDARY_BUTTON}`}
+            >
+              <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>{t("chat:tool.retry_reread_edit")}</span>
             </button>
           )}
           {(isAiQuotaLimit || isNetworkQuotaLimit) && (

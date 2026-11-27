@@ -270,10 +270,19 @@ class PreWriteHistoryUnavailableError(RuntimeError):
 
     error_type = "pre_write_history_unavailable"
 
-    def __init__(self, file_id: str, *, action: str) -> None:
+    def __init__(
+        self,
+        file_id: str,
+        *,
+        action: str,
+        title: str | None = None,
+        file_type: str | None = None,
+    ) -> None:
         self.file_id = file_id
         self.action = action
-        super().__init__("原文没能先存进历史版本，这次改动没有写入，原文保持不变；可以稍后重试。")
+        self.title = title
+        self.file_type = file_type
+        super().__init__("原稿未能先保存历史备份，为避免丢失内容，此次修改未写入。")
 
 
 # --- edit_file 的稳定错误类型 ---------------------------------------------
@@ -295,16 +304,24 @@ EDIT_ERROR_STALE_CONTENT = "stale_content"
 # 单循环 agent 改正文（draft / script）时的两道结构检查，见 check_body_edit_guards。
 EDIT_ERROR_WHOLE_BODY_REPLACE = "whole_body_replace"
 EDIT_ERROR_DUPLICATED_PARAGRAPH = "duplicated_paragraph"
+EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE = "pre_write_history_unavailable"
+EDIT_ERROR_CHAPTER_REPLACE_PENDING = "chapter_replace_pending"
+EDIT_ERROR_CHAPTER_TARGET_AMBIGUOUS = "chapter_target_ambiguous"
 
 EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
-    EDIT_ERROR_ANCHOR_NOT_FOUND: "AI 没在原文里找到要改的那一段，正在重新定位。",
-    EDIT_ERROR_ANCHOR_AMBIGUOUS: "要改的这句话在文中出现了好几次，AI 正在确认是哪一处。",
-    EDIT_ERROR_FILE_NOT_FOUND: "AI 没找到目标文件，这一步没有改动。",
-    EDIT_ERROR_STALE_CONTENT: "这个文件在 AI 读过之后又被改过（多半是你刚改的），AI 没有在旧内容上改，这一步没有改动。",
-    EDIT_ERROR_WHOLE_BODY_REPLACE: "整章替换要按章号写入，这一步没有改动，AI 会换个方式继续。",
-    EDIT_ERROR_DUPLICATED_PARAGRAPH: "这次修改会让章节里出现重复的段落，没有保存，AI 会换个方式继续。",
+    EDIT_ERROR_ANCHOR_NOT_FOUND: "未在原文中找到对应段落，文件未改动。",
+    EDIT_ERROR_ANCHOR_AMBIGUOUS: "要修改的片段在原文中出现多处，文件未改动。",
+    EDIT_ERROR_FILE_NOT_FOUND: "未找到目标文件，文件未改动。",
+    EDIT_ERROR_STALE_CONTENT: "该文件在 AI 读取后又被修改过，未在旧内容上改动。",
+    EDIT_ERROR_NO_CHANGE: "修改前后内容一致，无需改动。",
+    EDIT_ERROR_FILE_BUSY: "目标文件正忙，此次修改未写入。",
+    EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE: "原稿未能先保存历史备份，为避免丢失内容，此次修改未写入。",
+    EDIT_ERROR_WHOLE_BODY_REPLACE: "整章重写需按章号写入，此次局部编辑未改动文件。",
+    EDIT_ERROR_DUPLICATED_PARAGRAPH: "此次修改会导致正文出现重复段落，未保存改动。",
+    EDIT_ERROR_CHAPTER_REPLACE_PENDING: "该章节正在等待写入完整正文，此次修改未执行。",
+    EDIT_ERROR_CHAPTER_TARGET_AMBIGUOUS: "找到多个同编号章节，无法确认目标文件，文件未改动。",
 }
-EDIT_ERROR_GENERIC_USER_MESSAGE = "这一步没做成，AI 会换个方式继续。"
+EDIT_ERROR_GENERIC_USER_MESSAGE = "此次修改未能生效，文件未改动。"
 
 # 近似/模糊匹配改动后附在 detail 上的提醒（模型与作者都能看到实际改了哪段原文）。
 FUZZY_EDIT_WARNING = "已按近似匹配改动，请核对"
@@ -321,9 +338,35 @@ class EditFileError(ValueError):
     继承 ValueError：按 ValueError 捕获的调用方（含测试）照常接住。
     """
 
-    def __init__(self, message: str, *, error_type: str = EDIT_ERROR_INVALID_EDIT):
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_type: str = EDIT_ERROR_INVALID_EDIT,
+        file_id: str | None = None,
+        title: str | None = None,
+        file_type: str | None = None,
+    ):
         super().__init__(message)
         self.error_type = error_type
+        self.file_id = file_id
+        self.title = title
+        self.file_type = file_type
+
+    def attach_file_meta(
+        self,
+        *,
+        file_id: str | None = None,
+        title: str | None = None,
+        file_type: str | None = None,
+    ) -> "EditFileError":
+        if file_id:
+            self.file_id = file_id
+        if title:
+            self.title = title
+        if file_type:
+            self.file_type = file_type
+        return self
 
     @property
     def user_message(self) -> str:
@@ -331,12 +374,19 @@ class EditFileError(ValueError):
 
     def payload_fields(self) -> dict[str, Any]:
         """附加到工具错误结果上的结构化字段。"""
-        return {
+        fields: dict[str, Any] = {
             "error_type": self.error_type,
             "user_message": self.user_message,
             "edits_applied": 0,
             "mutation_applied": False,
         }
+        if self.file_id:
+            fields["id"] = self.file_id
+        if self.title:
+            fields["title"] = self.title
+        if self.file_type:
+            fields["file_type"] = self.file_type
+        return fields
 
 
 class StaleContentError(EditFileError):
@@ -348,7 +398,15 @@ class StaleContentError(EditFileError):
 
     MAX_LISTED = 6
 
-    def __init__(self, seen: str, current: str):
+    def __init__(
+        self,
+        seen: str,
+        current: str,
+        *,
+        file_id: str | None = None,
+        title: str | None = None,
+        file_type: str | None = None,
+    ):
         self.current_content = current
         changes, truncated = _line_changes(seen, current)
         self.complete = len(changes) <= self.MAX_LISTED and not truncated
@@ -364,6 +422,9 @@ class StaleContentError(EditFileError):
             "这个文件在你读过之后又被改过（可能是作者刚在编辑器里改的，也可能是本请求里别的步骤写的），"
             f"这次修改没有执行，一处都没改。读过之后的改动：\n{listed}\n{tail}",
             error_type=EDIT_ERROR_STALE_CONTENT,
+            file_id=file_id,
+            title=title,
+            file_type=file_type,
         )
 
 
@@ -397,7 +458,15 @@ def _line_changes(before: str, after: str) -> tuple[list[str], bool]:
 class EditBatchError(EditFileError):
     """continue_on_error=false 时有编辑失败：整批回滚，列出全部失败项。"""
 
-    def __init__(self, failed_edits: list[dict[str, Any]], edits_total: int):
+    def __init__(
+        self,
+        failed_edits: list[dict[str, Any]],
+        edits_total: int,
+        *,
+        file_id: str | None = None,
+        title: str | None = None,
+        file_type: str | None = None,
+    ):
         self.failed_edits = failed_edits
         self.edits_total = edits_total
         reasons = "；".join(str(item.get("error") or "") for item in failed_edits)
@@ -417,7 +486,13 @@ class EditBatchError(EditFileError):
                 "确认不了就先用 read_files(ids=[...]) 读取相关段落。"
             )
         first_type = failed_edits[0].get("error_type") if failed_edits else None
-        super().__init__(message, error_type=str(first_type or EDIT_ERROR_GENERIC))
+        super().__init__(
+            message,
+            error_type=str(first_type or EDIT_ERROR_GENERIC),
+            file_id=file_id,
+            title=title,
+            file_type=file_type,
+        )
 
     def payload_fields(self) -> dict[str, Any]:
         fields = super().payload_fields()
@@ -442,8 +517,38 @@ def _ambiguous(message: str) -> EditFileError:
     return EditFileError(message, error_type=EDIT_ERROR_ANCHOR_AMBIGUOUS)
 
 
-def _preview(text: str) -> str:
-    return text[:200] + ("..." if len(text) > 200 else "")
+def _preview(text: str, max_len: int = 200) -> str:
+    return text[:max_len] + ("..." if len(text) > max_len else "")
+
+
+def _failed_edit_previews(edit: Any, failed_op: str) -> dict[str, str]:
+    """Extract bounded, client-safe snippet previews from a failed edit item."""
+    if not isinstance(edit, dict):
+        return {}
+    previews: dict[str, str] = {}
+    old_val = edit.get("old") if isinstance(edit.get("old"), str) else edit.get("from")
+    if isinstance(old_val, str) and old_val:
+        previews["old_preview"] = _preview(old_val, 200)
+    anchor_val = edit.get("anchor")
+    if isinstance(anchor_val, str) and anchor_val:
+        previews["anchor_preview"] = _preview(anchor_val, 200)
+    new_val: Any = edit.get("new")
+    if not isinstance(new_val, str) and failed_op == "replace":
+        for key in ("to", "text", "content", "new_text", "replacement"):
+            if isinstance(edit.get(key), str):
+                new_val = edit.get(key)
+                break
+    if isinstance(new_val, str) and new_val:
+        previews["new_preview"] = _preview(new_val, 200)
+    text_val: Any = edit.get("text")
+    if not isinstance(text_val, str) and failed_op in ("append", "prepend", "insert_after", "insert_before"):
+        for key in ("content", "new", "new_text", "replacement"):
+            if isinstance(edit.get(key), str):
+                text_val = edit.get(key)
+                break
+    if isinstance(text_val, str) and text_val:
+        previews["text_preview"] = _preview(text_val, 200)
+    return previews
 
 
 def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
@@ -1228,7 +1333,13 @@ class FileEditor:
         # 本请求里先拿到锁的那次写入已经把快照更新成它写下的正文，不会误判成别人改的。
         read_snapshot = read_snapshot_fn() if read_snapshot_fn is not None else None
         if read_snapshot is not None and read_snapshot != old_content:
-            raise StaleContentError(read_snapshot, old_content)
+            raise StaleContentError(
+                read_snapshot,
+                old_content,
+                file_id=file.id,
+                title=file.title,
+                file_type=file.file_type,
+            )
         content = old_content
         active_spans: list[tuple[int, int]] | None = (
             [(int(s), int(e)) for s, e in seen_spans if e > s]
@@ -1439,11 +1550,13 @@ class FileEditor:
                         error_text += "（本请求还没读过这个文件，只按逐字匹配：先用 read_files(ids=[...]) 读一次，再照现在的正文改）"
                     elif error_type == EDIT_ERROR_ANCHOR_NOT_FOUND:
                         error_text += "（本请求只按范围读过该文件部分内容，未读区域只按逐字匹配：请先用 read_files(ids=[...]) 读取目标区域或全文后再改）"
-                failed_edit = {
+                failed_edit: dict[str, Any] = {
                     "index": i,
                     "error": error_text,
                     "error_type": error_type,
+                    "user_message": edit_error_user_message(error_type),
                     "op": failed_op,
+                    **_failed_edit_previews(edit, failed_op),
                 }
                 if batch_anchor_invalidated:
                     failed_edit["batch_anchor_invalidated"] = True
@@ -1456,10 +1569,23 @@ class FileEditor:
         if failed_edits and not continue_on_error:
             # 整批不生效：不提交、不建版本。错误里写明「全部未生效」并列出全部
             # 失败项，否则模型会以为只有报错那一条失败，只重发剩下的几条。
-            raise EditBatchError(failed_edits, edits_total=len(edits))
+            raise EditBatchError(
+                failed_edits,
+                edits_total=len(edits),
+                file_id=file.id,
+                title=file.title,
+                file_type=file.file_type,
+            )
 
         if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
-            check_body_edit_guards(old_content, content, effective_edits)
+            try:
+                check_body_edit_guards(old_content, content, effective_edits)
+            except EditFileError as exc:
+                raise exc.attach_file_meta(
+                    file_id=file.id,
+                    title=file.title,
+                    file_type=file.file_type,
+                ) from None
 
         undo: dict[str, Any] | None = None
         if content != old_content:
@@ -1557,7 +1683,12 @@ class FileEditor:
                 "Refused AI write: original body is not in history",
                 extra={"file_id": file_id, "tool": tool},
             )
-            raise PreWriteHistoryUnavailableError(file_id, action=tool)
+            raise PreWriteHistoryUnavailableError(
+                file_id,
+                action=tool,
+                title=file.title,
+                file_type=file.file_type,
+            )
 
         if new_title is not None and new_title != file.title:
             apply_file_title_and_order(file, new_title)
@@ -1818,6 +1949,7 @@ class FileEditor:
                     {
                         "id": missing_id,
                         "reason": EDIT_ERROR_FILE_NOT_FOUND,
+                        "user_message": edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND),
                         "error": "文件不存在、已删除、为文件夹或不属于当前项目。",
                     }
                 )
@@ -1948,18 +2080,22 @@ class FileEditor:
             }
 
         pending_set = set(pending_file_ids) if pending_file_ids else set()
-        # Snapshot plain (id, title) tuples before commit/rollback expires ORM instances.
-        target_specs = [(candidate.id, candidate.title) for candidate, _, _, _ in batch_entries]
+        # Snapshot plain (id, title, file_type) tuples before commit/rollback expires ORM instances.
+        target_specs = [
+            (candidate.id, candidate.title, candidate.file_type) for candidate, _, _, _ in batch_entries
+        ]
         modified_files: list[dict[str, Any]] = []
         modified_marker_stripped_flags: list[bool] = []
         total_replacements = 0
-        for target_id, target_title in target_specs:
+        for target_id, target_title, target_file_type in target_specs:
             if target_id in pending_set:
                 skipped_files.append(
                     {
                         "id": target_id,
                         "title": target_title,
-                        "reason": "chapter_replace_pending",
+                        "file_type": target_file_type,
+                        "reason": EDIT_ERROR_CHAPTER_REPLACE_PENDING,
+                        "user_message": edit_error_user_message(EDIT_ERROR_CHAPTER_REPLACE_PENDING),
                         "error": "该文件正在等待 <file> 正文写入，已跳过。",
                     }
                 )
@@ -1998,7 +2134,9 @@ class FileEditor:
                     {
                         "id": target_id,
                         "title": target_title,
+                        "file_type": target_file_type,
                         "reason": reason,
+                        "user_message": edit_error_user_message(reason),
                         "error": str(exc),
                     }
                 )
@@ -2025,7 +2163,9 @@ class FileEditor:
                     {
                         "id": target_id,
                         "title": target_title,
+                        "file_type": target_file_type,
                         "reason": "unexpected_error",
+                        "user_message": edit_error_user_message(None),
                         "error": str(exc) or type(exc).__name__,
                     }
                 )
@@ -2295,9 +2435,10 @@ class FileEditor:
             # 定位：那条路按原文边缘标点扩展范围，会把模型漏抄的逗号、句号删掉还报成功（F-01）。
             if locate_exact_or_quote_equivalent(content_before_edit, old_field) is None:
                 suggestions = suggest_similar_lines(content_before_edit, old_field)
-                raise _not_found(
-                    f"Edit {edit_index}: old 与 new 相同，但原文里没有逐字对应的这段（标点也要一致），没有修改。"
-                    f"不需要改这里就去掉这条；要改请从当前文件原文中复制。候选片段: {suggestions}"
+                raise EditFileError(
+                    f"Edit {edit_index}: old 与 new 相同，没有产生实际改动（且原文里没有逐字对应的这段，标点也要一致）。"
+                    f"不需要改这里就去掉这条；要改请从当前文件原文中复制并写出不同的 new。候选片段: {suggestions}",
+                    error_type=EDIT_ERROR_NO_CHANGE,
                 )
             unchanged_edits.append({"index": edit_index, "op": op, "reason": "already_matches"})
             warnings.append(f"Edit {edit_index}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
@@ -3689,12 +3830,16 @@ __all__ = [
     "BATCH_REPLACE_MAX_REMAINING_FILES",
     "EDIT_ERROR_ANCHOR_AMBIGUOUS",
     "EDIT_ERROR_ANCHOR_NOT_FOUND",
+    "EDIT_ERROR_CHAPTER_REPLACE_PENDING",
+    "EDIT_ERROR_CHAPTER_TARGET_AMBIGUOUS",
     "EDIT_ERROR_FILE_BUSY",
     "EDIT_ERROR_FILE_NOT_FOUND",
     "EDIT_ERROR_GENERIC",
     "EDIT_ERROR_INVALID_EDIT",
     "EDIT_ERROR_NO_CHANGE",
     "EDIT_ERROR_PERMISSION_DENIED",
+    "EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE",
+    "EDIT_ERROR_USER_MESSAGES",
     "EVENT_LOOP_LOCK_WAIT_SECONDS",
     "EditBatchError",
     "EditFileError",

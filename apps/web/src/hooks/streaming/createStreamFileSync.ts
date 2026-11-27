@@ -397,20 +397,19 @@ export function createStreamFileSyncHandlers(
     // chunks or file_content_end. Its committed body now owns the editor.
     if (editsApplied > 0 && !outcome?.allFailed) finishFileStreaming(fileId);
 
-    // 批量编辑可以部分失败：不提示的话用户只看到"编辑完成"，
-    // 实际上有若干条 edit 根本没落地（失败原因只藏在 data 里）。
+    // 批量编辑可以部分失败：给出简洁提示并引导到对话内的持久卡片查看详情或重试。
     if (outcome && (outcome.failedCount > 0 || outcome.allFailed)) {
-      const displayTitle = title || refs.fileEditMetaByIdRef.current.get(fileId)?.title || "";
+      const displayTitle = (title || refs.fileEditMetaByIdRef.current.get(fileId)?.title || "").trim();
+      const failedCount = outcome.failedCount > 0 ? outcome.failedCount : 1;
+      const key = outcome.allFailed
+        ? displayTitle
+          ? "chat:fileEdit.allFailed"
+          : "chat:fileEdit.allFailedUntitled"
+        : displayTitle
+          ? "chat:fileEdit.partialFailed"
+          : "chat:fileEdit.partialFailedUntitled";
       toast.error(
-        outcome.allFailed
-          ? t("chat:fileEdit.allFailed", {
-              title: displayTitle,
-              count: outcome.failedCount,
-            })
-          : t("chat:fileEdit.partialFailed", {
-              title: displayTitle,
-              count: outcome.failedCount,
-            }),
+        t(key, displayTitle ? { title: displayTitle, count: failedCount } : { count: failedCount }),
       );
     }
     for (const warning of outcome?.warnings ?? []) {

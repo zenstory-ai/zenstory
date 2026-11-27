@@ -99,6 +99,7 @@ import {
 } from "./chat/useChatStartersAndNextStep";
 import { useChatHistory } from "./chat/useChatHistory";
 import { ChatPanelHeader } from "./chat/ChatPanelHeader";
+import type { EditFailureRetryContext } from "./chat/toolCards/toolCardHelpers";
 import {
   ChatStreamErrorCard,
   EditProgressCard,
@@ -1280,6 +1281,25 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     [saveDraft, t],
   );
 
+  const handleRetryEditFailure = useCallback(
+    (context: EditFailureRetryContext) => {
+      const prompt = context.title
+        ? t("chat:tool.retry_reread_prompt_with_title", { title: context.title })
+        : t("chat:tool.retry_reread_prompt");
+      void handleSendMessage(prompt, undefined, { entry: "edit_failure_retry" }, { keepComposer: true });
+    },
+    [handleSendMessage, t],
+  );
+
+  const handleRetryToolFailureLimit = useCallback(() => {
+    void handleSendMessage(
+      t("chat:tool.retry_tool_failure_limit_prompt"),
+      undefined,
+      { entry: "tool_failure_limit_retry" },
+      { keepComposer: true },
+    );
+  }, [handleSendMessage, t]);
+
   const starters = useChatStartersAndNextStepEffects({
     currentProjectId,
     currentProjectIdRef,
@@ -1517,6 +1537,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                       messages={messages}
                       streamRenderItems={streamRenderItems}
                       onIterationAssistAction={handleIterationAssistAction}
+                      onRetryEditFailure={!isStreaming ? handleRetryEditFailure : undefined}
                       nextStepsBlocked={quotaNotes.aiSendBlocked}
                       onUndo={undo.handleUndo}
                       onRestoreDeletion={undo.handleRestoreDeletion}
@@ -1548,6 +1569,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     canRetry={canRetryStreamError}
                     isMobile={isMobile}
                     onRetry={handleRetry}
+                    onRetryToolFailureLimit={
+                      !isStreaming && !quotaNotes.aiSendBlocked && errorCode === "ERR_AGENT_TOOL_FAILURE_LIMIT"
+                        ? handleRetryToolFailureLimit
+                        : undefined
+                    }
                     onOpenUpgradeModal={() => quotaState.setShowQuotaUpgradeModal(true)}
                   />
                 )}

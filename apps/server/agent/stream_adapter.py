@@ -69,10 +69,12 @@ from .core.workflow_events import (
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
 from .loop.history import slim_client_tool_result
 from .openai_agents.events import extract_tool_result_text, parse_mcp_tool_payload
+from .tools.file_ops.edit import edit_error_user_message
 
 logger = get_logger(__name__)
 
 _UNPARSED = object()
+_SAFE_FILE_ERROR_TOOLS = frozenset({"edit_file", "batch_replace_files", "write_chapter"})
 
 
 def _with_sync_session[T](fn: Callable[[Any], T]) -> T:
@@ -701,9 +703,14 @@ class StreamAdapter:
             ):
                 self._file_mutated = True
 
-            # 全失败的 edit_file 仍要把 data 发出去：failed_edits 是用户判断
-            # 「哪几处没改成、为什么」的唯一依据，丢掉它卡片就是空白的。
-            emit_data = result_data if (status == "success" or edit_all_failed) else None
+            # 全失败与可恢复文件编辑错误只按严格白名单透传目标文件身份与安全摘要字段，
+            # 绝不把面向模型的 error 指令正文透给浏览器或落库卡片。
+            if status == "success":
+                emit_data = self._sanitize_client_tool_data(tool_name, result_data)
+            elif tool_name in _SAFE_FILE_ERROR_TOOLS:
+                emit_data = self._safe_tool_error_payload(parsed_result, result_data) or None
+            else:
+                emit_data = None
             emit_data = self._client_safe_skill_payload(tool_name, emit_data)
             if isinstance(emit_data, dict) and emit_data.get("guard_skipped") is True and "message" in emit_data:
                 emit_data = {k: v for k, v in emit_data.items() if k != "message"}
@@ -852,6 +859,97 @@ class StreamAdapter:
                 if key not in hints and isinstance(value, str) and value.strip():
                     hints[key] = value.strip()
         return hints
+
+    @staticmethod
+    def _client_safe_failed_edits(raw: Any) -> list[dict[str, Any]]:
+        """只保留前端展示失败编辑项所需的有界安全字段，永不透传模型指令 error 原文。"""
+        if not isinstance(raw, list):
+            return []
+        safe_items: list[dict[str, Any]] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            entry: dict[str, Any] = {}
+            index = item.get("index")
+            if isinstance(index, int) and not isinstance(index, bool):
+                entry["index"] = index
+            for key in ("op", "error_type", "old_preview", "anchor_preview", "new_preview", "text_preview"):
+                value = item.get(key)
+                if isinstance(value, str) and value:
+                    entry[key] = value
+            user_message = item.get("user_message")
+            if isinstance(user_message, str) and user_message.strip():
+                entry["user_message"] = user_message.strip()
+            elif entry.get("error_type"):
+                entry["user_message"] = edit_error_user_message(entry["error_type"])
+            if item.get("batch_anchor_invalidated") is True:
+                entry["batch_anchor_invalidated"] = True
+            if entry:
+                safe_items.append(entry)
+        return safe_items
+
+    @staticmethod
+    def _client_safe_skipped_files(raw: Any) -> list[dict[str, Any]]:
+        """只保留前端展示跳过文件所需的安全字段，永不透传原始异常或模型指令。"""
+        if not isinstance(raw, list):
+            return []
+        safe_items: list[dict[str, Any]] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            entry: dict[str, Any] = {}
+            for key in ("id", "title", "file_type", "reason", "error_type"):
+                value = item.get(key)
+                if isinstance(value, str) and value.strip():
+                    entry[key] = value.strip()
+            user_message = item.get("user_message")
+            if isinstance(user_message, str) and user_message.strip():
+                entry["user_message"] = user_message.strip()
+            else:
+                reason = entry.get("error_type") or entry.get("reason")
+                if reason:
+                    entry["user_message"] = edit_error_user_message(reason)
+            if entry:
+                safe_items.append(entry)
+        return safe_items
+
+    @classmethod
+    def _sanitize_client_tool_data(cls, tool_name: str, data: Any) -> Any:
+        """清理成功/部分成功文件工具结果中的失败明细，避免原始 error 文本泄漏给前端。"""
+        if not isinstance(data, dict):
+            return data
+        if tool_name == "edit_file" and "failed_edits" in data:
+            return {**data, "failed_edits": cls._client_safe_failed_edits(data.get("failed_edits"))}
+        if tool_name == "batch_replace_files" and "skipped_files" in data:
+            return {**data, "skipped_files": cls._client_safe_skipped_files(data.get("skipped_files"))}
+        return data
+
+    @classmethod
+    def _safe_tool_error_payload(cls, parsed_result: Any, result_data: Any) -> dict[str, Any]:
+        """为 edit_file / batch_replace_files / write_chapter 失败卡构建严格白名单载荷。"""
+        safe: dict[str, Any] = {}
+        for source in (parsed_result, result_data):
+            if not isinstance(source, dict):
+                continue
+            for key in ("id", "title", "file_type"):
+                value = source.get(key)
+                if key not in safe and isinstance(value, str) and value.strip():
+                    safe[key] = value.strip()
+            for key in ("edits_total", "edits_applied"):
+                value = source.get(key)
+                if key not in safe and isinstance(value, int) and not isinstance(value, bool):
+                    safe[key] = value
+            if "all_failed" not in safe and source.get("all_failed") is True:
+                safe["all_failed"] = True
+            if "failed_edits" not in safe and isinstance(source.get("failed_edits"), list):
+                safe_failed = cls._client_safe_failed_edits(source.get("failed_edits"))
+                if safe_failed:
+                    safe["failed_edits"] = safe_failed
+            if "skipped_files" not in safe and isinstance(source.get("skipped_files"), list):
+                safe_skipped = cls._client_safe_skipped_files(source.get("skipped_files"))
+                if safe_skipped:
+                    safe["skipped_files"] = safe_skipped
+        return safe
 
     @staticmethod
     def _client_safe_skill_payload(tool_name: str, data: Any) -> Any:

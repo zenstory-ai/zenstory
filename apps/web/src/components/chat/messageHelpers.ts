@@ -216,6 +216,123 @@ export const toolCardPayload = (tc: { result?: unknown; arguments?: unknown }): 
       ? (tc.arguments as Record<string, unknown>)
       : {};
 
+/** Whether a tool call may receive `onOpenFile` (never failed `create_file` or unconfirmed error rows). */
+export const canPassOpenFileForToolCall = (call: ToolCall): boolean => {
+  if (call.status === 'success') return Boolean(call.result);
+  if (call.status === 'error') return call.tool_name !== 'create_file' && Boolean(call.error);
+  return false;
+};
+
+const EDIT_FAILURE_TOOLS = new Set(['edit_file', 'batch_replace_files', 'write_chapter', 'update_file']);
+
+const extractToolCallData = (call: ToolCall): Record<string, unknown> | undefined => {
+  const result = call.result && typeof call.result === 'object'
+    ? (call.result as Record<string, unknown>)
+    : undefined;
+  if (!result) return undefined;
+  return result.data && typeof result.data === 'object'
+    ? (result.data as Record<string, unknown>)
+    : result;
+};
+
+const extractToolCallFileId = (call: ToolCall): string => {
+  const data = extractToolCallData(call);
+  const result = call.result && typeof call.result === 'object'
+    ? (call.result as Record<string, unknown>)
+    : undefined;
+  const args = call.arguments && typeof call.arguments === 'object'
+    ? (call.arguments as Record<string, unknown>)
+    : undefined;
+  for (const candidate of [data?.id, result?.id, args?.id]) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return '';
+};
+
+const isPartialEditFileCall = (call: ToolCall): boolean => {
+  if (call.tool_name !== 'edit_file' || call.status !== 'success') return false;
+  const data = extractToolCallData(call);
+  if (!data) return false;
+  return data.partial_success === true || (Array.isArray(data.failed_edits) && data.failed_edits.length > 0);
+};
+
+const isEditFailureCall = (call: ToolCall): boolean => {
+  if (!EDIT_FAILURE_TOOLS.has(call.tool_name)) return false;
+  if (call.status === 'error' || Boolean(call.error)) return true;
+  return isPartialEditFileCall(call);
+};
+
+const isCleanEditCall = (call: ToolCall): boolean => {
+  if (call.status !== 'success' || Boolean(call.error)) return false;
+  const data = extractToolCallData(call);
+  if (call.tool_name === 'edit_file') {
+    return !isPartialEditFileCall(call);
+  }
+  if (call.tool_name === 'update_file') return true;
+  if (call.tool_name === 'write_chapter') {
+    return data?.body_saved !== false && data?.mutation_applied === true;
+  }
+  if (call.tool_name === 'batch_replace_files') {
+    return data?.dry_run !== true;
+  }
+  return false;
+};
+
+/**
+ * Identify unresolved file-edit failures in a chronological list of tool calls.
+ * Any failure followed by a later clean edit to the same `fileId` in the same message
+ * is considered resolved and will NOT show a retry button.
+ */
+export const findUnresolvedEditFailures = (calls: ToolCall[]): ReadonlySet<ToolCall> => {
+  const unresolved = new Set<ToolCall>();
+  const resolvedFileIds = new Set<string>();
+
+  for (let i = calls.length - 1; i >= 0; i -= 1) {
+    const call = calls[i];
+    const fileId = extractToolCallFileId(call);
+    const data = extractToolCallData(call);
+
+    if (isCleanEditCall(call)) {
+      if (fileId) resolvedFileIds.add(fileId);
+      if (call.tool_name === 'batch_replace_files' && Array.isArray(data?.files)) {
+        for (const item of data.files) {
+          if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string') {
+            const id = ((item as Record<string, unknown>).id as string).trim();
+            if (id) resolvedFileIds.add(id);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (!isEditFailureCall(call)) continue;
+
+    if (fileId) {
+      if (!resolvedFileIds.has(fileId)) {
+        unresolved.add(call);
+        resolvedFileIds.add(fileId);
+      }
+      continue;
+    }
+
+    if (call.tool_name === 'batch_replace_files' && Array.isArray(data?.skipped_files)) {
+      const skippedIds = data.skipped_files
+        .map((item) => (item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string'
+          ? ((item as Record<string, unknown>).id as string).trim()
+          : ''))
+        .filter(Boolean);
+      if (skippedIds.length > 0 && skippedIds.every((id) => resolvedFileIds.has(id))) {
+        continue;
+      }
+      skippedIds.forEach((id) => resolvedFileIds.add(id));
+    }
+
+    unresolved.add(call);
+  }
+
+  return unresolved;
+};
+
 export const hasRenderableDisplayItem = (item: StreamRenderItem): boolean => {
   if (item.type === 'content') {
     return Boolean(item.content && stripThinkTags(item.content).trim());
