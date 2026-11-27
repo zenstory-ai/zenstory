@@ -271,12 +271,17 @@ async def test_edit_file_all_failed_emits_error_text_and_data():
 
     tool_result = next(e for e in events if e.type.value == "tool_result")
     assert tool_result.data["status"] == "error"
-    assert tool_result.data["error"]
-    assert "未找到待替换文本" in tool_result.data["error"]
-    assert "锚点不唯一" in tool_result.data["error"]
-    # data 必须保留：failed_edits 是用户判断「哪几处没改成」的唯一依据
+    assert tool_result.data["error"] == "此次修改未能生效，文件未改动。"
+    # 原始给模型看的 error 文案绝不透传给前端
+    assert "未找到待替换文本" not in tool_result.data["error"]
+    assert "锚点不唯一" not in tool_result.data["error"]
+    # data 必须保留：file meta 与脱敏后的 failed_edits 是用户判断「哪几处没改成」的依据
     assert tool_result.data["data"] is not None
+    assert tool_result.data["data"]["id"] == "f1"
+    assert tool_result.data["data"]["title"] == "第一章"
     assert tool_result.data["data"]["all_failed"] is True
+    assert len(tool_result.data["data"]["failed_edits"]) == 2
+    assert all("error" not in item for item in tool_result.data["data"]["failed_edits"])
 
 
 @pytest.mark.asyncio
