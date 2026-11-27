@@ -518,7 +518,7 @@ def test_identical_replace_does_not_roll_back_the_rest_of_the_batch(db_session, 
 
 def test_identical_replace_never_takes_the_fuzzy_path(db_session, owner_project):
     """F-01：old 与 new 相同但漏抄了原文的逗号和句号。原来走模糊命中，把原文的「，」「。」
-    删掉还报成功；现在不做近似改动，原文逐字找不到就如实报找不到，正文一字不动。"""
+    删掉还报成功；现在不做近似改动，按 no_change 拒绝且正文一字不动。"""
     user, project = owner_project
     original = "　　林舟点头说：“这个方案很好，真的。”然后走了。"
     chapter = _add_file(db_session, project, original)
@@ -528,7 +528,7 @@ def test_identical_replace_never_takes_the_fuzzy_path(db_session, owner_project)
             chapter.id, [{"op": "replace", "old": "这个方案很好真的”", "new": "这个方案很好真的”"}]
         )
 
-    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_NO_CHANGE
     db_session.expire_all()
     assert db_session.get(File, chapter.id).content == original
 
@@ -545,7 +545,7 @@ def test_identical_replace_under_a_new_alias_never_takes_the_fuzzy_path(db_sessi
             chapter.id, [{"op": "replace", "old": "这个方案很好真的”", new_key: "这个方案很好真的”"}]
         )
 
-    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_NO_CHANGE
     db_session.expire_all()
     assert db_session.get(File, chapter.id).content == original
 

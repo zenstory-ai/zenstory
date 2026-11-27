@@ -35,15 +35,19 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   type,
   toolName,
   result,
+  toolArguments,
   error,
   isPending,
   interrupted,
+  isStreaming,
+  nextStepsBlocked,
   onUndo,
   onRestoreDeletion,
   toolUseId,
   chatMessageId,
   onOpenFile,
   onOpenAIMemory,
+  onRetryEditFailure,
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
@@ -73,9 +77,14 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         <ToolFailureCard
           toolName={toolName}
           result={result}
+          toolArguments={toolArguments}
           isPending={isPending}
           interrupted={interrupted}
+          isStreaming={isStreaming}
+          nextStepsBlocked={nextStepsBlocked}
+          onOpenFile={onOpenFile}
           onOpenAIMemory={onOpenAIMemory}
+          onRetryEditFailure={onRetryEditFailure}
           t={t}
         />
       );
@@ -137,7 +146,19 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
       );
     }
     if (toolName === 'edit_file' && data) {
-      return <EditFileCard data={data} fileId={fileId} t={t} {...undoProps} {...sharedRowProps} />;
+      return (
+        <EditFileCard
+          data={data}
+          fileId={fileId}
+          toolArguments={toolArguments}
+          isStreaming={isStreaming}
+          nextStepsBlocked={nextStepsBlocked}
+          onRetryEditFailure={onRetryEditFailure}
+          t={t}
+          {...undoProps}
+          {...sharedRowProps}
+        />
+      );
     }
     if (toolName === 'parallel_execute' && data) {
       return <ParallelExecuteCard data={data} t={t} />;

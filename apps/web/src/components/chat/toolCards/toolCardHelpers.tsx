@@ -15,6 +15,9 @@ import {
   ScrollText,
   Settings,
   Layers,
+  ArrowRight,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import type { FileEditUndoTarget } from '../../../types';
 import { undoneEditKey } from '../../../lib/undoneEdits';
@@ -22,6 +25,14 @@ import type { WriteChapterOutcome } from '../../../lib/aiWriteCards';
 import { CHAT_CARD_INLINE_ACTION } from '../../chatCardStyles';
 
 export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+
+export interface EditFailureRetryContext {
+  toolName: string;
+  fileId?: string;
+  title?: string;
+  fileType?: string;
+  failedCount?: number;
+}
 
 export interface ToolResultCardProps {
   /**
@@ -34,12 +45,18 @@ export interface ToolResultCardProps {
   toolName?: string;
   /** Tool execution result or arguments. */
   result?: Record<string, unknown>;
+  /** Original tool call arguments (used as safe fallback metadata on historical error records). */
+  toolArguments?: Record<string, unknown>;
   /** Error message if tool execution failed. */
   error?: string;
   /** Whether the tool is currently executing. */
   isPending?: boolean;
   /** The round ended before this tool call returned a result. */
   interrupted?: boolean;
+  /** Whether this card belongs to an actively streaming round. */
+  isStreaming?: boolean;
+  /** Today's AI messages are exhausted or sending is blocked; hides retry triggers. */
+  nextStepsBlocked?: boolean;
   /** Callback to undo a file edit operation. */
   onUndo?: (target: FileEditUndoTarget) => void;
   /** Restore a soft-deleted file from its chat card. */
@@ -50,10 +67,12 @@ export interface ToolResultCardProps {
   /** The tool call of this card and its saved assistant message. */
   toolUseId?: string;
   chatMessageId?: string;
-  /** Open the exact file from a successful create/update result in the current project. */
+  /** Open the exact file from a create/update/edit result in the current project. */
   onOpenFile?: (fileId: string, fileType: string, title: string) => void;
   /** Open the current project's AI Memory editor at Writing Conventions. */
   onOpenAIMemory?: () => void;
+  /** Explicit user-initiated retry for an unresolved edit failure. */
+  onRetryEditFailure?: (context: EditFailureRetryContext) => void;
 }
 
 export const quote = (text: string) => {
@@ -192,6 +211,15 @@ export type ToolFailureKind =
   | 'protectionUnavailable'
   | 'authorChanged'
   | 'clarifyFirst'
+  | 'noChange'
+  | 'fileBusy'
+  | 'historyUnavailable'
+  | 'wholeBodyReplace'
+  | 'duplicatedParagraph'
+  | 'chapterReplacePending'
+  | 'chapterTargetAmbiguous'
+  | 'invalidEdit'
+  | 'permissionDenied'
   | 'generic';
 
 /**
@@ -218,6 +246,15 @@ export const classifyToolFailure = (errorType: string | undefined): ToolFailureK
   // The file changed after the AI read it (usually the author's own edit): not edited on the old text.
   if (normalized === 'stale_content') return 'authorChanged';
   if (normalized === 'clarify_first') return 'clarifyFirst';
+  if (normalized === 'no_change') return 'noChange';
+  if (normalized === 'file_busy') return 'fileBusy';
+  if (normalized === 'pre_write_history_unavailable') return 'historyUnavailable';
+  if (normalized === 'whole_body_replace') return 'wholeBodyReplace';
+  if (normalized === 'duplicated_paragraph') return 'duplicatedParagraph';
+  if (normalized === 'chapter_replace_pending') return 'chapterReplacePending';
+  if (normalized === 'chapter_target_ambiguous') return 'chapterTargetAmbiguous';
+  if (normalized === 'invalid_edit') return 'invalidEdit';
+  if (normalized === 'permission_denied') return 'permissionDenied';
   if (/(^|_)file_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
   if (/(ambiguous|multiple_match)/.test(normalized)) return 'ambiguous';
   if (/(anchor|old_text|text|pattern|match|passage)_not_found|no_match/.test(normalized)) return 'notFound';
@@ -272,6 +309,145 @@ export const resolveToolFailure = (
     };
   }
   return { kind, message: t(`chat:tool.failureHint.${kind}`) };
+};
+
+export const getEditOpIcon = (op: string): React.ReactNode => {
+  switch (op) {
+    case 'replace':
+      return <ArrowRight className="w-3 h-3 shrink-0 text-[hsl(var(--text-secondary))]" />;
+    case 'append':
+    case 'prepend':
+    case 'insert_after':
+    case 'insert_before':
+      return <Plus className="w-3 h-3 shrink-0 text-[hsl(var(--success-text))]" />;
+    case 'delete':
+      return <Minus className="w-3 h-3 shrink-0 text-[hsl(var(--error-text))]" />;
+    default:
+      return <Edit3 className="w-3 h-3 shrink-0 text-[hsl(var(--text-secondary))]" />;
+  }
+};
+
+export const getEditOpLabel = (op: string, t: TranslateFn): string => {
+  switch (op) {
+    case 'replace': return t('chat:edit.replace');
+    case 'append': return t('chat:edit.append');
+    case 'prepend': return t('chat:edit.prepend');
+    case 'insert_after': return t('chat:edit.insert_after');
+    case 'insert_before': return t('chat:edit.insert_before');
+    case 'delete': return t('chat:edit.label_delete');
+    default: return op || t('chat:tool.edit_file');
+  }
+};
+
+export interface NormalizedFailedEdit {
+  index: number;
+  op: string;
+  errorType?: string;
+  userMessage?: string;
+  oldPreview?: string;
+  anchorPreview?: string;
+  newPreview?: string;
+  textPreview?: string;
+  /** Full intended replacement/insertion text when available from tool arguments, else bounded preview. */
+  copyText?: string;
+}
+
+const clipSnippet = (text: string, maxLen = 200): string =>
+  text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+
+const readRawArgString = (obj: Record<string, unknown> | undefined, keys: string[]): string | undefined => {
+  if (!obj) return undefined;
+  for (const key of keys) {
+    const val = obj[key];
+    if (typeof val === 'string' && val.length > 0) return val;
+  }
+  return undefined;
+};
+
+const readEditArgSnippets = (
+  argEdit: Record<string, unknown> | undefined,
+  op: string,
+): {
+  rawOld?: string;
+  rawAnchor?: string;
+  rawNew?: string;
+  rawText?: string;
+} => ({
+  rawOld: readRawArgString(argEdit, ['old', 'from']),
+  rawAnchor: readRawArgString(argEdit, ['anchor']),
+  rawNew: op === 'replace'
+    ? readRawArgString(argEdit, ['new', 'to', 'text', 'content', 'new_text', 'replacement'])
+    : readRawArgString(argEdit, ['new']),
+  rawText: op !== 'replace'
+    ? readRawArgString(argEdit, ['text', 'content', 'new', 'new_text', 'replacement'])
+    : readRawArgString(argEdit, ['text']),
+});
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+/**
+ * Extract client-safe failed edit entries from tool result `failed_edits`,
+ * falling back cleanly to bounded previews from `toolArguments.edits` on older records.
+ * Never exposes raw model-instruction `error` strings.
+ */
+export const extractFailedEdits = (
+  data: Record<string, unknown> | undefined,
+  toolArguments?: Record<string, unknown>,
+  fallbackErrorType?: string,
+): NormalizedFailedEdit[] => {
+  // Keep unfiltered array so 0-based `item.index` aligns even when earlier items are malformed.
+  const rawArgEdits = Array.isArray(toolArguments?.edits) ? toolArguments.edits : [];
+  const rawFailed = Array.isArray(data?.failed_edits)
+    ? data.failed_edits.filter((item): item is Record<string, unknown> => Boolean(asRecord(item)))
+    : [];
+
+  if (rawFailed.length > 0) {
+    return rawFailed.map((item, fallbackIdx) => {
+      const idx = typeof item.index === 'number' && Number.isInteger(item.index) ? item.index : fallbackIdx;
+      const argEdit = asRecord(rawArgEdits[idx]);
+      const op = readUserFacingText(item.op) ?? readUserFacingText(argEdit?.op) ?? '';
+      const { rawOld, rawAnchor, rawNew, rawText } = readEditArgSnippets(argEdit, op);
+      const oldPreview = readUserFacingText(item.old_preview) ?? (rawOld ? clipSnippet(rawOld) : undefined);
+      const anchorPreview = readUserFacingText(item.anchor_preview) ?? (rawAnchor ? clipSnippet(rawAnchor) : undefined);
+      const newPreview = readUserFacingText(item.new_preview) ?? (rawNew ? clipSnippet(rawNew) : undefined);
+      const textPreview = readUserFacingText(item.text_preview) ?? (rawText ? clipSnippet(rawText) : undefined);
+      return {
+        index: idx,
+        op,
+        errorType: readUserFacingText(item.error_type) ?? fallbackErrorType,
+        userMessage: readUserFacingText(item.user_message),
+        oldPreview,
+        anchorPreview,
+        newPreview,
+        textPreview,
+        copyText: rawNew ?? rawText ?? newPreview ?? textPreview,
+      };
+    });
+  }
+
+  const normalized: NormalizedFailedEdit[] = [];
+  for (let idx = 0; idx < rawArgEdits.length && normalized.length < 10; idx += 1) {
+    const argEdit = asRecord(rawArgEdits[idx]);
+    if (!argEdit) continue;
+    const op = readUserFacingText(argEdit.op) ?? '';
+    const { rawOld, rawAnchor, rawNew, rawText } = readEditArgSnippets(argEdit, op);
+    const newPreview = rawNew ? clipSnippet(rawNew) : undefined;
+    const textPreview = rawText ? clipSnippet(rawText) : undefined;
+    normalized.push({
+      index: idx,
+      op,
+      errorType: fallbackErrorType,
+      oldPreview: rawOld ? clipSnippet(rawOld) : undefined,
+      anchorPreview: rawAnchor ? clipSnippet(rawAnchor) : undefined,
+      newPreview,
+      textPreview,
+      copyText: rawNew ?? rawText ?? newPreview ?? textPreview,
+    });
+  }
+  return normalized;
 };
 
 export const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: React.ReactNode; label: string } => {

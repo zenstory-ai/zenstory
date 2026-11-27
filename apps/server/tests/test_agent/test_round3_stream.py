@@ -443,7 +443,9 @@ async def test_partial_edit_failures_are_reported():
     assert len(applied) == 3
     assert [e.data["success"] for e in applied] == [True, False, False]
     assert [e.data["edit_index"] for e in applied] == [0, 1, 2]
-    assert applied[1].data["error"] == "old text not found"
+    # Raw model-directed error strings must never leak into client SSE events.
+    assert applied[1].data["error"] == "此次修改未能生效，文件未改动。"
+    assert "old text not found" not in (applied[1].data["error"] or "")
 
     end = next(e for e in events if e.type == EventType.FILE_EDIT_END)
     assert end.data["edits_applied"] == 1
@@ -454,7 +456,7 @@ async def test_partial_edit_failures_are_reported():
 
 @pytest.mark.asyncio
 async def test_all_failed_edit_is_reported_as_error():
-    """全部失败时工具结果必须是 error，不能渲染成绿色成功卡片。"""
+    """全部失败时工具结果必须是 error，不能渲染成绿色成功卡片，且不向客户端泄漏原始 error。"""
     adapter = _make_adapter()
     events = await _drive(
         adapter,
@@ -479,7 +481,8 @@ async def test_all_failed_edit_is_reported_as_error():
 
     tool_result = next(e for e in events if e.type == EventType.TOOL_RESULT)
     assert tool_result.data["status"] == "error"
-    assert "原文不存在" in (tool_result.data["error"] or "")
+    assert tool_result.data["error"] == "此次修改未能生效，文件未改动。"
+    assert "原文不存在" not in (tool_result.data["error"] or "")
 
     end = next(e for e in events if e.type == EventType.FILE_EDIT_END)
     assert end.data["all_failed"] is True

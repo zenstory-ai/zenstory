@@ -33,6 +33,7 @@ from agent.tools.file_ops.edit import (
     EDIT_ERROR_GENERIC,
     EDIT_ERROR_INVALID_EDIT,
     EDIT_ERROR_PERMISSION_DENIED,
+    EDIT_ERROR_USER_MESSAGES,
     EditFileError,
     FileWriteBusyError,
     PreWriteHistoryUnavailableError,
@@ -988,6 +989,8 @@ def _row_chapter_number(row: Any, *, unit: str, expected_file_type: str) -> int 
 
 
 def _write_chapter_error(error: str, *, error_type: str, **fields: Any) -> dict[str, Any]:
+    if "user_message" not in fields and error_type in EDIT_ERROR_USER_MESSAGES:
+        fields["user_message"] = EDIT_ERROR_USER_MESSAGES[error_type]
     return _make_structured_error(
         error,
         error_type=error_type,
@@ -1271,6 +1274,8 @@ def _write_chapter_replace(
                 "这次调用没有改动。不要再调用 write_chapter；下一次回复直接以 <file> 开头写这一章完整的新正文。",
                 error_type=WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
                 id=file_id,
+                title=row.title,
+                file_type=row.file_type,
                 chapter=number,
             )
         # 这一章就是本请求刚建、还在等正文的那个文件：交回它，下一次回复照常写正文。
@@ -1628,12 +1633,16 @@ def _edit_file_sync(
     if req_ctx.pending_chapter_replacement(file_id) is not None or (
         req_ctx.is_loop_agent and req_ctx.pending_empty_file_for(file_id) is not None
     ):
-        pending_entry = req_ctx.pending_empty_file_for(file_id) or {"title": file_id}
+        pending_entry = req_ctx.pending_empty_file_for(file_id) or {}
+        pending_title = str(pending_entry.get("title") or "").strip() or None
+        pending_file_type = str(pending_entry.get("file_type") or "").strip() or None
         return _make_edit_error(
-            f"《{pending_entry['title']}》已定为待写入正文（等待 <file>…</file>），edit_file 未执行（没有改动）。"
+            f"《{pending_title or file_id}》已定为待写入正文（等待 <file>…</file>），edit_file 未执行（没有改动）。"
             "请先在下一次回复用 <file>…</file> 写完它的正文，保存之后确需局部修改再调用 edit_file。",
             error_type=WRITE_CHAPTER_REPLACE_PENDING_ERROR_TYPE,
             id=file_id,
+            title=pending_title,
+            file_type=pending_file_type,
         )
 
     read_ticket: int | None = None
@@ -1716,19 +1725,27 @@ def _edit_file_sync(
             # 明确告诉模型这次调用一处都没生效。
             return _make_edit_error(str(e), **e.payload_fields())
         except FileWriteBusyError as e:
-            return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY)
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_BUSY, id=file_id)
         except PreWriteHistoryUnavailableError as e:
             # 原稿没能先进历史：提交前已回滚，一处都没改。
-            return _make_edit_error(str(e), error_type=e.error_type, user_message=str(e))
+            return _make_edit_error(
+                str(e),
+                error_type=e.error_type,
+                user_message=str(e),
+                id=e.file_id or file_id,
+                title=e.title,
+                file_type=e.file_type,
+            )
         except NotFoundError as e:
             # 文件不在当前项目里与文件不存在对用户是同一回事（文案已统一为「文件不存在或已删除」）。
             return _make_edit_error(str(e), error_type=EDIT_ERROR_FILE_NOT_FOUND)
         except ForbiddenError as e:
             # 工具层自己的权限拒绝（不是内建的 PermissionError/OSError），都发生在写入之前。
+            # 不附带未授权的 file_id，避免前端渲染打开/重试控件。
             return _make_edit_error(str(e), error_type=EDIT_ERROR_PERMISSION_DENIED)
         except Exception as e:
             # 未分类异常可能发生在提交之后（例如台账记录），不能断言「一处都没生效」。
-            return _make_edit_error(str(e), error_type=EDIT_ERROR_GENERIC, known_unapplied=False)
+            return _make_edit_error(str(e), error_type=EDIT_ERROR_GENERIC, known_unapplied=False, id=file_id)
 
 
 def _make_edit_error(
@@ -1752,7 +1769,9 @@ def _make_edit_error(
     if known_unapplied:
         payload["edits_applied"] = 0
         payload["mutation_applied"] = False
-    payload.update(fields)
+    for key, value in fields.items():
+        if value is not None:
+            payload[key] = value
     return _make_mcp_payload(payload, tool_name="edit_file")
 
 

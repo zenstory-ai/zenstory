@@ -4,8 +4,6 @@ import {
   AlertCircle,
   RotateCcw,
   Info,
-  Edit3,
-  ArrowRight,
   Plus,
   Minus,
 } from 'lucide-react';
@@ -15,13 +13,17 @@ import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome 
 import { countWords } from '../../../lib/documentChunker';
 import { AnimatedDetails } from '../../ui/AnimatedCollapse';
 import { CHAT_CARD_INLINE_ACTION, CHAT_CARD_SURFACE } from '../../chatCardStyles';
+import { FailedEditsSection, RetryEditFailureAction } from './FailedEditsSection';
 import {
   CardUndoControl,
   ToolCardFileRow,
   WRITE_CHAPTER_HEADLINES,
   WRITE_EPISODE_HEADLINES,
+  extractFailedEdits,
   formatMatchCountHeadline,
   formatWordCount,
+  getEditOpIcon,
+  getEditOpLabel,
   getFileTypeInfo,
   isEpisodeFile,
   isFileEditUndone,
@@ -32,6 +34,7 @@ import {
   resolveToolFailure,
   restoredAuthorDeletion,
   touchedAuthorEdits,
+  type EditFailureRetryContext,
   type TranslateFn,
 } from './toolCardHelpers';
 
@@ -275,15 +278,20 @@ export const DeleteFileCard: React.FC<{
 export const EditFileCard: React.FC<{
   data: Record<string, unknown>;
   fileId: string;
+  toolArguments?: Record<string, unknown>;
   chatMessageId?: string;
   toolUseId?: string;
   undoneEdits: ReadonlySet<string>;
   undoBlocked: ReadonlySet<string>;
   onUndo?: (target: FileEditUndoTarget) => void;
+  isStreaming?: boolean;
+  nextStepsBlocked?: boolean;
+  onRetryEditFailure?: (context: EditFailureRetryContext) => void;
   t: TranslateFn;
 } & SharedFileRowProps> = ({
   data,
   fileId,
+  toolArguments,
   chatMessageId,
   toolUseId,
   undoneEdits,
@@ -292,6 +300,9 @@ export const EditFileCard: React.FC<{
   onOpenFile,
   isPending,
   interrupted,
+  isStreaming = false,
+  nextStepsBlocked = false,
+  onRetryEditFailure,
   t,
 }) => {
   const undoTarget = readFileEditUndoTarget(data, chatMessageId, toolUseId);
@@ -311,47 +322,39 @@ export const EditFileCard: React.FC<{
     matched_original?: string;
     count?: number;
   }>) || [];
+  const rawFailedEdits = Array.isArray(data.failed_edits) && data.failed_edits.length > 0
+    ? extractFailedEdits(data, toolArguments)
+    : [];
+  const isPartialFailure = data.partial_success === true || rawFailedEdits.length > 0;
+  const appliedCount = typeof data.edits_applied === 'number' ? data.edits_applied : details.length;
+  const failedCount = rawFailedEdits.length;
   // The edit rewrote paragraphs the author wrote after the AI (server-side, by position).
   const authorEditsTouched = touchedAuthorEdits(data);
   const authorDeletionRestored = restoredAuthorDeletion(data);
 
-  const getOpIcon = (op: string) => {
-    switch (op) {
-      case 'replace':
-        return <ArrowRight className="w-3 h-3 text-[hsl(var(--text-secondary))]" />;
-      case 'append':
-      case 'prepend':
-      case 'insert_after':
-      case 'insert_before':
-        return <Plus className="w-3 h-3 text-[hsl(var(--success-text))]" />;
-      case 'delete':
-        return <Minus className="w-3 h-3 text-[hsl(var(--error-text))]" />;
-      default:
-        return <Edit3 className="w-3 h-3 text-[hsl(var(--text-secondary))]" />;
-    }
-  };
-
-  const getOpLabel = (op: string) => {
-    switch (op) {
-      case 'replace': return t('chat:edit.replace');
-      case 'append': return t('chat:edit.append');
-      case 'prepend': return t('chat:edit.prepend');
-      case 'insert_after': return t('chat:edit.insert_after');
-      case 'insert_before': return t('chat:edit.insert_before');
-      case 'delete': return t('chat:edit.label_delete');
-      default: return op;
-    }
-  };
-
   const editTitle = typeof data.title === 'string' && data.title.trim() ? data.title.trim() : '';
   const editFileType = typeof data.file_type === 'string' ? data.file_type : '';
+  const showRetryAction = Boolean(
+    isPartialFailure
+    && onRetryEditFailure
+    && !isStreaming
+    && !nextStepsBlocked
+    && !isPending
+    && !interrupted,
+  );
 
   return (
     <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+        {isPartialFailure ? (
+          <AlertCircle className="w-4 h-4 shrink-0 text-[hsl(var(--warning-text))]" />
+        ) : (
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
+        )}
         <span className="text-sm text-[hsl(var(--text-primary))] font-medium">
-          {t('chat:tool.edit_success')}
+          {isPartialFailure
+            ? t('chat:tool.edit_partial_failed', { applied: appliedCount, failed: failedCount || 1 })
+            : t('chat:tool.edit_success')}
         </span>
         {authorEditsTouched && (
           <span className="text-xs text-[hsl(var(--text-secondary))]">
@@ -390,6 +393,14 @@ export const EditFileCard: React.FC<{
         </div>
       )}
 
+      {rawFailedEdits.length > 0 && (
+        <FailedEditsSection
+          failedEdits={rawFailedEdits}
+          defaultOpen={true}
+          t={t}
+        />
+      )}
+
       {details && details.length > 0 && (
         <AnimatedDetails
           className="group mt-1.5"
@@ -415,9 +426,9 @@ export const EditFileCard: React.FC<{
             {details.map((detail, index) => (
               <div key={index} className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5 text-xs">
                 <div className="flex items-center gap-1 mb-1">
-                  {getOpIcon(detail.op)}
+                  {getEditOpIcon(detail.op)}
                   <span className="text-[hsl(var(--text-primary))] font-medium">
-                    {getOpLabel(detail.op)}
+                    {getEditOpLabel(detail.op, t)}
                   </span>
                   {detail.count && detail.count > 1 && (
                     <span className="text-[hsl(var(--text-secondary))]">
@@ -514,6 +525,20 @@ export const EditFileCard: React.FC<{
             ))}
           </div>
         </AnimatedDetails>
+      )}
+
+      {showRetryAction && onRetryEditFailure && (
+        <RetryEditFailureAction
+          context={{
+            toolName: 'edit_file',
+            fileId: fileId || undefined,
+            title: editTitle || undefined,
+            fileType: editFileType || undefined,
+            failedCount: failedCount || undefined,
+          }}
+          onRetry={onRetryEditFailure}
+          t={t}
+        />
       )}
     </div>
   );
@@ -774,20 +799,35 @@ export const BatchReplaceFilesCard: React.FC<{
         </AnimatedDetails>
       )}
       {failedFiles.length > 0 && (
-        <div className="mt-1.5 pl-6 space-y-1">
+        <div className="mt-1.5 pl-6 space-y-1.5">
           {failedFiles.map((file, index) => {
             const failedTitle = readUserFacingText(file.title) ?? t('common:untitled');
+            const failedFileType = readUserFacingText(file.file_type) ?? '';
             const failureType = readUserFacingText(file.error_type) ?? readUserFacingText(file.reason);
             const reason = failureType || readUserFacingText(file.user_message)
               ? resolveToolFailure({ ...file, error_type: failureType }, t).message
               : t('chat:tool.taskNotCompleted');
+            const canOpenFailed = Boolean(
+              onOpenFile
+              && typeof file.id === 'string'
+              && file.id.trim()
+              && failureType !== 'file_not_found'
+              && failureType !== 'permission_denied',
+            );
             return (
               <div
                 key={typeof file.id === 'string' && file.id ? file.id : index}
-                className="text-xs text-[hsl(var(--text-secondary))] break-words"
+                className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[hsl(var(--text-secondary))] break-words"
               >
-                <span className="font-medium text-[hsl(var(--text-primary))]">{failedTitle}</span>
-                <span> · {reason}</span>
+                <ToolCardFileRow
+                  id={canOpenFailed ? file.id : undefined}
+                  title={failedTitle}
+                  fileType={failedFileType}
+                  onOpenFile={canOpenFailed ? onOpenFile : undefined}
+                  isPending={isPending}
+                  interrupted={interrupted}
+                />
+                <span>· {reason}</span>
               </div>
             );
           })}

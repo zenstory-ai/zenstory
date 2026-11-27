@@ -986,12 +986,12 @@ class TestHandleEditFileResult:
 
     @pytest.mark.asyncio
     async def test_edit_file_result_propagates_file_metadata(self, adapter):
-        """file_edit_start/end should include file metadata when available."""
+        """file_edit_start/end should include file metadata when edits are present."""
         result = {
             "id": "file-1",
             "title": "Chapter 1",
             "file_type": "outline",
-            "details": [],
+            "details": [{"op": "replace", "old_preview": "a", "new_preview": "b"}],
             "new_length": 42,
         }
 
@@ -999,12 +999,12 @@ class TestHandleEditFileResult:
         async for sse_event in adapter._handle_edit_file_result(result):
             events.append(sse_event)
 
-        assert len(events) == 2
+        assert len(events) == 3
         assert events[0].type == EventType.FILE_EDIT_START
         assert events[0].data["file_type"] == "outline"
-        assert events[1].type == EventType.FILE_EDIT_END
-        assert events[1].data["file_type"] == "outline"
-        assert events[1].data["title"] == "Chapter 1"
+        assert events[2].type == EventType.FILE_EDIT_END
+        assert events[2].data["file_type"] == "outline"
+        assert events[2].data["title"] == "Chapter 1"
 
     @pytest.mark.asyncio
     async def test_edit_file_multiple_edits(self, adapter):
