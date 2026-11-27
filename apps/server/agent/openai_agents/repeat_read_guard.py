@@ -345,6 +345,8 @@ class RepeatReadGuard:
     # 本请求完整读过 / 写过的文件：id → 标题（保持首次出现的顺序）。
     files_read: dict[str, str] = field(default_factory=dict)
     files_written: dict[str, str] = field(default_factory=dict)
+    # 本请求中通过 delete_file 成功软删除的文件 id（便于区分「已删除」与「已保存」）。
+    files_deleted: set[str] = field(default_factory=set)
     # 写工具成功但没改任何东西的目标（mutation_applied=false：已有章节、同名 rename、整章替换的定位）。
     files_targeted: dict[str, str] = field(default_factory=dict)
     # 任意一次写工具成功（有些写入拿不到 id，例如结果被截断）。
@@ -830,7 +832,7 @@ class RepeatReadGuard:
                     # 定为待写 / 整章替换：接下来这一章会被新正文换掉，之前的读取不再代表文件内容。
                     self._forget_reads(file_id)
             return
-        self._record_write(file_id, title)
+        self._record_write(file_id, title, deleted=(tool_name == "delete_file"))
 
     # ------------------------------------------------------------- bookkeeping
     def _record_read(self, key: ReadKey, title: str, *, complete: bool = True) -> int:
@@ -846,7 +848,7 @@ class RepeatReadGuard:
             self.duplicate_reads += 1
         return count
 
-    def _record_write(self, file_id: str, title: str) -> None:
+    def _record_write(self, file_id: str, title: str, *, deleted: bool = False) -> None:
         self.write_succeeded = True
         if title and file_id:
             self._titles[file_id] = title
@@ -856,6 +858,10 @@ class RepeatReadGuard:
         for key in [key for key in self._read_counts if key[0] == READ_TOOL_NAME and key[1] == file_id]:
             del self._read_counts[key]
         self.files_written[file_id] = self._titles.get(file_id, title)
+        if deleted:
+            self.files_deleted.add(file_id)
+        else:
+            self.files_deleted.discard(file_id)
 
     def _hint_for(self, key: ReadKey, count: int) -> str | None:
         if _is_full_key(key):

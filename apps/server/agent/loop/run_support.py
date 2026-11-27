@@ -92,6 +92,47 @@ async def wrap_up_text(
     return WRAP_UP_TEXT_EN if english else WRAP_UP_TEXT
 
 
+async def collaboration_cap_text(
+    english: bool,
+    max_runs: int,
+    titles: list[str],
+    *,
+    request_context: AgentRequestContext | None = None,
+) -> str:
+    """多文件/多轮协作触及单轮连续运行上限（max_runs）时的确定性收尾说明，避免聊天正文为空。"""
+    user_id = request_context.user_id if request_context is not None else None
+    messages_left = await asyncio.to_thread(_ai_messages_left_today, user_id) if user_id else None
+    cleaned = list(dict.fromkeys(t.strip() for t in titles if isinstance(t, str) and t.strip()))
+    if english:
+        if cleaned:
+            named = ", ".join(f'"{t}"' for t in cleaned[:10])
+            if len(cleaned) > 10:
+                named += f" and {len(cleaned) - 10} more"
+            if messages_left is False:
+                return f"\n\nSaved {named}; reached the per-round run limit ({max_runs}), so I'm stopping here."
+            return (
+                f"\n\nSaved {named}; reached the per-round run limit ({max_runs}), so I'm stopping here. "
+                'Reply "continue" and I\'ll finish the rest.'
+            )
+        if messages_left is False:
+            return f"\n\nReached the per-round run limit ({max_runs}), so I'm stopping here."
+        return (
+            f"\n\nReached the per-round run limit ({max_runs}), so I'm stopping here. "
+            'Reply "continue" and I\'ll finish the rest.'
+        )
+
+    if cleaned:
+        named = "、".join(f"《{t}》" for t in cleaned[:10])
+        if len(cleaned) > 10:
+            named += f"等 {len(cleaned)} 份文件"
+        if messages_left is False:
+            return f"\n\n本轮已保存{named}；已达到单轮连续运行上限（{max_runs} 次），先停在这里。"
+        return f"\n\n本轮已保存{named}；已达到单轮连续运行上限（{max_runs} 次），先停在这里。回复「继续」我接着完成剩余部分。"
+    if messages_left is False:
+        return f"\n\n本轮已达到单轮连续运行上限（{max_runs} 次），先停在这里。"
+    return f"\n\n本轮已达到单轮连续运行上限（{max_runs} 次），先停在这里。回复「继续」我接着完成剩余部分。"
+
+
 # 续跑说明里附上的实际字数是程序事实（编辑器统计）；文案逐字沿用。
 BODY_WORD_COUNT_HEADER = "[本轮正文字数]"
 _BODY_WORD_COUNT_NOTE = (

@@ -35,8 +35,10 @@ def test_a_repeated_passage_is_found_where_the_repeat_starts():
     # 「修改前 / 修改后」对照里原样出现两遍的大段文字不算
     middle = _prose(1200, 9)
     assert find_repetition_start("修改前：甲" + middle + "乙\n修改后：丙" + middle + "丁") is None
-    # 分隔线、空行这类只由少数几个字符组成的重复不算
-    assert find_repetition_start("——\n\n" * 3000) is None
+    # 短分隔线、空行不算循环；但连续大量重复纯标点/破折号行属于退化死循环（生产 11-27：11559 段 ——）
+    assert find_repetition_start("——\n\n" * 5) is None
+    assert find_repetition_start("\n\n" * 1000) is None
+    assert find_repetition_start("——\n\n" * 3000) == 0
 
 
 @pytest.mark.asyncio

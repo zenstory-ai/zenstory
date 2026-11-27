@@ -303,6 +303,158 @@ def _is_file_body_pending(tool_result: Any) -> bool:
     return payload is not None and payload.get("error_type") == "file_body_pending"
 
 
+_LANDING_WRITE_FACTS_MAX_FILES = 20
+
+
+def _format_landing_file_label(file_id: str, title: str, *, english: bool) -> str:
+    clean_title = title.strip()
+    if clean_title:
+        return f'"{clean_title}" (id={file_id})' if english else f"《{clean_title}》(id={file_id})"
+    return f"id={file_id}"
+
+
+def _landing_write_facts(
+    read_guard: RepeatReadGuard | None,
+    request_context: AgentRequestContext | None,
+    *,
+    english: bool = False,
+) -> str:
+    """生成收尾提醒附带的本轮真实写入事实清单（基于结构化执行台账，绝不从文本推测）。"""
+    if read_guard is None and request_context is None:
+        return ""
+    pending_entries = request_context.get_pending_empty_files() if request_context is not None else []
+    pending_by_id: dict[str, str] = {}
+    for entry in pending_entries:
+        fid = str(entry.get("file_id") or entry.get("id") or "").strip()
+        if fid:
+            pending_by_id[fid] = str(entry.get("title") or "").strip()
+
+    unsaved_replacements = (
+        request_context.unsaved_chapter_replacement_ids() if request_context is not None else set()
+    )
+    saved_bodies = request_context.saved_bodies_this_request() if request_context is not None else {}
+    deleted_ids = set(read_guard.files_deleted) if read_guard is not None else set()
+    written: dict[str, str] = {}
+    deleted: dict[str, str] = {}
+    if read_guard is not None:
+        for fid, title in read_guard.files_written.items():
+            clean_id = str(fid or "").strip()
+            if not clean_id:
+                continue
+            clean_title = str(title or "").strip()
+            if clean_id in deleted_ids:
+                deleted[clean_id] = clean_title
+            elif clean_id not in pending_by_id and clean_id not in unsaved_replacements:
+                written[clean_id] = clean_title
+    for fid, title in saved_bodies.items():
+        clean_id = str(fid or "").strip()
+        if clean_id and clean_id not in deleted_ids and clean_id not in unsaved_replacements:
+            written[clean_id] = str(title or "").strip() or written.get(clean_id, "")
+
+    unidentified_write = bool(
+        not written
+        and not deleted
+        and read_guard is not None
+        and read_guard.write_succeeded
+        and not pending_by_id
+    )
+
+    parts: list[str] = []
+    if written:
+        items = [
+            _format_landing_file_label(fid, title, english=english)
+            for fid, title in list(written.items())[:_LANDING_WRITE_FACTS_MAX_FILES]
+        ]
+        if english:
+            listed = ", ".join(items)
+            if len(written) > _LANDING_WRITE_FACTS_MAX_FILES:
+                listed += f" (and {len(written) - _LANDING_WRITE_FACTS_MAX_FILES} more)"
+            parts.append(
+                f"[Actual writes this round] Files actually written or modified in this round are strictly limited to: "
+                f"{listed}. No other files were changed; do NOT claim edits to files outside this list."
+            )
+        else:
+            listed = "、".join(items)
+            if len(written) > _LANDING_WRITE_FACTS_MAX_FILES:
+                listed += f"等共 {len(written)} 份文件"
+            parts.append(
+                f"[本轮实际写入事实] 本轮实际已写入/修改的文件仅限：{listed}。"
+                "未在此清单中的文件均未改动，严禁宣称清单外的文件已修改或已保存。"
+            )
+    elif deleted:
+        del_items = [
+            _format_landing_file_label(fid, title, english=english)
+            for fid, title in list(deleted.items())[:_LANDING_WRITE_FACTS_MAX_FILES]
+        ]
+        if english:
+            parts.append(
+                f"[Actual writes this round] No file contents were saved; files deleted in this round: "
+                f"{', '.join(del_items)}. Do NOT claim any other file was modified or saved."
+            )
+        else:
+            parts.append(
+                f"[本轮实际写入事实] 本轮未保存新正文，仅删除了以下文件：{'、'.join(del_items)}。"
+                "严禁宣称其他文件已修改或已保存。"
+            )
+    elif unidentified_write:
+        if english:
+            parts.append(
+                "[Actual writes this round] A write succeeded in this round without full file details; "
+                "report only edits directly confirmed by tool results and do NOT claim unexecuted changes."
+            )
+        else:
+            parts.append(
+                "[本轮实际写入事实] 本轮仅有工具结果明确确认的写入生效，严禁宣称未执行或失败的改动已保存。"
+            )
+    elif pending_by_id:
+        pending_items = [
+            _format_landing_file_label(fid, title, english=english)
+            for fid, title in list(pending_by_id.items())[:_LANDING_WRITE_FACTS_MAX_FILES]
+        ]
+        if english:
+            parts.append(
+                f"[Actual writes this round] No file body has been saved yet in this round; "
+                f"files still awaiting <file> body content: {', '.join(pending_items)} (not yet saved). "
+                "Finish writing the pending <file>…</file> body first as instructed above; "
+                "do NOT claim any other file was modified or saved."
+            )
+        else:
+            parts.append(
+                f"[本轮实际写入事实] 本轮目前尚无已完成保存的文件正文；仍在等待 <file> 正文写入的文件："
+                f"{'、'.join(pending_items)}（正文尚未保存）。请先按上方提醒写完它的 <file>…</file> 正文，"
+                "严禁宣称其他文件已修改或已保存。"
+            )
+        return "\n" + "\n".join(parts)
+    else:
+        if english:
+            parts.append(
+                "[Actual writes this round] No project files have been modified or saved in this round. "
+                "State accurately that no project files were changed; "
+                "do NOT claim any file was edited, updated, or saved."
+            )
+        else:
+            parts.append(
+                "[本轮实际写入事实] 本轮尚未修改或保存任何项目文件。"
+                "总结时请如实说明未改动项目文件，严禁宣称任何文件「已修改」「已统一」或「已保存」。"
+            )
+
+    if pending_by_id:
+        pending_items = [
+            _format_landing_file_label(fid, title, english=english)
+            for fid, title in list(pending_by_id.items())[:_LANDING_WRITE_FACTS_MAX_FILES]
+        ]
+        if english:
+            parts.append(
+                f"Files still awaiting <file> body content (not yet saved): {', '.join(pending_items)}."
+            )
+        else:
+            parts.append(
+                f"仍在等待 <file> 正文写入的文件：{'、'.join(pending_items)}（正文尚未保存）。"
+            )
+
+    return "\n" + "\n".join(parts)
+
+
 class _ModelCallCountingFilter:
     """call_model_input_filter：每次模型调用前计数，再交给内层过滤器处理输入。
 
@@ -322,11 +474,17 @@ class _ModelCallCountingFilter:
         *,
         max_turns: int | None = None,
         landing_turns: int = SOFT_LANDING_TURNS,
+        read_guard: RepeatReadGuard | None = None,
+        request_context: AgentRequestContext | None = None,
+        english: bool = False,
     ) -> None:
         self._inner = inner
         self._run_meter = run_meter
         self._max_turns = max_turns
         self._landing_turns = landing_turns
+        self._read_guard = read_guard
+        self._request_context = request_context
+        self._english = english
         # 本次 SDK run 已发起的模型调用数（区别于 run_meter 的请求级累计）。
         self.calls = 0
         self.landing_injected = False
@@ -362,15 +520,21 @@ class _ModelCallCountingFilter:
         from agents.run_config import ModelInputData
 
         self.landing_injected = True
+        facts = _landing_write_facts(
+            self._read_guard,
+            self._request_context,
+            english=self._english,
+        )
         if remaining is not None:
             self.landing_limit = self._remaining_calls()[1]
             if self._run_meter.past_wrap_up:
                 self._run_meter.record_wall_clock_landing_call()
-            reminder = {"role": "user", "content": LOOP_SOFT_LANDING_PROMPT.format(remaining=remaining)}
+            content = LOOP_SOFT_LANDING_PROMPT.format(remaining=remaining) + facts
         else:
             self.landing_limit = LANDING_LIMIT_WALL_CLOCK
             self._run_meter.record_wall_clock_landing_call()
-            reminder = {"role": "user", "content": LOOP_TIME_LANDING_PROMPT}
+            content = LOOP_TIME_LANDING_PROMPT + facts
+        reminder = {"role": "user", "content": content}
         return ModelInputData(
             input=[*list(model_data.input or []), reminder],
             instructions=model_data.instructions,
@@ -1001,6 +1165,9 @@ async def run_openai_agents_streaming_agent(
             IntraRunToolOutputTrimmer(),
             run_meter,
             max_turns=AGENT_TOOL_CALL_MAX_ITERATIONS,
+            read_guard=read_guard,
+            request_context=req_ctx,
+            english=english,
         )
         run_hooks = build_agent_run_hooks(start_model, run_meter=run_meter, request_context=req_ctx)
         run_outcome = state.get("run_outcome")

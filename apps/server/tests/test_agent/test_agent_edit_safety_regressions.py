@@ -26,8 +26,11 @@ from agent.tools import mcp_tools
 from agent.tools.file_ops.edit import (
     EDIT_ERROR_ANCHOR_AMBIGUOUS,
     EDIT_ERROR_ANCHOR_NOT_FOUND,
+    EDIT_ERROR_INVALID_EDIT,
     EditBatchError,
+    EditFileError,
     FileEditor,
+    extract_batch_replace_ui_payload,
 )
 from agent.tools.tool_context import AgentRequestContext
 from agent.tools.tool_inputs import EditFileInput, validate_tool_input
@@ -381,7 +384,7 @@ def test_issue2_replace_empty_new_rejects_sloppy_short_and_mid_sentence_approx(d
     chapter = _add_file(db_session, project.id, title="第1章", content=body)
     editor = FileEditor(db_session, user.id)
 
-    # (a) >12% error (within 25%): 17 chars with 3 substitutions (~17.6% error) -> previously succeeded on replace(new="")!
+    # (a) >12% error (within 25%): 17 non-punct chars with 4 substitutions (~23.5% error) -> previously succeeded on replace(new="")!
     sloppy_old = "林舟慢慢拉开那扇破旧的木门走了进去。"
     with pytest.raises(EditBatchError) as exc_sloppy:
         editor.edit_file(chapter.id, [{"op": "replace", "old": sloppy_old, "new": ""}])
@@ -390,7 +393,7 @@ def test_issue2_replace_empty_new_rejects_sloppy_short_and_mid_sentence_approx(d
         editor.edit_file(chapter.id, [{"op": "delete", "old": sloppy_old}])
     assert exc_sloppy_del.value.failed_edits[0]["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
 
-    # (b) Short (<15 chars) approximate match (10 chars, 1 char wrong = 10% <= 12%, but < 15 chars min_pattern_len).
+    # (b) Short (<15 chars) approximate match (13 chars, 1 char wrong = ~7.7% <= 12%, but < 15 chars min_pattern_len).
     short_approx_old = "林舟轻轻推开那扇老旧的铁门"
     assert 8 <= len(short_approx_old) < 15
     with pytest.raises(EditBatchError) as exc_short:
@@ -675,3 +678,357 @@ def test_issue4_prompts_and_schemas_consistently_scope_single_file_batch_replace
     assert "单文件" in file_ids_desc or "必传" in file_ids_desc
     assert "file_ids" in LOOP_TOOL_USAGE_PROTOCOL
     assert "file_ids" in LOOP_WORKING_RULES
+
+
+# ===========================================================================
+# Post-review regressions: CRLF + overlap + marker stripping, marker-only
+# rejection, processed-set boundaries, mixed files & UI card payload
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_issue1_crlf_overlap_marker_stripping_idempotency_and_dry_run_snippets(db_session):
+    """CRLF files compose marker stripping -> CRLF adaptation -> overlap detection & dry_run snippets cleanly."""
+    user, project = _make_user_project(db_session, "crlf-overlap")
+    f_multi = _add_file(
+        db_session,
+        project.id,
+        title="第1章 CRLF多行重叠",
+        order=1,
+        content="第一行\r\n第二行\r\n尾段。\r\n",
+    )
+    f_single_to_multi = _add_file(
+        db_session,
+        project.id,
+        title="第2章 CRLF单行扩多行",
+        order=2,
+        content="陈砚\r\n结束。\r\n",
+    )
+
+    # 1) Multi-line LF old_text + marked multi-line LF overlapping new_text on a CRLF file.
+    marked_new = "[P01 · 3字] 第一行\n[P02 · 3字] 第二行\n[P03 · 3字] 第三行"
+    req_ctx = _make_req_ctx(db_session, user, project)
+
+    dry = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {
+                "old_text": "第一行\n第二行",
+                "new_text": marked_new,
+                "file_ids": [f_multi.id],
+                "dry_run": True,
+            },
+            request_context=req_ctx,
+        )
+    )
+    assert dry["status"] == "success"
+    assert dry["mutation_applied"] is False
+    assert dry["data"]["matched_files"] == 1
+    assert dry["data"]["total_replacements"] == 1
+    assert dry["data"]["new_text"] == "第一行\n第二行\n第三行"
+    assert "[P01" not in dry["data"]["new_text"]
+    snippet = dry["data"]["files"][0]["sample_snippets"][0]["snippet"]
+    assert "第一行\r\n第二行" in snippet
+
+    apply_res = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {
+                "old_text": "第一行\n第二行",
+                "new_text": marked_new,
+                "file_ids": [f_multi.id],
+            },
+            request_context=req_ctx,
+        )
+    )
+    assert apply_res["status"] == "success"
+    assert apply_res["mutation_applied"] is True
+    assert apply_res["data"]["new_text"] == "第一行\n第二行\n第三行"
+    assert "[P01" not in apply_res["data"]["new_text"]
+    ui_payload = req_ctx.pop_tool_ui_payload(None, fallback_key=("batch_replace_files", project.id))
+    assert ui_payload is not None
+    assert ui_payload["new_text"] == "第一行\n第二行\n第三行"
+    assert "[P01" not in ui_payload["new_text"]
+
+    db_session.expire_all()
+    saved_multi = db_session.get(File, f_multi.id).content
+    assert saved_multi == "第一行\r\n第二行\r\n第三行\r\n尾段。\r\n"
+    assert "\n" not in saved_multi.replace("\r\n", "")
+
+    # Cross-request idempotency: brand-new context MUST see 0 effective matches (no CRLF overlap cascade).
+    repeat_multi = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {
+                "old_text": "第一行\n第二行",
+                "new_text": marked_new,
+                "file_ids": [f_multi.id],
+            },
+            request_context=_make_req_ctx(db_session, user, project),
+        )
+    )
+    assert repeat_multi["mutation_applied"] is False
+    assert repeat_multi["data"]["matched_files"] == 0
+
+    # 2) Single-line old_text + marked multi-line LF overlapping new_text on a pure CRLF file
+    #    (effective_old == old_text, but effective_new is CRLF-adapted so LF overlap_pattern must NOT be reused).
+    marked_expand = "[P01 · 2字] 陈砚\n[P02 · 2字] 旁白"
+    res_s1 = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {
+                "old_text": "陈砚",
+                "new_text": marked_expand,
+                "file_ids": [f_single_to_multi.id],
+            },
+            request_context=_make_req_ctx(db_session, user, project),
+        )
+    )
+    assert res_s1["mutation_applied"] is True
+    assert res_s1["data"]["new_text"] == "陈砚\n旁白"
+    db_session.expire_all()
+    saved_single = db_session.get(File, f_single_to_multi.id).content
+    assert saved_single == "陈砚\r\n旁白\r\n结束。\r\n"
+    assert "\n" not in saved_single.replace("\r\n", "")
+
+    res_s2 = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {
+                "old_text": "陈砚",
+                "new_text": marked_expand,
+                "file_ids": [f_single_to_multi.id],
+            },
+            request_context=_make_req_ctx(db_session, user, project),
+        )
+    )
+    assert res_s2["mutation_applied"] is False
+    assert res_s2["data"]["matched_files"] == 0
+
+
+@pytest.mark.asyncio
+async def test_issue3_marker_only_write_inputs_rejected_across_edit_file_and_batch_replace(db_session):
+    """Marker-only write inputs that strip to empty/whitespace/newlines MUST raise invalid_edit, never delete or add bare newlines."""
+    user, project = _make_user_project(db_session, "marker-only-reject")
+    body = "　　陈砚推开木门。\n\n　　门后空无一人。"
+    chapter = _add_file(db_session, project.id, title="第1章", content=body)
+    editor = FileEditor(db_session, user.id)
+
+    # 1) edit_file replace (single-line, multi-line, alias)
+    for bad_replace in (
+        {"op": "replace", "old": "　　门后空无一人。", "new": "[P02 · 6字] "},
+        {"op": "replace", "old": "　　门后空无一人。", "new": "[P01 · 0字] \n[P02 · 0字] "},
+        {"op": "replace", "old": "　　门后空无一人。", "to": "[P02 · 6字]    "},
+    ):
+        with pytest.raises(EditBatchError) as exc_info:
+            editor.edit_file(chapter.id, [bad_replace])
+        assert exc_info.value.failed_edits[0]["error_type"] == EDIT_ERROR_INVALID_EDIT
+
+    # 2) edit_file append/prepend/insert_after/insert_before with multi-line marker-only text
+    multiline_markers = "[P09 · 0字] \n[P10 · 0字] "
+    for bad_insert in (
+        {"op": "append", "text": multiline_markers},
+        {"op": "prepend", "text": multiline_markers},
+        {"op": "insert_after", "anchor": "　　陈砚推开木门。", "text": multiline_markers},
+        {"op": "insert_before", "anchor": "　　门后空无一人。", "text": multiline_markers},
+    ):
+        with pytest.raises(EditBatchError) as exc_info:
+            editor.edit_file(chapter.id, [bad_insert])
+        assert exc_info.value.failed_edits[0]["error_type"] == EDIT_ERROR_INVALID_EDIT
+
+    # 3) batch_replace_files on clean file (dry_run=True, dry_run=False, direct FileEditor and MCP tool)
+    for bad_new in ("[P01 · 0字] ", "[P01 · 0字] \n[P02 · 0字] "):
+        with pytest.raises(EditFileError) as exc_dry:
+            editor.batch_replace_files(
+                project_id=project.id,
+                old_text="陈砚",
+                new_text=bad_new,
+                dry_run=True,
+            )
+        assert exc_dry.value.error_type == EDIT_ERROR_INVALID_EDIT
+
+        with pytest.raises(EditFileError) as exc_apply:
+            editor.batch_replace_files(
+                project_id=project.id,
+                old_text="陈砚",
+                new_text=bad_new,
+                dry_run=False,
+            )
+        assert exc_apply.value.error_type == EDIT_ERROR_INVALID_EDIT
+
+    mcp_bad = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "陈砚", "new_text": "[P01 · 0字] "},
+            request_context=_make_req_ctx(db_session, user, project),
+        )
+    )
+    assert mcp_bad["status"] == "error"
+    assert mcp_bad["error_type"] == EDIT_ERROR_INVALID_EDIT
+    assert mcp_bad["mutation_applied"] is False
+
+    # Manuscript remains completely untouched after all rejected marker-only attempts.
+    db_session.expire_all()
+    assert db_session.get(File, chapter.id).content == body
+
+    # 4) Explicit empty string deletion still works in both edit_file and batch_replace_files.
+    del_edit = editor.edit_file(chapter.id, [{"op": "replace", "old": "空无一人", "new": ""}])
+    assert del_edit["mutation_applied"] is True
+    del_batch = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "木门", "new_text": "", "file_ids": [chapter.id]},
+            request_context=_make_req_ctx(db_session, user, project),
+        )
+    )
+    assert del_batch["mutation_applied"] is True
+    db_session.expire_all()
+    final_body = db_session.get(File, chapter.id).content
+    assert "空无一人" not in final_body
+    assert "木门" not in final_body
+
+
+@pytest.mark.asyncio
+async def test_issue1_batch_replace_processed_tracking_boundaries_and_rerun_after_invalidation(db_session):
+    """dry_run/skipped_files do not pollute processed IDs; explicit file_ids bypass filter; invalidation allows re-run."""
+    user, project = _make_user_project(db_session, "processed-bounds")
+    f1 = _add_file(db_session, project.id, title="第1章", order=1, content="aab")
+    f2 = _add_file(db_session, project.id, title="第2章", order=2, content="aab")
+    req_ctx = _make_req_ctx(db_session, user, project)
+
+    # 1) dry_run MUST NOT pollute _batch_replace_processed.
+    dry = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "ab", "new_text": "bab", "dry_run": True},
+            request_context=req_ctx,
+        )
+    )
+    assert dry["data"]["matched_files"] == 2
+    assert req_ctx.batch_replace_processed_ids("ab", "bab") == frozenset()
+
+    # 2) Mark f2's read snapshot as stale so f2 lands in skipped_files while f1 commits.
+    req_ctx.record_read_snapshot(f2.id, "stale-old-content")
+    req_ctx.promote_pending_reads()
+    partial = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "ab", "new_text": "bab"},
+            request_context=req_ctx,
+        )
+    )
+    assert partial["status"] == "partial"
+    assert [item["id"] for item in partial["data"]["files"]] == [f1.id]
+    assert [item["id"] for item in partial["data"]["skipped_files"]] == [f2.id]
+    # f1 committed -> tracked; f2 skipped -> NOT tracked!
+    assert req_ctx.batch_replace_processed_ids("ab", "bab") == frozenset({f1.id})
+
+    # 3) Explicit file_ids=[f1.id] is NOT filtered by _batch_replace_processed.
+    #    f1 now has "abab" (boundary "ab" at index 0), so explicit file_ids still runs on f1!
+    explicit = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "ab", "new_text": "bab", "file_ids": [f1.id]},
+            request_context=req_ctx,
+        )
+    )
+    assert explicit["status"] == "success"
+    assert explicit["mutation_applied"] is True
+    assert [item["id"] for item in explicit["data"]["files"]] == [f1.id]
+
+    # 4) Refresh f2 snapshot, then edit_file writes a fresh bare "陈砚" into f1 after f1 was processed for 陈砚->陈砚之.
+    f1_row = db_session.get(File, f1.id)
+    f1_row.content = "　　陈砚走进房间。"
+    f2_row = db_session.get(File, f2.id)
+    f2_row.content = "　　陈砚走出房间。"
+    db_session.commit()
+    req_ctx.record_read_snapshot(f1.id, "　　陈砚走进房间。")
+    req_ctx.record_read_snapshot(f2.id, "　　陈砚走出房间。")
+    req_ctx.promote_pending_reads()
+
+    run1 = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "陈砚", "new_text": "陈砚之"},
+            request_context=req_ctx,
+        )
+    )
+    assert run1["mutation_applied"] is True
+    assert req_ctx.batch_replace_processed_ids("陈砚", "陈砚之") == frozenset({f1.id, f2.id})
+
+    # edit_file adds a new bare "陈砚" to f1 -> invalidates f1 in _batch_replace_processed.
+    edit_res = _parse_mcp(
+        await mcp_tools.edit_file(
+            {"id": f1.id, "edits": [{"op": "append", "text": "与陈砚同行。"}]},
+            request_context=req_ctx,
+        )
+    )
+    assert edit_res["status"] == "success"
+    assert f1.id not in req_ctx.batch_replace_processed_ids("陈砚", "陈砚之")
+    assert f2.id in req_ctx.batch_replace_processed_ids("陈砚", "陈砚之")
+
+    # Re-running unscoped batch_replace_files now picks up f1 and converts the new bare "陈砚"!
+    run2 = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {"old_text": "陈砚", "new_text": "陈砚之"},
+            request_context=req_ctx,
+        )
+    )
+    assert run2["status"] == "success"
+    assert run2["mutation_applied"] is True
+    assert [item["id"] for item in run2["data"]["files"]] == [f1.id]
+    db_session.expire_all()
+    assert "陈砚之走进房间。" in db_session.get(File, f1.id).content
+    assert "与陈砚之同行。" in db_session.get(File, f1.id).content
+
+
+@pytest.mark.asyncio
+async def test_issue3_batch_replace_mixed_clean_and_preexisting_marker_files_and_ui_payload(db_session):
+    """Single-call mixed clean + pre-existing-marker files strip clean only and report accurate new_text/UI payload."""
+    user, project = _make_user_project(db_session, "mixed-markers")
+    clean_file = _add_file(
+        db_session,
+        project.id,
+        title="第1章 正文",
+        order=1,
+        content="　　远处传来旧词。",
+    )
+    marker_file = _add_file(
+        db_session,
+        project.id,
+        title="格式说明",
+        file_type="document",
+        order=2,
+        content="[P05 · 84字] 原文示例\n这里也有旧词。",
+    )
+    clean_only_file = _add_file(
+        db_session,
+        project.id,
+        title="第2章 仅干净文件",
+        order=3,
+        content="　　只有干净目标词。",
+    )
+
+    # 1) Mixed single call: clean_file stripped, marker_file keeps raw marker, reported new_text stays raw.
+    req_ctx_mixed = _make_req_ctx(db_session, user, project)
+    mixed_res = _parse_mcp(
+        await mcp_tools.batch_replace_files(
+            {
+                "old_text": "旧词",
+                "new_text": "[P04 · 3字] 敲门声",
+                "file_ids": [clean_file.id, marker_file.id],
+            },
+            request_context=req_ctx_mixed,
+        )
+    )
+    assert mixed_res["status"] == "success"
+    assert mixed_res["mutation_applied"] is True
+    assert mixed_res["data"]["modified_files"] == 2
+    assert mixed_res["data"]["new_text"] == "[P04 · 3字] 敲门声"
+    db_session.expire_all()
+    assert db_session.get(File, clean_file.id).content == "　　远处传来敲门声。"
+    assert db_session.get(File, marker_file.id).content == "[P05 · 84字] 原文示例\n这里也有[P04 · 3字] 敲门声。"
+
+    # 2) Clean-only call: both tool response and UI overlay report stripped new_text without leaked markers.
+    editor = FileEditor(db_session, user.id)
+    direct_res = editor.batch_replace_files(
+        project_id=project.id,
+        old_text="干净目标词",
+        new_text="[P09 · 3字] 新词",
+        file_ids=[clean_only_file.id],
+    )
+    assert direct_res["new_text"] == "新词"
+    ui_overlay = extract_batch_replace_ui_payload(direct_res)
+    assert ui_overlay["new_text"] == "新词"
+    assert "[P09" not in ui_overlay["new_text"]
+    db_session.expire_all()
+    assert db_session.get(File, clean_only_file.id).content == "　　只有新词。"

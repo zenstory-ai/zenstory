@@ -1685,10 +1685,22 @@ def _edit_file_sync(
                 "data": llm_data,
             }
             if status == "error":
-                # 全部失败（continue_on_error=true）：与整批回滚一样带上稳定分类和给作者的短句。
+                # 全部失败（continue_on_error=true）：与整批回滚一样带上顶层 error、稳定分类和给作者的短句，
+                # 避免熔断器 last_error 为空或错误指纹退化。
                 failed = result.get("failed_edits") if isinstance(result, dict) else None
-                first = failed[0] if isinstance(failed, list) and failed and isinstance(failed[0], dict) else {}
+                failed_dicts = (
+                    [item for item in failed if isinstance(item, dict)]
+                    if isinstance(failed, list)
+                    else []
+                )
+                first = failed_dicts[0] if failed_dicts else {}
                 error_type = str(first.get("error_type") or EDIT_ERROR_GENERIC)
+                first_error = str(first.get("error") or "").strip()
+                if len(failed_dicts) > 1 and first_error:
+                    top_error = f"{first_error}（共 {len(failed_dicts)} 处编辑全部失败）"
+                else:
+                    top_error = first_error or edit_error_user_message(error_type)
+                payload["error"] = top_error
                 payload["error_type"] = error_type
                 payload["user_message"] = edit_error_user_message(error_type)
             return _make_result(payload, tool_name=tool_name)

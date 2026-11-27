@@ -15,6 +15,7 @@ Built on the single loop agent (agent/loop) and openai-agents-python.
 import asyncio
 import contextlib
 import json
+import re
 import threading
 import time
 import uuid
@@ -108,6 +109,8 @@ from .stream_adapter import STREAM_FILE_SAVE_TIMEOUT_S, create_stream_adapter
 from .tools.tool_context import AgentRequestContext
 
 logger = get_logger(__name__)
+
+_LEADING_BLANK_LINES_RE = re.compile(r"\A(?:[ \t\u3000]*\r?\n)+")
 
 # 取消路径补存部分历史时写进 message_metadata.stop_reason 的值。墙钟时限与发布交接
 # 也是以取消的方式到达 process_stream（sse_pump 取消后台 task）：原因由路由层写在
@@ -1142,6 +1145,10 @@ class AgentService:
             if run_report is not None and model_name:
                 run_report["model"] = model_name
 
+        def _record_live_report(updates: dict[str, object]) -> None:
+            if run_report is not None and updates:
+                run_report.update(updates)
+
         if run_report is not None:
             run_report.setdefault("model", primary_model_name())
             if session_id:
@@ -1150,6 +1157,7 @@ class AgentService:
         run_meter = AgentRunMeter(
             timing_origin=run_started_monotonic,
             on_served_model=_record_live_model if run_report is not None else None,
+            on_report_update=_record_live_report if run_report is not None else None,
         )
         context_timing_recorded = False
 
@@ -1158,8 +1166,8 @@ class AgentService:
         tool_call_index_by_id: dict[str, int] = {}
         consumed_steering: list[str] = []
         assistant_response = ""
-        post_file_whitespace_pending = False
-        post_file_whitespace_buf = ""
+        protocol_whitespace_pending = False
+        protocol_whitespace_buf = ""
         assistant_stop_reason: str | None = None
         assistant_usage: dict[str, Any] | None = None
         assistant_status_cards: list[dict[str, Any]] = []
@@ -1272,6 +1280,8 @@ class AgentService:
                     content if response_chunk is None else response_chunk.replace("\x00", "")
                 )
                 assistant_response += chunk_for_response
+                if run_report is not None:
+                    run_report["response_length"] = len(assistant_response)
             display_text_run_type = event_type
 
         def _append_user_messages_sync(
@@ -1997,6 +2007,27 @@ class AgentService:
                             pending_done_payload = event.data if isinstance(event.data, dict) else {}
                             continue
 
+                        if event_type == "error":
+                            # Record fatal error status & stop_reason before yielding so a
+                            # client disconnect right on `event: error` still preserves them.
+                            had_stream_error = True
+                            meta_stop = stream_adapter.get_last_message_metadata().get("stop_reason")
+                            err_stop = (
+                                meta_stop
+                                if isinstance(meta_stop, str) and meta_stop.strip()
+                                else (
+                                    event.data.get("reason")
+                                    if isinstance(event.data, dict)
+                                    and isinstance(event.data.get("reason"), str)
+                                    and event.data.get("reason").strip()
+                                    else None
+                                )
+                            )
+                            if err_stop:
+                                assistant_stop_reason = err_stop
+                                if run_report is not None:
+                                    run_report["stop_reason"] = err_stop
+
                         # Yield SSE event
                         yield event.to_sse()
 
@@ -2013,34 +2044,64 @@ class AgentService:
                                 }
                             )
 
-                        if event_type == "file_content_end":
-                            post_file_whitespace_pending = True
-                            post_file_whitespace_buf = ""
-                        elif event_type in {
+                        if event_type in {
+                            "file_content",
+                            "file_content_end",
                             "tool_call",
-                            "thinking_content",
+                            "tool_result",
+                        }:
+                            # 工具调用与 <file> 流边界之间产出的纯空白片段属于协议分隔换行，
+                            # 先暂存；若在下一个非空白正文前又遇到工具/文件/终态事件则直接丢弃，
+                            # 避免多文件续跑在 chat_message.content 里堆出大量连续 \n。
+                            protocol_whitespace_pending = True
+                            protocol_whitespace_buf = ""
+                        elif event_type == "thinking_content":
+                            if protocol_whitespace_pending:
+                                # 处于工具/文件边界时，丢弃已暂存的纯空白并继续等待真正的正文。
+                                protocol_whitespace_buf = ""
+                        elif event_type in {
                             "iteration_exhausted",
                             "error",
                         }:
-                            post_file_whitespace_pending = False
-                            post_file_whitespace_buf = ""
+                            protocol_whitespace_pending = False
+                            protocol_whitespace_buf = ""
 
                         # Track content for history
                         if event_type == "content":
                             text_chunk = event.data.get("text", "")
-                            if post_file_whitespace_pending:
-                                candidate = (post_file_whitespace_buf + text_chunk).replace("\x00", "")
+                            if protocol_whitespace_pending:
+                                candidate = (protocol_whitespace_buf + text_chunk).replace("\x00", "")
                                 if not candidate.strip():
-                                    post_file_whitespace_buf = candidate
+                                    protocol_whitespace_buf = candidate
                                 else:
-                                    trimmed = candidate.lstrip("\r\n")
+                                    trimmed = _LEADING_BLANK_LINES_RE.sub("", candidate)
+                                    if not assistant_response.strip():
+                                        response_chunk = trimmed
+                                    else:
+                                        leading_sep = candidate[: len(candidate) - len(trimmed)]
+                                        if not leading_sep:
+                                            # 跨工具/文件边界有前文但新段无前导换行：补一段空行以免粘连。
+                                            if assistant_response.endswith("\n\n"):
+                                                response_chunk = trimmed
+                                            elif assistant_response.endswith("\n"):
+                                                response_chunk = "\n" + trimmed
+                                            else:
+                                                response_chunk = "\n\n" + trimmed
+                                        elif assistant_response.endswith("\n\n"):
+                                            response_chunk = trimmed
+                                        elif assistant_response.endswith("\n"):
+                                            response_chunk = "\n" + trimmed
+                                        else:
+                                            newline_count = leading_sep.count("\n")
+                                            sep = "\n\n" if newline_count >= 2 else "\n"
+                                            response_chunk = sep + trimmed
                                     _append_display_text(
                                         "content",
                                         trimmed,
-                                        response_chunk=trimmed if not assistant_response else candidate,
+                                        response_chunk=response_chunk,
                                     )
-                                    post_file_whitespace_pending = False
-                                    post_file_whitespace_buf = ""
+                                    protocol_whitespace_pending = False
+                                    protocol_whitespace_buf = ""
                             else:
                                 _append_display_text("content", text_chunk)
                         elif event_type == "thinking_content":
@@ -2071,6 +2132,8 @@ class AgentService:
                                 assistant_display_events.append(
                                     {"type": "tool_call", "tool_call_index": tool_call_index}
                                 )
+                            if run_report is not None:
+                                run_report["tool_calls_count"] = len(all_tool_calls)
                         elif event_type == "tool_result":
                             tool_use_id = str(event.data.get("tool_use_id") or "").strip()
                             target_call: dict[str, Any] | None = None
@@ -2102,15 +2165,26 @@ class AgentService:
                                     event.data.get("data"),
                                 )
                                 target_call["error"] = event.data.get("error")
+                            if run_report is not None:
+                                run_report["tool_calls_count"] = len(all_tool_calls)
                         elif event_type == "iteration_exhausted":
                             assistant_status_cards.append(iteration_exhausted_status_card(event.data))
-                        elif event_type == "error":
-                            had_stream_error = True
 
                     model_metadata = stream_adapter.get_last_message_metadata()
-                    assistant_stop_reason = model_metadata.get("stop_reason")
+                    assistant_stop_reason = model_metadata.get("stop_reason") or assistant_stop_reason
                     usage_candidate = model_metadata.get("usage")
                     assistant_usage = usage_candidate if isinstance(usage_candidate, dict) else None
+                    if run_report is not None and assistant_stop_reason:
+                        from models.chat_message_ux_summary import iteration_exhausted_abnormal_reason
+
+                        live_metric_stop_reason = assistant_stop_reason
+                        if live_metric_stop_reason == "end_turn" and assistant_status_cards:
+                            exhausted_reason = iteration_exhausted_abnormal_reason(
+                                {"status_cards": assistant_status_cards}
+                            )
+                            if exhausted_reason is not None:
+                                live_metric_stop_reason = exhausted_reason
+                        run_report["stop_reason"] = live_metric_stop_reason
                     if had_stream_error:
                         # Still persist partial history so the user and AI can
                         # recover context on the next turn instead of losing
@@ -2616,7 +2690,12 @@ class AgentService:
                 from models.chat_message_ux_summary import iteration_exhausted_abnormal_reason
 
                 usage_summary = assistant_usage if isinstance(assistant_usage, dict) else {}
-                metric_stop_reason = assistant_stop_reason
+                metric_stop_reason = assistant_stop_reason or (
+                    run_report.get("stop_reason")
+                    if isinstance(run_report.get("stop_reason"), str)
+                    and run_report.get("stop_reason").strip()
+                    else None
+                )
                 if metric_stop_reason == "end_turn" and assistant_status_cards:
                     exhausted_reason = iteration_exhausted_abnormal_reason(
                         {"status_cards": assistant_status_cards}

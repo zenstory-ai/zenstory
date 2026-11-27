@@ -15,7 +15,7 @@ from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, or_, select
 
 from agent.constants import coerce_bool
 from agent.tools.permissions import (
@@ -194,12 +194,60 @@ def _apply_batch_replace_spans(
     return "".join(parts)
 
 
-def _effective_batch_new_text(old_content: str, new_text: str) -> str:
-    """Strip leaked ``[Pxx · N字] `` prefixes from ``new_text`` unless ``old_content`` already has them."""
+def _resolve_batch_replace_texts(
+    old_content: str,
+    old_text: str,
+    new_text: str,
+    *,
+    crlf_old_text: str | None = None,
+    stripped_new_text: str | None = None,
+    has_marker_in_new: bool | None = None,
+) -> tuple[str, str, bool]:
+    """Resolve per-file ``(effective_old, effective_new, marker_stripped)`` for batch replace.
+
+    Order of operations:
+    1. Strip leaked ``[Pxx · N字] `` prefixes from ``new_text`` BEFORE CRLF adaptation when
+       ``old_content`` does not already contain those markers. Reject marker-only inputs that
+       strip to empty or whitespace/newline-only rather than silently deleting.
+    2. Adapt ``effective_old`` and ``effective_new`` to CRLF when needed (preserving CRLF on
+       CRLF files for LF-only tool inputs).
+    """
     if _content_has_paragraph_stats_marker(old_content):
-        return new_text
-    cleaned, _ = _strip_paragraph_stats_marker_prefixes(new_text)
-    return cleaned
+        base_new = new_text
+        marker_stripped = False
+    else:
+        if has_marker_in_new is None or stripped_new_text is None:
+            stripped_new_text, has_marker_in_new = _strip_paragraph_stats_marker_prefixes(new_text)
+        if has_marker_in_new:
+            if not stripped_new_text.strip():
+                raise EditFileError(
+                    'batch_replace_files 的 new_text 仅包含段落统计前缀，没有可替换的正文内容；'
+                    '如需删除请显式传入 new_text=""。',
+                    error_type=EDIT_ERROR_INVALID_EDIT,
+                )
+            base_new = stripped_new_text
+            marker_stripped = True
+        else:
+            base_new = new_text
+            marker_stripped = False
+
+    effective_old = old_text
+    effective_new = (
+        _adapt_lf_to_crlf(base_new)
+        if _is_crlf_content(old_content) and "\n" in base_new and "\r\n" not in base_new
+        else base_new
+    )
+    if (
+        old_text not in old_content
+        and "\r\n" in old_content
+        and "\n" in old_text
+        and "\r\n" not in old_text
+    ):
+        crlf_candidate = crlf_old_text if crlf_old_text is not None else _adapt_lf_to_crlf(old_text)
+        if crlf_candidate in old_content:
+            effective_old = crlf_candidate
+            effective_new = _adapt_lf_to_crlf(base_new)
+    return effective_old, effective_new, marker_stripped
 
 
 def _batch_replace_single_file_hint(file_id: str | None) -> str:
@@ -458,6 +506,41 @@ def _exact_spans(content: str, sub: str, limit: int = 3) -> list[tuple[int, int]
 _INLINE_WS_CHARS = " \t\u3000"
 _INLINE_WS_SPLIT_RE = re.compile(r"[ \t\u3000]+")
 _LINE_SPLIT_RE = re.compile(r"\r\n|\r|\n")
+_BARE_LF_RE = re.compile(r"(?<!\r)\n")
+_CRLF_NOT_FOUND_HINT = "（提示：目标文件使用 Windows CRLF 换行符 \\r\\n；请核对空行数量或上下文锚点。）"
+
+
+def _is_crlf_content(content: str) -> bool:
+    """Whether ``content`` uses Windows CRLF (``\\r\\n``) exclusively (no bare LF)."""
+    return isinstance(content, str) and "\r\n" in content and "\n" not in content.replace("\r\n", "")
+
+
+def _adapt_lf_to_crlf(text: str) -> str:
+    """Convert bare LF (``\\n``) to CRLF (``\\r\\n``) without doubling existing ``\\r\\n``."""
+    if not isinstance(text, str) or "\n" not in text:
+        return text
+    return _BARE_LF_RE.sub("\r\n", text)
+
+
+def _crlf_hint_if_applicable(content: str, pattern: str) -> str:
+    """Return a concise CRLF hint when editing a CRLF file with an LF-only pattern fails."""
+    if isinstance(content, str) and isinstance(pattern, str) and "\r\n" in content and "\n" in pattern and "\r\n" not in pattern:
+        return _CRLF_NOT_FOUND_HINT
+    return ""
+
+
+def _locate_crlf_exact_or_quote_equivalent(
+    content: str, pattern: str
+) -> tuple[str, str, str, str] | None:
+    """Deterministic CRLF-adapted exact/quote-equivalent match for LF patterns on CRLF files."""
+    if not pattern or "\r\n" not in content or "\n" not in pattern or "\r\n" in pattern:
+        return None
+    crlf_pattern = _adapt_lf_to_crlf(pattern)
+    located = locate_exact_or_quote_equivalent(content, crlf_pattern)
+    if located is None:
+        return None
+    exact_mode, haystack, needle = located
+    return exact_mode, haystack, needle, crlf_pattern
 _LINE_SEP_RUN_RE = re.compile(r"(?:\r\n|\r|\n)(?:[ \t\u3000]*(?:\r\n|\r|\n))*")
 _NORM_LINE_SEP_PATTERN = r"[ \t\u3000]*(?:\r\n|\r|\n)(?:[ \t\u3000]*(?:\r\n|\r|\n))*[ \t\u3000]*"
 
@@ -747,12 +830,13 @@ def check_body_edit_guards(old_content: str, new_content: str, edits: Any) -> No
       而改之前它没有重复。原文里本来就重复的段落不受影响。
     """
     old_stripped = (old_content or "").strip()
+    old_stripped_lf = old_stripped.replace("\r\n", "\n")
     if old_stripped:
         whole = any(
             isinstance(edit, dict)
             and str(edit.get("op") or "replace").strip().lower() == "replace"
             and isinstance(edit.get("old"), str)
-            and edit["old"].strip() == old_stripped
+            and edit["old"].strip().replace("\r\n", "\n") == old_stripped_lf
             for edit in edits or []
         )
         old_paragraphs = _body_paragraphs(old_content)
@@ -1706,6 +1790,9 @@ class FileEditor:
 
         check_project_ownership(self.session, project_id, self.user_id)
 
+        crlf_old_text = (
+            _adapt_lf_to_crlf(old_text) if ("\n" in old_text and "\r\n" not in old_text) else None
+        )
         skipped_files: list[dict[str, Any]] = []
         requested_ids: list[str] = []
         if file_ids is not None:
@@ -1736,13 +1823,21 @@ class FileEditor:
                 )
             ordered_candidates = [by_id[fid] for fid in requested_ids if fid in by_id]
         else:
+            content_filter = (
+                or_(
+                    File.content.contains(old_text, autoescape=True),  # type: ignore[attr-defined]
+                    File.content.contains(crlf_old_text, autoescape=True),  # type: ignore[attr-defined]
+                )
+                if crlf_old_text is not None
+                else File.content.contains(old_text, autoescape=True)  # type: ignore[attr-defined]
+            )
             stmt = (
                 select(File)
                 .where(
                     File.project_id == project_id,
                     File.is_deleted.is_(False),
                     File.file_type != "folder",
-                    File.content.contains(old_text, autoescape=True),  # type: ignore[attr-defined]
+                    content_filter,
                 )
                 .order_by(
                     File.order.asc(),  # type: ignore[attr-defined]
@@ -1758,10 +1853,11 @@ class FileEditor:
             ordered_candidates = list(self.session.exec(stmt.execution_options(populate_existing=True)).all())
 
         # Exact effective match filter in Python:
-        # - SQLite LIKE is ASCII case-insensitive.
-        # - When `old_text in new_text`, skip occurrences already inside `new_text` so
-        #   already-updated files are excluded instead of starving remaining chapters.
-        # - Strip leaked `[Pxx · N字] ` markers from `new_text` unless the file already contains them.
+        # - SQLite LIKE is ASCII case-insensitive; support CRLF fallback for LF-only old_text.
+        # - Strip leaked `[Pxx · N字] ` markers from `new_text` BEFORE CRLF adaptation unless the
+        #   file already contains them; reject marker-only inputs on clean files instead of deleting.
+        # - When `effective_old in effective_new`, skip occurrences already inside `effective_new`
+        #   so already-updated files are excluded instead of starving remaining chapters.
         stripped_new_text, has_marker_in_new = _strip_paragraph_stats_marker_prefixes(new_text)
         raw_overlap_pattern = _compile_overlapping_batch_pattern(old_text, new_text)
         stripped_overlap_pattern = (
@@ -1769,24 +1865,36 @@ class FileEditor:
             if has_marker_in_new
             else raw_overlap_pattern
         )
-        matching_entries: list[tuple[File, list[tuple[int, int]]]] = []
+        matching_entries: list[tuple[File, list[tuple[int, int]], str, bool]] = []
         for candidate in ordered_candidates:
-            if not isinstance(candidate.content, str) or old_text not in candidate.content:
+            cand_content = candidate.content
+            if not isinstance(cand_content, str) or (
+                old_text not in cand_content
+                and (crlf_old_text is None or crlf_old_text not in cand_content)
+            ):
                 continue
-            if has_marker_in_new and not _content_has_paragraph_stats_marker(candidate.content):
-                effective_new = stripped_new_text
-                overlap_pattern = stripped_overlap_pattern
-            else:
-                effective_new = new_text
-                overlap_pattern = raw_overlap_pattern
-            spans = _find_batch_replace_spans(
-                candidate.content,
+            effective_old, effective_new, marker_stripped = _resolve_batch_replace_texts(
+                cand_content,
                 old_text,
+                new_text,
+                crlf_old_text=crlf_old_text,
+                stripped_new_text=stripped_new_text,
+                has_marker_in_new=has_marker_in_new,
+            )
+            base_expected_new = stripped_new_text if marker_stripped else new_text
+            if effective_old == old_text and effective_new == base_expected_new:
+                overlap_pattern = stripped_overlap_pattern if marker_stripped else raw_overlap_pattern
+            else:
+                # Never reuse LF-compiled overlap patterns when either side was CRLF-adapted.
+                overlap_pattern = None
+            spans = _find_batch_replace_spans(
+                cand_content,
+                effective_old,
                 effective_new,
                 overlap_pattern=overlap_pattern,
             )
             if spans:
-                matching_entries.append((candidate, spans))
+                matching_entries.append((candidate, spans, effective_old, marker_stripped))
         matched_total = len(matching_entries)
         effective_max = max(1, int(max_files))
         batch_entries = matching_entries[:effective_max]
@@ -1794,18 +1902,18 @@ class FileEditor:
         remaining_count = len(overflow_entries)
         remaining_files = [
             {"id": f.id, "title": f.title, "file_type": f.file_type}
-            for f, _ in overflow_entries[:BATCH_REPLACE_MAX_REMAINING_FILES]
+            for f, _, _, _ in overflow_entries[:BATCH_REPLACE_MAX_REMAINING_FILES]
         ]
 
         if dry_run:
             preview_files: list[dict[str, Any]] = []
             total_replacements = 0
-            for candidate, spans in batch_entries:
+            for candidate, spans, effective_old, _ in batch_entries:
                 hit_count = len(spans)
                 match_items = format_match_snippets(
                     candidate.content or "",
                     [start for start, _ in spans],
-                    old_text,
+                    effective_old,
                     max_matches=BATCH_REPLACE_PREVIEW_SNIPPETS,
                     context_chars=BATCH_REPLACE_SNIPPET_CONTEXT_CHARS,
                 )
@@ -1819,10 +1927,15 @@ class FileEditor:
                         "sample_snippets": match_items,
                     }
                 )
+            reported_dry_new_text = (
+                stripped_new_text
+                if has_marker_in_new and batch_entries and all(flag for _, _, _, flag in batch_entries)
+                else new_text
+            )
             return {
                 "dry_run": True,
                 "old_text": old_text,
-                "new_text": new_text,
+                "new_text": reported_dry_new_text,
                 "mutation_applied": False,
                 "matched_files": matched_total,
                 "modified_files": 0,
@@ -1836,8 +1949,9 @@ class FileEditor:
 
         pending_set = set(pending_file_ids) if pending_file_ids else set()
         # Snapshot plain (id, title) tuples before commit/rollback expires ORM instances.
-        target_specs = [(candidate.id, candidate.title) for candidate, _ in batch_entries]
+        target_specs = [(candidate.id, candidate.title) for candidate, _, _, _ in batch_entries]
         modified_files: list[dict[str, Any]] = []
+        modified_marker_stripped_flags: list[bool] = []
         total_replacements = 0
         for target_id, target_title in target_specs:
             if target_id in pending_set:
@@ -1859,6 +1973,7 @@ class FileEditor:
                     read_snapshot_lookup=read_snapshot_lookup,
                 )
                 if entry is not None:
+                    modified_marker_stripped_flags.append(bool(entry.pop("_marker_stripped", False)))
                     modified_files.append(entry)
                     total_replacements += int(entry.get("replacements") or 0)
             except (
@@ -1915,10 +2030,15 @@ class FileEditor:
                     }
                 )
 
+        reported_new_text = (
+            stripped_new_text
+            if has_marker_in_new and modified_marker_stripped_flags and all(modified_marker_stripped_flags)
+            else new_text
+        )
         return {
             "dry_run": False,
             "old_text": old_text,
-            "new_text": new_text,
+            "new_text": reported_new_text,
             "mutation_applied": bool(modified_files),
             "matched_files": matched_total,
             "modified_files": len(modified_files),
@@ -1961,8 +2081,10 @@ class FileEditor:
                 snap = read_snapshot_lookup(file.id)
                 if snap is not None and snap != old_content:
                     raise StaleContentError(snap, old_content)
-            effective_new = _effective_batch_new_text(old_content, new_text)
-            spans = _find_batch_replace_spans(old_content, old_text, effective_new)
+            effective_old, effective_new, marker_stripped = _resolve_batch_replace_texts(
+                old_content, old_text, new_text
+            )
+            spans = _find_batch_replace_spans(old_content, effective_old, effective_new)
             replacements = len(spans)
             if replacements <= 0:
                 return None
@@ -1974,7 +2096,7 @@ class FileEditor:
                 # represents multiple local edits, not a single whole-body rewrite; keep exact whole-body blocking,
                 # single-occurrence near-whole-body blocking, and duplicated-paragraph checks intact.
                 guard_edits = [
-                    {"op": "replace", "old": old_text, "new": effective_new, "replace_all": True}
+                    {"op": "replace", "old": effective_old, "new": effective_new, "replace_all": True}
                 ] * min(replacements, 2)
                 check_body_edit_guards(old_content, new_content, guard_edits)
             summary = f"AI 批量替换: {old_text[:20]} → {effective_new[:20]} ({replacements} 处)"
@@ -1993,6 +2115,7 @@ class FileEditor:
                 "replacements": replacements,
                 "new_length": len(new_content),
                 "new_word_count": count_words(new_content),
+                "_marker_stripped": marker_stripped,
             }
             if undo is not None:
                 entry["undo"] = undo
@@ -2268,6 +2391,9 @@ class FileEditor:
         ``format_paragraph_stats`` marker format. Does not require every non-empty line
         to carry a prefix, so partial-marked expansions, clean-old + marked-new edits,
         and marked append/prepend/insert texts never leak view annotations into saved text.
+
+        Rejects marker-only inputs whose stripped result is empty or whitespace/newline-only
+        so leaked prefixes are never silently turned into deletions or bare-newline writes.
         """
         stripped = False
         if op == "replace":
@@ -2276,6 +2402,12 @@ class FileEditor:
                 if isinstance(val, str):
                     cleaned, changed = _strip_paragraph_stats_marker_prefixes(val)
                     if changed:
+                        if not cleaned.strip():
+                            raise EditFileError(
+                                f"Edit {edit_index}: replace 的替换文本仅包含段落统计前缀，没有可写入的正文内容；"
+                                '如需删除请显式传入 new=""。',
+                                error_type=EDIT_ERROR_INVALID_EDIT,
+                            )
                         edit[key] = cleaned
                         stripped = True
         elif op in ("append", "prepend", "insert_after", "insert_before"):
@@ -2284,12 +2416,13 @@ class FileEditor:
                 if isinstance(val, str):
                     cleaned, changed = _strip_paragraph_stats_marker_prefixes(val)
                     if changed:
+                        if not cleaned.strip():
+                            raise EditFileError(
+                                f"Edit {edit_index}: {op} 的 text 仅包含段落统计前缀，没有可写入的正文内容。",
+                                error_type=EDIT_ERROR_INVALID_EDIT,
+                            )
                         edit[key] = cleaned
                         stripped = True
-            if stripped and (not isinstance(edit.get("text"), str) or not edit.get("text")):
-                raise EditFileError(
-                    f"Edit {edit_index}: {op} 的 text 仅包含段落统计前缀，没有可写入的正文内容。"
-                )
         return stripped
 
     @classmethod
@@ -2315,12 +2448,24 @@ class FileEditor:
             for key in ("new", *cls._REPLACE_NEW_ALIASES):
                 val = retry_edit.get(key)
                 if isinstance(val, str) and _all_non_empty_lines_have_marker_prefix(val):
-                    retry_edit[key] = _strip_marker_prefixes(val)
+                    stripped_val = _strip_marker_prefixes(val)
+                    if not stripped_val.strip():
+                        raise EditFileError(
+                            'replace 的替换文本仅包含段落/行号前缀，没有可写入的正文内容；如需删除请显式传入 new=""。',
+                            error_type=EDIT_ERROR_INVALID_EDIT,
+                        )
+                    retry_edit[key] = stripped_val
         elif op in ("insert_after", "insert_before"):
             for key in ("text", *cls._INSERT_TEXT_ALIASES):
                 val = retry_edit.get(key)
                 if isinstance(val, str) and _all_non_empty_lines_have_marker_prefix(val):
-                    retry_edit[key] = _strip_marker_prefixes(val)
+                    stripped_val = _strip_marker_prefixes(val)
+                    if not stripped_val.strip():
+                        raise EditFileError(
+                            f"{op} 的 text 仅包含段落/行号前缀，没有可写入的正文内容。",
+                            error_type=EDIT_ERROR_INVALID_EDIT,
+                        )
+                    retry_edit[key] = stripped_val
         return retry_edit
 
     @classmethod
@@ -2592,15 +2737,31 @@ class FileEditor:
             # 引号此时按产品默认的 “” 写入；new 里直接写的 「」/“” 原样保留。
             quote_style = QUOTE_STYLE_CURLY
 
-        # 1) Exact match first, then exact modulo double-quote style
+        # 1) Exact match first, then exact modulo double-quote style; in non-exact modes,
+        #    also support deterministic CRLF line-ending exact match (preserving CRLF in new_text).
         located = locate_exact_or_quote_equivalent(content, old_text)
+        effective_old = old_text
+        effective_new = (
+            _adapt_lf_to_crlf(new_text)
+            if match_mode != "exact"
+            and _is_crlf_content(content)
+            and "\n" in new_text
+            and "\r\n" not in new_text
+            else new_text
+        )
+        if located is None and match_mode != "exact":
+            crlf_located = _locate_crlf_exact_or_quote_equivalent(content, old_text)
+            if crlf_located is not None:
+                _crlf_mode, haystack, needle, effective_old = crlf_located
+                located = ("normalized_exact", haystack, needle)
+                effective_new = _adapt_lf_to_crlf(new_text)
         if located is not None:
             exact_mode, haystack, needle = located
             if replace_all:
                 spans = _exact_spans(haystack, needle, limit=len(haystack) + 1)
                 count = len(spans)
                 if already_matched is not None and spans and all(
-                    content[s:e] == new_text for s, e in spans
+                    content[s:e] == effective_new for s, e in spans
                 ):
                     already_matched.append(True)
                 parts: list[str] = []
@@ -2609,9 +2770,9 @@ class FileEditor:
                 for start, end in spans:
                     parts.append(content[prev:start])
                     out_len += start - prev
-                    parts.append(new_text)
-                    placed.append((out_len, out_len + len(new_text)))
-                    out_len += len(new_text)
+                    parts.append(effective_new)
+                    placed.append((out_len, out_len + len(effective_new)))
+                    out_len += len(effective_new)
                     prev = end
                 parts.append(content[prev:])
                 content = self._normalize_placed_spans("".join(parts), placed, quote_style)
@@ -2621,12 +2782,12 @@ class FileEditor:
                         for (start, end), (p_start, p_end) in zip(spans, placed, strict=True)
                     )
                 if placed:
-                    new_text = content[placed[0][0] : placed[0][1]]
+                    effective_new = content[placed[0][0] : placed[0][1]]
                 applied_edits.append({
                     "op": "replace",
                     "match_mode": exact_mode,
                     "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                    "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                    "new_preview": effective_new[:200] + ("..." if len(effective_new) > 200 else ""),
                     "count": count,
                 })
             else:
@@ -2645,19 +2806,19 @@ class FileEditor:
                     extra_hint=batch_hint,
                     preview_content=content,
                 )
-                if already_matched is not None and content[start : start + len(old_text)] == new_text:
+                if already_matched is not None and content[start : start + len(effective_old)] == effective_new:
                     already_matched.append(True)
-                content, new_text = self._place_new_text(
-                    content, start, start + len(old_text), new_text, quote_style
+                content, written_new = self._place_new_text(
+                    content, start, start + len(effective_old), effective_new, quote_style
                 )
                 if applied_hunks is not None:
-                    applied_hunks.append((start, start + len(old_text), len(new_text)))
+                    applied_hunks.append((start, start + len(effective_old), len(written_new)))
                 detail = {
                     "op": "replace",
                     "match_mode": exact_mode,
                     "match_count": match_count,
                     "old_preview": old_text[:200] + ("..." if len(old_text) > 200 else ""),
-                    "new_preview": new_text[:200] + ("..." if len(new_text) > 200 else ""),
+                    "new_preview": written_new[:200] + ("..." if len(written_new) > 200 else ""),
                 }
                 if occurrence is not None:
                     detail["occurrence"] = occurrence
@@ -2666,6 +2827,7 @@ class FileEditor:
             if match_mode == "exact":
                 raise _not_found(
                     f"Edit {edit_index}: old text not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             # 2) Deterministic whitespace/newline/double-quote-normalized match.
@@ -2761,6 +2923,7 @@ class FileEditor:
             if match_mode == "exact_normalized":
                 raise _not_found(
                     f"Edit {edit_index}: old text not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             # 3) Fuzzy match (ignore punctuation/whitespace)
@@ -2890,6 +3053,7 @@ class FileEditor:
                 )
                 raise _not_found(
                     f"Edit {edit_index}: 找不到要替换的原文片段。"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                     f"{_approximate_not_found_advice(approx_stats, label='原文片段')}"
                     f"候选片段: {suggestions}"
                 )
@@ -3050,6 +3214,22 @@ class FileEditor:
             return placed
 
         located = locate_exact_or_quote_equivalent(content, anchor)
+        effective_anchor = anchor
+        if (
+            located is not None
+            and match_mode != "exact"
+            and _is_crlf_content(content)
+            and isinstance(text, str)
+            and "\n" in text
+            and "\r\n" not in text
+        ):
+            text = _adapt_lf_to_crlf(text)
+        if located is None and match_mode != "exact":
+            crlf_located = _locate_crlf_exact_or_quote_equivalent(content, anchor)
+            if crlf_located is not None:
+                _crlf_mode, haystack, needle, effective_anchor = crlf_located
+                located = ("normalized_exact", haystack, needle)
+                text = _adapt_lf_to_crlf(text)
         if located is not None:
             exact_mode, haystack, needle = located
             match_count = haystack.count(needle)
@@ -3057,12 +3237,13 @@ class FileEditor:
                 haystack, needle, occurrence, match_count, edit_index, label="锚点",
                 preview_content=content,
             )
-            pos = start + len(anchor) if after else start
+            pos = start + len(effective_anchor) if after else start
             return place(pos, {"match_mode": exact_mode, "match_count": match_count}, exact_anchor=True)
 
         if match_mode == "exact":
             raise _not_found(
                 f"Edit {edit_index}: anchor text not found in content (exact match)"
+                f"{_crlf_hint_if_applicable(content, anchor)}"
             )
 
         norm_spans = _locate_normalized_exact_spans(content, anchor)
@@ -3090,6 +3271,7 @@ class FileEditor:
         if match_mode == "exact_normalized":
             raise _not_found(
                 f"Edit {edit_index}: anchor text not found in content (exact match)"
+                f"{_crlf_hint_if_applicable(content, anchor)}"
             )
 
         fuzzy_stats: dict[str, int] = {}
@@ -3217,6 +3399,7 @@ class FileEditor:
         )
         raise _not_found(
             f"Edit {edit_index}: 找不到插入锚点。"
+            f"{_crlf_hint_if_applicable(content, anchor)}"
             f"{_approximate_not_found_advice(approx_stats, label='锚点')}"
             f"候选片段: {suggestions}"
         )
@@ -3247,6 +3430,12 @@ class FileEditor:
             )
 
         located = locate_exact_or_quote_equivalent(content, old_text)
+        effective_old = old_text
+        if located is None and match_mode != "exact":
+            crlf_located = _locate_crlf_exact_or_quote_equivalent(content, old_text)
+            if crlf_located is not None:
+                _crlf_mode, haystack, needle, effective_old = crlf_located
+                located = ("normalized_exact", haystack, needle)
         if located is not None:
             exact_mode, haystack, needle = located
             match_count = haystack.count(needle)
@@ -3262,9 +3451,9 @@ class FileEditor:
                 label="删除片段",
                 preview_content=content,
             )
-            content = content[:start] + content[start + len(old_text):]
+            content = content[:start] + content[start + len(effective_old):]
             if applied_hunks is not None:
-                applied_hunks.append((start, start + len(old_text), 0))
+                applied_hunks.append((start, start + len(effective_old), 0))
             detail = {
                 "op": "delete",
                 "match_mode": exact_mode,
@@ -3278,6 +3467,7 @@ class FileEditor:
             if match_mode == "exact":
                 raise _not_found(
                     f"Edit {edit_index}: text to delete not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             norm_spans = _locate_normalized_exact_spans(content, old_text)
@@ -3311,6 +3501,7 @@ class FileEditor:
             if match_mode == "exact_normalized":
                 raise _not_found(
                     f"Edit {edit_index}: text to delete not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, old_text)}"
                 )
 
             fuzzy_stats: dict[str, int] = {}
