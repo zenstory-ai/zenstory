@@ -2,7 +2,7 @@ name: E2E Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   schedule:
     - cron: '0 2 * * *'  # 2 AM UTC daily (nightly)
   workflow_dispatch:
@@ -63,6 +63,8 @@ jobs:
             - 'apps/server/**'
           web_frontend:
             - 'apps/web/**'
+            - 'pnpm-lock.yaml'
+            - 'pnpm-workspace.yaml'
           ci:
             - '.github/workflows/**'
             - '.github/actions/**'
@@ -147,16 +149,35 @@ jobs:
     - name: Setup backend
       uses: ./.github/actions/setup-backend
 
+    - name: Resolve Playwright version
+      id: pw-ver
+      run: echo "version=$(node -p "require('./apps/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright browsers
+      id: playwright-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.pw-ver.outputs.version }}
+
     - name: Install Playwright browsers
       run: |
         cd apps/web
         # The shared authentication setup project uses Chromium even when the
         # requested test project is Firefox, so both executables are required
         # for Firefox matrix jobs.
-        if [ "${{ matrix.browser }}" = "chromium" ]; then
-          pnpm exec playwright install --with-deps chromium
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+          if [ "${{ matrix.browser }}" = "chromium" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install-deps chromium ${{ matrix.browser }}
+          fi
         else
-          pnpm exec playwright install --with-deps chromium ${{ matrix.browser }}
+          if [ "${{ matrix.browser }}" = "chromium" ]; then
+            pnpm exec playwright install --with-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium ${{ matrix.browser }}
+          fi
         fi
 
     - name: Run E2E tests

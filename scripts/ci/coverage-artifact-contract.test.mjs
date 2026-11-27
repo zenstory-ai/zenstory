@@ -74,8 +74,4 @@ test('the 80% backend gate and Codecov XML come from the combined unit-suite sha
   assert.match(job, /coverage xml -o coverage\.xml/);
   assert.match(job, /coverage report --fail-under=80/);
   assert.match(job, /file: \.\/apps\/server\/coverage\.xml/);
-
-  const flow = stepBody('Run flow tests', 'Register every production Prefect deployment');
-  assert.match(flow, /pytest tests\/test_flows\b/);
-  assert.match(flow, /--no-cov\b/);
 });

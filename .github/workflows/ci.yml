@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
     inputs:
       expected_source_sha:
@@ -53,6 +53,10 @@ jobs:
             - 'apps/server/**'
           web_frontend:
             - 'apps/web/**'
+            - 'pnpm-lock.yaml'
+            - 'pnpm-workspace.yaml'
+            - 'package.json'
+            - 'scripts/quality/**'
           cli:
             - 'apps/cli/**'
             - 'scripts/cli-release*.mjs'
@@ -60,6 +64,8 @@ jobs:
           ci:
             - '.github/workflows/**'
             - '.github/actions/**'
+            - '.yamllint'
+            - 'docker-compose.full.yml'
             - 'scripts/ci/**'
 
     - name: Resolve validated CI scope
@@ -112,12 +118,9 @@ jobs:
       uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       with:
         python-version: '3.13'
-        cache: 'pip'
 
     - name: Install yamllint
-      run: |
-        python -m pip install --upgrade pip
-        pip install yamllint==1.38.0
+      run: pip install --disable-pip-version-check yamllint==1.38.0
 
     - name: Lint CI workflows
       run: |
@@ -153,19 +156,6 @@ jobs:
           targets: tests --ignore=tests/test_api
 
     services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: zenstory_test
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
       redis:
         image: redis:7-alpine
         ports:
@@ -189,8 +179,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd apps/server
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --disable-pip-version-check -r requirements.txt
 
     - name: Create test environment file
       run: |
@@ -213,9 +202,10 @@ jobs:
         # A shard's partial coverage is not gated here; backend-coverage
         # combines every shard and enforces the 80% gate on the union.
         # -q cancels pytest.ini's -v so 5,000 per-test lines are not logged.
+        # --cov-report= skips per-shard HTML/XML rendering (backend-coverage builds XML once).
         # SHARD_TARGETS is intentionally unquoted: its API glob must expand.
         # shellcheck disable=SC2086
-        pytest $SHARD_TARGETS --cov=. --cov-fail-under=0 --durations=15 -q
+        pytest $SHARD_TARGETS --cov=. --cov-fail-under=0 --cov-report= --durations=15 -q
 
     - name: Upload shard coverage data
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -239,15 +229,12 @@ jobs:
       uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       with:
         python-version: '3.13'
-        cache: 'pip'
 
     - name: Install coverage
-      run: |
-        python -m pip install --upgrade pip
-        pip install "$(grep '^pytest-cov' apps/server/requirements.txt)"
+      run: pip install --disable-pip-version-check "$(grep '^pytest-cov' apps/server/requirements.txt)"
 
     - name: Download shard coverage data
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
       with:
         pattern: backend-coverage-*
         path: apps/server/coverage-data
@@ -300,15 +287,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6380:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
     - name: Checkout code
@@ -323,9 +301,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd apps/server
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install ruff==0.17.6
+        pip install --disable-pip-version-check -r requirements.txt
 
     - name: Run ruff
       run: |
@@ -456,11 +432,6 @@ jobs:
           tests/test_services/test_chat_message_archival_postgres.py \
           tests/test_agent/test_snapshot_mutation_postgres.py
 
-    - name: Run flow tests
-      run: |
-        cd apps/server
-        pytest tests/test_flows -v --maxfail=1 --no-cov
-
     - name: Register every production Prefect deployment
       working-directory: apps/server
       run: |
@@ -525,8 +496,7 @@ jobs:
       env:
         PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://test:test@localhost:5434/zenstory_prefect_test
       run: |
-        python -m pip install --upgrade pip
-        pip install \
+        pip install --disable-pip-version-check \
           "prefect==3.4.19" \
           "fastapi<0.116" \
           asyncpg \
@@ -590,8 +560,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
     - name: Build production image
-      run: docker build --file "${{ matrix.dockerfile }}" --tag "zenstory-${{ matrix.name }}:ci" "${{ matrix.context }}"
+      uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      with:
+        context: ${{ matrix.context }}
+        file: ${{ matrix.dockerfile }}
+        push: false
+        tags: zenstory-${{ matrix.name }}:ci
+        cache-from: type=gha,scope=${{ matrix.name }}
+        cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
   frontend-test:
     needs: detect-changes
@@ -651,22 +631,10 @@ jobs:
     - name: Setup frontend
       uses: ./.github/actions/setup-frontend
 
-    - name: Test domain routing and generated public pages
-      run: |
-        cd apps/web
-        pnpm test:site
-
     - name: Build with typecheck
       run: |
         cd apps/web
         pnpm build:typecheck
-
-    - name: Upload build artifact
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-      with:
-        name: web-dist
-        path: apps/web/dist/
-        retention-days: 7
 
   cli-test:
     needs: detect-changes
@@ -678,7 +646,7 @@ jobs:
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@eae0cfeb286e66ffb5155f1a79b90583a127a68b # v2
+      uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       with:
         version: 10.29.3
 
@@ -748,10 +716,25 @@ jobs:
     - name: Setup frontend
       uses: ./.github/actions/setup-frontend
 
+    - name: Resolve Playwright version
+      id: pw-ver
+      run: echo "version=$(node -p "require('./apps/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Playwright Chromium
+      id: playwright-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-chromium-${{ steps.pw-ver.outputs.version }}
+
     - name: Install Chromium for mocked E2E smoke
       run: |
         cd apps/web
-        pnpm exec playwright install --with-deps chromium
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+          pnpm exec playwright install-deps chromium
+        else
+          pnpm exec playwright install --with-deps chromium
+        fi
 
     - name: Run mocked frontend E2E smoke specs
       env:

@@ -75,6 +75,6 @@ pytest-mock>=3.11.0
 pytest-xdist>=3.5.0
 responses>=0.23.0
 
-# Linting (for pre-commit hooks)
-ruff>=0.4.0
+# Linting (for pre-commit hooks & CI)
+ruff==0.17.6
 pylint>=3.0.0
