@@ -1926,7 +1926,11 @@ class AgentService:
                                 yield history_compacted_event(outcome.record["summary"]).to_sse()
                         else:
                             if outcome.skipped:
-                                loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+                                loop_compaction_skipped = skipped_record(
+                                    loop_history,
+                                    outcome.skipped,
+                                    extra_tokens=cold_fixed_tokens,
+                                )
                             yield thinking_event(
                                 "Couldn't compact the conversation; continuing as is"
                                 if force_en

@@ -26,7 +26,13 @@ from sqlmodel import Session
 from agent.core.message_manager import MessageManager
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.loop import wire_prefix_cache
-from agent.loop.compaction import CompactionOutcome, archive_old_tool_results, should_compact
+from agent.loop.compaction import (
+    SKIPPED_EMPTY_OR_TRUNCATED,
+    CompactionOutcome,
+    archive_old_tool_results,
+    should_compact,
+    skipped_record,
+)
 from agent.loop.history import (
     LOOP_ENGINE_METADATA_VALUE,
     effective_history_provider_tokens,
@@ -490,3 +496,8 @@ async def test_truly_large_cold_replay_still_compacts_with_system_and_tools_over
     assert seen_calls[0]["last_prompt_tokens"] == 0
     assert seen_calls[0]["turn_input_tokens"] >= turn_msg_tokens + fixed_overhead
     assert any("event: history_compacted" in chunk for chunk in chunks)
+
+    # Also verify skipped_record includes cold_fixed_tokens when provided, matching warm semantics.
+    rec = skipped_record(cold_history, SKIPPED_EMPTY_OR_TRUNCATED, extra_tokens=fixed_overhead)
+    assert rec["reason"] == SKIPPED_EMPTY_OR_TRUNCATED
+    assert rec["at_prompt_tokens"] == items_tokens + fixed_overhead

@@ -292,8 +292,14 @@ async def test_loop_tool_turn_exhaustion_card_has_no_agent_and_bills_as_runaway(
     assert {event["type"] for event in metadata["display_events"]} <= _ALLOWED_DISPLAY_TYPES
 
 
+_COMPACTION_E2E_THRESHOLD = 15_000
+# 超过阈值 15k 的真实冷回放助手正文（约 13.3k 历史 token + ~6k 系统提示与工具 schema ≈ 19.3k > 15k）；
+# 压缩为短摘要后总输入回落至 ~6.1k <= 15k，下一轮不再重复触发压缩。
+_LARGE_CH1_REPLY = "第1章写好了。" + ("雾港钟声响起，主角阿岚踏上青石阶。" * 1_200)
+
+
 def _seed_loop_session(db_session: Session, user: User, project: Project, *, prompt_tokens: int):
-    """一个已有两轮单循环对话的活跃会话；最后一条 assistant 行记下的实测输入 token 由参数给出。"""
+    """一个已有两轮单循环对话的活跃会话（含真实冷回放体积以跨越压缩阈值）。"""
     from datetime import datetime, timedelta
 
     from models import ChatSession
@@ -307,7 +313,7 @@ def _seed_loop_session(db_session: Session, user: User, project: Project, *, pro
         ("user", "合成要求一：主角叫阿岚"),
         ("assistant", "记下了。"),
         ("user", "合成要求二：写第1章"),
-        ("assistant", "第1章写好了。"),
+        ("assistant", _LARGE_CH1_REPLY),
     ]):
         metadata = None
         if role == "assistant":
@@ -342,9 +348,9 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
 
     from agent.loop.prompts import SUMMARY_PREFIX
 
-    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", _COMPACTION_E2E_THRESHOLD)
     user, token, project = await _user_project(client, db_session, "loop_compaction_synthetic")
-    chat, rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
+    chat, rows = _seed_loop_session(db_session, user, project, prompt_tokens=19_000)
 
     captured: list[dict] = []
     build_agent, run_streamed = _patched_runs(
@@ -365,7 +371,7 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
         )
 
     assert first.status_code == second.status_code == 200
-    assert summarize.await_count == 1  # 第二轮实测输入 token 已降下来，不再压缩
+    assert summarize.await_count == 1  # 第二轮冷回放输入已降到阈值以下，不再压缩
     first_events = _parse_sse(first.text)
     # 作者看得到这一步：先是压缩进度，成功后是会话里的「对话已压缩」标记（带摘要），都在回复之前。
     first_names = [name for name, _ in first_events]
@@ -378,7 +384,7 @@ async def test_compaction_between_turns_is_persisted_and_rebuilds_the_next_turn(
     summary_text = f"{SUMMARY_PREFIX}合成交接摘要：主角阿岚，第1章已完成。"
     first_input = [item.get("content") for item in runs[0]["input"]]
     assert first_input[:3] == ["合成要求一：主角叫阿岚", "合成要求二：写第1章", summary_text]
-    assert "第1章写好了。" not in first_input
+    assert _LARGE_CH1_REPLY not in first_input
     assert first_input[-1] == "写第2章" or str(first_input[-1]).endswith("写第2章")
 
     row = db_session.exec(
@@ -407,9 +413,9 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
 ):
     from unittest.mock import AsyncMock
 
-    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", _COMPACTION_E2E_THRESHOLD)
     user, token, project = await _user_project(client, db_session, "loop_compaction_empty_synthetic")
-    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
+    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=19_000)
 
     captured: list[dict] = []
     build_agent, run_streamed = _patched_runs([_FakeRun([_raw_text("第2章写好了。")])], captured)
@@ -425,7 +431,7 @@ async def test_compaction_with_empty_summary_keeps_the_full_history(
     assert summarize.await_count == 2
     [run] = [entry for entry in captured if "input" in entry]
     contents = [item.get("content") for item in run["input"]]
-    assert contents[:4] == ["合成要求一：主角叫阿岚", "记下了。", "合成要求二：写第1章", "第1章写好了。"]
+    assert contents[:4] == ["合成要求一：主角叫阿岚", "记下了。", "合成要求二：写第1章", _LARGE_CH1_REPLY]
     row = db_session.exec(
         select(ChatMessage).where(ChatMessage.role == "assistant", ChatMessage.content == "第2章写好了。")
     ).one()
@@ -447,9 +453,27 @@ async def test_skipped_compaction_is_recorded_and_not_retried_every_turn(
     下一轮输入没长够就不再付摘要调用。"""
     from unittest.mock import AsyncMock
 
-    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    from agent.core.message_manager import MessageManager
+    from agent.loop.history import (
+        estimate_provider_items_tokens,
+        estimate_provider_text_tokens,
+        estimate_tools_schema_tokens,
+        load_loop_history,
+    )
+
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", _COMPACTION_E2E_THRESHOLD)
     user, token, project = await _user_project(client, db_session, "loop_compaction_backoff_synthetic")
-    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
+    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=19_000)
+
+    pre_history = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
+    system_prompt = MessageManager(project_id=project.id, user_id=user.id).build_system_prompt(
+        session=db_session, language="zh", skill_catalog=""
+    )
+    expected_at_tokens = (
+        estimate_provider_items_tokens(pre_history.items)
+        + estimate_provider_text_tokens(system_prompt)
+        + estimate_tools_schema_tokens()
+    )
 
     class _FailingRun(_FakeRun):
         async def stream_events(self):
@@ -479,7 +503,8 @@ async def test_skipped_compaction_is_recorded_and_not_retried_every_turn(
     ).one()
     skipped = json.loads(user_row.message_metadata)["compaction_skipped"]
     assert skipped["reason"] == "empty_or_truncated_summary"
-    assert skipped["at_prompt_tokens"] == 9000
+    assert skipped["at_prompt_tokens"] == expected_at_tokens
+    assert skipped["at_prompt_tokens"] > _COMPACTION_E2E_THRESHOLD
 
 
 @pytest.mark.asyncio
@@ -491,9 +516,9 @@ async def test_compaction_survives_a_turn_without_an_assistant_row(
 
     from agent.loop.prompts import SUMMARY_PREFIX
 
-    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", 5000)
+    monkeypatch.setattr("config.agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS", _COMPACTION_E2E_THRESHOLD)
     user, token, project = await _user_project(client, db_session, "loop_compaction_user_row_synthetic")
-    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=9000)
+    chat, _rows = _seed_loop_session(db_session, user, project, prompt_tokens=19_000)
 
     class _FailingRun(_FakeRun):
         async def stream_events(self):
@@ -516,4 +541,4 @@ async def test_compaction_survives_a_turn_without_an_assistant_row(
     runs = [entry for entry in captured if "input" in entry]
     second_input = [item.get("content") for item in runs[1]["input"]]
     assert f"{SUMMARY_PREFIX}合成交接摘要" in second_input
-    assert "第1章写好了。" not in second_input
+    assert _LARGE_CH1_REPLY not in second_input

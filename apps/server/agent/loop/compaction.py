@@ -428,13 +428,19 @@ def should_compact(
     return True
 
 
-def skipped_record(history: LoopHistory, reason: str) -> dict[str, Any]:
+def skipped_record(
+    history: LoopHistory,
+    reason: str,
+    *,
+    extra_tokens: int = 0,
+) -> dict[str, Any]:
     """没压缩成时随本轮落库的记录（``message_metadata.compaction_skipped``）。
 
-    记录跳过时历史本身的实测/同量纲输入 token：模型输出不可用时下一轮据此退避，
+    记录跳过时历史本身的实测/同量纲输入 token（冷库回放时通过 ``extra_tokens`` 补齐静态系统提示
+    与工具 schema 开销，与热缓存 ``last_prompt_tokens`` 口径一致）：模型输出不可用时下一轮据此退避，
     瞬时 ``provider_error`` 仍保留审计记录但不触发退避。
     """
-    measured = effective_history_provider_tokens(history)
+    measured = effective_history_provider_tokens(history) + max(0, extra_tokens)
     return {"reason": reason, "at_prompt_tokens": int(measured), "created_at": utcnow().isoformat()}
 
 
