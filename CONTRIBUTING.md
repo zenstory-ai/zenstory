@@ -7,7 +7,7 @@ ZenStory is an AI-assisted writing workbench with a React frontend and FastAPI b
 ### Prerequisites
 
 - Node.js 20.19+ (or 22.12+)
-- Python 3.12 or 3.13 (CI tests 3.12; the Docker image uses 3.13)
+- Python 3.12 or 3.13 (CI and Docker use 3.13)
 - pnpm 10 (CI uses 10.29.3); use the root workspace lockfile
 
 ### Backend
