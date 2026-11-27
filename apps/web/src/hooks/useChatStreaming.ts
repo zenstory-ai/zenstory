@@ -1,576 +1,88 @@
 /**
  * React hook for managing chat streaming UI state.
  *
- * Provides state management for:
- * - Stream render items (real-time display during streaming)
- * - Edit progress tracking
- * - Throttled state updates for performance
- *
- * This hook extracts the streaming UI logic from ChatPanel.tsx,
- * making it reusable and testable in isolation.
+ * Thin orchestration shell composing:
+ * - Throttled StreamRenderItem state (`useThrottledStreamItems`)
+ * - Pure timeline reducers (`streamRenderReducer`)
+ * - File-tree / editor / autosave-lock sync (`createStreamFileSyncHandlers`)
  *
  * @module hooks/useChatStreaming
  */
 
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type {
   AgentContextItem,
-  FileEditOutcome,
-  FileType,
   IterationExhaustedFiles,
   IterationExhaustedLayer,
   SSEWorkflowStoppedData,
   ToolCall,
 } from "../types";
-import { logger } from "../lib/logger";
-import { toast } from "../lib/toast";
-import { fileApi } from "../lib/api";
-import { findAncestorFolderIds } from "../lib/lastOpenedFile";
-import { isFileRemoved, notifyFileRemoved } from "../lib/fileRemovalEvents";
-import { rearmAiFileOpened } from "../lib/activationEvents";
-import { stripThinkTags } from "../lib/utils";
-import { dispatchProjectStatusUpdated } from "../lib/projectStatusEvents";
-import type { MessageSegment, StreamCompletionMeta } from "./useAgentStream";
-import { HISTORY_COMPACTION_SKIPPED_STEP, HISTORY_COMPACTION_STEP } from "../lib/historyCompaction";
+import type { fileApi } from "../lib/api";
+import {
+  generateUniqueId,
+  type EditProgress,
+  type MatchedSkill,
+  type MessageSegment,
+  type StreamCompletionMeta,
+  type UseChatStreamingDependencies,
+  type UseChatStreamingOptions,
+  type UseChatStreamingReturn,
+} from "./streaming/types";
+import { useThrottledStreamItems } from "./streaming/useThrottledStreamItems";
+import {
+  appendContextItem,
+  appendIterationExhausted,
+  appendSegmentStart,
+  appendSteeringReceived,
+  appendThinkingContent,
+  appendThinkingItem,
+  appendWorkflowStopped,
+  applyHistoryCompacted,
+  applySegmentContentUpdate,
+  applySegmentToolCallsUpdate,
+} from "./streaming/streamRenderReducer";
+import { createStreamFileSyncHandlers } from "./streaming/createStreamFileSync";
 
-/** Throttle delay for stream render updates in milliseconds */
-export const STREAM_UPDATE_THROTTLE_MS = 50;
-const FILE_TREE_REFRESH_DEBOUNCE_MS = 180;
-const AI_MEMORY_STATUS_FIELDS = new Set([
-  "summary",
-  "current_phase",
-  "writing_style",
-  "notes",
-]);
-
-/**
- * Generates a unique identifier with the given prefix.
- * Combines timestamp and random string to avoid collisions
- * when multiple IDs are generated in rapid succession.
- *
- * @param prefix - Prefix for the ID (e.g., 'context', 'tool-calls')
- * @returns Unique identifier string
- *
- * @example
- * ```tsx
- * const id1 = generateUniqueId('msg'); // 'msg-1708051200000-abc123def'
- * const id2 = generateUniqueId('msg'); // Different ID even if called at same ms
- * ```
- */
-export function generateUniqueId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-}
-
-/**
- * Represents a single renderable item in the streaming message display.
- * Items are stored in order received from the server and rendered sequentially.
- */
-export interface StreamRenderItem {
-  /** Type of the render item determining how it's displayed */
-  type:
-    | "thinking_status"
-    | "thinking_content"
-    | "context"
-    | "tool_calls"
-    | "content"
-    | "agent_selected"
-    | "iteration_exhausted"
-    | "workflow_stopped"
-    | "workflow_complete"
-    | "history_compaction";
-  /** Unique identifier for this item */
-  id: string;
-  /**
-   * Progress line that only means "working on it" (「正在组装上下文… / 正在思考…」);
-   * dropped when the round is saved as a finished message. Handoff lines never set it.
-   */
-  transient?: boolean;
-  /** Text content for thinking, status, or message items (history_compaction: the handoff summary) */
-  content?: string;
-  /** history_compaction: still summarizing (live only, transient) or done (a persistent marker) */
-  compactionState?: "running" | "done";
-  /** Context items assembled for the AI request */
-  items?: AgentContextItem[];
-  /** Tool calls to display as result cards */
-  toolCalls?: ToolCall[];
-  /** Type of the agent handling this workflow */
-  agentType?: string;
-  /** Human-readable name of the agent */
-  agentName?: string;
-  /** Current iteration number in multi-step workflows */
-  iteration?: number;
-  /** Maximum allowed iterations */
-  maxIterations?: number;
-  /** Number of remaining iterations available */
-  remaining?: number;
-  /** Which layer stopped the round (see IterationExhaustedLayer) */
-  layer?: IterationExhaustedLayer;
-  /** Stop with a file still waiting for its text: titles of files left unfinished / removed again */
-  unfinishedFiles?: string[];
-  rolledBackFiles?: string[];
-  /** Number of iterations actually used */
-  iterationsUsed?: number;
-  /** Reason for stopping or completing the workflow */
-  reason?: string;
-  /** Name of the last agent that ran */
-  lastAgent?: string;
-  /** What ended a paused run: "wall_clock" means it stopped near the time limit and may already be done */
-  limit?: string;
-  /** Message from workflow status events */
-  message?: string;
-  /** Clarification question (optional) */
-  question?: string;
-  /** Clarification context (optional) */
-  context?: string;
-  /** Clarification details list (optional) */
-  details?: string[];
-  /** Timestamp when this item was created */
-  timestamp: Date;
-}
-
-/** The live 「正在压缩对话…」 step (not yet the persistent marker). */
-function isRunningCompaction(item: StreamRenderItem): boolean {
-  return item.type === "history_compaction" && item.compactionState === "running";
-}
-
-/**
- * Represents the progress of an AI file edit operation.
- * Used to display real-time progress during multi-step edits.
- */
-export interface EditProgress {
-  /** ID of the file being edited */
-  fileId: string;
-  /** Display title of the file */
-  title: string;
-  /** Total number of edit operations to apply */
-  totalEdits: number;
-  /** Number of edit operations completed so far */
-  completedEdits: number;
-  /** Description of the current operation being performed */
-  currentOp?: string;
-}
-
-/**
- * Represents a matched skill during streaming.
- * Used to display which skills were activated by user input.
- */
-export interface MatchedSkill {
-  /** Skill id (when the server provides one); used to dedupe repeated matches */
-  id?: string;
-  /** Display name of the matched skill */
-  name: string;
-  /** The trigger phrase that activated this skill */
-  trigger: string;
-}
-
-/**
- * Options for the useChatStreaming hook.
- * All callbacks are optional and will be called at appropriate times during streaming.
- */
-export interface UseChatStreamingOptions {
-  /** Called when streaming starts - useful for clearing previous state */
-  onStart?: () => void;
-
-  // ========================================
-  // Context and Thinking callbacks
-  // ========================================
-
-  /** Called when context items are received from the agent */
-  onContext?: (items: AgentContextItem[]) => void;
-
-  /** Called when AI is thinking (with status message) */
-  onThinking?: (message: string, step?: string) => void;
-
-  /** Called when earlier conversation was summarized before this round */
-  onHistoryCompacted?: (summary: string) => void;
-
-  /** Called when thinking content arrives */
-  onThinkingContent?: (content: string) => void;
-
-  // ========================================
-  // Segment callbacks (for stream render items)
-  // ========================================
-
-  /** Called when a new segment starts */
-  onSegmentStart?: (segment: { id: string; type: string; content?: string; toolCalls?: ToolCall[] }) => void;
-
-  /** Called when segment content updates */
-  onSegmentUpdate?: (segmentId: string, content: string) => void;
-
-  /** Called when tool calls segment updates */
-  onSegmentUpdateToolCalls?: (segmentId: string, toolCalls: ToolCall[]) => void;
-
-  // ========================================
-  // Workflow status callbacks
-  // ========================================
-
-  /** Called when iteration limit is exhausted */
-  onIterationExhausted?: (
-    layer: IterationExhaustedLayer,
-    iterationsUsed: number,
-    maxIterations: number,
-    reason: string,
-    lastAgent?: string,
-    limit?: string,
-    files?: IterationExhaustedFiles
-  ) => void;
-
-  /** Called when workflow stops */
-  onWorkflowStopped?: (data: SSEWorkflowStoppedData) => void;
-
-  // ========================================
-  // Tool result callbacks
-  // ========================================
-
-  /** Called when a tool execution completes */
-  onToolResult?: (
-    toolName: string,
-    status: string,
-    result?: Record<string, unknown>,
-    error?: string
-  ) => void;
-
-  // ========================================
-  // File operation callbacks
-  // ========================================
-
-  /** Called when a file is created (for auto-select) */
-  onFileCreated?: (fileId: string, fileType: string, title: string) => void;
-
-  /** Called when file content chunk is received (streaming) */
-  onFileContent?: (fileId: string, chunk: string) => void;
-
-  /** Called when file content streaming ends */
-  onFileContentEnd?: (fileId: string) => void;
-
-  /** Called when file editing starts */
-  onFileEditStart?: (
-    fileId: string,
-    title: string,
-    totalEdits: number,
-    fileType?: string,
-  ) => void;
-
-  /** Called when a single edit is applied */
-  onFileEditApplied?: (
-    editIndex: number,
-    op: string,
-  ) => void;
-
-  /** Called when file editing ends */
-  onFileEditEnd?: (
-    fileId: string,
-    editsApplied: number,
-    newContent?: string,
-    originalContent?: string,
-    fileType?: string,
-    title?: string,
-    outcome?: FileEditOutcome,
-  ) => void;
-
-  // ========================================
-  // Skill matching callbacks
-  // ========================================
-
-  /** Called when a skill is matched */
-  onSkillMatched?: (skillId: string, skillName: string, matchedTrigger: string) => void;
-
-  /** Called when session starts */
-  onSessionStarted?: (sessionId: string) => void;
-
-  /** Called when steering message is received */
-  onSteeringReceived?: (messageId: string, preview: string) => void;
-
-  // ========================================
-  // Error and completion callbacks
-  // ========================================
-
-  /**
-   * Called when streaming completes successfully.
-   * Signature matches useAgentStream's onComplete callback.
-   */
-  onComplete?: (
-    segments: MessageSegment[],
-    completionMeta?: StreamCompletionMeta,
-  ) => void | Promise<void>;
-
-  /** Called when an error occurs during streaming */
-  onError?: (message?: string, code?: string, retryable?: boolean) => void;
-}
-
-/**
- * Dependencies needed by the useChatStreaming hook for side effects.
- * These are passed to avoid tight coupling with specific implementations.
- */
-export interface UseChatStreamingDependencies {
-  /** Function to trigger file tree refresh */
-  triggerFileTreeRefresh: () => void;
-  /** Function to trigger editor refresh for a specific file */
-  triggerEditorRefresh: (fileId: string) => void;
-  /**
-   * 标记/清除「AI 正在编辑某个文件」。
-   * 编辑器据此在 file_edit_start ~ file_edit_end 之间挂起防抖自动保存，
-   * 否则编辑前拍下的整篇快照会在 AI 写完之后发出，把它的改动整篇覆盖掉。
-   */
-  setAiEditingFileId?: (fileId: string | null) => void;
-  /** Function to set the selected item in project context */
-  setSelectedItem: (item: { id: string; type: FileType; title: string } | null) => void;
-  /** Returns the latest selected item from project context */
-  getCurrentSelectedItem?: () => { id: string; type: FileType; title: string } | null;
-  /** Function to append content to a streaming file */
-  appendFileContent: (fileId: string, content: string) => void;
-  /** Function to mark file streaming as complete */
-  finishFileStreaming: (fileId: string) => void;
-  /** Function to start file streaming for a file */
-  startFileStreaming: (fileId: string) => void;
-  /** Returns the latest streaming file ID at callback execution time */
-  getCurrentStreamingFileId?: () => string | null;
-  /** Active UI project ID; scopes file checks during the stream */
-  activeProjectId: string | null;
-  /** Current authenticated user ID (used to re-arm background edited files for AI-opened tracking) */
-  currentUserId?: string | null;
-  /**
-   * Called when a successful `update_project` reports that the server renamed
-   * the project (`project_name_updated: true`, set when the agent gave a
-   * default-named project its work title). The caller re-reads that one
-   * project so the header shows the new name.
-   */
-  onProjectRenamed?: (projectId: string) => void;
-  /** Translation function for stream status text */
-  t: (key: string, options?: Record<string, unknown>) => string;
-}
-
-/**
- * Return type for the useChatStreaming hook.
- */
-export interface UseChatStreamingReturn {
-  // ========================================
-  // Stream render items state
-  // ========================================
-
-  /** Current stream render items for display */
-  streamRenderItems: StreamRenderItem[];
-
-  /** Read the current unthrottled sequence before completion clears it. */
-  getStreamItemsSnapshot: () => StreamRenderItem[];
-
-  /** Add or update stream render items */
-  updateStreamItems: (updater: (prev: StreamRenderItem[]) => StreamRenderItem[]) => void;
-
-  /** Clear all stream render items */
-  clearStreamItems: () => void;
-
-  /** Force immediate flush of pending state updates */
-  forceFlushStreamItems: () => void;
-
-  // ========================================
-  // Edit progress state
-  // ========================================
-
-  /** Current edit progress, if any */
-  editProgress: EditProgress | null;
-
-  /** Set edit progress state */
-  setEditProgress: Dispatch<SetStateAction<EditProgress | null>>;
-
-  // ========================================
-  // Skill matching state
-  // ========================================
-
-  /** Currently matched skills */
-  matchedSkills: MatchedSkill[];
-
-  /** Set matched skills */
-  setMatchedSkills: Dispatch<SetStateAction<MatchedSkill[]>>;
-
-  // ========================================
-  // Utility functions
-  // ========================================
-
-  /** Generate a unique ID with the given prefix */
-  generateUniqueId: (prefix: string) => string;
-
-  // ========================================
-  // Callback creators
-  // ========================================
-
-  /** Get callbacks for useAgentStream options */
-  getStreamCallbacks: (deps: UseChatStreamingDependencies) => Required<UseChatStreamingOptions>;
-}
+export { STREAM_UPDATE_THROTTLE_MS, generateUniqueId } from "./streaming/types";
+export type {
+  StreamRenderItem,
+  EditProgress,
+  MatchedSkill,
+  UseChatStreamingOptions,
+  UseChatStreamingDependencies,
+  UseChatStreamingReturn,
+} from "./streaming/types";
 
 /**
  * React hook for managing chat streaming UI state with throttled updates.
- *
- * This hook provides:
- * - Throttled stream render items state management for performance
- * - Edit progress tracking for AI file modifications
- * - Skill matching state
- * - Utility functions for unique ID generation
- * - Callback creators for useAgentStream integration
- *
- * The throttling mechanism uses a ref to accumulate items and a throttled
- * flush to update React state, reducing re-renders during rapid streaming events.
- *
- * @returns Object containing state values and updater functions
- *
- * @example
- * ```tsx
- * const {
- *   streamRenderItems,
- *   updateStreamItems,
- *   clearStreamItems,
- *   forceFlushStreamItems,
- *   editProgress,
- *   setEditProgress,
- *   matchedSkills,
- *   setMatchedSkills,
- *   generateUniqueId,
- *   getStreamCallbacks,
- * } = useChatStreaming();
- * ```
  */
 export function useChatStreaming(): UseChatStreamingReturn {
-  // ========================================
-  // Stream render items state with throttling
-  // ========================================
+  const {
+    streamRenderItems,
+    getStreamItemsSnapshot,
+    updateStreamItems,
+    clearStreamItems,
+    forceFlushStreamItems,
+  } = useThrottledStreamItems();
 
-  /**
-   * React state for stream render items - triggers re-renders for display.
-   */
-  const [streamRenderItems, setStreamRenderItems] = useState<StreamRenderItem[]>([]);
-
-  /**
-   * Ref for accumulating stream items without triggering re-renders.
-   * Used as the source of truth during rapid streaming events.
-   */
-  const streamItemsRef = useRef<StreamRenderItem[]>([]);
-  const getStreamItemsSnapshot = useCallback(() => streamItemsRef.current.slice(), []);
-
-  /**
-   * Refs for throttling - these persist across renders without triggering re-renders.
-   */
-  const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastFlushTimeRef = useRef(0);
-
-  /**
-   * Throttled flush function to update state from ref.
-   * Limits state updates to at most once per STREAM_UPDATE_THROTTLE_MS,
-   * reducing re-renders while ensuring the latest state is eventually flushed.
-   */
-  const flushStreamItems = useMemo(() => {
-    const flush = () => {
-      const now = Date.now();
-      if (now - lastFlushTimeRef.current >= STREAM_UPDATE_THROTTLE_MS) {
-        // Enough time has passed, flush immediately
-        lastFlushTimeRef.current = now;
-        setStreamRenderItems([...streamItemsRef.current]);
-      } else if (!throttleTimeoutRef.current) {
-        // Schedule a flush for when throttle period ends
-        throttleTimeoutRef.current = setTimeout(() => {
-          throttleTimeoutRef.current = null;
-          lastFlushTimeRef.current = Date.now();
-          setStreamRenderItems([...streamItemsRef.current]);
-        }, STREAM_UPDATE_THROTTLE_MS - (now - lastFlushTimeRef.current));
-      }
-    };
-
-    return {
-      flush,
-      cancel: () => {
-        if (throttleTimeoutRef.current) {
-          clearTimeout(throttleTimeoutRef.current);
-          throttleTimeoutRef.current = null;
-        }
-      },
-      forceFlush: () => {
-        if (throttleTimeoutRef.current) {
-          clearTimeout(throttleTimeoutRef.current);
-          throttleTimeoutRef.current = null;
-        }
-        lastFlushTimeRef.current = Date.now();
-        setStreamRenderItems([...streamItemsRef.current]);
-      },
-    };
-  }, []);
-
-  /**
-   * Updates stream render items via ref with throttled state updates.
-   * Modifies the ref immediately and triggers a throttled state update
-   * for rendering, reducing re-renders during rapid streaming events.
-   *
-   * @param updater - Function that receives current items and returns updated array
-   */
-  const updateStreamItems = useCallback(
-    (updater: (prev: StreamRenderItem[]) => StreamRenderItem[]) => {
-      streamItemsRef.current = updater(streamItemsRef.current);
-      flushStreamItems.flush();
-    },
-    [flushStreamItems]
-  );
-
-  /**
-   * Force immediate flush of pending state updates.
-   * Useful when you need to ensure the UI is updated immediately,
-   * such as before navigation or when streaming completes.
-   */
-  const forceFlushStreamItems = useCallback(() => {
-    flushStreamItems.forceFlush();
-  }, [flushStreamItems]);
-
-  /**
-   * Clears all stream render items from both ref and state.
-   * Also cancels any pending throttled updates.
-   */
-  const clearStreamItems = useCallback(() => {
-    streamItemsRef.current = [];
-    flushStreamItems.cancel();
-    setStreamRenderItems([]);
-  }, [flushStreamItems]);
-
-  // ========================================
-  // Edit progress state
-  // ========================================
-
-  /**
-   * Current edit progress for AI file modifications.
-   * Null when no edit is in progress.
-   */
   const [editProgress, setEditProgress] = useState<EditProgress | null>(null);
-
-  // ========================================
-  // Skill matching state
-  // ========================================
-
-  /**
-   * Currently matched skills during streaming.
-   * Used to display which skills were activated by user input.
-   */
   const [matchedSkills, setMatchedSkills] = useState<MatchedSkill[]>([]);
+
   const fileContentEndByFileIdRef = useRef<Set<string>>(new Set());
   const fileEditMetaByIdRef = useRef<Map<string, { title: string; fileType?: string }>>(
     new Map(),
   );
-  /** Tracks which file currently owns the AI autosave lock (`aiEditingFileId`). */
   const aiEditingTargetRef = useRef<string | null>(null);
   const pendingFileTreeRefreshRef = useRef(false);
-  /** Whether the current round has written any file (reset on stream start). */
   const roundWroteFilesRef = useRef(false);
   const roundMayDeleteFilesRef = useRef(false);
   const deletionTreeCheckRef = useRef<ReturnType<typeof fileApi.getTree> | null>(null);
-  const fileTreeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const fileTreeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear pending timers on unmount so a queued throttle flush or debounced
-  // file-tree refresh can't fire (and touch state / trigger a refetch) after
-  // the consumer has unmounted.
+  // Clear pending debounced file-tree refresh timer on unmount so it cannot
+  // fire after the consumer has unmounted.
   useEffect(() => {
     return () => {
-      if (throttleTimeoutRef.current) {
-        clearTimeout(throttleTimeoutRef.current);
-        throttleTimeoutRef.current = null;
-      }
       if (fileTreeRefreshTimerRef.current) {
         clearTimeout(fileTreeRefreshTimerRef.current);
         fileTreeRefreshTimerRef.current = null;
@@ -578,356 +90,68 @@ export function useChatStreaming(): UseChatStreamingReturn {
     };
   }, []);
 
-  // ========================================
-  // Utility functions
-  // ========================================
-
-  // Note: generateUniqueId is now a standalone exported function above
-  // We reference it directly in getStreamCallbacks without useCallback wrapper
-
-  // ========================================
-  // Callback creators
-  // ========================================
-
-  /**
-   * Creates callback handlers for SSE events based on provided dependencies.
-   * These callbacks integrate with useAgentStream to handle all streaming events.
-   *
-   * The returned callbacks handle:
-   * - Stream render items management (context, thinking, segments, workflow)
-   * - Edit progress tracking
-   * - Skill matching
-   * - File operations (create, content, edit)
-   * - Tool results
-   * - Error handling
-   *
-   * @param deps - External dependencies for side effects
-   * @returns Object containing all required callbacks for useAgentStream
-   */
   const getStreamCallbacks = useCallback(
     (deps: UseChatStreamingDependencies): Required<UseChatStreamingOptions> => {
-      const {
-        triggerFileTreeRefresh,
-        triggerEditorRefresh,
-        setAiEditingFileId,
-        setSelectedItem,
-        getCurrentSelectedItem,
-        appendFileContent,
-        finishFileStreaming,
-        startFileStreaming,
-        getCurrentStreamingFileId,
-        activeProjectId,
-        currentUserId,
-        onProjectRenamed,
-        t,
-      } = deps;
-
-      const scheduleFileTreeRefresh = (delayMs = FILE_TREE_REFRESH_DEBOUNCE_MS) => {
-        pendingFileTreeRefreshRef.current = true;
-        if (fileTreeRefreshTimerRef.current) {
-          clearTimeout(fileTreeRefreshTimerRef.current);
-        }
-        fileTreeRefreshTimerRef.current = setTimeout(() => {
-          fileTreeRefreshTimerRef.current = null;
-          if (!pendingFileTreeRefreshRef.current) return;
-          pendingFileTreeRefreshRef.current = false;
-          triggerFileTreeRefresh();
-        }, delayMs);
-      };
-
-      /**
-       * Ask the editor to re-read the file the author has open. The editor
-       * follows the server copy when it has no unsaved text and opens a
-       * comparison otherwise, so this is safe to call after any AI write.
-       * The file whose <file> stream is still running is skipped: its own
-       * stream-end reload already brings in the saved text.
-       */
-      const refreshOpenFileFromServer = () => {
-        const selected = getCurrentSelectedItem?.() ?? null;
-        if (!selected || selected.type === "folder" || isFileRemoved(activeProjectId, selected.id)) return;
-        if (roundMayDeleteFilesRef.current && activeProjectId) {
-          // Older delete_file results contain only true. Validate the selection
-          // against a committed tree before asking the editor to GET this id.
-          const pending = deletionTreeCheckRef.current ?? fileApi.getTree(activeProjectId);
-          deletionTreeCheckRef.current = pending;
-          void pending.then(response => {
-            if (getCurrentSelectedItem?.()?.id !== selected.id || isFileRemoved(activeProjectId, selected.id)) return;
-            if (findAncestorFolderIds(response.tree || [], selected.id) === null) {
-              notifyFileRemoved(activeProjectId, selected.id);
-              if (getCurrentSelectedItem?.()?.id === selected.id) setSelectedItem(null);
-            } else {
-              triggerEditorRefresh(selected.id);
-            }
-          }).catch(() => {
-            // A failed tree request is not deletion evidence; the editor still
-            // distinguishes one terminal 404 from recoverable read failures.
-            if (getCurrentSelectedItem?.()?.id === selected.id && !isFileRemoved(activeProjectId, selected.id)) triggerEditorRefresh(selected.id);
-          }).finally(() => { if (deletionTreeCheckRef.current === pending) deletionTreeCheckRef.current = null; });
-          return;
-        }
-        const activeStreamFileId = getCurrentStreamingFileId?.() ?? null;
-        if (activeStreamFileId && activeStreamFileId === selected.id) return;
-        triggerEditorRefresh(selected.id);
-      };
-
-      const flushFileTreeRefresh = () => {
-        if (fileTreeRefreshTimerRef.current) {
-          clearTimeout(fileTreeRefreshTimerRef.current);
-          fileTreeRefreshTimerRef.current = null;
-        }
-        if (!pendingFileTreeRefreshRef.current) return;
-        pendingFileTreeRefreshRef.current = false;
-        triggerFileTreeRefresh();
-      };
-
-      const cleanupStreamFileState = ({
-        missingEndReason,
-        forceRefreshOpenFile,
-      }: {
-        missingEndReason: string;
-        forceRefreshOpenFile: boolean;
-      }) => {
-        setEditProgress(null);
-        // 流结束兜底：file_edit_end 可能因取消/报错永远不到，
-        // 不清掉标记会让编辑器的自动保存被永久挂起。
-        aiEditingTargetRef.current = null;
-        setAiEditingFileId?.(null);
-
-        const latestStreamingFileId = getCurrentStreamingFileId?.() ?? null;
-        if (latestStreamingFileId) {
-          if (!fileContentEndByFileIdRef.current.has(latestStreamingFileId)) {
-            logger.warn(
-              `[Stream] Missing file_content_end for ${latestStreamingFileId}, forcing final refresh ${missingEndReason}`
-            );
-            pendingFileTreeRefreshRef.current = true;
-          }
-          finishFileStreaming(latestStreamingFileId);
-          fileContentEndByFileIdRef.current.delete(latestStreamingFileId);
-        }
-        flushFileTreeRefresh();
-        // 收尾兜底：本轮写过文件（或服务端确认有改动）时，让打开着的文件再对一次
-        // 服务端版本，保证编辑器停在本轮最后一次写入之后。
-        if (roundWroteFilesRef.current || forceRefreshOpenFile) {
-          refreshOpenFileFromServer();
-        }
-      };
+      const fileSync = createStreamFileSyncHandlers(
+        {
+          fileContentEndByFileIdRef,
+          fileEditMetaByIdRef,
+          aiEditingTargetRef,
+          pendingFileTreeRefreshRef,
+          roundWroteFilesRef,
+          roundMayDeleteFilesRef,
+          deletionTreeCheckRef,
+          fileTreeRefreshTimerRef,
+        },
+        deps,
+        setEditProgress,
+      );
 
       return {
-        // ========================================
-        // Lifecycle callbacks
-        // ========================================
-
-        /**
-         * Called when streaming starts - clears previous state
-         */
         onStart: () => {
           setEditProgress(null);
           clearStreamItems();
           setMatchedSkills([]);
-          fileContentEndByFileIdRef.current.clear();
-          fileEditMetaByIdRef.current.clear();
-          aiEditingTargetRef.current = null;
-          roundWroteFilesRef.current = false;
-          roundMayDeleteFilesRef.current = false;
-          deletionTreeCheckRef.current = null;
-          pendingFileTreeRefreshRef.current = false;
-          if (fileTreeRefreshTimerRef.current) {
-            clearTimeout(fileTreeRefreshTimerRef.current);
-            fileTreeRefreshTimerRef.current = null;
-          }
+          fileSync.resetFileSyncState();
         },
 
-        // ========================================
-        // Context and Thinking callbacks
-        // ========================================
-
-        /**
-         * Called when context items are received from the agent
-         */
         onContext: (items: AgentContextItem[]) => {
           if (items && items.length > 0) {
-            updateStreamItems((prev) => [
-              ...prev,
-              {
-                type: "context",
-                id: generateUniqueId("context"),
-                items: items,
-                timestamp: new Date(),
-              },
-            ]);
+            updateStreamItems((prev) => appendContextItem(prev, items));
           }
         },
 
-        /**
-         * Called when AI is thinking (with status message)
-         */
         onThinking: (message: string, step?: string) => {
-          if (step === HISTORY_COMPACTION_STEP) {
-            // A visible step where the reply will appear; becomes the persistent marker on success.
-            updateStreamItems((prev) => [
-              ...prev,
-              {
-                type: "history_compaction",
-                id: generateUniqueId("history-compaction"),
-                compactionState: "running",
-                transient: true,
-                timestamp: new Date(),
-              },
-            ]);
-            return;
-          }
-          updateStreamItems((prev) => [
-            // Not compacted: the running step just goes away (the quiet note below is transient too).
-            ...(step === HISTORY_COMPACTION_SKIPPED_STEP ? prev.filter((item) => !isRunningCompaction(item)) : prev),
-            {
-              type: "thinking_status",
-              id: generateUniqueId("thinking-status"),
-              content: message,
-              transient: true,
-              timestamp: new Date(),
-            },
-          ]);
+          updateStreamItems((prev) => appendThinkingItem(prev, message, step));
         },
 
         onHistoryCompacted: (summary: string) => {
-          updateStreamItems((prev) => {
-            const done: StreamRenderItem = {
-              type: "history_compaction",
-              id: generateUniqueId("history-compaction"),
-              compactionState: "done",
-              content: summary,
-              timestamp: new Date(),
-            };
-            const index = prev.findIndex(isRunningCompaction);
-            if (index < 0) return [...prev, done];
-            const updated = prev.slice();
-            updated[index] = { ...done, id: prev[index].id, timestamp: prev[index].timestamp };
-            return updated;
-          });
+          updateStreamItems((prev) => applyHistoryCompacted(prev, summary));
         },
 
-        /**
-         * Called when thinking content arrives - accumulates to previous item if same type
-         */
         onThinkingContent: (content: string) => {
-          updateStreamItems((prev) => {
-            const lastItem = prev[prev.length - 1];
-
-            // Only accumulate when last item is thinking_content
-            if (lastItem && lastItem.type === "thinking_content") {
-              const updated = prev.slice();
-              updated[updated.length - 1] = {
-                ...lastItem,
-                content: (lastItem.content || "") + content,
-              };
-              return updated;
-            } else {
-              // Create new thinking_content
-              return [
-                ...prev,
-                {
-                  type: "thinking_content",
-                  id: generateUniqueId("thinking-content"),
-                  content: content,
-                  timestamp: new Date(),
-                },
-              ];
-            }
-          });
+          updateStreamItems((prev) => appendThinkingContent(prev, content));
         },
 
-        // ========================================
-        // Segment callbacks (for stream render items)
-        // ========================================
-
-        /**
-         * Called when a new segment starts
-         */
         onSegmentStart: (segment: {
           id: string;
           type: string;
           content?: string;
           toolCalls?: ToolCall[];
         }) => {
-          if (segment.type === "content") {
-            updateStreamItems((prev) => [
-              ...prev,
-              {
-                type: "content",
-                id: segment.id,
-                content: "",
-                timestamp: new Date(),
-              },
-            ]);
-          } else if (segment.type === "tool_calls" && segment.toolCalls) {
-            updateStreamItems((prev) => [
-              ...prev,
-              {
-                type: "tool_calls",
-                id: segment.id,
-                toolCalls: segment.toolCalls,
-                timestamp: new Date(),
-              },
-            ]);
+          if (segment.type === "content" || (segment.type === "tool_calls" && segment.toolCalls)) {
+            updateStreamItems((prev) => appendSegmentStart(prev, segment));
           }
         },
 
-        /**
-         * Called when segment content updates - strips think tags before updating
-         */
         onSegmentUpdate: (segmentId: string, content: string) => {
-          const cleanContent = stripThinkTags(content);
-
-          updateStreamItems((prev) => {
-            const contentIndex = prev.findIndex((item) => item.id === segmentId);
-
-            if (contentIndex >= 0) {
-              const updated = prev.slice();
-              const currentItem = updated[contentIndex];
-              updated[contentIndex] = { ...currentItem, content: cleanContent };
-              return updated;
-            }
-
-            if (!cleanContent.trim()) return prev;
-
-            // If segment not found, create new one
-            return [
-              ...prev,
-              {
-                type: "content",
-                id: segmentId,
-                content: cleanContent,
-                timestamp: new Date(),
-              },
-            ];
-          });
+          updateStreamItems((prev) => applySegmentContentUpdate(prev, segmentId, content));
         },
 
-        /**
-         * Called when tool calls segment updates
-         */
         onSegmentUpdateToolCalls: (segmentId: string, toolCalls: ToolCall[]) => {
-          updateStreamItems((prev) => {
-            const toolCallsIndex = prev.findIndex((item) => item.id === segmentId);
-            if (toolCallsIndex >= 0) {
-              const updated = prev.slice();
-              const currentItem = updated[toolCallsIndex];
-              if (currentItem.type === "tool_calls") {
-                updated[toolCallsIndex] = { ...currentItem, toolCalls };
-              }
-              return updated;
-            }
-            return prev;
-          });
+          updateStreamItems((prev) => applySegmentToolCallsUpdate(prev, segmentId, toolCalls));
         },
 
-        // ========================================
-        // Workflow status callbacks
-        // ========================================
-
-        /**
-         * Called when iteration limit is exhausted
-         */
         onIterationExhausted: (
           layer: IterationExhaustedLayer,
           iterationsUsed: number,
@@ -935,337 +159,38 @@ export function useChatStreaming(): UseChatStreamingReturn {
           reason: string,
           lastAgent?: string,
           limit?: string,
-          files?: IterationExhaustedFiles
+          files?: IterationExhaustedFiles,
         ) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "iteration_exhausted",
-              id: generateUniqueId("iteration-exhausted"),
+          updateStreamItems((prev) =>
+            appendIterationExhausted(
+              prev,
               layer,
               iterationsUsed,
               maxIterations,
               reason,
               lastAgent,
               limit,
-              ...files,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        /**
-         * Called when workflow stops
-         */
-        onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "workflow_stopped",
-              id: generateUniqueId("workflow-stopped"),
-              reason: data.reason,
-              agentType: data.agent_type,
-              message: data.message,
-              question: data.question,
-              context: data.context,
-              details: data.details,
-              timestamp: new Date(),
-            },
-          ]);
-        },
-
-        // ========================================
-        // Tool result callbacks
-        // ========================================
-
-        /**
-         * Called when a tool execution completes
-         */
-        onToolResult: (
-          toolName: string,
-          status: string,
-          result?: Record<string, unknown>,
-          _error?: string
-        ) => {
-          if (
-            status === "success" &&
-            [
-              "create_file",
-              "delete_file",
-              "edit_file",
-              "rename_file",
-              "write_chapter",
-            ].includes(toolName)
-          ) {
-            // Coalesce multiple tool/file events into one refresh.
-            scheduleFileTreeRefresh();
-            roundWroteFilesRef.current = true;
-          }
-
-          if (status === "success" && toolName === "batch_replace_files") {
-            const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
-            const isDryRun = payload?.dry_run === true;
-            const modifiedFiles = Array.isArray(payload?.files)
-              ? (payload.files as Array<Record<string, unknown>>)
-              : Array.isArray(payload?.modified_files)
-                ? (payload.modified_files as Array<Record<string, unknown>>)
-                : [];
-            const filesModified = typeof payload?.files_modified === "number"
-              ? payload.files_modified
-              : typeof payload?.modified_files === "number"
-                ? payload.modified_files
-                : modifiedFiles.length;
-            const mutated = !isDryRun && (payload?.mutation_applied === true || filesModified > 0);
-            if (mutated) {
-              scheduleFileTreeRefresh();
-              roundWroteFilesRef.current = true;
-              const selectedId = getCurrentSelectedItem?.()?.id;
-              if (
-                selectedId &&
-                (modifiedFiles.length === 0 ||
-                  modifiedFiles.some((file) => file?.id === selectedId))
-              ) {
-                triggerEditorRefresh(selectedId);
-              }
-            }
-          }
-
-          if (status === "success" && toolName === "delete_file") {
-            roundMayDeleteFilesRef.current = true;
-            const payload = (result?.data ?? result) as Record<string, unknown> | undefined;
-            if (payload && typeof payload === "object" && activeProjectId) {
-              const id = payload.id ?? payload.file_id;
-              if (typeof id === "string") {
-                notifyFileRemoved(activeProjectId, id);
-                if (getCurrentSelectedItem?.()?.id === id) setSelectedItem(null);
-              }
-            }
-            refreshOpenFileFromServer();
-          }
-
-          // 改名不发 file_edit_* 事件：打开着的正是这份文件时重读一次，标题跟上服务端
-          //（作者没改过的标题跟随服务端，未保存的正文保留在新的版本令牌上）。
-          if (status === "success" && toolName === "rename_file") {
-            const renamed = (result?.data ?? result) as Record<string, unknown> | undefined;
-            if (typeof renamed?.id === "string" && getCurrentSelectedItem?.()?.id === renamed.id) {
-              refreshOpenFileFromServer();
-            }
-          }
-
-          if (status === "success" && toolName === "update_project") {
-            const payload = (result?.data ?? result) as
-              | Record<string, unknown>
-              | undefined;
-            const projectStatus = payload?.project_status as
-              | Record<string, unknown>
-              | undefined;
-            const payloadProjectIdRaw =
-              payload?.project_id ?? projectStatus?.project_id;
-            const payloadProjectId =
-              typeof payloadProjectIdRaw === "string" &&
-              payloadProjectIdRaw.trim().length > 0
-                ? payloadProjectIdRaw
-                : null;
-            const targetProjectId = payloadProjectId ?? activeProjectId;
-
-            const projectRenamed =
-              payload?.project_name_updated === true ||
-              projectStatus?.project_name_updated === true;
-            if (projectRenamed && targetProjectId) {
-              onProjectRenamed?.(targetProjectId);
-            }
-
-            const rawUpdatedFields =
-              payload?.updated_fields ?? projectStatus?.updated_fields;
-            const updatedFields = Array.isArray(rawUpdatedFields)
-              ? rawUpdatedFields.filter(
-                  (field): field is string => typeof field === "string"
-                )
-              : [];
-            const hasAiMemoryFieldUpdates = updatedFields.some((field) =>
-              AI_MEMORY_STATUS_FIELDS.has(field)
-            );
-
-            if (!hasAiMemoryFieldUpdates) {
-              return;
-            }
-
-            if (!targetProjectId) {
-              return;
-            }
-
-            dispatchProjectStatusUpdated({
-              projectId: targetProjectId,
-              updatedFields,
-            });
-          }
-        },
-
-        // ========================================
-        // File operation callbacks
-        // ========================================
-
-        /**
-         * Called when a file is created (for auto-select)
-         */
-        onFileCreated: (fileId: string, fileType: string, title: string) => {
-          // Auto-select newly created file so the editor can show streaming output
-          roundWroteFilesRef.current = true;
-          scheduleFileTreeRefresh();
-          startFileStreaming(fileId);
-          fileContentEndByFileIdRef.current.delete(fileId);
-          setSelectedItem({ id: fileId, type: fileType as FileType, title });
-        },
-
-        /**
-         * Called when file content chunk is received (streaming)
-         */
-        onFileContent: (fileId: string, chunk: string) => {
-          // Append content chunk to streaming state
-          appendFileContent(fileId, chunk);
-        },
-
-        /**
-         * Called when file content streaming ends
-         */
-        onFileContentEnd: (fileId: string) => {
-          fileContentEndByFileIdRef.current.add(fileId);
-          // Always ask ProjectContext to finish the stream for this file.
-          // ProjectContext guards mismatched file IDs internally.
-          finishFileStreaming(fileId);
-          scheduleFileTreeRefresh();
-        },
-
-        /**
-         * Called when file editing starts
-         */
-        onFileEditStart: (fileId: string, title: string, totalEdits: number, fileType?: string) => {
-          fileEditMetaByIdRef.current.set(fileId, { title, fileType });
-          // 仅当目标文件是当前打开文件（或尚未选中文件）时挂起自动保存，
-          // 避免 batch_replace_files 批量回放未打开文件时闪烁 aiEditingFileId。
-          const currentSelected = getCurrentSelectedItem?.() ?? null;
-          if (!currentSelected || currentSelected.id === fileId) {
-            aiEditingTargetRef.current = fileId;
-            setAiEditingFileId?.(fileId);
-          }
-          setEditProgress({
-            fileId,
-            title,
-            totalEdits,
-            completedEdits: 0,
-          });
-        },
-
-        /**
-         * Called when a single edit is applied
-         */
-        onFileEditApplied: (
-          editIndex: number,
-          op: string,
-        ) => {
-          setEditProgress((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  completedEdits: editIndex + 1,
-                  currentOp: op,
-                }
-              : null
+              files,
+            ),
           );
         },
 
-        /**
-         * Called when file editing ends
-         */
-        onFileEditEnd: (
-          fileId: string,
-          editsApplied: number,
-          newContent?: string,
-          originalContent?: string,
-          fileType?: string,
-          title?: string,
-          outcome?: FileEditOutcome,
-        ) => {
-          // Clear edit progress and mark tree refresh once.
-          roundWroteFilesRef.current = true;
-          setEditProgress(null);
-          if (aiEditingTargetRef.current === fileId || (aiEditingTargetRef.current === null && !getCurrentSelectedItem)) {
-            aiEditingTargetRef.current = null;
-            setAiEditingFileId?.(null);
-          }
-          scheduleFileTreeRefresh();
-
-          // Direct edit_file can fill a create_file placeholder without <file>
-          // chunks or file_content_end. Its committed body now owns the editor.
-          if (editsApplied > 0 && !outcome?.allFailed) finishFileStreaming(fileId);
-
-          // 批量编辑可以部分失败：不提示的话用户只看到"编辑完成"，
-          // 实际上有若干条 edit 根本没落地（失败原因只藏在 data 里）。
-          if (outcome && (outcome.failedCount > 0 || outcome.allFailed)) {
-            const displayTitle = title || fileEditMetaByIdRef.current.get(fileId)?.title || "";
-            toast.error(
-              outcome.allFailed
-                ? t("chat:fileEdit.allFailed", {
-                    title: displayTitle,
-                    count: outcome.failedCount,
-                  })
-                : t("chat:fileEdit.partialFailed", {
-                    title: displayTitle,
-                    count: outcome.failedCount,
-                  }),
-            );
-          }
-          for (const warning of outcome?.warnings ?? []) {
-            if (warning) {
-              logger.warn(`[FileEdit] ${fileId}: ${warning}`);
-            }
-          }
-
-          // Chat edits are already committed and recoverable through the edit card's undo
-          // action and file history. Show the latest saved copy directly; the editor's
-          // server-sync path still opens a conflict comparison when the author has unsaved text.
-          const currentSelected = getCurrentSelectedItem?.() ?? null;
-          let switchedSelection = false;
-          if (newContent && originalContent && newContent !== originalContent) {
-            const trackedMeta = fileEditMetaByIdRef.current.get(fileId);
-            const resolvedType =
-              (fileType as FileType | undefined)
-              || (trackedMeta?.fileType as FileType | undefined)
-              || (currentSelected?.id === fileId ? currentSelected.type : undefined)
-              || "draft";
-            const resolvedTitle =
-              title
-              || trackedMeta?.title
-              || (currentSelected?.id === fileId ? currentSelected.title : "")
-              || "";
-            setSelectedItem({
-              id: fileId,
-              type: resolvedType,
-              title: resolvedTitle,
-            });
-            switchedSelection = true;
-          }
-          // 多文件 batch_replace_files 会连续发出 [f1, f2, ..., fN] 的 file_edit_end；
-          // 如果当前已打开 f1，不能让后续未选中的 f2..fN 覆写 lastEditedFileId 而取消 f1 的 100ms 刷新定时器。
-          if (!currentSelected || currentSelected.id === fileId || switchedSelection) {
-            triggerEditorRefresh(fileId);
-          } else {
-            rearmAiFileOpened(currentUserId, fileId);
-          }
-          fileEditMetaByIdRef.current.delete(fileId);
+        onWorkflowStopped: (data: SSEWorkflowStoppedData) => {
+          updateStreamItems((prev) => appendWorkflowStopped(prev, data));
         },
 
-        // ========================================
-        // Skill matching callbacks
-        // ========================================
+        onToolResult: fileSync.onToolResult,
+        onFileCreated: fileSync.onFileCreated,
+        onFileContent: fileSync.onFileContent,
+        onFileContentEnd: fileSync.onFileContentEnd,
+        onFileEditStart: fileSync.onFileEditStart,
+        onFileEditApplied: fileSync.onFileEditApplied,
+        onFileEditEnd: fileSync.onFileEditEnd,
 
-        /**
-         * Called when a skill is matched
-         */
         onSkillMatched: (
           skillId: string,
           skillName: string,
-          matchedTrigger: string
+          matchedTrigger: string,
         ) => {
           // 一轮里可能先后收到多个技能（显式选择的 + 模型 load_skill 的），追加而不是覆盖；
           // 同一技能（按 id，没有 id 时按名称）只保留第一次。
@@ -1288,46 +213,28 @@ export function useChatStreaming(): UseChatStreamingReturn {
         },
 
         onSteeringReceived: (_messageId: string, preview: string) => {
-          updateStreamItems((prev) => [
-            ...prev,
-            {
-              type: "thinking_status",
-              id: generateUniqueId("steering-received"),
-              content: t('chat:workflow.steeringReceived', { preview }),
-              timestamp: new Date(),
-            },
-          ]);
+          updateStreamItems((prev) =>
+            appendSteeringReceived(prev, deps.t("chat:workflow.steeringReceived", { preview })),
+          );
         },
 
-        // ========================================
-        // Error and completion callbacks
-        // ========================================
-
-        /**
-         * Called when streaming completes successfully.
-         * Handles cleanup and the final refresh of the open file.
-         */
         onComplete: async (
           _segments: MessageSegment[],
           completionMeta?: StreamCompletionMeta,
         ) => {
           // Clear stream render items (both ref and state).
-          //
           // Terminal workflow signals (e.g. clarification_needed) are persisted into the final
           // assistant message as "status cards" so they should not remain as standalone
           // streamed items after completion.
           clearStreamItems();
-          cleanupStreamFileState({
+          fileSync.cleanupStreamFileState({
             missingEndReason: "on completion",
             forceRefreshOpenFile: completionMeta?.confirmedFileMutation === true,
           });
         },
 
-        /**
-         * Called when an error occurs during streaming
-         */
         onError: (_message?: string, _code?: string, _retryable?: boolean) => {
-          cleanupStreamFileState({
+          fileSync.cleanupStreamFileState({
             missingEndReason: "after error",
             forceRefreshOpenFile: false,
           });
@@ -1339,33 +246,20 @@ export function useChatStreaming(): UseChatStreamingReturn {
       setEditProgress,
       setMatchedSkills,
       updateStreamItems,
-    ]
+    ],
   );
 
-  // ========================================
-  // Return value
-  // ========================================
-
   return {
-    // Stream render items state
     streamRenderItems,
     getStreamItemsSnapshot,
     updateStreamItems,
     clearStreamItems,
     forceFlushStreamItems,
-
-    // Edit progress state
     editProgress,
     setEditProgress,
-
-    // Skill matching state
     matchedSkills,
     setMatchedSkills,
-
-    // Utility functions
     generateUniqueId,
-
-    // Callback creators
     getStreamCallbacks,
   };
 }
