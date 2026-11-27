@@ -18,7 +18,6 @@ from agent.openai_agents.tool_failure_breaker import (
     MAX_TOOL_FAILURES_PER_REQUEST,
     TRIP_REASON_IDENTICAL,
     TRIP_REASON_RECOVERY,
-    TRIP_REASON_TOOL_NOT_FOUND,
     TRIP_REASON_TOTAL,
     ToolFailureBreaker,
 )
@@ -974,43 +973,57 @@ async def test_runner_uses_request_breaker_from_state():
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("_reset_model_cache")
-async def test_sdk_unknown_tool_thrash_is_bounded_by_breaker(monkeypatch):
-    """模型反复调用不存在的工具：同样受熔断器约束，不会一直烧到 max_turns。"""
+async def test_sdk_unknown_or_retired_tool_never_trips_breaker_and_allows_recovery(monkeypatch):
+    """调用已停用或不存在的工具（如旧历史里的 query_files）：返回结构化 tool_not_found 错误
+    引导模型改用可用工具，不触发 ToolFailureBreaker 熔断，模型纠偏后正常完成。"""
     from agent.core.workflow_events import StreamEventType
 
     def script(index: int) -> list[dict]:
-        return _tool_call_chunks(f"call-{index}", "rewrite_chapter", "{}")
+        # Repeat retired tool call MORE than MAX_IDENTICAL_TOOL_FAILURES times, then answer cleanly.
+        if index < MAX_IDENTICAL_TOOL_FAILURES + 1:
+            return _tool_call_chunks(f"call-{index}", "query_files", '{"id": "f1"}')
+        return _text_chunks("已改用可用工具并完成")
 
     events, requests, _state = await _run_against_local_model(monkeypatch, script, None)
 
-    assert len(requests) <= MAX_IDENTICAL_TOOL_FAILURES + 1
-    assert events[-1].type == StreamEventType.ERROR
-    assert events[-1].data["reason"] == TRIP_REASON_TOOL_NOT_FOUND
-    assert "相同参数" not in events[-1].data["error"]
-    assert "rewrite_chapter" not in events[-1].data["error"]
+    assert len(requests) == MAX_IDENTICAL_TOOL_FAILURES + 2
+    assert not any(e.type == StreamEventType.ERROR for e in events)
+    assert events[-1].type == StreamEventType.MESSAGE_END
+    assert events[-1].data["stop_reason"] == "end_turn"
+    assert "".join(e.data.get("text", "") for e in events if e.type == StreamEventType.TEXT) == "已改用可用工具并完成"
 
 
+@pytest.mark.asyncio
 @pytest.mark.unit
-def test_unknown_tool_trip_has_its_own_reason_and_message():
-    """不存在的工具被连续调用 3 次：熔断原因与文案单独一套，不说「以相同参数连续失败」
-    （调用根本没执行，formatter 记账时参数是空串）。"""
+async def test_tool_not_found_error_never_increments_or_trips_breaker():
+    """tool_not_found 错误（来自 runner._format_tool_error 或 invoke_project_tool）
+    始终返回清晰结构化引导且不计入熔断器。"""
     from agent.openai_agents.runner import _format_tool_error
+    from agent.openai_agents.tools_adapter import invoke_project_tool
 
     breaker = ToolFailureBreaker()
-    args = SimpleNamespace(kind="tool_not_found", tool_name="rewrite_chapter")
-    for _ in range(MAX_IDENTICAL_TOOL_FAILURES):
+    args = SimpleNamespace(kind="tool_not_found", tool_name="query_files")
+    for _ in range(MAX_TOOL_FAILURES_PER_REQUEST + 2):
         text = _format_tool_error(args, failure_breaker=breaker)
-        assert json.loads(text)["error_type"] == "tool_not_found"
+        assert text is not None
+        payload = json.loads(text)
+        assert payload["status"] == "error"
+        assert payload["error_type"] == "tool_not_found"
+        assert payload["tool_name"] == "query_files"
+        assert "query_files" in payload["error"]
+        assert "可用" in payload["error"]
 
-    trip = breaker.trip
-    assert trip is not None
-    assert trip.reason == TRIP_REASON_TOOL_NOT_FOUND
-    assert trip.failures == MAX_IDENTICAL_TOOL_FAILURES
-    message = trip.user_message()
-    assert "相同参数" not in message
-    assert "rewrite_chapter" not in message
-    assert "用不了的功能" in message
-    assert trip.as_event_data("writer")["reason"] == TRIP_REASON_TOOL_NOT_FOUND
+    # Direct invoke_project_tool unknown-tool path also emits tool_not_found and does not trip breaker.
+    direct_out = await invoke_project_tool("nonexistent_tool", "{}")
+    direct_payload = json.loads(direct_out)
+    assert direct_payload["status"] == "error"
+    assert direct_payload["error_type"] == "tool_not_found"
+    assert breaker.observe("nonexistent_tool", "{}", direct_out) == direct_out
+
+    assert breaker.trip is None
+    assert breaker.is_open is False
+    assert breaker.total_failures == 0
+    assert breaker.consecutive_failures == 0
 
 
 @pytest.mark.unit
