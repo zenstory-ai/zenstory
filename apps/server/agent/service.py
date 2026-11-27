@@ -84,6 +84,7 @@ from .loop.history import (
     effective_history_provider_tokens,
     estimate_provider_items_tokens,
     estimate_provider_text_tokens,
+    estimate_tools_schema_tokens,
     is_tool_archive_compaction,
     load_loop_history,
     row_metadata,
@@ -1763,20 +1764,28 @@ class AgentService:
                     if run_report is not None:
                         run_report.update(run_meter.timing_report())
                     compaction_usage: dict[str, int] | None = None
+                    # 热缓存命中时 last_prompt_tokens 已包含系统提示与工具 schema；
+                    # 冷库回放（last_prompt_tokens == 0）仅估算 history.items，补齐静态系统提示与工具 schema 开销。
+                    cold_fixed_tokens = (
+                        estimate_provider_text_tokens(system_prompt) + estimate_tools_schema_tokens()
+                        if loop_history.items and loop_history.last_prompt_tokens <= 0
+                        else 0
+                    )
                     current_turn_tokens = estimate_provider_text_tokens(user_content)
-                    if should_compact(loop_history, extra_tokens=current_turn_tokens):
+                    compaction_extra_tokens = current_turn_tokens + cold_fixed_tokens
+                    if should_compact(loop_history, extra_tokens=compaction_extra_tokens):
                         # 两阶段轮间压缩（不在工具循环中途）：
                         # Stage 1（零 LLM 确定性 tool_archive）：优先归档早于最近 N 轮的大体积只读工具输出；
                         # 满足节省量与阈值准入时零延迟放行，不触发摘要模型调用也不发阻塞式「正在压缩对话…」卡片。
                         # Stage 2（LLM 交接摘要）：Stage 1 未达准入时兜底，并把 Stage 1 已归档的更小历史送入摘要调用。
                         pre_archive: ToolArchiveResult | None = None
                         outcome: CompactionOutcome | None = None
-                        effective_turn_tokens = current_turn_tokens
+                        effective_turn_tokens = compaction_extra_tokens
                         if agent_runtime.AGENT_LOOP_TOOL_ARCHIVE_ENABLED:
                             stage1_started = time.monotonic()
                             pre_archive = archive_old_tool_results(
                                 loop_history,
-                                turn_input_tokens=current_turn_tokens,
+                                turn_input_tokens=compaction_extra_tokens,
                             )
                             if pre_archive.admitted and pre_archive.record is not None:
                                 # 若 Stage 1 归档命中的文件在本轮被指纹去重省略，接受 Stage 1 后会立即恢复
@@ -1795,8 +1804,10 @@ class AgentService:
                                     restored_user_content = SessionLoader.attach_working_set_to_user_content(
                                         base_user_content, loop_turn.full_text
                                     )
-                                    restored_turn_tokens = estimate_provider_text_tokens(restored_user_content)
-                                    effective_turn_tokens = max(current_turn_tokens, restored_turn_tokens)
+                                    restored_turn_tokens = (
+                                        estimate_provider_text_tokens(restored_user_content) + cold_fixed_tokens
+                                    )
+                                    effective_turn_tokens = max(compaction_extra_tokens, restored_turn_tokens)
                                     if (
                                         pre_archive.projected_after_tokens + restored_turn_tokens
                                         > agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS
@@ -1915,7 +1926,11 @@ class AgentService:
                                 yield history_compacted_event(outcome.record["summary"]).to_sse()
                         else:
                             if outcome.skipped:
-                                loop_compaction_skipped = skipped_record(loop_history, outcome.skipped)
+                                loop_compaction_skipped = skipped_record(
+                                    loop_history,
+                                    outcome.skipped,
+                                    extra_tokens=cold_fixed_tokens,
+                                )
                             yield thinking_event(
                                 "Couldn't compact the conversation; continuing as is"
                                 if force_en

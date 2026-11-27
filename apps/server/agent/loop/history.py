@@ -104,7 +104,8 @@ class LoopHistory:
     """重建好的跨轮历史与压缩所需的事实。"""
 
     items: list[dict[str, Any]] = field(default_factory=list)
-    # 上一条单循环 assistant 行记下的最后一次模型调用输入 token（含缓存）；没有时为 0。
+    # 热缓存（wire_prefix_cache）命中的上一轮最后一次模型调用实测输入 token（含缓存、系统提示与工具 schema）；
+    # 冷库回放（load_loop_history）时始终为 0，避免继承落库瘦身前失真的热缓存旧读数。
     last_prompt_tokens: int = 0
     # 会话里最新一行的 id：本轮若压缩，压缩覆盖到这一行为止。
     last_message_id: str | None = None
@@ -187,13 +188,26 @@ def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
     return total
 
 
+def estimate_tools_schema_tokens(tools: Any | None = None) -> int:
+    """按供应商分词量纲估算暴露给模型的工具 schema 固定 token 开销（冷库回放无实测读数时补足固定前缀）。"""
+    if tools is None:
+        from agent.tools.registry import get_exposed_tools
+
+        tools = get_exposed_tools()
+    if not tools:
+        return 0
+    serialized = json.dumps(tools, ensure_ascii=False, separators=(",", ":"))
+    return estimate_provider_text_tokens(serialized)
+
+
 def effective_history_provider_tokens(
     history: LoopHistory,
     items: list[dict[str, Any]] | None = None,
 ) -> int:
     """评估当前输入项对应的供应商 token 量级。
 
-    对未改动的原始历史取 ``max(last_prompt_tokens, 同量纲估算)``，
+    对未改动的原始历史取 ``max(last_prompt_tokens, 同量纲估算)``（热缓存命中时使用实测值，
+    冷库回放时 ``last_prompt_tokens`` 为 0，自然回落到实际重建项的同量纲估算）；
     对已折叠或裁剪后的副本直接取该副本的同量纲估算。
     """
     target_items = history.items if items is None else items
@@ -1179,9 +1193,6 @@ def load_loop_history(
     tool_archive_scopes: list[tuple[str | None, str, tuple[str, ...], dict[str, frozenset[int]]]] = []
     covered_reached = False
     kept_tokens_seen = 0
-    measured_seen = False
-    # 比最近一次实测读数更新的行（停在第一次模型调用之前的轮次）的估算：读数里不含它们，要加上。
-    unmeasured_tokens = 0
     skip_seen = False
     truncation_streak_open = True
 
@@ -1221,12 +1232,6 @@ def load_loop_history(
 
     if carried_metadata:
         note_compaction(carried_metadata, row_id=None)
-        if (
-            valid_compaction(carried_metadata) is not None
-            or valid_tool_archive_compaction(carried_metadata) is not None
-        ):
-            # 重试接过未回复作者行上的压缩记录：其之前的实测 prompt_tokens 属于压缩前，不再往前取。
-            measured_seen = True
 
     for row in _iter_session_messages_desc(session, chat_session_id=chat_session_id):
         if result.last_message_id is None:
@@ -1249,26 +1254,13 @@ def load_loop_history(
             continue
         after_rows.append(row)
         metadata = row_metadata(row)
-        if row.role == "assistant":
-            if truncation_streak_open:
-                if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
-                    result.trailing_output_truncations += 1
-                else:
-                    truncation_streak_open = False
-            if not measured_seen and metadata.get("engine") == LOOP_ENGINE_METADATA_VALUE:
-                # 停在第一次模型调用之前的一轮没有量到 prompt_tokens：不挡住更早一轮的真实读数。
-                tokens = metadata.get("prompt_tokens")
-                if isinstance(tokens, int) and tokens > 0:
-                    measured_seen = True
-                    result.last_prompt_tokens = tokens + unmeasured_tokens
-        if not measured_seen and (
-            valid_compaction(metadata) is not None
-            or valid_tool_archive_compaction(metadata) is not None
-        ):
-            # 压缩点（含 Stage 1 tool_archive）之前的读数是压缩前的上下文大小，不再往前取。
-            measured_seen = True
-        if not measured_seen:
-            unmeasured_tokens += estimate_provider_text_tokens(str(row.content or ""))
+        if row.role == "assistant" and truncation_streak_open:
+            if metadata.get("stop_reason") == OUTPUT_TRUNCATED_REASON:
+                result.trailing_output_truncations += 1
+            else:
+                truncation_streak_open = False
+        # 冷库回放不继承 DB metadata["prompt_tokens"]（那是落库瘦身、去 <turn_context> 与去推理前的热内存读数），
+        # 保持 result.last_prompt_tokens=0，由实际重建项 + 静态前缀估算决定水位。
         # 压缩点 / 没压缩成的记录通常在本轮 assistant 行上；这一轮没有 assistant 行时记在作者那条消息上。
         note_compaction(metadata, row_id=row.id)
 

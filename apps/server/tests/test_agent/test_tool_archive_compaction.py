@@ -513,7 +513,7 @@ def test_db_replay_produces_byte_identical_archived_outputs_and_handles_cumulati
     replayed = load_loop_history(db_session, project_id=project.id, user_id=user.id, chat_session_id=chat.id)
     assert replayed.compacted is False  # tool_archive is not a summary cut
     assert replayed.items[: len(stage1.items)] == stage1.items
-    assert replayed.last_prompt_tokens == 90_000
+    assert replayed.last_prompt_tokens == 0
     # edit_file in Turn 0 only returns a diff receipt (no full content), so BOTH file-1 and file-2
     # stay in archived_file_ids until a later non-archived full query_files re-reads them!
     assert replayed.archived_file_ids == {"file-1", "file-2"}
@@ -940,7 +940,7 @@ async def test_service_stage1_tool_archive_sse_snapshots_and_wire_prefix_cache(
             {"role": "user", "content": state["user_message"]},
             {"role": "assistant", "content": "归档后继续完成的回复。"},
         ]
-        state["run_meter"].last_prompt_tokens = 110_000
+        state["run_meter"].last_prompt_tokens = 25_000
         state["run_meter"].last_served_provider_key = "minimax:MiniMax-M3.1-Flash:primary:responses"
 
         async def _stream():
@@ -955,6 +955,9 @@ async def test_service_stage1_tool_archive_sse_snapshots_and_wire_prefix_cache(
         key_slot="primary",
         uses_responses_api=True,
     )
+    # Cold DB replay estimates ~76k real tokens from the 5 seeded turns; set compact threshold
+    # to 60k so real cold volume crosses threshold and Stage 1 archiving (~67k saved) drops cleanly under it.
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_AT_TOKENS", 60_000)
     monkeypatch.setattr(
         "agent.service.llm_failover.aordered_providers",
         AsyncMock(return_value=[fake_provider]),
@@ -1037,9 +1040,13 @@ async def test_service_stage1_tool_archive_sse_snapshots_and_wire_prefix_cache(
 @pytest.mark.asyncio
 @pytest.mark.unit
 @pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
-async def test_service_stage1_tool_archive_error_and_retry_carryover(db_session: Session):
+async def test_service_stage1_tool_archive_error_and_retry_carryover(db_session: Session, monkeypatch):
     """If the model errors after Stage 1 tool_archive, retry_unanswered carries the archive record cleanly."""
     from agent.service import AgentService
+
+    # Cold DB replay estimates ~68k real tokens across the 2 old large query_files results;
+    # set compact threshold to 60k so real cold volume triggers Stage 1 and drops cleanly below it.
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_COMPACT_AT_TOKENS", 60_000)
 
     user, project, chat = _seed_user_project_chat(db_session, "svc_retry")
     base_time = utcnow().replace(tzinfo=None) - timedelta(minutes=25)
