@@ -116,6 +116,9 @@ class LoopHistory:
     # 最近一次没压缩成时的实测输入 token 与原因；之后有成功的压缩点时清零。
     compaction_skipped_at_tokens: int = 0
     compaction_skipped_reason: str | None = None
+    # 冷库回放时，最近一次 compaction_skipped 所在轮次之前的历史项估算 token（不含该轮与静态前缀）；
+    # 仅冷库回放且存在退避记录时填充，热缓存命中或无退避记录时为 None。
+    compaction_skipped_cold_items_tokens: int | None = None
     # 会话末尾连续几轮停在输出上限（stop_reason=output_truncated）。
     trailing_output_truncations: int = 0
     # 最近一次摘要压缩点之后由 Stage 1 tool_archive 归档的 call_id 集合。
@@ -1194,10 +1197,12 @@ def load_loop_history(
     covered_reached = False
     kept_tokens_seen = 0
     skip_seen = False
+    skip_found = False
+    skip_row_id: str | None = None
     truncation_streak_open = True
 
     def note_compaction(metadata: dict[str, Any], *, row_id: str | None = None) -> None:
-        nonlocal compaction, stored_kept, skip_seen
+        nonlocal compaction, stored_kept, skip_seen, skip_found, skip_row_id
         if compaction is not None:
             return
         tool_archive = valid_tool_archive_compaction(metadata)
@@ -1220,6 +1225,8 @@ def load_loop_history(
             skipped = metadata.get("compaction_skipped")
             if isinstance(skipped, dict) and isinstance(skipped.get("at_prompt_tokens"), int):
                 skip_seen = True
+                skip_found = True
+                skip_row_id = row_id
                 result.compaction_skipped_at_tokens = max(0, skipped["at_prompt_tokens"])
                 raw_reason = skipped.get("reason")
                 result.compaction_skipped_reason = (
@@ -1287,6 +1294,16 @@ def load_loop_history(
     result.archived_call_ids = archived_call_ids
     chronological_rows = list(reversed(after_rows))
     row_positions = {row.id: pos for pos, row in enumerate(chronological_rows)}
+    skip_cutoff_pos: int | None = None
+    if skip_found:
+        if skip_row_id is None:
+            skip_cutoff_pos = len(chronological_rows)
+        elif skip_row_id in row_positions:
+            pos = row_positions[skip_row_id]
+            if chronological_rows[pos].role == "assistant":
+                while pos > 0 and chronological_rows[pos - 1].role == "user":
+                    pos -= 1
+            skip_cutoff_pos = pos
     # (cutoff_pos, call_set, remaining_orig_counts, occ_map)
     scoped_archives: list[tuple[int, frozenset[str], Counter[str], dict[str, frozenset[int]]]] = []
     for record_row_id, anchor_id, call_tuple, occ_map in tool_archive_scopes:
@@ -1334,6 +1351,8 @@ def load_loop_history(
         )
 
     for pos, row in enumerate(chronological_rows):
+        if skip_cutoff_pos is not None and pos == skip_cutoff_pos:
+            result.compaction_skipped_cold_items_tokens = estimate_provider_items_tokens(items)
         active_scopes = [scope for scope in scoped_archives if pos <= scope[0]] if scoped_archives else []
 
         def _match_archive(
@@ -1374,5 +1393,7 @@ def load_loop_history(
         )
         if row.role == "user" and str(row.content or "").strip():
             result.author_messages.append(str(row.content))
+    if skip_cutoff_pos is not None and skip_cutoff_pos == len(chronological_rows):
+        result.compaction_skipped_cold_items_tokens = estimate_provider_items_tokens(items)
     result.items = items
     return result

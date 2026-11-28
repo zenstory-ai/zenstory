@@ -975,6 +975,7 @@ class AgentService:
                     )
                     if cached_entry is not None and history.last_message_id == latest_message_id:
                         history.items = cached_entry.items
+                        history.compaction_skipped_cold_items_tokens = None
                         wire_prefix_hit = True
                         prior_context_fingerprints = cached_entry.context_fingerprints
                 if wire_prefix_hit:
@@ -1771,6 +1772,21 @@ class AgentService:
                         if loop_history.items and loop_history.last_prompt_tokens <= 0
                         else 0
                     )
+                    # 冷库回放时，落库瘦身与去 <turn_context>/去推理会使真实冷回放体积显著低于热内存期
+                    # 记录的 compaction_skipped.at_prompt_tokens；按跳过发生前固定历史锚点校准退避基线，
+                    # 防止陈旧高水位退避锁死 300k..750k 区间或在连续冷回放中形成移动球门。
+                    if (
+                        loop_history.last_prompt_tokens <= 0
+                        and loop_history.compaction_skipped_at_tokens > 0
+                        and loop_history.compaction_skipped_cold_items_tokens is not None
+                    ):
+                        cold_skip_baseline = loop_history.compaction_skipped_cold_items_tokens + cold_fixed_tokens
+                        if loop_history.compaction_skipped_at_tokens > cold_skip_baseline:
+                            if cold_skip_baseline <= agent_runtime.AGENT_LOOP_COMPACT_AT_TOKENS:
+                                loop_history.compaction_skipped_at_tokens = 0
+                                loop_history.compaction_skipped_reason = None
+                            else:
+                                loop_history.compaction_skipped_at_tokens = cold_skip_baseline
                     current_turn_tokens = estimate_provider_text_tokens(user_content)
                     compaction_extra_tokens = current_turn_tokens + cold_fixed_tokens
                     if should_compact(loop_history, extra_tokens=compaction_extra_tokens):
@@ -1978,15 +1994,22 @@ class AgentService:
                         and carried_record is None
                         and carried_archive is None
                         and isinstance(retry_carried_compaction.get("compaction_skipped"), dict)
+                        and loop_history.compaction_skipped_at_tokens > 0
                     ):
-                        loop_compaction_skipped = retry_carried_compaction["compaction_skipped"]
+                        loop_compaction_skipped = {
+                            **retry_carried_compaction["compaction_skipped"],
+                            "at_prompt_tokens": loop_history.compaction_skipped_at_tokens,
+                        }
                     # 兜底上限：压缩一直不成、实测（或供应商同量纲估算）逼近 1M 窗口时才丢掉最旧项；
                     # 本轮刚完成压缩时 items 已是摘要结果，不再按压缩前读数裁剪。
                     if loop_compaction_record is None:
                         run_history = writing_state.get("history_items") or []
                         turn_user_text = str(writing_state.get("user_message") or "")
                         turn_extra_tokens = max(0, estimate_provider_text_tokens(turn_user_text) - 50_000)
-                        history_max_tokens = max(100_000, AGENT_LOOP_RUN_HISTORY_MAX_TOKENS - turn_extra_tokens)
+                        history_max_tokens = max(
+                            100_000,
+                            AGENT_LOOP_RUN_HISTORY_MAX_TOKENS - turn_extra_tokens - cold_fixed_tokens,
+                        )
                         if effective_history_provider_tokens(loop_history, run_history) > history_max_tokens:
                             from agent.openai_agents.intra_run_trimmer import IntraRunToolOutputTrimmer
 

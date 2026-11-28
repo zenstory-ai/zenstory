@@ -770,6 +770,8 @@ async def compact_history(
         kept_user_messages=len(items) - 1,
         history_items=len(history.items),
         measured_prompt_tokens=history.last_prompt_tokens,
+        effective_history_tokens=effective_history_provider_tokens(history),
+        turn_input_tokens=turn_input_tokens,
         duration_ms=duration_ms,
     )
     return CompactionOutcome(record=record, items=items, usage=usage or None)
