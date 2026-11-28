@@ -426,12 +426,22 @@ export function useChatHistory({
       projectId: string,
       baselineBackendIds: ReadonlySet<string>,
       expectedSessionId: string | null,
+      shouldApply: () => boolean = () => true,
     ): Promise<boolean> => {
-      if (currentProjectIdRef.current !== projectId) return false;
+      const expectedHistorySeq = historyRequestSeqRef.current;
+      const expectedNewSessionSeq = newSessionRequestSeqRef.current;
+      const canApply = () =>
+        currentProjectIdRef.current === projectId &&
+        historyRequestSeqRef.current === expectedHistorySeq &&
+        newSessionRequestSeqRef.current === expectedNewSessionSeq &&
+        creatingSessionRef.current === null &&
+        shouldApply();
+
+      if (!canApply()) return false;
       try {
         // Strictly read-only GET reconcile — never retry a generation POST.
         const recentMessages = await getRecentMessages(projectId, 50);
-        if (currentProjectIdRef.current !== projectId) return false;
+        if (!canApply()) return false;
 
         const hasNewPersistedAssistant = recentMessages.some((msg) => {
           if (msg.role !== "assistant") return false;
@@ -448,7 +458,10 @@ export function useChatHistory({
         if (!hasNewPersistedAssistant) return false;
 
         const mappedRecent = mapBackendHistoryMessages(recentMessages, t);
+        if (!canApply()) return false;
+
         setMessages((prev) => {
+          if (!canApply()) return prev;
           const recentBackendIds = new Set(
             mappedRecent
               .map((item) => item.backendMessageId)
@@ -462,6 +475,7 @@ export function useChatHistory({
           }
           return mappedRecent;
         });
+        if (!canApply()) return false;
         currentAgentSessionIdRef.current =
           recentMessages.at(-1)?.session_id ?? currentAgentSessionIdRef.current;
         return true;

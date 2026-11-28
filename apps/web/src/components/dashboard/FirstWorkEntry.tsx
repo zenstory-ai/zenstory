@@ -17,7 +17,7 @@ import type { ProjectType } from '../../types';
 export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated }: {
   userId: string | null; preferredType: ProjectType | null; ideaGoesHere: boolean; onCreated: () => Promise<void>;
 }) {
-  const { t } = useTranslation('dashboard');
+  const { t, i18n } = useTranslation('dashboard');
   const navigate = useNavigate();
   const client = useQueryClient();
   const state = useFirstWork(userId);
@@ -26,6 +26,8 @@ export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const currentUser = useRef(userId);
   useEffect(() => { currentUser.current = userId; }, [userId]);
+  const resolveLanguage = () =>
+    (i18n?.resolvedLanguage || i18n?.language || '').trim() || getCurrentRequestLanguage();
   const initialize = useMutation({
     mutationFn: ({ type, language }: { type: ProjectType | null; language: string; owner: string | null }) => firstWorkApi.initialize(type, language),
     retry: false,
@@ -35,11 +37,12 @@ export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated 
     },
   });
   const { mutate } = initialize;
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || '').trim();
   useEffect(() => {
     if (!userId || state.data?.status !== 'pending' || attempted.current === userId) return;
     attempted.current = userId;
-    mutate({ type: preferredType, language: getCurrentRequestLanguage(), owner: userId });
-  }, [userId, state.data?.status, mutate, preferredType]);
+    mutate({ type: preferredType, language: activeLanguage || getCurrentRequestLanguage(), owner: userId });
+  }, [userId, state.data?.status, mutate, preferredType, activeLanguage]);
 
   const work = state.data;
   if (state.isError || initialize.isError) {
@@ -50,7 +53,7 @@ export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated 
       </div>
       <Button variant="secondary" size="touch" className="shrink-0" onClick={() => {
         if (state.isError) void state.refetch();
-        else mutate({ type: preferredType, language: getCurrentRequestLanguage(), owner: userId });
+        else mutate({ type: preferredType, language: resolveLanguage(), owner: userId });
       }}>{t('common:retry')}</Button>
     </div>;
   }

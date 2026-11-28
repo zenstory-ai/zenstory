@@ -61,8 +61,14 @@ function renderPage(search: string) {
 }
 
 describe('PaymentReturnPage', () => {
-  beforeEach(() => vi.clearAllMocks())
-  afterEach(() => vi.useRealTimers())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.setItem('zenstory-language', 'zh')
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    localStorage.clear()
+  })
 
   it('does not trust forged success query parameters when the server order is pending', async () => {
     vi.mocked(paymentApi.getOrder).mockResolvedValue({

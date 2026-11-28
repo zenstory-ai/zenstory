@@ -666,33 +666,31 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         const targetSessionId = currentAgentSessionIdRef.current;
         disconnectReconcileTimerRef.current = setTimeout(() => {
           disconnectReconcileTimerRef.current = null;
-          if (
-            disconnectReconcileSeqRef.current !== reconcileSeq ||
-            currentProjectIdRef.current !== targetProjectId ||
-            isStreamingRef.current ||
-            stopRequestedProjectRef.current === targetProjectId ||
-            creatingSessionRef.current !== null
-          ) {
+          const shouldApply = () =>
+            disconnectReconcileSeqRef.current === reconcileSeq &&
+            currentProjectIdRef.current === targetProjectId &&
+            !isStreamingRef.current &&
+            stopRequestedProjectRef.current !== targetProjectId &&
+            creatingSessionRef.current === null;
+          if (!shouldApply()) {
             return;
           }
           // Strictly read-only GET reconcile: surface server-persisted draft/final reply,
           // NEVER automatically retry a generation POST.
-          void reconcileAfterDisconnect(targetProjectId, baselineIds, targetSessionId).then(
-            (reconciled) => {
-              if (
-                !reconciled ||
-                disconnectReconcileSeqRef.current !== reconcileSeq ||
-                currentProjectIdRef.current !== targetProjectId ||
-                isStreamingRef.current
-              ) {
-                return;
-              }
-              clearErrorRef.current();
-              quotaState.invalidateQuota();
-              triggerFileTreeRefresh();
-              void refreshNextStep(targetProjectId);
-            },
-          );
+          void reconcileAfterDisconnect(
+            targetProjectId,
+            baselineIds,
+            targetSessionId,
+            shouldApply,
+          ).then((reconciled) => {
+            if (!reconciled || !shouldApply()) {
+              return;
+            }
+            clearErrorRef.current();
+            quotaState.invalidateQuota();
+            triggerFileTreeRefresh();
+            void refreshNextStep(targetProjectId);
+          });
         }, SSE_DISCONNECT_RECONCILE_DELAY_MS);
       }
     },

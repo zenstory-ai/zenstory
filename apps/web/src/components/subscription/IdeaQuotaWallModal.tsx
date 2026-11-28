@@ -15,8 +15,8 @@ interface IdeaQuotaWallModalProps {
  */
 export function IdeaQuotaWallModal({ open, onClose, resetAt }: IdeaQuotaWallModalProps) {
   const { t, i18n } = useTranslation(["dashboard", "chat", "home"]);
-  const resetDay = formatAiQuotaResetDay(resetAt, i18n?.language);
   const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const resetDay = formatAiQuotaResetDay(resetAt, activeLanguage);
   const resetLocal = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
     ? formatAiQuotaResetLocal(resetAt, activeLanguage)
     : null;

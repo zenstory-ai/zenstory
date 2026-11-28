@@ -30,7 +30,7 @@ export function formatAiQuotaResetDay(resetAt: string | null | undefined, langua
   if (!resetAt) return null;
   const date = parseUTCDate(resetAt);
   if (Number.isNaN(date.getTime())) return null;
-  const locale = language?.startsWith("en") ? "en-US" : "zh-CN";
+  const locale = language?.trim().toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
   return new Intl.DateTimeFormat(locale, { month: "long", day: "numeric", timeZone: "Asia/Shanghai" }).format(date);
 }
 
@@ -47,7 +47,7 @@ export function formatAiQuotaResetLocal(
   if (!resetAt) return null;
   const date = parseUTCDate(resetAt);
   if (Number.isNaN(date.getTime())) return null;
-  const locale = language?.startsWith("en") ? "en-US" : "zh-CN";
+  const locale = language?.trim().toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
   const options: Intl.DateTimeFormatOptions = { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" };
   const local = new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(date);
   const beijing = new Intl.DateTimeFormat(locale, { ...options, timeZone: "Asia/Shanghai" }).format(date);

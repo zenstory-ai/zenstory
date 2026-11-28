@@ -103,7 +103,9 @@ describe('formatChatSessionTitle legacy default localization', () => {
     expect(formatChatSessionTitle('Chapter 3 Revision', enT, 'en')).toBe('Chapter 3 Revision');
 
     expect(formatChatSessionTitle('AI 助手对话', zhT, 'zh-CN')).toBe('AI 创作助手');
+    expect(formatChatSessionTitle('AI Assistant', zhT, 'zh-CN')).toBe('AI 创作助手');
     expect(formatChatSessionTitle('新对话', zhT, 'zh-CN')).toBe('新对话');
+    expect(formatChatSessionTitle('New Chat', zhT, 'zh-CN')).toBe('新对话');
     expect(formatChatSessionTitle('第三章大纲讨论', zhT, 'zh-CN')).toBe('第三章大纲讨论');
   });
 });

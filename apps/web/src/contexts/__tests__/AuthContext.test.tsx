@@ -529,7 +529,7 @@ describe('AuthContext', () => {
       expect(api.authApi.register).toHaveBeenCalledWith({
         email: 'new@example.com',
         password: 'password123',
-        language: 'zh',
+        language: 'en',
       })
       expect(registerResult).toEqual(mockResponse)
     })
@@ -1332,7 +1332,7 @@ describe('AuthContext', () => {
       expect(api.authApi.register).toHaveBeenCalledWith({
         email: 'new@example.com',
         password: 'password123',
-        language: 'zh',
+        language: 'en',
       })
     })
   })

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   clearError: vi.fn(),
   triggerFileTreeRefresh: vi.fn(),
   streamOptions: null as Record<string, (...args: unknown[]) => unknown> | null,
+  currentProjectId: 'proj-1',
   streamState: {
     isStreaming: false,
     isThinking: false,
@@ -54,8 +55,8 @@ vi.mock('../subscription/QuotaBadge', () => ({
 
 vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
-    currentProjectId: 'proj-1',
-    currentProject: { id: 'proj-1', project_type: 'novel' },
+    currentProjectId: mocks.currentProjectId,
+    currentProject: { id: mocks.currentProjectId, project_type: 'novel' },
     selectedItem: null,
     fileTreeVersion: 1,
     triggerFileTreeRefresh: mocks.triggerFileTreeRefresh,
@@ -268,6 +269,7 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.language = 'en';
+    mocks.currentProjectId = 'proj-1';
     mocks.streamState = {
       isStreaming: false,
       isThinking: false,
@@ -276,6 +278,7 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
       retryable: false,
     };
     mocks.getRecentMessages.mockResolvedValue([]);
+    mocks.createNewSession.mockResolvedValue({ id: 'sess-new', title: 'New Chat' });
   });
 
   afterEach(() => {
@@ -351,6 +354,208 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
     });
 
     expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1);
+    expect(mocks.clearError).not.toHaveBeenCalled();
+  });
+
+  it('cancels the pending disconnect reconcile timer when ChatPanel unmounts during the delay', async () => {
+    mocks.getRecentMessages.mockResolvedValueOnce([]);
+    const view = renderChatPanel();
+    await waitFor(() => expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1));
+
+    vi.useFakeTimers();
+    act(() => {
+      mocks.streamOptions?.onError?.('Connection lost. Please try again.', 'STREAM_CLOSED', true);
+    });
+
+    view.unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SSE_DISCONNECT_RECONCILE_DELAY_MS * 2);
+    });
+
+    expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1);
+    expect(mocks.clearError).not.toHaveBeenCalled();
+  });
+
+  it('cancels pending reconcile for the previous project when the user switches projects during the delay', async () => {
+    mocks.getRecentMessages.mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <ChatPanel />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1));
+    expect(mocks.getRecentMessages).toHaveBeenLastCalledWith('proj-1', 50);
+
+    vi.useFakeTimers();
+    act(() => {
+      mocks.streamOptions?.onError?.('Connection lost. Please try again.', 'STREAM_CLOSED', true);
+    });
+
+    // Switch project before the 1.5s reconcile timer fires
+    mocks.currentProjectId = 'proj-2';
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <ChatPanel />
+      </QueryClientProvider>,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SSE_DISCONNECT_RECONCILE_DELAY_MS * 2);
+    });
+
+    // Only initial mount loads for proj-1 and proj-2 should run; no delayed reconcile for proj-1
+    expect(mocks.getRecentMessages.mock.calls.filter(([pid]) => pid === 'proj-1')).toHaveLength(1);
+    expect(mocks.clearError).not.toHaveBeenCalled();
+  });
+
+  it('skips disconnect reconcile when the user explicitly stopped generation', async () => {
+    mocks.getRecentMessages.mockResolvedValueOnce([]);
+    mocks.startStream.mockImplementationOnce(() => {
+      mocks.streamState.isStreaming = true;
+    });
+    mocks.stop.mockImplementationOnce(() => {
+      mocks.streamState.isStreaming = false;
+    });
+
+    renderChatPanel();
+    await waitFor(() => expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      screen.getByTestId('mock-send').click();
+    });
+    act(() => {
+      screen.getByTestId('mock-cancel').click();
+    });
+    expect(mocks.stop).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers();
+    act(() => {
+      mocks.streamOptions?.onError?.('Connection lost. Please try again.', 'STREAM_CLOSED', true);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SSE_DISCONNECT_RECONCILE_DELAY_MS * 2);
+    });
+
+    expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1);
+    expect(mocks.clearError).not.toHaveBeenCalled();
+  });
+
+  it('drops stale in-flight reconcile GET results when the user starts a New Chat before GET resolves', async () => {
+    mocks.getRecentMessages.mockResolvedValueOnce([]);
+    let resolveReconcile!: (rows: Array<Record<string, unknown>>) => void;
+    const reconcilePromise = new Promise<Array<Record<string, unknown>>>((resolve) => {
+      resolveReconcile = resolve;
+    });
+    mocks.getRecentMessages.mockReturnValueOnce(reconcilePromise);
+
+    renderChatPanel();
+    await waitFor(() => expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      screen.getByTestId('mock-send').click();
+    });
+
+    vi.useFakeTimers();
+    act(() => {
+      mocks.streamOptions?.onError?.('Connection lost. Please try again.', 'STREAM_CLOSED', true);
+    });
+
+    // Advance timer so the GET reconcile request is now in flight
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SSE_DISCONNECT_RECONCILE_DELAY_MS);
+    });
+    expect(mocks.getRecentMessages).toHaveBeenCalledTimes(2);
+
+    // User clicks "New chat" while the reconcile GET is still in flight
+    await act(async () => {
+      screen.getByRole('button', { name: 'New chat' }).click();
+    });
+    expect(mocks.createNewSession).toHaveBeenCalledTimes(1);
+
+    // Now the stale reconcile GET resolves with old session messages
+    await act(async () => {
+      resolveReconcile([
+        {
+          id: 'u-old',
+          session_id: 'sess-1',
+          role: 'user',
+          content: 'Write chapter 1',
+          created_at: '2026-11-28T10:00:00Z',
+        },
+        {
+          id: 'a-old',
+          session_id: 'sess-1',
+          role: 'assistant',
+          content: 'Stale chapter from previous session.',
+          created_at: '2026-11-28T10:01:00Z',
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId('mock-message-list')).toBeNull();
+    expect(document.body).not.toHaveTextContent('Stale chapter from previous session.');
+    expect(mocks.clearError).not.toHaveBeenCalled();
+  });
+
+  it('drops stale in-flight reconcile GET results when the user sends a new message before GET resolves', async () => {
+    mocks.getRecentMessages.mockResolvedValueOnce([]);
+    let resolveReconcile!: (rows: Array<Record<string, unknown>>) => void;
+    const reconcilePromise = new Promise<Array<Record<string, unknown>>>((resolve) => {
+      resolveReconcile = resolve;
+    });
+    mocks.getRecentMessages.mockReturnValueOnce(reconcilePromise);
+
+    renderChatPanel();
+    await waitFor(() => expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      screen.getByTestId('mock-send').click();
+    });
+    expect(mocks.startStream).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers();
+    act(() => {
+      mocks.streamOptions?.onError?.('Connection lost. Please try again.', 'STREAM_CLOSED', true);
+    });
+
+    // Advance timer so the GET reconcile request is now in flight
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SSE_DISCONNECT_RECONCILE_DELAY_MS);
+    });
+    expect(mocks.getRecentMessages).toHaveBeenCalledTimes(2);
+
+    // User manually sends a fresh message while the reconcile GET is still in flight
+    act(() => {
+      screen.getByTestId('mock-send').click();
+    });
+    expect(mocks.startStream).toHaveBeenCalledTimes(2);
+
+    // Now the stale reconcile GET resolves
+    await act(async () => {
+      resolveReconcile([
+        {
+          id: 'u-stale',
+          session_id: 'sess-1',
+          role: 'user',
+          content: 'Write chapter 1',
+          created_at: '2026-11-28T10:00:00Z',
+        },
+        {
+          id: 'a-stale',
+          session_id: 'sess-1',
+          role: 'assistant',
+          content: 'Stale reply that must not clobber the active send.',
+          created_at: '2026-11-28T10:01:00Z',
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('mock-message-list')).not.toHaveTextContent('Stale reply that must not clobber the active send.');
     expect(mocks.clearError).not.toHaveBeenCalled();
   });
 });

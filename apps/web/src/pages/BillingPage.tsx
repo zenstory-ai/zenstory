@@ -192,8 +192,9 @@ export default function BillingPage() {
   const showUsdPricing = isPaymentOptionsLoading
     ? isUsdDefaultLocale
     : isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
-  const localDailyResetTime = !i18n.language.toLowerCase().startsWith("zh")
-    ? formatDailyResetLocalTime(i18n.language)
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const localDailyResetTime = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
+    ? formatDailyResetLocalTime(activeLanguage)
     : null;
   const monthlyUsdCents =
     proPlan?.price_monthly_usd_cents && proPlan.price_monthly_usd_cents > 0

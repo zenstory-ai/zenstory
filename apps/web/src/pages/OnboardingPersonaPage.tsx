@@ -119,7 +119,7 @@ function SampleLine({ line, script }: { line: string; script: boolean }) {
 }
 
 export default function OnboardingPersonaPage() {
-  const { t } = useTranslation(["onboarding", "common"]);
+  const { t, i18n } = useTranslation(["onboarding", "common"]);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -201,7 +201,8 @@ export default function OnboardingPersonaPage() {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), FIRST_WORK_OPEN_TIMEOUT_MS);
     try {
-      const state = await firstWorkApi.initialize(type, getCurrentRequestLanguage(), controller.signal);
+      const requestLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim() || getCurrentRequestLanguage();
+      const state = await firstWorkApi.initialize(type, requestLanguage, controller.signal);
       if (!mountedRef.current) return true;
       queryClient.setQueryData(firstWorkQueryKey(userId), state);
       const work = untouchedFirstWork(state);

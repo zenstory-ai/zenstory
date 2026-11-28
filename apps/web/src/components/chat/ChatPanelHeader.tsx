@@ -37,8 +37,9 @@ export const ChatPanelHeader: React.FC<ChatPanelHeaderProps> = ({
   onRequestNewChat,
 }) => {
   const { t, i18n } = useTranslation(["chat"]);
+  const activeLanguage = i18n?.resolvedLanguage || i18n?.language;
   const displayTitle = sessionTitle
-    ? formatChatSessionTitle(sessionTitle, t, i18n?.language)
+    ? formatChatSessionTitle(sessionTitle, t, activeLanguage)
     : t("chat:panel.title");
 
   return (

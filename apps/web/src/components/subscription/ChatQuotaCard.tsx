@@ -36,8 +36,8 @@ export function ChatQuotaCard({ open = true, limit, resetAt }: ChatQuotaCardProp
   const { isPaid, resolved } = usePaidPlanWhenOpen(open);
   const canUpgrade = resolved && !isPaid;
   const exposureRef = useUpgradeExposure({ enabled: open && canUpgrade && (!isMobile || activePanel === "chat"), source: chatQuotaPrompt.source, surface: "card", placement: "chat-input", period: aiQuotaPeriodKey(resetAt) });
-  const resetDay = formatAiQuotaResetDay(resetAt, i18n?.language);
   const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const resetDay = formatAiQuotaResetDay(resetAt, activeLanguage);
   const resetLocal = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
     ? formatAiQuotaResetLocal(resetAt, activeLanguage)
     : null;

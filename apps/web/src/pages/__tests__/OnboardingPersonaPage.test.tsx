@@ -20,6 +20,7 @@ const mockToastError = vi.fn();
 const mockInitializeFirstWork = vi.fn();
 const mockRequestChatOnOpen = vi.fn();
 let mockIsMobile = false;
+let mockUiLanguage = "zh";
 let mockUser: { id: string } | null = { id: "user-onboarding-1" };
 let mockLocationState: { from?: { pathname?: string; search?: string; hash?: string } } | null = {
   from: { pathname: "/dashboard/projects", search: "", hash: "" },
@@ -27,7 +28,11 @@ let mockLocationState: { from?: { pathname?: string; search?: string; hash?: str
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    i18n: { language: "zh" },
+    i18n: {
+      get language() {
+        return mockUiLanguage;
+      },
+    },
     t: (
       key: string,
       defaultValueOrOptions?: string | Record<string, unknown>,
@@ -135,6 +140,7 @@ describe("OnboardingPersonaPage", () => {
     mockUser = { id: "user-onboarding-1" };
     mockLocationState = { from: { pathname: "/dashboard/projects", search: "", hash: "" } };
     mockIsMobile = false;
+    mockUiLanguage = "zh";
     mockInitializeFirstWork.mockResolvedValue(firstWorkState({ status: "ineligible", project_id: null, file_id: null, available: false, static_guidance: false }));
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
     localStorage.removeItem(`${PREFERRED_PROJECT_TYPE_STORAGE_KEY}:${mockUser.id}`);
@@ -321,7 +327,8 @@ describe("OnboardingPersonaPage", () => {
       expect(mockRequestChatOnOpen).not.toHaveBeenCalled();
     });
 
-    it("falls back to en (never zh) when initializing first work without stored zh preference", async () => {
+    it("falls back to getCurrentRequestLanguage (en, never zh) when i18n.language is empty/unready", async () => {
+      mockUiLanguage = "";
       localStorage.removeItem("zenstory-language");
       mockInitializeFirstWork.mockResolvedValue(firstWorkState());
       renderPage();
