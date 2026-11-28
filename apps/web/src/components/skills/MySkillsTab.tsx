@@ -60,9 +60,9 @@ export function MySkillsTab({
 }: MySkillsTabProps) {
   const { t } = useTranslation(["skills", "common"]);
 
-  const totalSkillsCount = userSkills.length + addedSkills.length;
-  const hasSkills = totalSkillsCount > 0;
-  const allSelected = totalSkillsCount > 0 && selectedSkillIds.size === totalSkillsCount;
+  const visibleSkillIds = [...userSkills.map((s) => s.id), ...addedSkills.map((s) => s.id)];
+  const hasSkills = visibleSkillIds.length > 0;
+  const allSelected = hasSkills && visibleSkillIds.every((id) => selectedSkillIds.has(id));
 
   if ((loading || !hasLoaded) && !hasSkills) {
     return (
@@ -106,7 +106,7 @@ export function MySkillsTab({
             )}
           </div>
 
-          {selectedSkillIds.size > 0 && (
+          {hasSkills && !hasError && selectedSkillIds.size > 0 && (
             <div
               data-testid="skills-selection-bar"
               role="region"

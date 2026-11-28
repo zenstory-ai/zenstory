@@ -103,7 +103,8 @@ export function DiscoverSkillsTab({
             options={categoryOptions}
             value={selectedCategory}
             onChange={setSelectedCategory}
-            className="self-start"
+            testId="discover-category-filters"
+            className={isMobile ? "self-start" : "self-center"}
           />
         )}
       </div>

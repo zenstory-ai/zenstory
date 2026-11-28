@@ -1306,14 +1306,15 @@ describe('SkillsPage', () => {
         .getAllByRole('button')
         .filter((btn) => btn.className.includes('bg-[hsl(var(--primary))]'))
 
-    it('groups Import (secondary) and Create (primary) in the header on both tabs and keeps filter pills content-sized', async () => {
+    it('groups Import (ghost) and Create (primary) in the header on both tabs and keeps filter pills content-sized', async () => {
       render(<SkillsPage />)
       await screen.findByText('Dialogue Expert')
 
       const importBtn = screen.getByRole('button', { name: 'Import' })
       const createBtn = screen.getByRole('button', { name: 'Create' })
       expect(importBtn.parentElement).toBe(createBtn.parentElement)
-      expect(importBtn.className).toContain('bg-[hsl(var(--bg-secondary))]')
+      expect(importBtn.className).toContain('border-transparent!')
+      expect(importBtn.className).not.toContain('bg-[hsl(var(--bg-secondary))]')
       expect(createBtn.className).toContain('bg-[hsl(var(--primary))]')
       expect(getPrimaryButtons()).toHaveLength(1)
 
@@ -1402,11 +1403,12 @@ describe('SkillsPage', () => {
       expect(selectAllBtn).toHaveAttribute('aria-pressed', 'false')
       expect(screen.queryByTestId('skills-selection-bar')).not.toBeInTheDocument()
 
-      // Selecting one card reveals the contained selection bar and tints the card
+      // Selecting one card reveals the contained selection bar and highlights the card on its secondary surface
       const addedTitle = screen.getByRole('heading', { name: 'Plot Twist Generator' })
       const addedCard = addedTitle.closest('[data-testid="skill-card"]') as HTMLElement
       await userEvent.click(within(addedCard).getByTestId('skill-selection-toggle'))
-      expect(addedCard.className).toContain('bg-[hsl(var(--accent-primary)/0.03)]')
+      expect(addedCard.className).toContain('bg-[hsl(var(--bg-secondary))]')
+      expect(addedCard.className).toContain('ring-[hsl(var(--accent-primary)/0.25)]')
 
       const selectionBar = screen.getByTestId('skills-selection-bar')
       expect(within(selectionBar).getByText('1 selected')).toBeInTheDocument()
@@ -1427,6 +1429,57 @@ describe('SkillsPage', () => {
       await waitFor(() => {
         expect(skillsApi.batchUpdate).toHaveBeenCalledWith(['skill-1', 'skill-2', 'added-1'], 'delete')
       })
+    })
+
+    it('checks visible-item membership for Select All and hides the selection bar on empty search results', async () => {
+      vi.mocked(skillsApi.mySkills)
+        .mockResolvedValueOnce({
+          user_skills: mockUserSkills,
+          added_skills: mockAddedSkills,
+          total: 3,
+        })
+        .mockResolvedValueOnce({
+          user_skills: [mockUserSkills[1]],
+          added_skills: [],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          user_skills: [],
+          added_skills: [],
+          total: 0,
+        })
+
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('Writing Assistant')
+
+      // Select skill-1, then filter to show only skill-2
+      const firstCard = screen.getByRole('heading', { name: 'Writing Assistant' }).closest('[data-testid="skill-card"]') as HTMLElement
+      await userEvent.click(within(firstCard).getByTestId('skill-selection-toggle'))
+
+      const searchInput = screen.getByPlaceholderText('Search my skills')
+      fireEvent.change(searchInput, { target: { value: 'Character' } })
+      await waitFor(() => {
+        expect(screen.queryByText('Writing Assistant')).not.toBeInTheDocument()
+        expect(screen.getByText('Character Builder')).toBeInTheDocument()
+      }, { timeout: 1000 })
+
+      // Select All must reflect visible membership (skill-2 is NOT selected), not raw size === visible count
+      const selectAllBtn = screen.getByRole('button', { name: 'Select All' })
+      expect(selectAllBtn).toHaveAttribute('aria-pressed', 'false')
+
+      // Clicking Select All selects the visible card (skill-2)
+      await userEvent.click(selectAllBtn)
+      expect(selectAllBtn).toHaveAttribute('aria-pressed', 'true')
+      const secondCard = screen.getByRole('heading', { name: 'Character Builder' }).closest('[data-testid="skill-card"]') as HTMLElement
+      expect(within(secondCard).getByTestId('skill-selection-toggle')).toHaveAttribute('aria-pressed', 'true')
+
+      // Searching with zero results hides the selection bar so Delete is never shown over an empty list
+      fireEvent.change(searchInput, { target: { value: 'nonexistent-xyz' } })
+      await waitFor(() => {
+        expect(screen.queryByText('Character Builder')).not.toBeInTheDocument()
+      }, { timeout: 1000 })
+      expect(screen.queryByTestId('skills-selection-bar')).not.toBeInTheDocument()
     })
 
     it('gives header actions, Select All, and contextual selection bar 44px touch targets on mobile', async () => {

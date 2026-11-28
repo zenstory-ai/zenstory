@@ -38,7 +38,7 @@ export default function SkillsPage() {
               data-testid="skill-import-input"
             />
             <Button
-              variant="secondary"
+              variant="ghost"
               size={isMobile ? "touch" : "md"}
               onClick={() => importInputRef.current?.click()}
               isLoading={state.importing}
