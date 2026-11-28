@@ -20,8 +20,6 @@ import {
   WRITE_EPISODE_HEADLINES,
   formatMatchCountHeadline,
   formatWordCount,
-  getEditOpIcon,
-  getEditOpLabel,
   getFileTypeInfo,
   isEpisodeFile,
   isFileEditUndone,
@@ -414,80 +412,74 @@ export const EditFileCard: React.FC<{
             </>
           )}
         >
-          <div className="space-y-2 mt-2">
-            {details.map((detail, index) => (
-              <div key={index} className="rounded-lg border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-tertiary)/0.45)] p-2.5 text-xs">
-                <div className="flex items-center gap-1 mb-1">
-                  {getEditOpIcon(detail.op)}
-                  <span className="text-[hsl(var(--text-primary))] font-medium">
-                    {getEditOpLabel(detail.op, t)}
-                  </span>
-                  {detail.count && detail.count > 1 && (
-                    <span className="text-[hsl(var(--text-secondary))]">
-                      × {detail.count}
-                    </span>
-                  )}
-                </div>
-
-                {detail.op === 'replace' && (
-                  <div className="space-y-2 mt-1.5">
-                    <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-remove-text))]">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Minus className="w-3 h-3 text-[hsl(var(--diff-remove-text))]" />
-                        <span className="text-xs text-[hsl(var(--diff-remove-text))]">{t('chat:edit.label_delete')}</span>
-                      </div>
-                      <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
-                        {detail.matched_original || detail.old_preview}
-                      </div>
-                    </div>
-                    <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))]">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
-                        <span className="text-xs text-[hsl(var(--diff-add-text))]">{t('chat:edit.label_add')}</span>
-                      </div>
-                      <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
-                        {detail.new_preview}
-                      </div>
-                    </div>
+          <div className="mt-2 divide-y divide-[hsl(var(--separator-color)/0.6)]">
+            {details.map((detail, index) => {
+              const showRepeatCount = Boolean(detail.count && detail.count > 1);
+              const anchorContextBlock = (detail.op === 'insert_after' || detail.op === 'insert_before') && detail.anchor_preview ? (
+                <div className="bg-[hsl(var(--bg-tertiary)/0.45)] border-l-2 border-[hsl(var(--border-color))] px-2 py-1.5 rounded-md text-xs text-[hsl(var(--text-secondary))]">
+                  <div className="leading-5 whitespace-pre-wrap break-words font-normal max-h-40 overflow-auto">
+                    {detail.anchor_preview}
                   </div>
-                )}
+                </div>
+              ) : null;
+              const insertAddedBlock = (detail.op === 'insert_after' || detail.op === 'insert_before') ? (
+                <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))]">
+                  <div className="flex items-center gap-1 mb-1">
+                    <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
+                    <span className="text-xs text-[hsl(var(--diff-add-text))]">
+                      {t('chat:edit.insert_content')}
+                      {detail.text_len && detail.text_len > 200 && typeof detail.text_words === 'number' && (
+                        <span className="ml-1 text-[hsl(var(--text-secondary))]">
+                          ({formatWordCount(detail.text_words, t)})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
+                    {detail.text_preview}
+                  </div>
+                </div>
+              ) : null;
 
-                {(detail.op === 'append' || detail.op === 'prepend') && (
-                  <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))] mt-1.5">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
-                      <span className="text-xs text-[hsl(var(--diff-add-text))]">
-                        {detail.op === 'append' ? t('chat:edit.append_content') : t('chat:edit.prepend_content')}
-                        {detail.text_len && detail.text_len > 200 && typeof detail.text_words === 'number' && (
-                          <span className="ml-1 text-[hsl(var(--text-secondary))]">
-                            ({formatWordCount(detail.text_words, t)})
-                          </span>
-                        )}
+              return (
+                <div key={index} className="py-2 first:pt-0 last:pb-0 text-xs">
+                  {showRepeatCount && (
+                    <div className="mb-1.5 flex items-center">
+                      <span className="inline-flex items-center rounded bg-[hsl(var(--bg-tertiary))] px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-[hsl(var(--text-secondary))]">
+                        × {detail.count}
                       </span>
                     </div>
-                    <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
-                      {detail.text_preview}
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {(detail.op === 'insert_after' || detail.op === 'insert_before') && (
-                  <div className="space-y-2 mt-1.5">
-                    <div className="bg-[hsl(var(--bg-secondary))] p-2 rounded-lg border-l-2 border-[hsl(var(--border-color))]">
-                      <div className="flex items-center gap-1 mb-1">
-                        <span className="text-xs text-[hsl(var(--text-secondary))]">
-                          {detail.op === 'insert_after' ? t('chat:edit.insert_after_label') : t('chat:edit.insert_before_label')}
-                        </span>
+                  {detail.op === 'replace' && (
+                    <div className="space-y-1.5">
+                      <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-remove-text))]">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Minus className="w-3 h-3 text-[hsl(var(--diff-remove-text))]" />
+                          <span className="text-xs text-[hsl(var(--diff-remove-text))]">{t('chat:edit.label_delete')}</span>
+                        </div>
+                        <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
+                          {detail.matched_original || detail.old_preview}
+                        </div>
                       </div>
-                      <div className="text-xs leading-5 text-[hsl(var(--text-secondary))] whitespace-pre-wrap break-words font-normal max-h-40 overflow-auto">
-                        {detail.anchor_preview}
+                      <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))]">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
+                          <span className="text-xs text-[hsl(var(--diff-add-text))]">{t('chat:edit.label_add')}</span>
+                        </div>
+                        <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
+                          {detail.new_preview}
+                        </div>
                       </div>
                     </div>
+                  )}
+
+                  {(detail.op === 'append' || detail.op === 'prepend') && (
                     <div className="bg-[hsl(var(--diff-add-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-add-text))]">
                       <div className="flex items-center gap-1 mb-1">
                         <Plus className="w-3 h-3 text-[hsl(var(--diff-add-text))]" />
                         <span className="text-xs text-[hsl(var(--diff-add-text))]">
-                          {t('chat:edit.insert_content')}
+                          {detail.op === 'append' ? t('chat:edit.append_content') : t('chat:edit.prepend_content')}
                           {detail.text_len && detail.text_len > 200 && typeof detail.text_words === 'number' && (
                             <span className="ml-1 text-[hsl(var(--text-secondary))]">
                               ({formatWordCount(detail.text_words, t)})
@@ -499,22 +491,38 @@ export const EditFileCard: React.FC<{
                         {detail.text_preview}
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {detail.op === 'delete' && (
-                  <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-remove-text))] mt-1.5">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Minus className="w-3 h-3 text-[hsl(var(--diff-remove-text))]" />
-                      <span className="text-xs text-[hsl(var(--diff-remove-text))]">{t('chat:edit.delete_content')}</span>
+                  {(detail.op === 'insert_after' || detail.op === 'insert_before') && (
+                    <div className="space-y-1.5">
+                      {detail.op === 'insert_after' ? (
+                        <>
+                          {anchorContextBlock}
+                          {insertAddedBlock}
+                        </>
+                      ) : (
+                        <>
+                          {insertAddedBlock}
+                          {anchorContextBlock}
+                        </>
+                      )}
                     </div>
-                    <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
-                      {detail.deleted_preview}
+                  )}
+
+                  {detail.op === 'delete' && (
+                    <div className="bg-[hsl(var(--diff-remove-bg))] p-2 rounded-lg border-l-2 border-[hsl(var(--diff-remove-text))]">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Minus className="w-3 h-3 text-[hsl(var(--diff-remove-text))]" />
+                        <span className="text-xs text-[hsl(var(--diff-remove-text))]">{t('chat:edit.delete_content')}</span>
+                      </div>
+                      <div className="text-xs leading-5 text-[hsl(var(--text-primary))] whitespace-pre-wrap break-words font-normal max-h-56 overflow-auto">
+                        {detail.deleted_preview}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         </AnimatedDetails>
       )}

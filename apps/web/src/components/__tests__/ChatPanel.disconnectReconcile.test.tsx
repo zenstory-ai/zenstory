@@ -270,6 +270,9 @@ describe('ChatPanelHeader legacy default session title localization', () => {
       />,
     );
     expect(screen.getByTestId('chat-panel-header-title')).toHaveTextContent('AI Assistant');
+    const aiMemoryButton = screen.getByRole('button', { name: 'AI Memory' });
+    expect(aiMemoryButton.querySelector('svg.lucide-book-marked')).not.toBeNull();
+    expect(aiMemoryButton.querySelector('svg.lucide-database')).toBeNull();
     first.unmount();
 
     const second = render(

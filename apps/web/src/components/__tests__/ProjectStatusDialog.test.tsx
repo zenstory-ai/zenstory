@@ -148,4 +148,65 @@ describe('ProjectStatusDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
     expect(await screen.findByRole('textbox', { name: '项目简介' })).toHaveValue('已恢复简介')
   })
+
+  it('uses unified BookMarked icon, borderless intro, icon-free save button, and auto-resizing textareas', async () => {
+    const scrollHeights: Record<string, number> = {
+      'summary placeholder': 40,
+      'style placeholder': 130,
+      'phase placeholder': 360,
+      'notes placeholder': 100,
+    }
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight')
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get() {
+        const placeholder = this.getAttribute?.('placeholder')
+        return (placeholder && scrollHeights[placeholder]) ?? 0
+      },
+    })
+
+    try {
+      mockProjectGet.mockResolvedValueOnce({
+        id: 'project-1',
+        name: 'Test Project',
+        description: 'desc',
+        summary: '',
+        writing_style: '克制凝练',
+        current_phase: '很长的当前阶段描述',
+        notes: '第一条约定',
+      })
+
+      const { container } = render(<ProjectStatusDialog isOpen={true} onClose={vi.fn()} projectId="project-1" />)
+      const summary = await screen.findByRole('textbox', { name: '项目简介' })
+      const style = screen.getByRole('textbox', { name: '写作风格' })
+      const phase = screen.getByRole('textbox', { name: '当前阶段' })
+      const notes = screen.getByRole('textbox', { name: '写作约定' })
+
+      // Unified BookMarked icon in title, no Brain or Sparkles icon, no floppy Save icon in footer button
+      expect(container.querySelector('svg.lucide-book-marked')).not.toBeNull()
+      expect(container.querySelector('svg.lucide-brain')).toBeNull()
+      expect(container.querySelector('svg.lucide-sparkles')).toBeNull()
+      const saveButton = screen.getByRole('button', { name: '保存' })
+      expect(saveButton.querySelector('svg.lucide-save')).toBeNull()
+
+      // Auto-resize bounds: min 72px, natural content height in between, capped at 224px
+      expect(summary.style.height).toBe('72px')
+      expect(style.style.height).toBe('130px')
+      expect(phase.style.height).toBe('224px')
+      expect(notes.style.height).toBe('100px')
+
+      // Mobile-safe >=16px text and internal scrolling on all 4 textareas
+      for (const field of [summary, style, phase, notes]) {
+        expect(field.className).toContain('text-base')
+        expect(field.className).toContain('md:text-sm')
+        expect(field.className).toContain('overflow-y-auto')
+      }
+    } finally {
+      if (originalScrollHeight) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', originalScrollHeight)
+      } else {
+        delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight
+      }
+    }
+  })
 })

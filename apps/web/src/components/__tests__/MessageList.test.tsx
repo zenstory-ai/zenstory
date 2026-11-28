@@ -1934,4 +1934,46 @@ describe('MessageList', () => {
       expect(card.querySelector('.rounded-lg.border')).toBeNull()
     })
   })
+
+  describe('UI/UX polish: Feather icons and flush-aligned chat controls', () => {
+    it('uses Feather instead of Bot on agent role badges and clarification cards, and avoids negative left margins on footer/group controls', () => {
+      const timestamp = new Date()
+      const { container } = render(
+        <MessageList
+          messages={[
+            createMessage({
+              role: 'assistant',
+              content: '已完成章节润色。',
+              displayItems: [
+                { id: 'agent-1', type: 'agent_selected', agentType: 'writer', agentName: '内容创作者', timestamp },
+                {
+                  id: 'reads-1',
+                  type: 'tool_calls',
+                  toolCalls: [
+                    { id: 'r1', tool_name: 'read_files', arguments: {}, status: 'success', result: { data: { files: [] } } },
+                    { id: 'r2', tool_name: 'query_files', arguments: {}, status: 'success', result: { data: { files: [] } } },
+                  ],
+                  timestamp,
+                },
+                { id: 'content-1', type: 'content', content: '已完成章节润色。', timestamp },
+                { id: 'stop-1', type: 'workflow_stopped', reason: 'clarification_needed', question: '要继续写下一章吗？', timestamp },
+              ],
+            }),
+          ]}
+        />,
+      )
+
+      // Feather replaces Bot on agent_selected pill and clarification card
+      expect(container.querySelectorAll('svg.lucide-feather').length).toBe(2)
+      expect(container.querySelector('svg.lucide-bot')).toBeNull()
+
+      // Copy footer wrapper and ReadOnlyToolGroup toggle stay flush-aligned (no negative left margin)
+      const copyButton = screen.getByTestId('copy-message-button')
+      const footerRow = copyButton.parentElement?.parentElement as HTMLElement
+      expect(footerRow.className).not.toContain('-ml-1')
+
+      const readonlyToggle = screen.getByTestId('readonly-tool-group').querySelector('button') as HTMLElement
+      expect(readonlyToggle.className).not.toContain('-ml-1.5')
+    })
+  })
 })

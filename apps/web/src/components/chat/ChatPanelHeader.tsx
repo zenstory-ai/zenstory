@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Database, Loader2, Plus } from "lucide-react";
+import { BookMarked, Loader2, Plus } from "lucide-react";
 import { QuotaBadge } from "../subscription/QuotaBadge";
 import { IconButton } from "../ui/IconButton";
 import { formatChatSessionTitle } from "./chatHistoryHelpers";
@@ -75,7 +75,7 @@ export const ChatPanelHeader: React.FC<ChatPanelHeaderProps> = ({
           onClick={onOpenAIMemory}
           size={isMobile ? "touch" : "md"}
           label={t("chat:panel.aiMemory")}
-          icon={<Database size={isMobile ? 18 : 16} />}
+          icon={<BookMarked size={isMobile ? 18 : 16} />}
         />
         <IconButton
           onClick={onRequestNewChat}

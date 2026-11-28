@@ -232,7 +232,7 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
         type="button"
         onClick={handleToggle}
         aria-expanded={isExpanded}
-        className="inline-flex max-w-full min-h-11 md:min-h-7 -ml-1.5 items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary)/0.75)] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))]"
+        className="inline-flex max-w-full min-h-11 md:min-h-7 items-center gap-1.5 rounded-lg px-2 py-1 text-left text-xs text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary)/0.75)] hover:text-[hsl(var(--text-primary))] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--accent-primary))]"
         aria-label={isExpanded
           ? t('chat:thinking.collapse', '收起思考过程')
           : t('chat:thinking.expand', '展开思考过程')}

@@ -15,9 +15,6 @@ import {
   ScrollText,
   Settings,
   Layers,
-  ArrowRight,
-  Plus,
-  Minus,
 } from 'lucide-react';
 import type { FileEditUndoTarget } from '../../../types';
 import { undoneEditKey } from '../../../lib/undoneEdits';
@@ -356,34 +353,6 @@ export const resolvePartialEditFailure = (
   return t(`chat:tool.partialFailureHint.${hintKey}`);
 };
 
-export const getEditOpIcon = (op: string): React.ReactNode => {
-  switch (op) {
-    case 'replace':
-      return <ArrowRight className="w-3 h-3 shrink-0 text-[hsl(var(--text-secondary))]" />;
-    case 'append':
-    case 'prepend':
-    case 'insert_after':
-    case 'insert_before':
-      return <Plus className="w-3 h-3 shrink-0 text-[hsl(var(--success-text))]" />;
-    case 'delete':
-      return <Minus className="w-3 h-3 shrink-0 text-[hsl(var(--error-text))]" />;
-    default:
-      return <Edit3 className="w-3 h-3 shrink-0 text-[hsl(var(--text-secondary))]" />;
-  }
-};
-
-export const getEditOpLabel = (op: string, t: TranslateFn): string => {
-  switch (op) {
-    case 'replace': return t('chat:edit.replace');
-    case 'append': return t('chat:edit.append');
-    case 'prepend': return t('chat:edit.prepend');
-    case 'insert_after': return t('chat:edit.insert_after');
-    case 'insert_before': return t('chat:edit.insert_before');
-    case 'delete': return t('chat:edit.label_delete');
-    default: return op || t('chat:tool.edit_file');
-  }
-};
-
 export const getFileTypeInfo = (fileType: string, t: (key: string) => string): { icon: React.ReactNode; label: string } => {
   switch (fileType) {
     case 'outline':
@@ -538,19 +507,21 @@ export const CardUndoControl: React.FC<{
   const { t } = useTranslation(['chat', 'common']);
   const hintId = useId();
   if (blocked) {
+    const blockedReason = t('chat:tool.undoLaterFirst');
     return (
       <>
         <button
           type="button"
           disabled
+          title={blockedReason}
           aria-describedby={hintId}
           className={`inline-flex items-center gap-1 min-h-11 md:min-h-7 -my-2 md:my-0 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-60 ${className}`}
         >
           <RotateCcw className="w-3 h-3" />
           {t('common:undo')}
         </button>
-        <span id={hintId} className="basis-full min-w-0 pl-6 text-xs text-[hsl(var(--text-secondary))]">
-          {t('chat:tool.undoLaterFirst')}
+        <span id={hintId} className="sr-only">
+          {blockedReason}
         </span>
       </>
     );

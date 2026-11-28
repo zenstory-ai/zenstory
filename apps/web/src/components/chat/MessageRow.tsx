@@ -352,7 +352,7 @@ export const MessageRow = React.memo(function MessageRow({
               isUser
                 ? 'justify-end mt-1 px-0.5'
                 : hasAssistantFooterActions
-                  ? 'justify-between mt-1.5 -ml-1'
+                  ? 'justify-between mt-1.5'
                   : 'justify-start mt-1.5'
             }`}
           >

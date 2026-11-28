@@ -648,9 +648,9 @@ test.describe('Version History', () => {
 
     // Look for change source indicators
     // - User icon (svg.lucide-user) for user edits
-    // - Bot icon (svg.lucide-bot) for AI edits
+    // - Feather icon (svg.lucide-feather) for AI edits
     // - Settings icon (svg.lucide-settings) for system
-    const userIcon = page.locator('svg.lucide-user, svg.lucide-bot, svg.lucide-settings').first()
+    const userIcon = page.locator('svg.lucide-user, svg.lucide-feather, svg.lucide-settings').first()
     await expect(userIcon).toBeVisible({ timeout: 5000 })
   })
 
