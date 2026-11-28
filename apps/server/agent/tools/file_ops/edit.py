@@ -11,6 +11,7 @@ the LLM provides slightly different text.
 import copy
 import json
 import re
+import unicodedata
 from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
@@ -49,7 +50,7 @@ from utils.file_write_lock import (
     file_write_lock,
 )
 from utils.logger import get_logger, log_with_context
-from utils.text_metrics import count_words
+from utils.text_metrics import count_words, has_cjk_or_kana
 
 from .content_range import format_match_snippets
 from .paragraph_layout import (
@@ -72,7 +73,10 @@ from .text_matching import (
     find_fuzzy_spans,
     find_unique_line_span,
     fold_double_quotes,
+    fold_equivalent_punctuation,
     locate_exact_or_quote_equivalent,
+    locate_nfc_equivalent_spans,
+    normalize_nfc_with_spans,
     suggest_similar_lines,
 )
 
@@ -93,14 +97,14 @@ BATCH_REPLACE_SNIPPET_CONTEXT_CHARS = 35
 # Failure-only paragraph/line-number prefix stripping (minimax-code edit-line-number-retry safety contract).
 # Uses `[ \t]*` after `]` instead of `\s*` so Chinese full-width indentation (`\u3000\u3000`) is preserved.
 _PARAGRAPH_MARKER_PREFIX_RE = re.compile(
-    r"^(?:\[P\d+(?:\s*·\s*\d+字)?\][ \t]*|[ \t]*\d+→)"
+    r"^(?:\[P\d+(?:\s*·\s*\d+(?:字|w))?\][ \t]*|[ \t]*\d+→)"
 )
 
-# Exact prefix emitted by `content_range.format_paragraph_stats`: `[P01 · 84字] `.
+# Exact prefix emitted by `content_range.format_paragraph_stats`: `[P01 · 84字] ` or `[P01 · 84w] `.
 # Intentionally does NOT match authentic prose markers like `[P1]`, `[P05]`, `[P05 备注]`,
 # and only consumes the single ASCII space after `]` so Chinese full-width indent `\u3000\u3000` survives.
-_PARAGRAPH_STATS_MARKER_LINE_RE = re.compile(r"^\[P\d+ · \d+字\] ")
-_PARAGRAPH_STATS_MARKER_CONTAINS_RE = re.compile(r"\[P\d+ · \d+字\] ")
+_PARAGRAPH_STATS_MARKER_LINE_RE = re.compile(r"^\[P\d+ · \d+(?:字|w)\] ")
+_PARAGRAPH_STATS_MARKER_CONTAINS_RE = re.compile(r"\[P\d+ · \d+(?:字|w)\] ")
 
 
 def _all_non_empty_lines_have_marker_prefix(text: str) -> bool:
@@ -574,6 +578,14 @@ def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
     )
 
 
+def _has_exact_or_nfc_match(content: str, target: str) -> bool:
+    if locate_exact_or_quote_equivalent(content, target) is not None:
+        return True
+    if not (unicodedata.is_normalized("NFC", content) and unicodedata.is_normalized("NFC", target)):
+        return bool(locate_nfc_equivalent_spans(content, target, max_matches=1))
+    return False
+
+
 def _batch_anchor_invalidated(original: str, staged: str, edit: dict[str, Any]) -> bool:
     op = str(edit.get("op") or "")
     field = "anchor" if op in ("insert_after", "insert_before") else "old"
@@ -581,8 +593,8 @@ def _batch_anchor_invalidated(original: str, staged: str, edit: dict[str, Any]) 
     if not isinstance(target, str) or not target or original == staged:
         return False
     return (
-        locate_exact_or_quote_equivalent(original, target) is not None
-        and locate_exact_or_quote_equivalent(staged, target) is None
+        _has_exact_or_nfc_match(original, target)
+        and not _has_exact_or_nfc_match(staged, target)
     )
 
 
@@ -709,18 +721,19 @@ def _locate_normalized_exact_spans(
     *,
     max_matches: int = 20,
 ) -> list[tuple[int, int]]:
-    """Deterministic whitespace/newline/double-quote-normalized match.
+    """Deterministic whitespace/newline/quote/apostrophe/dash/NFC-normalized match.
 
     Allows CRLF/LF and blank-line count differences (``\\n`` vs ``\\n\\n``),
-    horizontal whitespace/indentation differences, and double-quote style
-    equivalence (via ``fold_double_quotes``), while keeping every other
-    character and punctuation mark verbatim, preserving boundary newlines and
-    inline whitespace, and NEVER bridging across a line break that ``pattern``
-    lacks.
+    horizontal whitespace/indentation differences, NFC equivalence, and
+    quote/apostrophe/guillemet/dash equivalence (via ``fold_equivalent_punctuation``),
+    while keeping every other character and punctuation mark verbatim, preserving
+    boundary newlines and inline whitespace, and NEVER bridging across a line break
+    that ``pattern`` lacks.
     """
     if not pattern:
         return []
-    raw_lines = _LINE_SPLIT_RE.split(pattern)
+    nfc_pattern = unicodedata.normalize("NFC", pattern)
+    raw_lines = _LINE_SPLIT_RE.split(nfc_pattern)
     non_blank_indices = [
         idx for idx, line in enumerate(raw_lines) if line.strip(_INLINE_WS_CHARS)
     ]
@@ -733,7 +746,7 @@ def _locate_normalized_exact_spans(
     line_patterns: list[str] = []
     for idx in non_blank_indices:
         stripped_line = raw_lines[idx].strip(_INLINE_WS_CHARS)
-        folded_line = fold_double_quotes(stripped_line)
+        folded_line = fold_equivalent_punctuation(stripped_line)
         tokens = [re.escape(tok) for tok in _INLINE_WS_SPLIT_RE.split(folded_line) if tok]
         if not tokens:
             return []
@@ -764,11 +777,18 @@ def _locate_normalized_exact_spans(
         trailing_pattern = ""
 
     regex = re.compile(leading_pattern + body_pattern + trailing_pattern)
-    folded_content = fold_double_quotes(content)
+    folded_content, span_map = normalize_nfc_with_spans(content, fold_punct=True)
 
     spans: list[tuple[int, int]] = []
     for match in regex.finditer(folded_content):
-        spans.append((match.start(), match.end()))
+        m_start, m_end = match.start(), match.end()
+        if m_start >= m_end or m_end > len(span_map):
+            continue
+        start_aligned = m_start == 0 or span_map[m_start] != span_map[m_start - 1]
+        end_aligned = m_end >= len(span_map) or span_map[m_end - 1] != span_map[m_end]
+        if not (start_aligned and end_aligned):
+            continue
+        spans.append((span_map[m_start][0], span_map[m_end - 1][1]))
         if len(spans) >= max_matches:
             break
     return spans
@@ -962,7 +982,9 @@ def written_snapshot_for_commit(
 # 正文结构检查只对承载成稿正文的类型生效。
 BODY_GUARD_FILE_TYPES = frozenset({"draft", "script"})
 # 一段至少这么长、逐字出现两次以上才算重复段落（短句、对白、分隔线重复是正常写法）。
+# CJK 段落沿用 80 字符下限；非 CJK 空格分词语言按词数（35 词）判定，防止 15 词的英文对白误报重复。
 DUPLICATE_PARAGRAPH_MIN_CHARS = 80
+DUPLICATE_PARAGRAPH_MIN_WORDS = 35
 CHAPTER_REPLACE_VERSION_SUMMARY = "AI 整章替换"
 
 
@@ -970,10 +992,16 @@ def _body_paragraphs(text: str) -> list[str]:
     return [line.strip() for line in (text or "").split("\n") if line.strip()]
 
 
+def _is_duplicate_guard_paragraph(paragraph: str) -> bool:
+    if has_cjk_or_kana(paragraph):
+        return len(paragraph) >= DUPLICATE_PARAGRAPH_MIN_CHARS
+    return count_words(paragraph) >= DUPLICATE_PARAGRAPH_MIN_WORDS
+
+
 def _duplicated_paragraphs(text: str) -> dict[str, int]:
     counts: dict[str, int] = {}
     for paragraph in _body_paragraphs(text):
-        if len(paragraph) >= DUPLICATE_PARAGRAPH_MIN_CHARS:
+        if _is_duplicate_guard_paragraph(paragraph):
             counts[paragraph] = counts.get(paragraph, 0) + 1
     return {paragraph: count for paragraph, count in counts.items() if count > 1}
 
@@ -2512,7 +2540,7 @@ class FileEditor:
         ):
             # old 与 new 相同即明确无修改意图：永不走模糊/近似定位（防止 F-01 误删原文标点），
             # 统一无害归入 unchanged_edits，不修改原文、不计入 failed_edits / partial_failed。
-            matched_verbatim = locate_exact_or_quote_equivalent(content_before_edit, old_field) is not None
+            matched_verbatim = _has_exact_or_nfc_match(content_before_edit, old_field)
             unchanged_edits.append(
                 {
                     "index": edit_index,
@@ -3050,10 +3078,82 @@ class FileEditor:
                 applied_edits.append(detail)
         else:
             if match_mode == "exact":
-                raise _not_found(
-                    f"Edit {edit_index}: old text not found in content (exact match)"
-                    f"{_crlf_hint_if_applicable(content, old_text)}"
+                nfc_spans = (
+                    locate_nfc_equivalent_spans(
+                        content,
+                        old_text,
+                        max_matches=REPLACE_ALL_MAX_FUZZY_MATCHES if replace_all else 20,
+                    )
+                    if not (unicodedata.is_normalized("NFC", content) and unicodedata.is_normalized("NFC", old_text))
+                    else []
                 )
+                if not nfc_spans:
+                    raise _not_found(
+                        f"Edit {edit_index}: old text not found in content (exact match)"
+                        f"{_crlf_hint_if_applicable(content, old_text)}"
+                    )
+                if replace_all:
+                    parts = []
+                    placed = []
+                    prev = out_len = 0
+                    if already_matched is not None and all(
+                        content[s:e] == effective_new for s, e in nfc_spans
+                    ):
+                        already_matched.append(True)
+                    for start, end in nfc_spans:
+                        parts.append(content[prev:start])
+                        out_len += start - prev
+                        parts.append(effective_new)
+                        placed.append((out_len, out_len + len(effective_new)))
+                        out_len += len(effective_new)
+                        prev = end
+                    parts.append(content[prev:])
+                    content = self._normalize_placed_spans("".join(parts), placed, quote_style)
+                    if applied_hunks is not None:
+                        applied_hunks.extend(
+                            (start, end, p_end - p_start)
+                            for (start, end), (p_start, p_end) in zip(nfc_spans, placed, strict=True)
+                        )
+                    if placed:
+                        effective_new = content[placed[0][0] : placed[0][1]]
+                    applied_edits.append({
+                        "op": "replace",
+                        "match_mode": "quote_equivalent",
+                        "old_preview": _preview(old_text),
+                        "new_preview": _preview(effective_new),
+                        "count": len(nfc_spans),
+                    })
+                else:
+                    start, end = self._select_fuzzy_span(
+                        content,
+                        nfc_spans,
+                        occurrence,
+                        edit_index,
+                        ambiguous=lambda count, previews: (
+                            f"Edit {edit_index}: 原文片段匹配到多个位置（{count}处），"
+                            f"为避免改错位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                            f"指定要改第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
+                            f"{batch_hint}候选片段: {previews}"
+                        ),
+                    )
+                    if already_matched is not None and content[start:end] == effective_new:
+                        already_matched.append(True)
+                    content, written_new = self._place_new_text(
+                        content, start, end, effective_new, quote_style
+                    )
+                    if applied_hunks is not None:
+                        applied_hunks.append((start, end, len(written_new)))
+                    detail = {
+                        "op": "replace",
+                        "match_mode": "quote_equivalent",
+                        "match_count": len(nfc_spans),
+                        "old_preview": _preview(old_text),
+                        "new_preview": _preview(written_new),
+                    }
+                    if occurrence is not None:
+                        detail["occurrence"] = occurrence
+                    applied_edits.append(detail)
+                return content
 
             # 2) Deterministic whitespace/newline/double-quote-normalized match.
             # Runs before fuzzy/approximate in all non-exact modes (unread, range-read,

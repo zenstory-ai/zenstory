@@ -15,31 +15,34 @@ edit_file 的 insert_*/append/prepend 以前把 text 原样塞进定位到的位
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 
 from .text_matching import _DASH_CHARS, _PAUSE_CHARS, _SENTENCE_END_CHARS
 
 INLINE_SPACE = " \t　"
 _NEWLINES = "\r\n"
-# 句末标点之后还属于这一句的收尾符号（闭引号、闭括号）。
-_CLOSING_MARKS = frozenset("”’」』）)】》〉〕")
-_OPENING_MARKS = frozenset("“‘「『（(【《〈〔")
+# 句末标点之后还属于这一句的收尾符号（闭引号、闭括号、法式/俄式书名号）。
+_CLOSING_MARKS = frozenset("”’」』»）)】》〉〕")
+_OPENING_MARKS = frozenset("“‘「『«（(【《〈〔")
 _COLON_CHARS = frozenset("：:")
 _LEADING_BLANK_LINES = re.compile(r"\A(?:[ \t　]*\r?\n)+")
 _NEWLINE_RUN = re.compile(r"(?:\r?\n)+")
-_WORD_CHAR = re.compile(r"[0-9A-Za-z\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
-# 章节/分集标题行：「第31章 …」「第五集」「Chapter 3」、markdown 标题。标题的缩进跟本文已有的标题走，
-# 不套正文段首缩进；「第三部电影…」这种正文不算（单位字后面必须是行尾、空白或标题分隔符）。
+# Any Unicode letter or digit (Latin + diacritics, Cyrillic, Arabic, Hangul, CJK, etc.).
+_WORD_CHAR = re.compile(r"[^\W_]")
+# 章节/分集标题行：「第31章 …」「第五集」「Chapter 3」「Bab 1」「Capítulo 2」「Глава 1」「제1장」「الفصل 1」、markdown 标题。
+# 标题的缩进跟本文已有的标题走，不套正文段首缩进；「第三部电影…」这种正文不算（单位字后面必须是行尾、空白或标题分隔符）。
 # 只匹配去掉行首缩进之后的部分（见 _is_heading_line）：正则开头不带空白量词，长串 Tab 不会回溯。
 _HEADING_LINE = re.compile(
     r"(?:#{1,6}[ \t]"
     r"|第[0-9０-９零〇一二两三四五六七八九十百千万]+[章节回集卷幕部篇](?=$|[ \t　:：·.、—-])"
-    r"|(?i:chapter|episode)[ \t]+[0-9])"
+    r"|(?i:chapter|episode|ep\.?|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)[ \t]+\d"
+    r"|제[ \t]*\d+[ \t]*[장화](?=$|[ \t　:：·.、—-]))"
 )
 
 
 def _is_heading_line(line: str) -> bool:
-    return bool(_HEADING_LINE.match(line.lstrip(INLINE_SPACE)))
+    return bool(_HEADING_LINE.match(unicodedata.normalize("NFC", line.lstrip(INLINE_SPACE))))
 
 NOTE_SENTENCE_SNAP = "插入点原本落在句子中间，已移到这句话的边界"
 NOTE_PARAGRAPH = "已按本文的段落分隔与缩进补齐新段落的前后分隔"
@@ -112,7 +115,7 @@ def follow_span_indentation(content: str, start: int, end: int, old: str, new: s
 FULL_WIDTH_INDENT = "　　"
 _FIRST_INDENT_MIN_FOLLOWING = 3
 _FIRST_INDENT_MIN_SHARE = 0.8
-_CLOSING_QUOTES = frozenset("”’」』")
+_CLOSING_QUOTES = frozenset("”’」』»")
 _PARAGRAPH_LEAD_MARKS = frozenset("—…")
 # 只有编号的行（「1.」「一、」「二。」）是小节序号，不是一段话。
 _SECTION_NUMBER = re.compile(r"[0-9０-９零〇一二两三四五六七八九十百千]+[.．、。]?")

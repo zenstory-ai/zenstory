@@ -693,6 +693,34 @@ _AUTHOR_LINE_ITER_RE = re.compile(r"[^\r\n]*(?:\r\n|\r|\n|$)")
 _CANONICAL_LINE_SEP = r"[ \t]*(?:\r\n|\r|\n)(?:[ \t]*(?:\r\n|\r|\n))*"
 _SOURCE_SNAP_MIN_CHARS = 500
 _SOURCE_SNAP_MIN_LINE_MATCH_RATIO = 0.98
+_SOURCE_QUOTE_FOLD_TABLE = str.maketrans(
+    {
+        **dict.fromkeys('"“”„＂「」«»', '"'),
+        **dict.fromkeys("'‘’‚＇", "'"),
+    }
+)
+
+
+def _normalize_source_for_match(text: str) -> str:
+    """Normalize NFC and curly/straight quotes for author-span matching only."""
+    import unicodedata
+
+    return unicodedata.normalize("NFC", text).translate(_SOURCE_QUOTE_FOLD_TABLE)
+
+
+def _extract_nonblank_author_lines(author_message: str) -> list[tuple[int, int, str]]:
+    """Extract non-blank lines from ``author_message`` with original ``(start, end, trimmed)`` offsets."""
+    author_lines: list[tuple[int, int, str]] = []
+    for match in _AUTHOR_LINE_ITER_RE.finditer(author_message):
+        raw_line = match.group(0)
+        if not raw_line:
+            continue
+        body = raw_line.rstrip("\r\n")
+        if body.strip(" \t"):
+            trimmed = body.rstrip(" \t")
+            start = match.start()
+            author_lines.append((start, start + len(trimmed), trimmed))
+    return author_lines
 
 
 def _find_unique_line_match(author_message: str, candidate: str) -> str | None:
@@ -711,8 +739,62 @@ def _find_unique_line_match(author_message: str, candidate: str) -> str | None:
     return next(iter(matched_slices)) if len(matched_slices) == 1 else None
 
 
+def _find_unique_nfc_quote_span(author_message: str, candidate: str) -> str | None:
+    """NFC + 弯直引号等价查找，命中时回切作者原始字节。"""
+    from agent.tools.file_ops.text_matching import normalize_nfc_with_spans
+
+    norm_cand = _normalize_source_for_match(candidate)
+    if not norm_cand:
+        return None
+    nfc_author, span_map = normalize_nfc_with_spans(author_message, fold_punct=False)
+    norm_author = nfc_author.translate(_SOURCE_QUOTE_FOLD_TABLE)
+
+    matched_slices: set[str] = set()
+    pos = 0
+    step = len(norm_cand)
+    while pos <= len(norm_author) - step:
+        found = norm_author.find(norm_cand, pos)
+        if found < 0:
+            break
+        last = found + step - 1
+        start_aligned = found == 0 or span_map[found] != span_map[found - 1]
+        end_aligned = last + 1 >= len(span_map) or span_map[last] != span_map[last + 1]
+        if start_aligned and end_aligned:
+            matched_slices.add(author_message[span_map[found][0] : span_map[last][1]])
+            if len(matched_slices) > 1:
+                return None
+        pos = found + 1
+    return next(iter(matched_slices)) if len(matched_slices) == 1 else None
+
+
+def _find_unique_nfc_quote_line_match(author_message: str, candidate: str) -> str | None:
+    """按非空行做 NFC + 弯直引号等价匹配，回切作者原始字节（兼容换行符/空行差异）。"""
+    cand_lines = [
+        _normalize_source_for_match(line.rstrip(" \t"))
+        for line in _LINE_BREAK_RE.split(candidate)
+        if line.strip(" \t")
+    ]
+    if not cand_lines:
+        return None
+    author_lines = _extract_nonblank_author_lines(author_message)
+    if len(author_lines) < len(cand_lines):
+        return None
+    norm_author_lines = [_normalize_source_for_match(text) for (_s, _e, text) in author_lines]
+    window = len(cand_lines)
+    matched_slices: set[str] = set()
+    for idx in range(len(norm_author_lines) - window + 1):
+        if norm_author_lines[idx : idx + window] == cand_lines:
+            raw_slice = author_message[
+                author_lines[idx][0] : author_lines[idx + window - 1][1]
+            ].replace("\r\n", "\n").replace("\r", "\n")
+            matched_slices.add(raw_slice)
+            if len(matched_slices) > 1:
+                return None
+    return next(iter(matched_slices)) if len(matched_slices) == 1 else None
+
+
 def _match_verbatim_author_span(author_message: str, source_text: str) -> str | None:
-    """在作者本轮原始消息中核验并截取连续原文片段（兼容 CRLF 与行尾多余空白，禁止改写或跳段拼接）。"""
+    """在作者本轮原始消息中核验并截取连续原文片段（兼容 CRLF、NFC 与弯直引号差异，回切作者原始字节）。"""
     if source_text in author_message:
         return source_text
     stripped = source_text.strip()
@@ -726,14 +808,26 @@ def _match_verbatim_author_span(author_message: str, source_text: str) -> str | 
 
     if stripped in author_message:
         return stripped
-    return _find_unique_line_match(author_message, stripped)
+    exact_line_match = _find_unique_line_match(author_message, stripped)
+    if exact_line_match is not None:
+        return exact_line_match
+
+    # NFC + curly/straight quote normalized match, always slicing original author_message bytes.
+    for candidate in (source_text, stripped):
+        nfc_span = _find_unique_nfc_quote_span(author_message, candidate)
+        if nfc_span is not None:
+            return nfc_span
+        nfc_line = _find_unique_nfc_quote_line_match(author_message, candidate)
+        if nfc_line is not None:
+            return nfc_line
+    return None
 
 
 def _match_long_paste_verbatim_snap(author_message: str, source_text: str) -> str | None:
     """长原文粘贴（>=500 字符）的 98% 逐行对齐回切：返回作者消息原始字节切片。
 
     仅在首尾非空行各自在作者消息中按顺序唯一命中、行数完全一致（禁止跳段/漏行/插行）、
-    且至少 98% 的非空行逐字一致、差异字符极少（容忍模型 JSON 复制偶发的 1–3 个乱码/错字，如 U+FFFD）时生效，
+    且至少 98% 的非空行在 NFC + 弯直引号归一化后一致、差异字符极少（容忍模型 JSON 复制偶发的 1–3 个乱码/错字，如 U+FFFD）时生效，
     落库始终取作者原始切片 author_message[start:end]，保证 100% 作者原文保真。
     """
     from difflib import SequenceMatcher
@@ -746,28 +840,19 @@ def _match_long_paste_verbatim_snap(author_message: str, source_text: str) -> st
     if len(cand_lines) < 2:
         return None
 
-    # Extract non-blank lines from author_message with exact character offsets,
-    # splitting strictly on \r\n / \r / \n (matching _LINE_BREAK_RE; str.splitlines
-    # would also split on \u2028/\u2029/\x0b and break line alignment).
-    author_lines: list[tuple[int, int, str]] = []
-    for match in _AUTHOR_LINE_ITER_RE.finditer(author_message):
-        raw_line = match.group(0)
-        if not raw_line:
-            continue
-        body = raw_line.rstrip("\r\n")
-        if body.strip(" \t"):
-            trimmed = body.rstrip(" \t")
-            start = match.start()
-            author_lines.append((start, start + len(trimmed), trimmed))
+    author_lines = _extract_nonblank_author_lines(author_message)
     if len(author_lines) < len(cand_lines):
         return None
 
-    first_cand, last_cand = cand_lines[0], cand_lines[-1]
-    first_hits = [idx for idx, (_s, _e, text) in enumerate(author_lines) if text == first_cand]
+    norm_cand_lines = [_normalize_source_for_match(line) for line in cand_lines]
+    norm_author_lines = [_normalize_source_for_match(text) for (_s, _e, text) in author_lines]
+
+    first_cand, last_cand = norm_cand_lines[0], norm_cand_lines[-1]
+    first_hits = [idx for idx, text in enumerate(norm_author_lines) if text == first_cand]
     if not first_hits:
         first_l = first_cand.lstrip(" \t")
-        first_hits = [idx for idx, (_s, _e, text) in enumerate(author_lines) if text.lstrip(" \t") == first_l]
-    last_hits = [idx for idx, (_s, _e, text) in enumerate(author_lines) if text == last_cand]
+        first_hits = [idx for idx, text in enumerate(norm_author_lines) if text.lstrip(" \t") == first_l]
+    last_hits = [idx for idx, text in enumerate(norm_author_lines) if text == last_cand]
     if len(first_hits) != 1 or len(last_hits) != 1:
         return None
     first_idx, last_idx = first_hits[0], last_hits[0]
@@ -775,12 +860,13 @@ def _match_long_paste_verbatim_snap(author_message: str, source_text: str) -> st
         return None
 
     slice_lines = author_lines[first_idx : last_idx + 1]
+    norm_slice_lines = norm_author_lines[first_idx : last_idx + 1]
     if len(slice_lines) != len(cand_lines):
         return None
 
     exact_count = 0
     mismatched_pairs: list[tuple[str, str]] = []
-    for line_idx, ((_s, _e, author_text), cand_text) in enumerate(zip(slice_lines, cand_lines, strict=True)):
+    for line_idx, (author_text, cand_text) in enumerate(zip(norm_slice_lines, norm_cand_lines, strict=True)):
         if author_text == cand_text or (
             line_idx == 0 and author_text.lstrip(" \t") == cand_text.lstrip(" \t")
         ):
@@ -876,8 +962,10 @@ def _source_copy_content(
 
     if matched_span is None:
         return None, _make_structured_error(
-            "source_text 不是作者本轮最新一条消息中的逐字连续原文；不要改写、拼接或补字段。"
-            "若资料在更早轮次消息中，请不要传 source_text，先调用 create_file 建空文件，再在下一次回复用 <file>...</file> 写入。没有新建文件。",
+            "source_text 不是作者本轮最新一条消息中的逐字连续原文；source_text 仅用于将作者本轮原文逐字归档为单个文件，"
+            "不要改写、拼接或补字段。若要将资料拆分/整理/提炼为多张卡片，或资料在更早轮次消息中，"
+            "请省略 source_text，每次只调用一个 create_file 建空文件，再在下一次回复用 <file>...</file> 流式写入"
+            "（不要在同一条回复里并行调用多个不带 source_text 的 create_file）。没有新建文件。",
             error_type=SOURCE_TEXT_NOT_FOUND_ERROR_TYPE,
             tool_name="create_file",
         )
@@ -957,13 +1045,72 @@ def _resolve_chapter_target(
         return None
 
 
-def _chapter_title(title: str, number: int, unit: str) -> str:
-    """标题不带章号时补上（展示格式）：中文标题补「第N章 」，其余补「Chapter N: 」。"""
+def _chapter_title(
+    title: str, number: int, unit: str, *, language: str | None = None
+) -> str:
+    """标题不带章号时补上（展示格式）：中文标题/中文项目补「第N章」，其余补「Chapter N」。"""
     text = title.strip()
-    if _CJK_RE.search(text) or not text:
-        return f"第{number}{unit} {text}".strip()
     label = "Chapter" if unit == "章" else "Episode"
+    if not text:
+        if language and not language.strip().lower().startswith("zh"):
+            return f"{label} {number}"
+        return f"第{number}{unit}"
+    if _CJK_RE.search(text):
+        return f"第{number}{unit} {text}"
     return f"{label} {number}: {text}"
+
+
+def _resolve_chapter_language(
+    session: Session,
+    req_ctx: AgentRequestContext,
+    project_id: str,
+    existing_rows: list[Any],
+) -> str:
+    """Determine chapter title language ('en' vs 'zh') when the model passes an empty chapter title."""
+    if req_ctx.language and req_ctx.language.strip():
+        return req_ctx.language.strip().lower()
+
+    titled_rows = [str(getattr(r, "title", "") or "").strip() for r in existing_rows if getattr(r, "title", None)]
+    if titled_rows:
+        if any(_CJK_RE.search(t) for t in titled_rows):
+            return "zh"
+        return "en"
+
+    from models import File
+
+    default_folder_ids = [f"{project_id}-draft-folder", f"{project_id}-script-folder"]
+    try:
+        folder_titles = _run_session_probe(
+            session,
+            lambda s: list(
+                s.exec(
+                    select(File.title).where(
+                        File.id.in_(default_folder_ids),
+                        File.project_id == project_id,
+                        File.is_deleted.is_(False),
+                    )
+                ).all()
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        folder_titles = []
+    non_empty_folders = [str(t or "").strip() for t in folder_titles if str(t or "").strip()]
+    if non_empty_folders:
+        if any(_CJK_RE.search(t) for t in non_empty_folders):
+            return "zh"
+        return "en"
+
+    if req_ctx.user_id:
+        from services.features.user_preference_service import get_ui_language
+
+        try:
+            ui_lang = _run_session_probe(session, lambda s: get_ui_language(s, req_ctx.user_id or ""))
+            if ui_lang:
+                return ui_lang
+        except Exception:  # noqa: BLE001
+            pass
+
+    return "zh"
 
 
 def _row_chapter_number(row: Any, *, unit: str, expected_file_type: str) -> int | None:
@@ -1063,7 +1210,8 @@ def _write_chapter_sync(
             f"确认要写第几{unit}后让两者一致（title 可以只写章名）。",
             error_type=WRITE_CHAPTER_INVALID_ERROR_TYPE,
         )
-    title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit)
+    title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit, language=req_ctx.language)
+    needs_empty_title_lang = titled_number is None and not raw_title.strip() and not req_ctx.language
     requested_parent_id = parsed.parent_id or None
     passed_project_id_as_parent = requested_parent_id == project_id
     if passed_project_id_as_parent:
@@ -1139,6 +1287,9 @@ def _write_chapter_sync(
                     candidates=[{"id": existing.id, "title": existing.title, "parent_id": existing.parent_id}],
                 )
         if not matches:
+            if needs_empty_title_lang:
+                resolved_lang = _resolve_chapter_language(session, req_ctx, project_id, list(rows))
+                title = _chapter_title(raw_title, number, unit, language=resolved_lang)
             if parent_id is None:
                 parent_id = _default_chapter_folder(session, project_id, file_type, rows)
             return _write_chapter_create(
@@ -3194,6 +3345,34 @@ def _resolve_skill_for_tool(
 
     skills = load_active_skills(session, user_id)
     skill = find_active_skill(skills, name)
+    if skill is None:
+        # Reverse-map all 14 official English display names from OFFICIAL_SKILL_EN back to their
+        # stored Chinese PublicSkill names while strictly preserving tenant & enabled-skill scoping.
+        en_to_zh = {
+            skill_name_key(en_name): zh_name
+            for zh_name, (en_name, _en_desc) in OFFICIAL_SKILL_EN.items()
+        }
+        mapped_zh = en_to_zh.get(skill_name_key(name))
+        if mapped_zh is not None:
+            added_public_ids = [s.id for s in skills if s.source == "added"]
+            if added_public_ids:
+                from sqlmodel import col
+
+                from models import PublicSkill
+
+                official_ids = set(
+                    session.exec(
+                        select(PublicSkill.id).where(
+                            col(PublicSkill.id).in_(added_public_ids),
+                            PublicSkill.source == "official",
+                            PublicSkill.name == mapped_zh,
+                        )
+                    ).all()
+                )
+                skill = next(
+                    (s for s in skills if s.source == "added" and s.id in official_ids),
+                    None,
+                )
     if skill is None:
         available = suggest_skill_names(skills, name)
         hint = f"可用技能：{'、'.join(available)}" if available else "当前用户没有启用中的技能"

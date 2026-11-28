@@ -37,8 +37,8 @@ CREATE_FILE_TOOL: dict[str, Any] = build_tool_schema(
     "create_file",
     description=(
         "创建大纲、角色、设定、素材等资料文件或文件夹（正文章节用 write_chapter）。"
-        "生成新资料先建空文件，下一次回复用 <file>内容</file> 写入（一次只流式写一个文件，勿同条回复并列多个待写 create_file）；"
-        "录入作者本轮原文时传 source_text 直接校验并保存。"
+        "生成新资料或拆分/整理多张卡时省略 source_text，一次只调用一个 create_file 建空文件并在下一次回复用 <file>内容</file> 流式写入"
+        "（勿同条回复并行多个无 source_text 的 create_file）；仅逐字单文件归档作者本轮原文时传 source_text。"
     ),
     model_cls=CreateFileInput,
 )

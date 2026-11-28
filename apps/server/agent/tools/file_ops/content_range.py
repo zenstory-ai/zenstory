@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import bisect
 import re
+import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from utils.text_metrics import count_words
+from utils.text_metrics import count_words, has_cjk_or_kana
 from utils.title_sequence import parse_chinese_number
 
 DEFAULT_RANGE_CHARS = 6000
@@ -27,7 +28,36 @@ SHORT_FILE_FULL_RETURN_MAX_CHARS = 12000
 _HEADING_MAX_CHARS = 40
 _MAX_LISTED_HEADINGS = 40
 _HIGHER_UNITS = frozenset({"卷", "部", "篇", "part"})
-_CHAPTER_UNITS = frozenset({"章", "集", "回", "chapter", "episode"})
+_CHAPTER_UNITS = frozenset(
+    {
+        "章",
+        "集",
+        "回",
+        "chapter",
+        "episode",
+        "bab",
+        "capítulo",
+        "capitulo",
+        "episodio",
+        "episódio",
+        "chương",
+        "chuong",
+        "tập",
+        "tap",
+        "глава",
+        "эпизод",
+        "серия",
+        "chapitre",
+        "épisode",
+        "rozdział",
+        "rozdzial",
+        "odcinek",
+        "الفصل",
+        "الحلقة",
+        "장",
+        "화",
+    }
+)
 _SUB_UNITS = frozenset({"节", "幕"})
 _MD_PREFIX_RE = re.compile(r"^\s*(?:#{1,6}\s+)?(?:\*{1,2})?\s*")
 _MD_BOLD_SUFFIX_RE = re.compile(r"\*{1,2}\s*$")
@@ -35,7 +65,8 @@ _HEADING_RE = re.compile(
     r"^\s*(?:(?P<hashes>#{1,6})\s+)?(?:\*{1,2})?\s*(?:"
     r"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇])"
     r"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+)(?=$|[ \t\u3000:：·.、—\-*])"
-    r"|(?P<en_unit>chapter|episode|part)\s+(?P<en_num>\d+)"
+    r"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+)"
+    r"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화])"
     r"|【(?P<bracketed>[^】]{1,20})】"
     r"|(?P<cn_section>[零〇一二两三四五六七八九十]+、\s*\S+)"
     r")",
@@ -132,7 +163,7 @@ def _headings(content: str) -> list[_Heading]:
     for line in content.split("\n"):
         stripped = line.strip()
         if stripped and len(stripped) <= _HEADING_MAX_CHARS:
-            match = _HEADING_RE.match(stripped)
+            match = _HEADING_RE.match(unicodedata.normalize("NFC", stripped))
             if match:
                 hashes = match.group("hashes")
                 md_level = len(hashes) if hashes else None
@@ -140,10 +171,14 @@ def _headings(content: str) -> list[_Heading]:
                     match.group("unit")
                     or match.group("vol_unit")
                     or match.group("en_unit")
+                    or match.group("ko_unit")
                     or ""
                 ).lower() or None
                 number = _number(
-                    match.group("num") or match.group("vol_num") or match.group("en_num")
+                    match.group("num")
+                    or match.group("vol_num")
+                    or match.group("en_num")
+                    or match.group("ko_num")
                 )
                 bracket_inner = match.group("bracketed")
                 bracket_cleaned = bracket_inner.strip() if bracket_inner else None
@@ -189,13 +224,14 @@ def _headings(content: str) -> list[_Heading]:
 
 def _section_bounds(content: str, section: str) -> tuple[int, int, str]:
     headings = _headings(content)
-    wanted = section.strip()
+    wanted = unicodedata.normalize("NFC", section.strip())
     wanted_match = _HEADING_RE.match(wanted)
     wanted_unit = (
         (
             wanted_match.group("unit")
             or wanted_match.group("vol_unit")
             or wanted_match.group("en_unit")
+            or wanted_match.group("ko_unit")
             or ""
         ).lower()
         if wanted_match
@@ -206,6 +242,7 @@ def _section_bounds(content: str, section: str) -> tuple[int, int, str]:
             wanted_match.group("num")
             or wanted_match.group("vol_num")
             or wanted_match.group("en_num")
+            or wanted_match.group("ko_num")
         )
         if wanted_match
         else None
@@ -369,15 +406,25 @@ def count_paragraphs(content: str) -> int:
     return sum(1 for line in content.split("\n") if line.strip())
 
 
-def format_paragraph_stats(content: str, *, start_paragraph: int = 1) -> tuple[str, int]:
-    """Annotate each non-empty paragraph with ``[P01 · 84字] `` while preserving blank lines.
+def format_paragraph_stats(
+    content: str,
+    *,
+    start_paragraph: int = 1,
+    language: str | None = None,
+) -> tuple[str, int]:
+    """Annotate each non-empty paragraph with ``[P01 · 84字] `` or ``[P01 · 84w] `` while preserving blank lines.
 
     Blank lines stay verbatim and do not advance the 1-based paragraph counter.
     The returned ``paragraph_count`` is the number of non-empty paragraphs inside
-    ``content``.
+    ``content``. Uses ``字`` for Chinese/CJK content and ``w`` for non-CJK content
+    (or when ``language`` explicitly requests English/non-Chinese).
     """
     if not content:
         return "", 0
+    if language is not None:
+        unit_label = "字" if language.strip().lower().startswith("zh") else "w"
+    else:
+        unit_label = "字" if has_cjk_or_kana(content) else "w"
     p_num = max(1, start_paragraph) - 1
     annotated: list[str] = []
     count = 0
@@ -386,7 +433,7 @@ def format_paragraph_stats(content: str, *, start_paragraph: int = 1) -> tuple[s
             p_num += 1
             count += 1
             words = count_words(line)
-            annotated.append(f"[P{p_num:02d} · {words}字] {line}")
+            annotated.append(f"[P{p_num:02d} · {words}{unit_label}] {line}")
         else:
             annotated.append(line)
     return "\n".join(annotated), count

@@ -14,7 +14,10 @@ import re
 import time
 import unicodedata
 from collections import Counter, defaultdict
+from collections.abc import Iterator
 from difflib import SequenceMatcher
+
+from utils.text_metrics import count_words, has_cjk_or_kana, is_cjk_or_kana_char
 
 # --- Approximate-match safety limits -------------------------------------
 # Approximate (character-level fuzzy) matching is a best-effort *tertiary*
@@ -57,39 +60,156 @@ MIN_APPROX_GAP = 0.08
 CONTAINMENT_MIN_LEN_RATIO = 0.6
 
 
-# --- 引号等价精确匹配 -----------------------------------------------------
-# AI 写入正文时会把半角 " 规范化成全角引号（utils.cjk_quotes），模型下一次
-# edit_file 却常常照旧用半角引号抄 old/anchor，逐字 exact 就找不到了。这里把
-# 双引号类字符在原文和 old 里都映射成同一个占位符再找：映射一字对一字，命中
-# 下标可以直接用在原文上，其余字符仍须逐字一致（比去掉全部标点的 fuzzy 严格）。
-QUOTE_EQUIVALENT_CHARS = '"“”＂「」'
+# --- 引号/撇号/破折号等价精确匹配 + NFC 归一化 -------------------------------
+# AI 写入正文时会把半角 " 规范化成全角引号（utils.cjk_quotes），外文稿件则常混用
+# 弯直单引号/撇号（don't vs don’t, l'homme vs l’homme）、法式书名号（« »）与破折号
+# （- / – / —）。这里做一字对一字的等价折叠，命中下标直接对应原文，其余字符仍须逐字一致。
+DOUBLE_QUOTE_EQUIVALENT_CHARS = '"“”„＂「」«»'
+SINGLE_QUOTE_EQUIVALENT_CHARS = "'‘’‚＇"
+DASH_EQUIVALENT_CHARS = "-–—"
+QUOTE_EQUIVALENT_CHARS = (
+    DOUBLE_QUOTE_EQUIVALENT_CHARS
+    + SINGLE_QUOTE_EQUIVALENT_CHARS
+    + DASH_EQUIVALENT_CHARS
+)
 _QUOTE_FOLD_PLACEHOLDER = '"'
 _QUOTE_FOLD_TABLE = str.maketrans(
-    dict.fromkeys(QUOTE_EQUIVALENT_CHARS, _QUOTE_FOLD_PLACEHOLDER)
+    dict.fromkeys(DOUBLE_QUOTE_EQUIVALENT_CHARS, _QUOTE_FOLD_PLACEHOLDER)
+)
+_EQUIVALENT_PUNCT_FOLD_TABLE = str.maketrans(
+    {
+        **dict.fromkeys(DOUBLE_QUOTE_EQUIVALENT_CHARS, '"'),
+        **dict.fromkeys(SINGLE_QUOTE_EQUIVALENT_CHARS, "'"),
+        **dict.fromkeys(DASH_EQUIVALENT_CHARS, "-"),
+    }
 )
 
 
 def has_quote_equivalent_chars(text: str) -> bool:
-    """Whether ``text`` contains any mark that quote folding would change."""
+    """Whether ``text`` contains any mark that quote/apostrophe/dash folding would change."""
     return any(ch in QUOTE_EQUIVALENT_CHARS for ch in text)
 
 
 def fold_double_quotes(text: str) -> str:
-    """Map every ``"“”＂「」`` to one placeholder; length is unchanged."""
+    """Map every ``"“”＂「」«»`` to one placeholder; length is unchanged."""
     return text.translate(_QUOTE_FOLD_TABLE)
+
+
+def fold_equivalent_punctuation(text: str) -> str:
+    """Map equivalent double quotes, single quotes/apostrophes, guillemets, and dashes 1-to-1."""
+    return text.translate(_EQUIVALENT_PUNCT_FOLD_TABLE)
+
+
+def _is_hangul_trailing_jamo(ch: str) -> bool:
+    cp = ord(ch)
+    return 0x1160 <= cp <= 0x11FF or 0xD7B0 <= cp <= 0xD7FF
+
+
+def _iter_nfc_clusters(text: str) -> Iterator[tuple[int, int, str]]:
+    """Yield ``(start, end, slice)`` clusters that NFC will never merge across boundaries."""
+    length = len(text)
+    if length == 0:
+        return
+    start = 0
+    idx = 1
+    while idx < length:
+        ch = text[idx]
+        if unicodedata.combining(ch) == 0 and not _is_hangul_trailing_jamo(ch):
+            yield start, idx, text[start:idx]
+            start = idx
+        idx += 1
+    yield start, length, text[start:length]
+
+
+def _extend_past_combining(content: str, end_orig: int) -> int:
+    """Ensure an original-string end offset never splits trailing combining marks or Hangul Jamo."""
+    length = len(content)
+    while end_orig < length and (
+        unicodedata.combining(content[end_orig]) != 0
+        or (
+            end_orig > 0
+            and (
+                0x1100 <= ord(content[end_orig - 1]) <= 0x11FF
+                or 0xAC00 <= ord(content[end_orig - 1]) <= 0xD7A3
+            )
+            and _is_hangul_trailing_jamo(content[end_orig])
+        )
+    ):
+        end_orig += 1
+    return end_orig
+
+
+def normalize_nfc_with_spans(
+    text: str, *, fold_punct: bool = False
+) -> tuple[str, list[tuple[int, int]]]:
+    """Return ``(normalized_text, orig_spans)`` where ``orig_spans[k]`` is ``(start, end)`` in ``text``."""
+    if unicodedata.is_normalized("NFC", text):
+        norm = fold_equivalent_punctuation(text) if fold_punct else text
+        return norm, [(i, i + 1) for i in range(len(text))]
+
+    out_chars: list[str] = []
+    spans: list[tuple[int, int]] = []
+    for c_start, c_end, cluster in _iter_nfc_clusters(text):
+        norm_cluster = unicodedata.normalize("NFC", cluster)
+        if fold_punct:
+            norm_cluster = fold_equivalent_punctuation(norm_cluster)
+        for ch in norm_cluster:
+            out_chars.append(ch)
+            spans.append((c_start, c_end))
+    return "".join(out_chars), spans
+
+
+def locate_nfc_equivalent_spans(
+    content: str,
+    pattern: str,
+    *,
+    fold_punct: bool = True,
+    max_matches: int = 20,
+) -> list[tuple[int, int]]:
+    """Find spans in ``content`` matching ``pattern`` after NFC normalization (and optional quote/dash folding).
+
+    Always returns valid ``(start, end)`` character offsets in the original ``content``.
+    """
+    if not pattern:
+        return []
+    norm_pattern = unicodedata.normalize("NFC", pattern)
+    if fold_punct:
+        norm_pattern = fold_equivalent_punctuation(norm_pattern)
+    if not norm_pattern:
+        return []
+
+    norm_content, span_map = normalize_nfc_with_spans(content, fold_punct=fold_punct)
+    spans: list[tuple[int, int]] = []
+    pos = 0
+    step = len(norm_pattern)
+    while pos <= len(norm_content) - step:
+        found = norm_content.find(norm_pattern, pos)
+        if found < 0:
+            break
+        last = found + step - 1
+        start_aligned = found == 0 or span_map[found] != span_map[found - 1]
+        end_aligned = last + 1 >= len(span_map) or span_map[last] != span_map[last + 1]
+        if start_aligned and end_aligned:
+            spans.append((span_map[found][0], span_map[last][1]))
+            if len(spans) >= max_matches:
+                break
+            pos = found + step
+        else:
+            pos = found + 1
+    return spans
 
 
 def locate_exact_or_quote_equivalent(
     content: str, pattern: str
 ) -> tuple[str, str, str] | None:
-    """Find ``pattern`` exactly, or exactly modulo double-quote style.
+    """Find ``pattern`` exactly, or exactly modulo quote/apostrophe/dash style.
 
     Returns ``(match_mode, haystack, needle)`` where ``match_mode`` is
     ``"exact"`` or ``"quote_equivalent"``. Indices found by searching
     ``needle`` in ``haystack`` are valid in ``content`` (folding is one
     character for one character). ``None`` when neither matches.
 
-    A pattern without quote marks cannot gain a match from folding (any
+    A pattern without foldable marks cannot gain a match from folding (any
     folded hit would cover only unchanged characters), so it is not folded.
     """
     if not pattern:
@@ -98,8 +218,8 @@ def locate_exact_or_quote_equivalent(
         return "exact", content, pattern
     if not has_quote_equivalent_chars(pattern):
         return None
-    folded_pattern = fold_double_quotes(pattern)
-    folded_content = fold_double_quotes(content)
+    folded_pattern = fold_equivalent_punctuation(pattern)
+    folded_content = fold_equivalent_punctuation(content)
     if folded_pattern in folded_content:
         return "quote_equivalent", folded_content, folded_pattern
     return None
@@ -152,23 +272,45 @@ def normalize_for_fuzzy_match(
     normalized_chars: list[str] = []
     index_map: list[int] = []
 
-    for idx, ch in enumerate(s):
-        chunk = unicodedata.normalize("NFKC", ch)
-        if casefold:
-            chunk = chunk.casefold()
+    if unicodedata.is_normalized("NFC", s):
+        for idx, ch in enumerate(s):
+            chunk = unicodedata.normalize("NFKC", ch)
+            if casefold:
+                chunk = chunk.casefold()
 
-        for out_ch in chunk:
-            if ignore_punct_whitespace:
-                # Remove whitespace and punctuation for robust matching
-                if out_ch.isspace():
-                    continue
-                if unicodedata.category(out_ch).startswith("P"):
-                    continue
+            for out_ch in chunk:
+                if ignore_punct_whitespace:
+                    if out_ch.isspace():
+                        continue
+                    if unicodedata.category(out_ch).startswith("P"):
+                        continue
 
-            normalized_chars.append(out_ch)
-            index_map.append(idx)
+                normalized_chars.append(out_ch)
+                index_map.append(idx)
+    else:
+        for c_start, _c_end, cluster in _iter_nfc_clusters(s):
+            chunk = unicodedata.normalize("NFKC", unicodedata.normalize("NFC", cluster))
+            if casefold:
+                chunk = chunk.casefold()
+
+            for out_ch in chunk:
+                if ignore_punct_whitespace:
+                    if out_ch.isspace():
+                        continue
+                    if unicodedata.category(out_ch).startswith("P"):
+                        continue
+
+                normalized_chars.append(out_ch)
+                index_map.append(c_start)
 
     return "".join(normalized_chars), index_map
+
+
+def _is_word_script_char(ch: str) -> bool:
+    """True for letters/digits/combining marks in space-delimited (non-CJK/kana) scripts."""
+    if is_cjk_or_kana_char(ch):
+        return False
+    return ch.isalnum() or unicodedata.category(ch) in ("Mn", "Mc")
 
 
 def _line_break_before(s: str, index_map: list[int]) -> list[bool]:
@@ -224,6 +366,7 @@ def find_fuzzy_spans(
     if stats is not None:
         stats["boundary_rejected"] = 0
         stats["paragraph_rejected"] = 0
+        stats["word_boundary_rejected"] = 0
 
     normalized_content, map_content = normalize_for_fuzzy_match(
         content,
@@ -238,8 +381,23 @@ def find_fuzzy_spans(
 
     if not normalized_pattern:
         return []
-    if len(normalized_pattern) < min_normalized_len:
-        return []
+    is_cjk_pattern = has_cjk_or_kana(pattern)
+    if is_cjk_pattern:
+        if len(normalized_pattern) < min_normalized_len:
+            return []
+    else:
+        pattern_words = count_words(pattern)
+        if pattern_words >= 2:
+            # Multi-word non-CJK phrases (e.g. "he ran") stay matchable down to 5 chars
+            # (or caller's smaller min_normalized_len), guarded by word boundaries below.
+            min_multi_word_len = min(min_normalized_len, 5)
+            if len(normalized_pattern) < min_multi_word_len:
+                return []
+        else:
+            # Guard against 1-word non-CJK fragments fuzzy-matching unrelated prose.
+            min_single_word_len = max(min_normalized_len * 2, 12) if min_normalized_len >= 6 else min_normalized_len
+            if len(normalized_pattern) < min_single_word_len:
+                return []
 
     content_breaks: list[bool] = []
     pattern_breaks: list[bool] = []
@@ -250,6 +408,7 @@ def find_fuzzy_spans(
     spans: list[tuple[int, int]] = []
     boundary_rejected = 0
     paragraph_rejected = 0
+    word_boundary_rejected = 0
     pos = 0
     while pos < len(normalized_content):
         found = normalized_content.find(normalized_pattern, pos)
@@ -281,7 +440,24 @@ def find_fuzzy_spans(
             continue
 
         start_orig = map_content[found]
-        end_orig = map_content[last] + 1
+        end_orig = _extend_past_combining(content, map_content[last] + 1)
+
+        if ignore_punct_whitespace:
+            start_mid_word = (
+                start_orig > 0
+                and _is_word_script_char(content[start_orig])
+                and _is_word_script_char(content[start_orig - 1])
+            )
+            end_mid_word = (
+                end_orig < len(content)
+                and _is_word_script_char(content[end_orig - 1])
+                and _is_word_script_char(content[end_orig])
+            )
+            if start_mid_word or end_mid_word:
+                word_boundary_rejected += 1
+                pos = found + 1
+                continue
+
         spans.append((start_orig, end_orig))
 
         if len(spans) >= max_matches:
@@ -293,6 +469,7 @@ def find_fuzzy_spans(
     if stats is not None:
         stats["boundary_rejected"] = boundary_rejected
         stats["paragraph_rejected"] = paragraph_rejected
+        stats["word_boundary_rejected"] = word_boundary_rejected
     return spans
 
 
@@ -332,13 +509,21 @@ def find_approximate_match(
     norm_content, map_content = normalize_for_fuzzy_match(content)
     norm_pattern, map_pattern = normalize_for_fuzzy_match(pattern)
 
-    if len(norm_pattern) < min_pattern_len:
+    if has_cjk_or_kana(pattern):
+        effective_min_len = min_pattern_len
+    else:
+        effective_min_len = max(min_pattern_len, min_pattern_len * 2)
+        min_words = max(3, min_pattern_len // 3)
+        if count_words(pattern) < min_words:
+            return None
+
+    if len(norm_pattern) < effective_min_len:
         return None
 
     pattern_len = len(norm_pattern)
 
     # Sliding window with some tolerance for length variation
-    window_min = max(min_pattern_len, int(pattern_len * 0.7))
+    window_min = max(effective_min_len, int(pattern_len * 0.7))
     window_max = int(pattern_len * 1.3)
     window_count = max(0, window_max - window_min + 1)
 
@@ -611,7 +796,7 @@ def _unique_approximate_span(
     if start_i >= end_i:
         return None
     start_orig = map_content[start_i]
-    end_orig = map_content[end_i - 1] + 1
+    end_orig = _extend_past_combining(content, map_content[end_i - 1] + 1)
     matched_text = content[start_orig:end_orig]
     return (start_orig, end_orig, best_score, matched_text)
 
@@ -904,9 +1089,15 @@ def find_unique_line_span(
 
 
 __all__ = [
+    "DOUBLE_QUOTE_EQUIVALENT_CHARS",
+    "SINGLE_QUOTE_EQUIVALENT_CHARS",
+    "DASH_EQUIVALENT_CHARS",
     "QUOTE_EQUIVALENT_CHARS",
     "fold_double_quotes",
+    "fold_equivalent_punctuation",
     "has_quote_equivalent_chars",
+    "normalize_nfc_with_spans",
+    "locate_nfc_equivalent_spans",
     "locate_exact_or_quote_equivalent",
     "normalize_for_fuzzy_match",
     "find_fuzzy_spans",

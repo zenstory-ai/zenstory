@@ -72,7 +72,7 @@ from config.agent_runtime import (
 )
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from core.i18n import resolve_accept_language
+from core.i18n import resolve_user_language
 from database import create_session, get_session
 from middleware.rate_limit import (
     get_client_ip,
@@ -1425,7 +1425,14 @@ async def stream_request(
         language=accept_language,
     )
 
-    lang = resolve_accept_language(accept_language)
+    if should_offload_session_work(session) and not (accept_language and accept_language.strip()):
+        def _resolve_lang_sync() -> str:
+            with create_session() as sync_session:
+                return resolve_user_language(sync_session, user_id, accept_language)
+
+        lang = await asyncio.to_thread(_resolve_lang_sync)
+    else:
+        lang = resolve_user_language(session, user_id, accept_language)
 
     # 预扣额度前检查账号任务名额；明确满额才拒绝，Redis 故障由名额层放行。
     account_slot = await _acquire_account_slot(user_id, body.project_id)
@@ -1829,7 +1836,14 @@ async def suggest_next_action(
         return SuggestResponse(suggestions=[])
 
     service = get_suggest_service()
-    lang = resolve_accept_language(accept_language)
+    if should_offload_session_work(session) and not (accept_language and accept_language.strip()):
+        def _resolve_lang_sync() -> str:
+            with create_session() as sync_session:
+                return resolve_user_language(sync_session, user_id, accept_language)
+
+        lang = await asyncio.to_thread(_resolve_lang_sync)
+    else:
+        lang = resolve_user_language(session, user_id, accept_language)
 
     suggestions = await service.generate_suggestions(
         session=session,
