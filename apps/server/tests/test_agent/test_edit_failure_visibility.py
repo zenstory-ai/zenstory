@@ -1,12 +1,14 @@
 """Regression tests for AI edit failure visibility & safe client payloads.
 
 Covers:
-1. edit_file error & partial payloads preserve {id, title, file_type} and bounded
-   safe failed_edits previews (user_message, old_preview/anchor_preview/new_preview/text_preview).
+1. edit_file error & partial payloads preserve {id, title, file_type} and user_message
+   without attaching failed-edit snippet preview fields.
 2. old == new returns no_change before anchor_not_found without fuzzy mutation.
 3. EDIT_ERROR_USER_MESSAGES covers all edit/chapter failure error types with neutral copy.
 4. StreamAdapter safe allowlist forwards file metadata & safe failed_edits / skipped_files
-   on edit_file / batch_replace_files / write_chapter errors while stripping raw model error prose.
+   on edit_file / batch_replace_files / write_chapter errors while stripping raw model error
+   prose and preview keys, and emits no spurious file_edit_* events on pre-edit errors.
+5. mcp_tools.edit_file omits unauthorized file metadata on ForbiddenError.
 """
 
 from __future__ import annotations
@@ -43,6 +45,8 @@ from agent.tools.tool_context import AgentRequestContext
 from models import File, Project, User
 from services.features.activation_event_service import activation_event_service
 from services.features.file_version_service import FileVersionService
+
+_PREVIEW_KEYS = ("old_preview", "anchor_preview", "new_preview", "text_preview")
 
 
 def _payload(result: dict) -> dict:
@@ -109,13 +113,13 @@ def test_edit_error_user_messages_cover_all_new_types_with_neutral_copy():
 
 
 @pytest.mark.integration
-def test_edit_file_batch_and_partial_errors_preserve_file_meta_and_clipped_previews(db_session, owner_project):
+def test_edit_file_batch_and_partial_errors_preserve_file_meta_without_failed_previews(db_session, owner_project):
     user, project = owner_project
     chapter = _add_file(db_session, project, title="第5章 破晓", file_type="draft")
     long_old = "完全不存在的目标原文" * 30
     long_new = "打算替换进去的新内容" * 30
 
-    # Atomic failure (continue_on_error=False) -> EditBatchError preserves file meta + clipped previews
+    # Atomic failure (continue_on_error=False) -> EditBatchError preserves file meta & user_message, no preview keys
     with pytest.raises(EditBatchError) as exc:
         FileEditor(db_session, user.id).edit_file(
             chapter.id,
@@ -137,17 +141,17 @@ def test_edit_file_batch_and_partial_errors_preserve_file_meta_and_clipped_previ
     assert first["op"] == "replace"
     assert first["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
     assert first["user_message"] == edit_error_user_message(EDIT_ERROR_ANCHOR_NOT_FOUND)
-    assert first["old_preview"].endswith("...")
-    assert len(first["old_preview"]) == 203
-    assert first["new_preview"].endswith("...")
-    assert len(first["new_preview"]) == 203
+    for key in _PREVIEW_KEYS:
+        assert key not in first
 
     second = fields["failed_edits"][1]
     assert second["op"] == "insert_after"
-    assert second["anchor_preview"] == "不存在的锚点"
-    assert second["text_preview"] == "待插入的句子"
+    assert second["error_type"] == EDIT_ERROR_ANCHOR_NOT_FOUND
+    assert second["user_message"] == edit_error_user_message(EDIT_ERROR_ANCHOR_NOT_FOUND)
+    for key in _PREVIEW_KEYS:
+        assert key not in second
 
-    # Partial failure (continue_on_error=True)
+    # Partial failure (continue_on_error=True): applied details keep previews, failed_edits omit previews
     partial = FileEditor(db_session, user.id).edit_file(
         chapter.id,
         [
@@ -160,10 +164,32 @@ def test_edit_file_batch_and_partial_errors_preserve_file_meta_and_clipped_previ
     assert partial["title"] == "第5章 破晓"
     assert partial["file_type"] == "draft"
     assert partial["partial_success"] is True
+    assert partial["details"][0]["old_preview"] == "窗外下着大雨。"
+    assert partial["details"][0]["new_preview"] == "窗外飘着细雨。"
     assert len(partial["failed_edits"]) == 1
-    assert partial["failed_edits"][0]["old_preview"] == "不存在的段落。"
-    assert partial["failed_edits"][0]["new_preview"] == "替换失败的新段落。"
     assert partial["failed_edits"][0]["user_message"] == edit_error_user_message(EDIT_ERROR_ANCHOR_NOT_FOUND)
+    for key in _PREVIEW_KEYS:
+        assert key not in partial["failed_edits"][0]
+
+
+@pytest.mark.integration
+def test_edit_file_identical_old_and_new_returns_no_change(db_session, owner_project):
+    user, project = owner_project
+    chapter = _add_file(db_session, project, title="第6章 无变化", file_type="draft")
+
+    with pytest.raises(EditBatchError) as exc:
+        FileEditor(db_session, user.id).edit_file(
+            chapter.id,
+            [{"op": "replace", "old": "不存在且相同的文本", "new": "不存在且相同的文本"}],
+            continue_on_error=False,
+        )
+
+    fields = exc.value.payload_fields()
+    assert fields["error_type"] == EDIT_ERROR_NO_CHANGE
+    assert fields["user_message"] == edit_error_user_message(EDIT_ERROR_NO_CHANGE)
+    assert fields["failed_edits"][0]["error_type"] == EDIT_ERROR_NO_CHANGE
+    for key in _PREVIEW_KEYS:
+        assert key not in fields["failed_edits"][0]
 
 
 @pytest.mark.integration
@@ -270,10 +296,10 @@ async def test_batch_replace_all_skipped_includes_file_type_and_user_message(db_
 
 
 @pytest.mark.asyncio
-async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_strips_raw_prose():
+async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_strips_raw_prose_and_previews():
     adapter = StreamAdapter(StreamAdapterConfig(project_id="p1", user_id="u1"))
 
-    # 1. edit_file atomic error (EditBatchError shape)
+    # 1. edit_file atomic error (EditBatchError shape): strips raw error & preview keys
     edit_error_json = json.dumps(
         {
             "status": "error",
@@ -292,8 +318,11 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
                     "error": "Edit 0: 请用 read_files(ids=['f-1']) SECRET_ITEM_INSTRUCTION",
                     "error_type": "anchor_not_found",
                     "user_message": "未在原文中找到对应段落，文件未改动。",
+                    "batch_anchor_invalidated": True,
                     "old_preview": "旧段落片段",
+                    "anchor_preview": "锚点片段",
                     "new_preview": "新段落片段",
+                    "text_preview": "文本片段",
                 }
             ],
         },
@@ -322,17 +351,17 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
             "op": "replace",
             "error_type": "anchor_not_found",
             "user_message": "未在原文中找到对应段落，文件未改动。",
-            "old_preview": "旧段落片段",
-            "new_preview": "新段落片段",
+            "batch_anchor_invalidated": True,
         }
     ]
     serialized_all = json.dumps([e.data for e in events], ensure_ascii=False)
     assert "SECRET_MODEL_PROMPT" not in serialized_all
     assert "SECRET_ITEM_INSTRUCTION" not in serialized_all
+    for key in _PREVIEW_KEYS:
+        assert key not in card["data"]["failed_edits"][0]
 
-    # 2. edit_file partial success strips raw item.error & raw failure warnings across ALL SSE events,
-    #    and defensively clamps oversized previews to 200 chars + "...".
-    oversized_preview = "超长片段" * 80
+    # 2. edit_file partial success strips raw item.error, raw failure warnings, and failed_edits previews;
+    #    failed file_edit_applied event keeps old_preview=None and new_preview=None.
     partial_json = json.dumps(
         {
             "status": "partial",
@@ -354,8 +383,8 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
                         "op": "replace",
                         "error": "Edit 1: RAW_MODEL_ONLY_HINT",
                         "error_type": "anchor_not_found",
-                        "old_preview": oversized_preview,
-                        "new_preview": "新片段",
+                        "old_preview": "超长旧片段",
+                        "new_preview": "超长新片段",
                     }
                 ],
             },
@@ -374,12 +403,27 @@ async def test_stream_adapter_allowlists_safe_edit_and_batch_error_metadata_and_
     partial_card = next(e.data for e in partial_events if e.type == EventType.TOOL_RESULT)
     assert partial_card["status"] == "success"
     assert partial_card["data"]["warnings"] == ["Edit 2: empty edit ignored"]
-    assert partial_card["data"]["failed_edits"][0]["old_preview"].endswith("...")
-    assert len(partial_card["data"]["failed_edits"][0]["old_preview"]) == 203
-    assert partial_card["data"]["failed_edits"][0]["user_message"] == "未在原文中找到对应段落，文件未改动。"
+    assert partial_card["data"]["details"] == [{"op": "replace", "old_preview": "A", "new_preview": "B"}]
+    assert partial_card["data"]["failed_edits"] == [
+        {
+            "index": 1,
+            "op": "replace",
+            "error_type": "anchor_not_found",
+            "user_message": "未在原文中找到对应段落，文件未改动。",
+        }
+    ]
+    failed_applied_events = [
+        e.data for e in partial_events if e.type == EventType.FILE_EDIT_APPLIED and e.data.get("success") is False
+    ]
+    assert len(failed_applied_events) == 1
+    assert failed_applied_events[0]["old_preview"] is None
+    assert failed_applied_events[0]["new_preview"] is None
+    assert failed_applied_events[0]["error"] == "未在原文中找到对应段落，文件未改动。"
     partial_all_serialized = json.dumps([e.data for e in partial_events], ensure_ascii=False)
     assert "RAW_MODEL_ONLY_HINT" not in partial_all_serialized
     assert "RAW_WARNING_LEAK_TRACE" not in partial_all_serialized
+    assert "超长旧片段" not in partial_all_serialized
+    assert "超长新片段" not in partial_all_serialized
 
     # 3. batch_replace_files all-skipped error forwards safe skipped_files without raw error prose
     batch_error_json = json.dumps(

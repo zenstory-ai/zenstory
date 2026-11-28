@@ -13,13 +13,11 @@ import { isPersistedUndoTarget, readFileEditUndoTarget, readWriteChapterOutcome 
 import { countWords } from '../../../lib/documentChunker';
 import { AnimatedDetails } from '../../ui/AnimatedCollapse';
 import { CHAT_CARD_INLINE_ACTION, CHAT_CARD_SURFACE } from '../../chatCardStyles';
-import { FailedEditsSection, RetryEditFailureAction } from './FailedEditsSection';
 import {
   CardUndoControl,
   ToolCardFileRow,
   WRITE_CHAPTER_HEADLINES,
   WRITE_EPISODE_HEADLINES,
-  extractFailedEdits,
   formatMatchCountHeadline,
   formatWordCount,
   getEditOpIcon,
@@ -34,7 +32,6 @@ import {
   resolveToolFailure,
   restoredAuthorDeletion,
   touchedAuthorEdits,
-  type EditFailureRetryContext,
   type TranslateFn,
 } from './toolCardHelpers';
 
@@ -278,20 +275,15 @@ export const DeleteFileCard: React.FC<{
 export const EditFileCard: React.FC<{
   data: Record<string, unknown>;
   fileId: string;
-  toolArguments?: Record<string, unknown>;
   chatMessageId?: string;
   toolUseId?: string;
   undoneEdits: ReadonlySet<string>;
   undoBlocked: ReadonlySet<string>;
   onUndo?: (target: FileEditUndoTarget) => void;
-  isStreaming?: boolean;
-  nextStepsBlocked?: boolean;
-  onRetryEditFailure?: (context: EditFailureRetryContext) => void;
   t: TranslateFn;
 } & SharedFileRowProps> = ({
   data,
   fileId,
-  toolArguments,
   chatMessageId,
   toolUseId,
   undoneEdits,
@@ -300,9 +292,6 @@ export const EditFileCard: React.FC<{
   onOpenFile,
   isPending,
   interrupted,
-  isStreaming = false,
-  nextStepsBlocked = false,
-  onRetryEditFailure,
   t,
 }) => {
   const undoTarget = readFileEditUndoTarget(data, chatMessageId, toolUseId);
@@ -322,26 +311,23 @@ export const EditFileCard: React.FC<{
     matched_original?: string;
     count?: number;
   }>) || [];
-  const rawFailedEdits = Array.isArray(data.failed_edits) && data.failed_edits.length > 0
-    ? extractFailedEdits(data, toolArguments)
+  const failedEdits = Array.isArray(data.failed_edits)
+    ? data.failed_edits.filter(
+        (item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)),
+      )
     : [];
-  const isPartialFailure = data.partial_success === true || rawFailedEdits.length > 0;
+  const isPartialFailure = data.partial_success === true || failedEdits.length > 0;
   const appliedCount = typeof data.edits_applied === 'number' ? data.edits_applied : details.length;
-  const failedCount = rawFailedEdits.length;
+  const failedCount = failedEdits.length;
+  const partialFailureReason = isPartialFailure && failedEdits[0]
+    ? resolveToolFailure(failedEdits[0], t).message
+    : null;
   // The edit rewrote paragraphs the author wrote after the AI (server-side, by position).
   const authorEditsTouched = touchedAuthorEdits(data);
   const authorDeletionRestored = restoredAuthorDeletion(data);
 
   const editTitle = typeof data.title === 'string' && data.title.trim() ? data.title.trim() : '';
   const editFileType = typeof data.file_type === 'string' ? data.file_type : '';
-  const showRetryAction = Boolean(
-    isPartialFailure
-    && onRetryEditFailure
-    && !isStreaming
-    && !nextStepsBlocked
-    && !isPending
-    && !interrupted,
-  );
 
   return (
     <div className={`px-3 py-2.5 ${CHAT_CARD_SURFACE}`}>
@@ -393,12 +379,10 @@ export const EditFileCard: React.FC<{
         </div>
       )}
 
-      {rawFailedEdits.length > 0 && (
-        <FailedEditsSection
-          failedEdits={rawFailedEdits}
-          defaultOpen={true}
-          t={t}
-        />
+      {partialFailureReason && (
+        <p className="text-xs leading-5 text-[hsl(var(--text-secondary))] mt-1 ml-6">
+          {partialFailureReason}
+        </p>
       )}
 
       {details && details.length > 0 && (
@@ -525,20 +509,6 @@ export const EditFileCard: React.FC<{
             ))}
           </div>
         </AnimatedDetails>
-      )}
-
-      {showRetryAction && onRetryEditFailure && (
-        <RetryEditFailureAction
-          context={{
-            toolName: 'edit_file',
-            fileId: fileId || undefined,
-            title: editTitle || undefined,
-            fileType: editFileType || undefined,
-            failedCount: failedCount || undefined,
-          }}
-          onRetry={onRetryEditFailure}
-          t={t}
-        />
       )}
     </div>
   );

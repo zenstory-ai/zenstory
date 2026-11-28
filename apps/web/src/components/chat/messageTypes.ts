@@ -8,7 +8,6 @@ import type React from 'react';
 import type { StreamRenderItem } from '../../hooks/streaming/types';
 import type { FileEditUndoTarget, IterationExhaustedLayer, ToolCall } from '../../types';
 import type { RoundStopOutcome } from '../../lib/chatRoundEnd';
-import type { EditFailureRetryContext } from './toolCards/toolCardHelpers';
 
 /**
  * Represents a single chat message in the conversation history.
@@ -123,8 +122,6 @@ export interface MessageListProps {
       lastAgent?: string;
     }
   ) => void;
-  /** Explicit user-initiated retry for an unresolved file-edit failure. */
-  onRetryEditFailure?: (context: EditFailureRetryContext) => void;
   /**
    * Ref to the scroll container element (from parent).
    * Used by the virtualizer to determine scroll position.
@@ -170,7 +167,5 @@ export interface RowDataProps {
   showDailyCount?: boolean;
   /** Callback invoked when user chooses a guided action after iteration exhaustion */
   onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
-  /** Explicit user-initiated retry for an unresolved file-edit failure. */
-  onRetryEditFailure?: MessageListProps['onRetryEditFailure'];
   nextStepsBlocked?: boolean;
 }

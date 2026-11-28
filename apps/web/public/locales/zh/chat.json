@@ -301,18 +301,6 @@
     "edit_restored_author_deletion": "放回了你删掉的段落，可以撤销",
     "complete_suffix": "完成",
     "view_edit_details": "查看变更详情（{{count}}）",
-    "failed_edits_summary": "未生效的修改（{{count}}）",
-    "skipped_files_summary": "未修改的文件（{{count}}）",
-    "failed_edit_target": "目标原文",
-    "failed_edit_anchor": "插入锚点",
-    "failed_edit_attempted": "尝试写入",
-    "copy_attempted_text": "复制这段文本",
-    "copied_attempted_text": "已复制",
-    "open_target_file": "打开目标文件",
-    "retry_reread_edit": "重读文件并重试",
-    "retry_reread_prompt": "请先重新读取目标文件的当前正文，再完成刚才未生效的修改。",
-    "retry_reread_prompt_with_title": "请先重新读取《{{title}}》的当前正文，再完成刚才未生效的修改。",
-    "retry_tool_failure_limit_prompt": "请先重新读取相关文件的当前正文，把刚才未完成的修改拆成更小步骤重新执行。",
     "failed": "{{label}}失败",
     "failureHint": {
       "notFound": "未在原文中找到对应段落，文件未改动。",
@@ -443,10 +431,10 @@
     }
   },
   "fileEdit": {
-    "allFailed": "《{{title}}》有 {{count}} 处修改未生效，可在对话卡片查看详情或重试。",
-    "allFailedUntitled": "有 {{count}} 处修改未生效，可在对话卡片查看详情或重试。",
-    "partialFailed": "《{{title}}》有 {{count}} 处修改未生效，可在对话卡片查看详情或重试。",
-    "partialFailedUntitled": "有 {{count}} 处修改未生效，可在对话卡片查看详情或重试。"
+    "allFailed": "《{{title}}》有 {{count}} 处修改未生效，文件未改动。",
+    "allFailedUntitled": "有 {{count}} 处修改未生效，文件未改动。",
+    "partialFailed": "《{{title}}》有 {{count}} 处修改未生效。",
+    "partialFailedUntitled": "有 {{count}} 处修改未生效。"
   },
   "activity": {
     "elapsed": "AI 正在处理 · {{seconds}} 秒",

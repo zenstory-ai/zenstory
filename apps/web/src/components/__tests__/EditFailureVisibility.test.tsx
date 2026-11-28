@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToolResultCard } from '../ToolResultCard';
-import { MessageList, type Message } from '../MessageList';
-import { ChatStreamErrorCard } from '../chat/ChatStatusBanners';
 import { createStreamFileSyncHandlers } from '../../hooks/streaming/createStreamFileSync';
 import { toast } from '../../lib/toast';
 
@@ -20,12 +18,6 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:tool.edit_partial_failed') {
     return `部分修改未生效（成功 ${options?.applied} / 未生效 ${options?.failed}）`;
   }
-  if (key === 'chat:tool.failed_edits_summary') {
-    return `未生效的修改（${options?.count}）`;
-  }
-  if (key === 'chat:tool.skipped_files_summary') {
-    return `未修改的文件（${options?.count}）`;
-  }
   if (key === 'chat:tool.view_edit_details') {
     return `查看变更详情（${options?.count}）`;
   }
@@ -33,16 +25,16 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     return `${options?.label}失败`;
   }
   if (key === 'chat:fileEdit.partialFailed') {
-    return `《${options?.title}》有 ${options?.count} 处修改未生效，可在对话卡片查看详情或重试。`;
+    return `《${options?.title}》有 ${options?.count} 处修改未生效。`;
   }
   if (key === 'chat:fileEdit.partialFailedUntitled') {
-    return `有 ${options?.count} 处修改未生效，可在对话卡片查看详情或重试。`;
+    return `有 ${options?.count} 处修改未生效。`;
   }
   if (key === 'chat:fileEdit.allFailed') {
-    return `《${options?.title}》有 ${options?.count} 处修改未生效，可在对话卡片查看详情或重试。`;
+    return `《${options?.title}》有 ${options?.count} 处修改未生效，文件未改动。`;
   }
   if (key === 'chat:fileEdit.allFailedUntitled') {
-    return `有 ${options?.count} 处修改未生效，可在对话卡片查看详情或重试。`;
+    return `有 ${options?.count} 处修改未生效，文件未改动。`;
   }
   const map: Record<string, string> = {
     'chat:tool.edit_success': '修改完成',
@@ -50,13 +42,6 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:tool.batch_replace_files': '批量替换',
     'chat:tool.write_chapter': '写章节',
     'chat:tool.create_file': '创建文件',
-    'chat:tool.failed_edit_target': '目标原文',
-    'chat:tool.failed_edit_anchor': '插入锚点',
-    'chat:tool.failed_edit_attempted': '尝试写入',
-    'chat:tool.copy_attempted_text': '复制这段文本',
-    'chat:tool.copied_attempted_text': '已复制',
-    'chat:tool.open_target_file': '打开目标文件',
-    'chat:tool.retry_reread_edit': '重读文件并重试',
     'chat:tool.failureHint.notFound': '未在原文中找到对应段落，文件未改动。',
     'chat:tool.failureHint.ambiguous': '要修改的片段在原文中出现多处，文件未改动。',
     'chat:tool.failureHint.noChange': '修改前后内容一致，无需改动。',
@@ -69,10 +54,7 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:edit.label_delete': '删除',
     'chat:edit.label_add': '新增',
     'chat:fileType.draft': '正文',
-    'chat:panel.streamErrorTitle': '这次生成中断了',
-    'chat:panel.streamErrorQuotaPaused': '今日额度用完',
     'common:undo': '撤销',
-    'common:retry': '重试',
     'common:untitled': '未命名',
   };
   return map[key] ?? key;
@@ -88,7 +70,7 @@ vi.mock('../../lib/i18n', () => ({
   default: i18nStub,
 }));
 
-describe('AI edit failure visibility and intervention actions', () => {
+describe('Lightweight AI edit failure cards', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     i18nStub.language = 'zh';
@@ -109,8 +91,6 @@ describe('AI edit failure visibility and intervention actions', () => {
           error_type: 'anchor_not_found',
           error: 'RAW_MODEL_PROMPT_DO_NOT_SHOW',
           user_message: '未在原文中找到对应段落，文件未改动。',
-          old_preview: '找不到的旧句子。',
-          new_preview: '试图改写的新句子。',
         },
       ],
       undo: {
@@ -119,29 +99,20 @@ describe('AI edit failure visibility and intervention actions', () => {
       },
     };
 
-    it('renders warning state instead of green edit_success, shows failed details, copy, open-file, undo, and retry', async () => {
+    it('renders calm warning status, 1-line safe reason, file-open, undo, and applied details without drawer, copy, or retry controls', async () => {
       const user = userEvent.setup();
       const onOpenFile = vi.fn();
       const onUndo = vi.fn();
-      const onRetryEditFailure = vi.fn();
 
       const { container } = render(
         <ToolResultCard
           type="tool_result"
           toolName="edit_file"
           result={{ data: partialData }}
-          toolArguments={{
-            id: 'ch-1',
-            edits: [
-              { op: 'replace', old: '窗外下着雨。', new: '窗外飘着雪。' },
-              { op: 'replace', old: '找不到的旧句子。', new: '完整未截断的改写句子。' },
-            ],
-          }}
           onOpenFile={onOpenFile}
           onUndo={onUndo}
           chatMessageId="msg-1"
           toolUseId="tc-1"
-          onRetryEditFailure={onRetryEditFailure}
         />,
       );
 
@@ -150,70 +121,53 @@ describe('AI edit failure visibility and intervention actions', () => {
       expect(screen.queryByText('修改完成')).not.toBeInTheDocument();
       expect(container.querySelector('.text-\\[hsl\\(var\\(--warning-text\\)\\)\\]')).not.toBeNull();
 
-      // Failed edit details are visible by default without leaking raw model prompt
-      expect(screen.getByText('未生效的修改（1）')).toBeInTheDocument();
-      expect(screen.getByText('找不到的旧句子。')).toBeInTheDocument();
-      expect(screen.getByText('试图改写的新句子。')).toBeInTheDocument();
+      // Single-line safe reason from first failed edit without leaking raw model prompt
+      expect(screen.getByText('未在原文中找到对应段落，文件未改动。')).toBeInTheDocument();
       expect(screen.queryByText(/RAW_MODEL_PROMPT_DO_NOT_SHOW/)).not.toBeInTheDocument();
 
-      // Open target file works
+      // No failed-edit drawer, copy button, or retry button
+      expect(screen.queryByText(/未生效的修改/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /复制/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /重读|重试/ })).not.toBeInTheDocument();
+
+      // Normal file-open, undo, and applied details remain intact
       await user.click(screen.getByRole('button', { name: '第1章 雨夜' }));
       expect(onOpenFile).toHaveBeenCalledWith('ch-1', 'draft', '第1章 雨夜');
-
-      // Copy attempted text copies full unclipped text from toolArguments and shows feedback
-      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-      await user.click(screen.getByRole('button', { name: '复制这段文本' }));
-      expect(clipboardSpy).toHaveBeenCalledWith('完整未截断的改写句子。');
-      await waitFor(() => {
-        expect(screen.getByText('已复制')).toBeInTheDocument();
-      });
-
-      // Undo control still present
       expect(screen.getByRole('button', { name: '撤销' })).toBeInTheDocument();
-
-      // Explicit retry action dispatches context
-      await user.click(screen.getByRole('button', { name: '重读文件并重试' }));
-      expect(onRetryEditFailure).toHaveBeenCalledWith({
-        toolName: 'edit_file',
-        fileId: 'ch-1',
-        title: '第1章 雨夜',
-        fileType: 'draft',
-        failedCount: 1,
-      });
+      expect(screen.getByText('查看变更详情（1）')).toBeInTheDocument();
     });
 
-    it('hides retry action while streaming or when nextStepsBlocked', () => {
-      const onRetryEditFailure = vi.fn();
-      const { rerender } = render(
+    it('uses localized failureHint in English UI instead of Chinese user_message', () => {
+      i18nStub.language = 'en';
+      render(
         <ToolResultCard
           type="tool_result"
           toolName="edit_file"
-          result={{ data: partialData }}
-          isStreaming={true}
-          onRetryEditFailure={onRetryEditFailure}
+          result={{
+            data: {
+              ...partialData,
+              failed_edits: [
+                {
+                  index: 1,
+                  op: 'replace',
+                  error_type: 'no_change',
+                  user_message: '中文原因',
+                },
+              ],
+            },
+          }}
         />,
       );
-      expect(screen.queryByRole('button', { name: '重读文件并重试' })).not.toBeInTheDocument();
 
-      rerender(
-        <ToolResultCard
-          type="tool_result"
-          toolName="edit_file"
-          result={{ data: partialData }}
-          isStreaming={false}
-          nextStepsBlocked={true}
-          onRetryEditFailure={onRetryEditFailure}
-        />,
-      );
-      expect(screen.queryByRole('button', { name: '重读文件并重试' })).not.toBeInTheDocument();
+      expect(screen.getByText('修改前后内容一致，无需改动。')).toBeInTheDocument();
+      expect(screen.queryByText('中文原因')).not.toBeInTheDocument();
     });
   });
 
-  describe('ToolFailureCard visibility and actions', () => {
-    it('renders clickable file row, failed edit previews, neutral settled copy, copy button, and retry action', async () => {
+  describe('ToolFailureCard and BatchReplaceFilesCard', () => {
+    it('renders neutral failure card with clickable file row and 1-line reason, without drawer, copy, or retry', async () => {
       const user = userEvent.setup();
       const onOpenFile = vi.fn();
-      const onRetryEditFailure = vi.fn();
 
       render(
         <ToolResultCard
@@ -232,69 +186,27 @@ describe('AI edit failure visibility and intervention actions', () => {
                   index: 0,
                   op: 'insert_after',
                   error_type: 'anchor_not_found',
-                  anchor_preview: '走廊尽头传来脚步声。',
-                  text_preview: '她屏住了呼吸。',
+                  user_message: '未在原文中找到对应段落，文件未改动。',
                 },
               ],
             },
           }}
           onOpenFile={onOpenFile}
-          onRetryEditFailure={onRetryEditFailure}
         />,
       );
 
       expect(screen.getByText('编辑文件失败')).toBeInTheDocument();
-      expect(screen.getAllByText('未在原文中找到对应段落，文件未改动。').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('未在原文中找到对应段落，文件未改动。')).toBeInTheDocument();
+      expect(screen.queryByText(/未生效的修改/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /复制/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /重读|重试/ })).not.toBeInTheDocument();
 
-      // Clickable file row
       await user.click(screen.getByRole('button', { name: '第2章 长夜' }));
       expect(onOpenFile).toHaveBeenCalledWith('ch-2', 'draft', '第2章 长夜');
-
-      // Anchor & attempted text + copy
-      expect(screen.getByText('走廊尽头传来脚步声。')).toBeInTheDocument();
-      expect(screen.getByText('她屏住了呼吸。')).toBeInTheDocument();
-      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-      await user.click(screen.getByRole('button', { name: '复制这段文本' }));
-      expect(clipboardSpy).toHaveBeenCalledWith('她屏住了呼吸。');
-
-      // Explicit retry
-      await user.click(screen.getByRole('button', { name: '重读文件并重试' }));
-      expect(onRetryEditFailure).toHaveBeenCalledWith({
-        toolName: 'edit_file',
-        fileId: 'ch-2',
-        title: '第2章 长夜',
-        fileType: 'draft',
-        failedCount: 1,
-      });
     });
 
-    it('falls back to toolArguments.id and toolArguments.edits on historical error records without result metadata', async () => {
-      const user = userEvent.setup();
+    it('suppresses file row on create_file, file_not_found, and permission_denied failures', () => {
       const onOpenFile = vi.fn();
-
-      render(
-        <ToolResultCard
-          type="tool_result"
-          toolName="edit_file"
-          error="failed"
-          result={{ error_type: 'anchor_not_found' }}
-          toolArguments={{
-            id: 'legacy-file-9',
-            edits: [{ op: 'replace', old: '旧台词', new: '新台词' }],
-          }}
-          onOpenFile={onOpenFile}
-        />,
-      );
-
-      await user.click(screen.getByRole('button', { name: '打开目标文件' }));
-      expect(onOpenFile).toHaveBeenCalledWith('legacy-file-9', '', '打开目标文件');
-      expect(screen.getByText('旧台词')).toBeInTheDocument();
-      expect(screen.getByText('新台词')).toBeInTheDocument();
-    });
-
-    it('suppresses open-file and retry actions for permission_denied errors', () => {
-      const onOpenFile = vi.fn();
-      const onRetryEditFailure = vi.fn();
 
       const { rerender } = render(
         <ToolResultCard
@@ -309,77 +221,50 @@ describe('AI edit failure visibility and intervention actions', () => {
               error_type: 'permission_denied',
             },
           }}
-          toolArguments={{ id: 'secret-file-1', edits: [] }}
           onOpenFile={onOpenFile}
-          onRetryEditFailure={onRetryEditFailure}
         />,
       );
-
+      expect(screen.queryByText('未授权文件')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: '未授权文件' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: '重读文件并重试' })).not.toBeInTheDocument();
 
       rerender(
         <ToolResultCard
           type="tool_result"
-          toolName="batch_replace_files"
+          toolName="edit_file"
+          error="目标文件已不存在或已被删除，文件未改动。"
           result={{
             data: {
-              modified_files: 1,
-              total_replacements: 1,
-              files: [{ id: 'f-ok', title: '我的第一章', file_type: 'draft', replacements: 1 }],
-              skipped_files: [
-                { id: 'secret-file-2', title: '禁止访问文件', file_type: 'draft', reason: 'permission_denied' },
-              ],
+              id: 'deleted-file-1',
+              title: '已删除章节',
+              file_type: 'draft',
+              error_type: 'file_not_found',
             },
           }}
           onOpenFile={onOpenFile}
         />,
       );
+      expect(screen.queryByText('已删除章节')).not.toBeInTheDocument();
 
-      expect(screen.getByRole('button', { name: '我的第一章' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: '禁止访问文件' })).not.toBeInTheDocument();
-    });
-
-    it('preserves exact index alignment in extractFailedEdits when earlier toolArguments.edits items are malformed', async () => {
-      const user = userEvent.setup();
-      render(
+      rerender(
         <ToolResultCard
           type="tool_result"
-          toolName="edit_file"
+          toolName="create_file"
           error="failed"
           result={{
             data: {
-              id: 'ch-3',
-              title: '第3章',
+              id: 'unsaved-file-1',
+              title: '未建成的章节',
               file_type: 'draft',
-              error_type: 'anchor_not_found',
-              failed_edits: [
-                {
-                  index: 1,
-                  op: 'replace',
-                  error_type: 'anchor_not_found',
-                  old_preview: '第二条旧文本',
-                  new_preview: '第二条截断预览...',
-                },
-              ],
+              error_type: 'invalid_edit',
             },
           }}
-          toolArguments={{
-            id: 'ch-3',
-            edits: [
-              null,
-              { op: 'replace', old: '第二条旧文本', new: '第二条完整新文本' },
-            ],
-          }}
+          onOpenFile={onOpenFile}
         />,
       );
-
-      const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
-      await user.click(screen.getByRole('button', { name: '复制这段文本' }));
-      expect(clipboardSpy).toHaveBeenCalledWith('第二条完整新文本');
+      expect(screen.queryByText('未建成的章节')).not.toBeInTheDocument();
     });
 
-    it('renders clickable skipped files on batch_replace_files error and partial cards', async () => {
+    it('keeps BatchReplaceFilesCard inline skipped files clickable except file_not_found/permission_denied, and drops skipped drawer on error card', async () => {
       const user = userEvent.setup();
       const onOpenFile = vi.fn();
 
@@ -399,12 +284,8 @@ describe('AI edit failure visibility and intervention actions', () => {
           onOpenFile={onOpenFile}
         />,
       );
+      expect(screen.queryByText(/未修改的文件/)).not.toBeInTheDocument();
 
-      expect(screen.getByText('未修改的文件（1）')).toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: '第10章 尾声' }));
-      expect(onOpenFile).toHaveBeenCalledWith('f-10', 'draft', '第10章 尾声');
-
-      onOpenFile.mockClear();
       rerender(
         <ToolResultCard
           type="tool_result"
@@ -416,6 +297,8 @@ describe('AI edit failure visibility and intervention actions', () => {
               files: [{ id: 'f-1', title: '第1章', file_type: 'draft', replacements: 2 }],
               skipped_files: [
                 { id: 'f-2', title: '第2章', file_type: 'draft', reason: 'stale_content' },
+                { id: 'f-secret', title: '禁止访问文件', file_type: 'draft', reason: 'permission_denied' },
+                { id: 'f-gone', title: '缺失文件', file_type: 'draft', reason: 'file_not_found' },
               ],
             },
           }}
@@ -425,152 +308,15 @@ describe('AI edit failure visibility and intervention actions', () => {
 
       await user.click(screen.getByRole('button', { name: '第2章' }));
       expect(onOpenFile).toHaveBeenCalledWith('f-2', 'draft', '第2章');
-    });
-  });
-
-  describe('Unresolved failure gating in MessageList', () => {
-    it('hides retry action when an edit failure is followed by a later clean edit to the same file', () => {
-      const onRetryEditFailure = vi.fn();
-      const message: Message = {
-        id: 'm-resolved',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        displayItems: [
-          {
-            id: 'tc-1',
-            type: 'tool_calls',
-            timestamp: new Date(),
-            toolCalls: [
-              {
-                id: 'call-fail',
-                tool_name: 'edit_file',
-                arguments: { id: 'f-1', edits: [{ op: 'replace', old: 'a', new: 'b' }] },
-                status: 'error',
-                error: '未在原文中找到对应段落，文件未改动。',
-                result: { id: 'f-1', title: '第1章', file_type: 'draft', error_type: 'anchor_not_found' },
-              },
-              {
-                id: 'call-ok',
-                tool_name: 'edit_file',
-                arguments: { id: 'f-1', edits: [{ op: 'replace', old: 'a', new: 'b' }] },
-                status: 'success',
-                result: { id: 'f-1', title: '第1章', file_type: 'draft', edits_applied: 1, details: [] },
-              },
-            ],
-          },
-        ],
-      };
-
-      render(
-        <MessageList
-          messages={[message]}
-          onRetryEditFailure={onRetryEditFailure}
-        />,
-      );
-
-      expect(screen.queryByRole('button', { name: '重读文件并重试' })).not.toBeInTheDocument();
-    });
-
-    it('shows retry action only for the unresolved file and hides it when nextStepsBlocked', () => {
-      const onRetryEditFailure = vi.fn();
-      const message: Message = {
-        id: 'm-unresolved',
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        displayItems: [
-          {
-            id: 'tc-1',
-            type: 'tool_calls',
-            timestamp: new Date(),
-            toolCalls: [
-              {
-                id: 'call-partial',
-                tool_name: 'edit_file',
-                arguments: { id: 'f-2', edits: [] },
-                status: 'success',
-                result: {
-                  id: 'f-2',
-                  title: '第2章',
-                  file_type: 'draft',
-                  edits_applied: 1,
-                  partial_success: true,
-                  failed_edits: [{ index: 1, op: 'replace', error_type: 'anchor_not_found', old_preview: 'x', new_preview: 'y' }],
-                },
-              },
-            ],
-          },
-        ],
-      };
-
-      const { rerender } = render(
-        <MessageList
-          messages={[message]}
-          onRetryEditFailure={onRetryEditFailure}
-          nextStepsBlocked={false}
-        />,
-      );
-
-      const retryBtn = screen.getByRole('button', { name: '重读文件并重试' });
-      fireEvent.click(retryBtn);
-      expect(onRetryEditFailure).toHaveBeenCalledTimes(1);
-
-      rerender(
-        <MessageList
-          messages={[message]}
-          onRetryEditFailure={onRetryEditFailure}
-          nextStepsBlocked={true}
-        />,
-      );
-      expect(screen.queryByRole('button', { name: '重读文件并重试' })).not.toBeInTheDocument();
-    });
-  });
-
-  describe('ChatStreamErrorCard circuit breaker retry', () => {
-    it('renders explicit retry action on ERR_AGENT_TOOL_FAILURE_LIMIT and hides when blocked', async () => {
-      const user = userEvent.setup();
-      const onRetryToolFailureLimit = vi.fn();
-
-      const { rerender } = render(
-        <ChatStreamErrorCard
-          error="AI 这一步连续几次都没做成，这一轮先停下了。"
-          errorCode="ERR_AGENT_TOOL_FAILURE_LIMIT"
-          isAiQuotaLimit={false}
-          isNetworkQuotaLimit={false}
-          aiSendBlocked={false}
-          canRetry={false}
-          isMobile={false}
-          onRetry={vi.fn()}
-          onRetryToolFailureLimit={onRetryToolFailureLimit}
-          onOpenUpgradeModal={vi.fn()}
-        />,
-      );
-
-      const button = screen.getByRole('button', { name: '重读文件并重试' });
-      await user.click(button);
-      expect(onRetryToolFailureLimit).toHaveBeenCalledTimes(1);
-
-      rerender(
-        <ChatStreamErrorCard
-          error="AI 这一步连续几次都没做成，这一轮先停下了。"
-          errorCode="ERR_AGENT_TOOL_FAILURE_LIMIT"
-          isAiQuotaLimit={false}
-          isNetworkQuotaLimit={false}
-          aiSendBlocked={true}
-          canRetry={false}
-          isMobile={false}
-          onRetry={vi.fn()}
-          onRetryToolFailureLimit={onRetryToolFailureLimit}
-          onOpenUpgradeModal={vi.fn()}
-        />,
-      );
-      expect(screen.queryByRole('button', { name: '重读文件并重试' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '禁止访问文件' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '缺失文件' })).not.toBeInTheDocument();
+      expect(screen.getByText('禁止访问文件')).toBeInTheDocument();
+      expect(screen.getByText('缺失文件')).toBeInTheDocument();
     });
   });
 
   describe('createStreamFileSync toast guard and write-state gating', () => {
-    it('never formats empty 《》 and does not mark roundWroteFilesRef or refresh tree when editsApplied === 0 / allFailed', () => {
+    it('never formats empty 《》, uses simplified toast copy without retry prompt, and does not mark roundWroteFilesRef or refresh tree when editsApplied === 0 / allFailed', () => {
       const errorSpy = vi.spyOn(toast, 'error').mockImplementation(() => '');
       const triggerFileTreeRefresh = vi.fn();
       const roundWroteFilesRef = { current: false };
@@ -603,8 +349,9 @@ describe('AI edit failure visibility and intervention actions', () => {
         allFailed: true,
         warnings: [],
       });
-      expect(errorSpy).toHaveBeenCalledWith('有 2 处修改未生效，可在对话卡片查看详情或重试。');
+      expect(errorSpy).toHaveBeenCalledWith('有 2 处修改未生效，文件未改动。');
       expect(errorSpy.mock.calls[0]?.[0]).not.toContain('《》');
+      expect(errorSpy.mock.calls[0]?.[0]).not.toContain('重试');
       expect(roundWroteFilesRef.current).toBe(false);
       expect(triggerFileTreeRefresh).not.toHaveBeenCalled();
 
@@ -615,7 +362,8 @@ describe('AI edit failure visibility and intervention actions', () => {
         allFailed: false,
         warnings: [],
       });
-      expect(errorSpy).toHaveBeenCalledWith('《第3章 风起》有 1 处修改未生效，可在对话卡片查看详情或重试。');
+      expect(errorSpy).toHaveBeenCalledWith('《第3章 风起》有 1 处修改未生效。');
+      expect(errorSpy.mock.calls[0]?.[0]).not.toContain('重试');
       expect(roundWroteFilesRef.current).toBe(true);
       errorSpy.mockRestore();
     });
