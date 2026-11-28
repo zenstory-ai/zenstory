@@ -26,6 +26,12 @@ STEERING_FOLLOWUP_CONTEXT = (
     "请在已完成工作的基础上按用户最新引导继续调整或补充；"
     "如果引导无需改动已完成内容，请简要回应说明。"
 )
+STEERING_FOLLOWUP_CONTEXT_EN = (
+    "[System note] The author sent a new steering message while this round was running "
+    "(see the latest user message at the end of the conversation history). "
+    "Build on the work already completed to adjust or supplement according to the author's latest instruction; "
+    "if no changes to completed work are needed, respond briefly to acknowledge. Keep the author's language."
+)
 
 
 WRAP_UP_TEXT = "\n\n这一轮的时间快用完了，先停在这里；回复「继续」我接着做。"

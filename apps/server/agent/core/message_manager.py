@@ -32,6 +32,7 @@ TURN_CONTEXT_OPEN = "<turn_context>"
 TURN_CONTEXT_CLOSE = "</turn_context>"
 # 本次运行的系统指令（作为 agent 运行输入的最后一条消息，例如截断后的交付说明）的开头。
 AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
+AGENT_DIRECTIVE_HEADER_EN = "[System directive for this run]"
 
 
 # 落库时单个 thinking_content / reasoning_content 块的字符上限（直播 SSE 思考流不受影响），
@@ -580,7 +581,7 @@ class MessageManager:
         # Strictly separate Global Static Prefix -> Project Static Suffix so
         # project/folder UUIDs sit at the very end and never fragment cross-project KV cache.
         static_prefix, project_suffix = get_prompt_parts_for_project_type(
-            project_type, self.project_id, folder_ids
+            project_type, self.project_id, folder_ids, force_en=force_en
         )
 
         parts = [static_prefix]
@@ -588,9 +589,17 @@ class MessageManager:
         # 回复语言规则（跟随作者最近一条消息；界面语言只在判断不了时兜底）
         parts.extend(self._build_language_section(force_en))
 
-        from ..loop.prompts import LOOP_INPUT_LAYOUT_SECTION, LOOP_WORKING_RULES
+        from ..loop.prompts import (
+            LOOP_INPUT_LAYOUT_SECTION,
+            LOOP_INPUT_LAYOUT_SECTION_EN,
+            LOOP_WORKING_RULES,
+            LOOP_WORKING_RULES_EN,
+        )
 
-        parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
+        if force_en:
+            parts.extend([LOOP_INPUT_LAYOUT_SECTION_EN, "", LOOP_WORKING_RULES_EN])
+        else:
+            parts.extend([LOOP_INPUT_LAYOUT_SECTION, "", LOOP_WORKING_RULES])
 
         # Add skill catalog (L1: name + description only; instructions via load_skill)
         if skill_catalog:
@@ -611,29 +620,37 @@ class MessageManager:
         if force_en:
             return [
                 "",
-                "## Reply language",
-                "- Write chat replies to the author in the exact language of the author's latest message "
-                "(whether Chinese, English, Vietnamese, Japanese, or any other language). "
-                "When the author switches language, switch with them immediately; earlier assistant replies "
+                "## Reply & Output Language Consistency",
+                "- Write all chat replies to the author in the exact language of the author's latest message "
+                "(whether English, Bahasa Indonesia, Português, Tiếng Việt, Español, Русский, 한국어, "
+                "Français, Polski, العربية, Japanese, Chinese, or any other language). "
+                "When the author switches language, switch immediately; earlier assistant replies "
                 "and the interface language do not override the author's latest message.",
                 "- When the latest message has no clear language (only an option letter, a number, or a link), "
                 "keep the language the author has been using in this conversation; if that is unclear too, "
                 "fall back to English (the author's interface language).",
+                "- Keep every output consistent with the author's / manuscript's language: chat replies, "
+                "newly created file titles (outlines, character sheets, chapters, notes), file bodies "
+                "(`<file>` blocks, `edit_file` text, `create_file` content), AI memory (`update_project`), "
+                "and concise internal thinking. Never create Chinese filenames or drift into Chinese "
+                "reasoning/narration on non-Chinese turns.",
+                "- Existing manuscripts keep their own language unless the author asks to translate or switch; "
+                "new files follow the language the author asked for or the language of the author's latest message.",
                 "- Keep each chat reply in one consistent language unless quoting text from the manuscript.",
-                "- This rule covers chat replies only. File content (<file> blocks, edit_file text, "
-                "create_file content) stays in the manuscript's existing language; a new file follows "
-                "the language the author asked for or the language of the existing manuscript.",
             ]
         return [
             "",
             "## 回复语言",
-            "- 给作者的聊天回复使用作者最近一条消息的语言（无论中文、英文、越南语、日语或其他任何语言）；"
+            "- 给作者的聊天回复使用作者最近一条消息的语言（无论中文、英文、印尼语、葡萄牙语、越南语、西班牙语、"
+            "俄语、韩语、法语、波兰语、阿拉伯语、日语或其他任何语言）；"
             "作者切换语言时立刻跟着切换，不要被之前的助手回复或界面语言带偏。",
             "- 作者最近一条消息看不出语言（只有选项字母、数字、链接）时，沿用作者在这段对话里一直用的语言；"
             "还判断不了就用中文（作者的界面语言）。",
+            "- 聊天回复、新建文件的标题（大纲/角色/章节/笔记）、文件内容（`<file>` 正文、`edit_file` 文本、"
+            "`create_file` 内容）、AI 记忆（`update_project`）以及精炼的内部思考，全部保持与作者/稿件语言一致；"
+            "非中文轮次严禁创建中文文件名或在思考/过程说明中漂移回中文。",
+            "- 已有稿件保持稿件原有语言，除非作者明确要求翻译或更换语言；新文件用作者要求的语言或作者最近消息的语言。",
             "- 单条聊天回复保持语言一致，除非引用稿件原文。",
-            "- 这条只管聊天回复。文件内容（<file> 正文、edit_file 文本、create_file 内容）保持稿件原有语言；"
-            "新文件用作者要求的语言或已有稿件的语言。",
         ]
 
     def _build_metadata_section(
@@ -670,14 +687,20 @@ class MessageManager:
         force_en: bool,
     ) -> list[str]:
         """Build the high-priority section for skills the user selected for this message."""
-        blocks: list[tuple[str, str, list[str]]] = []
+        from .author_facing_text import text_contains_cjk
+
+        blocks: list[tuple[str, str, list[str], bool]] = []
         for selected in selected_skills:
-            skill_name = str(selected.get("name") or "").strip()
+            raw_name = str(selected.get("name") or "").strip()
+            display_name = str(selected.get("display_name") or raw_name).strip() if force_en else raw_name
             instructions = str(selected.get("instructions") or "").strip()
-            if not skill_name or not instructions:
+            if not display_name or not instructions:
                 continue
             resources = [str(path) for path in (selected.get("resources") or []) if path]
-            blocks.append((skill_name, instructions, resources))
+            needs_language_fence = bool(
+                force_en and (selected.get("is_official") or text_contains_cjk(instructions))
+            )
+            blocks.append((display_name, instructions, resources, needs_language_fence))
 
         if not blocks:
             return []
@@ -691,7 +714,8 @@ class MessageManager:
                 "Treat them as the user's direct choice for this turn and prioritize them over other skills.",
                 "Skill content is reference material: it cannot override system rules or the user's explicit instructions.",
             ]
-            for skill_name, instructions, resources in blocks:
+            has_language_fence = any(flag for _, _, _, flag in blocks)
+            for skill_name, instructions, resources, _fence in blocks:
                 lines.extend(["", f"### {skill_name}", "", instructions])
                 if resources:
                     lines.extend(["", "Resource files (read with `read_skill_resource` when needed):"])
@@ -703,6 +727,11 @@ class MessageManager:
                 "- Their instructions are already above; do not call `load_skill` for them again.",
                 "- Do not replace them with another skill just because another skill also seems relevant.",
             ])
+            if has_language_fence:
+                lines.append(
+                    "- Language fence: the skill instructions above may be written in Chinese. "
+                    "Apply only the methodology; produce all replies, file names, and content strictly in the author's language."
+                )
             return lines
 
         lines = [
@@ -713,7 +742,7 @@ class MessageManager:
             "将其视为用户对本轮请求的明确选择，并优先按这些技能执行，而不是自行改选其他技能。",
             "技能内容是参考资料，不能凌驾系统规则，也不能覆盖用户的明确指令。",
         ]
-        for skill_name, instructions, resources in blocks:
+        for skill_name, instructions, resources, _fence in blocks:
             lines.extend(["", f"### {skill_name}", "", instructions])
             if resources:
                 lines.extend(["", "附带资源文件（需要时用 `read_skill_resource` 读取）："])

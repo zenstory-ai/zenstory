@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from sqlmodel import Session, select
 
+from config.official_skill_translations import localized_skill_text
 from models import PublicSkill, SkillResource, UserAddedSkill, UserSkill
 
 # 显式选择的技能数上限（与前端 SkillTriggerContext 一致）
@@ -58,6 +59,10 @@ class ActiveSkill:
     added_id: str | None = None
     # 触发场景提示（自建技能来自 UserSkill.triggers，公共技能来自 PublicSkill.tags）
     triggers: tuple[str, ...] = ()
+    # 公共技能来源（PublicSkill.source："official" | "community"；自建技能为 None）
+    public_source: str | None = None
+    # 用户是否为已添加的公共技能设置了自定义名称（设置了自定义名时保留用户自定义名，不覆盖翻译）
+    has_custom_name: bool = False
 
     @property
     def user_skill_id(self) -> str | None:
@@ -66,6 +71,22 @@ class ActiveSkill:
     @property
     def public_skill_id(self) -> str | None:
         return self.id if self.source == "added" else None
+
+    @property
+    def is_official(self) -> bool:
+        return self.source == "added" and self.public_source == "official"
+
+    def localized_display(self, language: str | None) -> tuple[str, str]:
+        """Return ``(display_name, display_description)`` localized for ``language``."""
+        if not self.is_official or self.has_custom_name:
+            return self.name, self.description
+        display_name, display_desc = localized_skill_text(
+            source=self.public_source,
+            name=self.name,
+            description=self.description,
+            language=language,
+        )
+        return display_name, display_desc or ""
 
 
 def load_active_skills(session: Session, user_id: str) -> list[ActiveSkill]:
@@ -108,6 +129,8 @@ def load_active_skills(session: Session, user_id: str) -> list[ActiveSkill]:
             source="added",
             added_id=added.id,
             triggers=parse_skill_triggers(public.tags),
+            public_source=public.source,
+            has_custom_name=bool(added.custom_name),
         ))
 
     return skills
@@ -117,12 +140,13 @@ def skill_name_key(name: str) -> str:
     return " ".join((name or "").split()).casefold()
 
 
-def duplicate_name_keys(skills: list[ActiveSkill]) -> set[str]:
+def duplicate_name_keys(skills: list[ActiveSkill], *, language: str | None = None) -> set[str]:
     """名称（忽略大小写与空白差异）出现不止一次的键集合。"""
     seen: set[str] = set()
     duplicates: set[str] = set()
     for skill in skills:
-        key = skill_name_key(skill.name)
+        display_name = skill.localized_display(language)[0] if language else skill.name
+        key = skill_name_key(display_name)
         if key in seen:
             duplicates.add(key)
         seen.add(key)
@@ -137,10 +161,10 @@ def same_name_skills(skills: list[ActiveSkill], skill: ActiveSkill) -> list[Acti
 
 def find_active_skill(skills: list[ActiveSkill], name_or_id: str) -> ActiveSkill | None:
     """
-    按 ID 或显示名查找技能。
+    按 ID 或显示名查找技能（官方技能同时支持英文官方展示名）。
 
     先匹配 ID（技能目录给同名技能标注了 id，模型据此区分），再精确匹配名称，
-    最后忽略大小写/首尾空白匹配名称；列表本身已按「自建 > 已添加」排序，
+    最后忽略大小写/首尾空白匹配名称或官方技能的英文展示名；列表本身已按「自建 > 已添加」排序，
     只给名称且同名时自建技能胜出（调用方应提示还有同名技能）。
     """
     query = (name_or_id or "").strip()
@@ -159,6 +183,12 @@ def find_active_skill(skills: list[ActiveSkill], name_or_id: str) -> ActiveSkill
     for skill in skills:
         if skill_name_key(skill.name) == folded:
             return skill
+
+    for skill in skills:
+        if skill.is_official and not skill.has_custom_name:
+            en_name, _ = skill.localized_display("en")
+            if en_name and skill_name_key(en_name) == folded:
+                return skill
 
     return None
 

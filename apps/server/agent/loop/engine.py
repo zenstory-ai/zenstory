@@ -29,8 +29,8 @@ from agent.core.author_facing_text import (
     text_contains_cjk,
 )
 from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
-from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
-from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, AGENT_DIRECTIVE_HEADER_EN
+from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME, OUTPUT_TRUNCATED_RESUME_EN
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
 from agent.core.stream_processor import LEAKED_TOOL_CALL_STOP_REASON
@@ -66,11 +66,23 @@ _EMPTY_FILE_CORRECTION_CONTEXT = (
     "回复第一行直接输出 <file>，把完整内容直接写进 <file>…</file> 中，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter / create_file / edit_file 都会被拒绝），也不要只在对话里复述正文。"
 )
+_EMPTY_FILE_CORRECTION_CONTEXT_EN = (
+    "[System note] The file \"{title}\" (id={file_id}) you created still has an empty body: the previous response did not write its content inside <file>...</file>. "
+    "The system has reopened body capture for this file. Keep thinking minimal (2–3 bullet lines only; never pre-draft full text or long tables in thinking or you will hit the output limit); "
+    "start line 1 directly with <file>, write the complete content inside <file>...</file>, and end with </file>. "
+    "Do not call any tools before finishing (write_chapter / create_file / edit_file will be rejected), and do not paste the body into chat instead. Keep the manuscript's language."
+)
 _EMPTY_FILE_CUT_CORRECTION_CONTEXT = (
     "[系统提醒] 你创建的文件《{title}》(id={file_id}) 正文仍为空：上一次回复在写出完整 <file>…</file> 之前就达到了单次输出上限"
     "（思考或前置内容过长），文件内容没有保存。系统已为这个文件重新打开正文写入：这一次思考尽量简短（只留两三行要点，绝不在思考里逐条排表或起草全文），"
     "回复第一行直接输出 <file>，把完整内容直接写进 <file>…</file> 中，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter / create_file / edit_file 都会被拒绝），也不要只在对话里复述正文。"
+)
+_EMPTY_FILE_CUT_CORRECTION_CONTEXT_EN = (
+    "[System note] The file \"{title}\" (id={file_id}) you created still has an empty body: the previous response hit the single-reply output limit before writing a complete <file>...</file> "
+    "(thinking or preamble was too long), so nothing was saved. The system has reopened body capture for this file. Keep thinking ultra-brief (2–3 bullet lines only; never pre-draft full text in thinking), "
+    "start line 1 directly with <file>, write the complete content inside <file>...</file>, and end with </file>. "
+    "Do not call any tools before finishing (write_chapter / create_file / edit_file will be rejected), and do not paste the body into chat instead. Keep the manuscript's language."
 )
 _CHAPTER_REPLACE_RETRY_CONTEXT = (
     "[系统提醒] 你用 write_chapter 定下了整章替换《{title}》(id={file_id})，但上一次回复没有用 <file>…</file> 写出新正文，"
@@ -78,12 +90,24 @@ _CHAPTER_REPLACE_RETRY_CONTEXT = (
     "回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter 也不要再调用），也不要只在对话里复述正文。"
 )
+_CHAPTER_REPLACE_RETRY_CONTEXT_EN = (
+    "[System note] You armed a whole-chapter replacement for \"{title}\" (id={file_id}) with write_chapter, but the previous response did not write the new body inside <file>...</file>, "
+    "so the original text is unchanged. The system has reopened body capture for this chapter. Keep thinking brief (do not pre-draft in thinking), "
+    "start line 1 directly with <file>, write the complete new chapter body, and end with </file>. "
+    "Do not call any tools before finishing (including write_chapter), and do not paste the body into chat instead. Keep the manuscript's language."
+)
 # 整章替换的新正文写到单次回复的输出上限被截断（runner 的 output_capped）时的重试说明。
 _CHAPTER_REPLACE_CUT_RETRY_CONTEXT = (
     "[系统提醒] 你用 write_chapter 定下了整章替换《{title}》(id={file_id})，但上一次回复的新正文写到单次回复的输出上限，"
     "在中途被截断（没有写到 </file>），没有保存，原文保持不变。系统已为这一章重新打开正文写入：这一次思考尽量简短，"
     "回复第一行直接输出 <file>，接着写这一章完整的新正文，最后用 </file> 结束；"
     "写完之前不要调用任何工具（write_chapter 也不要再调用），也不要只在对话里复述正文。"
+)
+_CHAPTER_REPLACE_CUT_RETRY_CONTEXT_EN = (
+    "[System note] You armed a whole-chapter replacement for \"{title}\" (id={file_id}) with write_chapter, but the previous response hit the single-reply output limit "
+    "mid-body before reaching </file>, so nothing was saved and the original text is unchanged. The system has reopened body capture for this chapter. Keep thinking ultra-brief, "
+    "start line 1 directly with <file>, write the complete new chapter body, and end with </file>. "
+    "Do not call any tools before finishing (including write_chapter), and do not paste the body into chat instead. Keep the manuscript's language."
 )
 # 新正文写到单次回复的输出上限被截断、截断处之前已保存时的续跑说明：从断点 append 续写，不整章重写。
 _BODY_CUT_TAIL_CHARS = 200
@@ -303,7 +327,10 @@ async def _settle_pending_empty_files(
             req_ctx.clear_pending_empty_file(other["file_id"])
         resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=target["updated_at"])
         # 这次 run 停在没闭合的 <file> 上、又撞上了输出上限（runner 的结构化标记）：如实说新正文被截断，而不是没写。
-        template = _CHAPTER_REPLACE_CUT_RETRY_CONTEXT if body_cut else _CHAPTER_REPLACE_RETRY_CONTEXT
+        if english:
+            template = _CHAPTER_REPLACE_CUT_RETRY_CONTEXT_EN if body_cut else _CHAPTER_REPLACE_RETRY_CONTEXT_EN
+        else:
+            template = _CHAPTER_REPLACE_CUT_RETRY_CONTEXT if body_cut else _CHAPTER_REPLACE_RETRY_CONTEXT
         context = template.format(title=target["title"], file_id=target["file_id"])
         notices = [_rewrite_not_saved_event(english)] if replacements[:-1] else []
         return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
@@ -320,10 +347,13 @@ async def _settle_pending_empty_files(
         )
         if facts is not None:
             resume = FileBodyResume(file_id=target["file_id"], expected_updated_at=facts[0])
-            template = _EMPTY_FILE_CUT_CORRECTION_CONTEXT if output_capped else _EMPTY_FILE_CORRECTION_CONTEXT
+            if english:
+                template = _EMPTY_FILE_CUT_CORRECTION_CONTEXT_EN if output_capped else _EMPTY_FILE_CORRECTION_CONTEXT_EN
+            else:
+                template = _EMPTY_FILE_CUT_CORRECTION_CONTEXT if output_capped else _EMPTY_FILE_CORRECTION_CONTEXT
             context = template.format(title=target["title"], file_id=target["file_id"])
             return context, StreamEvent(type=StreamEventType.FILE_BODY_RESUME, data={"request": resume}), notices, []
-    return None, None, notices, [await _empty_file_card(unfinished, None, req_ctx)]
+    return None, None, notices, [await _empty_file_card(unfinished, None, req_ctx, english=english)]
 
 
 async def _body_cut_followup(
@@ -389,6 +419,8 @@ async def _empty_file_card(
     unfinished: list[dict[str, str]],
     resume: FileBodyResume | None,
     req_ctx: AgentRequestContext,
+    *,
+    english: bool = False,
 ) -> StreamEvent:
     """补不成时回滚能确认的空文件，发既有的 empty_file_correction 卡（同图的口径）。"""
     from agent.core.workflow_events import FILE_BODY_RESUME_VERSION_CHANGED
@@ -423,17 +455,26 @@ async def _empty_file_card(
         rolled_back_count=len(rolled_back),
         unresolved_count=len(unresolved),
     )
+    if english:
+        reason = (
+            "File body recovery did not finish and empty files could not be safely rolled back. "
+            "Continue the conversation to complete these files."
+            if unresolved
+            else "The file body was not written; the empty placeholder files were removed."
+        )
+    else:
+        reason = (
+            "文件正文补写未完成，且无法安全回滚空文件。请继续对话完成这些文件。"
+            if unresolved
+            else "文件正文没有写成，已撤销这些空文件。"
+        )
     return StreamEvent(
         type=StreamEventType.ITERATION_EXHAUSTED,
         data={
             "layer": "empty_file_correction",
             "iterations_used": empty_files.MAX_FILE_CORRECTION_ATTEMPTS,
             "max_iterations": empty_files.MAX_FILE_CORRECTION_ATTEMPTS,
-            "reason": (
-                "文件正文补写未完成，且无法安全回滚空文件。请继续对话完成这些文件。"
-                if unresolved
-                else "文件正文没有写成，已撤销这些空文件。"
-            ),
+            "reason": reason,
             "unfinished_files": unresolved,
             "rolled_back_files": [entry for entry in unfinished if entry["file_id"] in rolled_back],
         },
@@ -495,15 +536,21 @@ async def run_loop_agent_streaming(
     read_guard: RepeatReadGuard = state["repeat_read_guard"]
     system_prompt = str(state.get("system_prompt") or "")
     initial_user_message = str(state.get("user_message") or "")
-    drop_english_narration = text_contains_cjk(state.get("router_message") or state.get("user_message"))
+    author_raw_message = state.get("router_message") or state.get("user_message")
+    has_cjk = text_contains_cjk(author_raw_message)
+    drop_english_narration = has_cjk
+    drop_cjk_narration = bool(isinstance(author_raw_message, str) and author_raw_message.strip() and not has_cjk)
 
     # 上一轮停在思考阶段的输出上限（历史行的 stop_reason 数出的结构化事实）：本轮第一次 run 的输入末尾
     # 加一条运行指令，要求简短思考、先交付第一部分。只进这次 SDK 输入，不写回对话历史。
-    truncation_directive = (
-        f"{AGENT_DIRECTIVE_HEADER}\n\n## 截断后的本轮交付\n\n{OUTPUT_TRUNCATED_RESUME}"
-        if int(state.get("previous_output_truncations") or 0) > 0
-        else ""
-    )
+    if int(state.get("previous_output_truncations") or 0) > 0:
+        truncation_directive = (
+            f"{AGENT_DIRECTIVE_HEADER_EN}\n\n## Delivery After Output Truncation\n\n{OUTPUT_TRUNCATED_RESUME_EN}"
+            if english
+            else f"{AGENT_DIRECTIVE_HEADER}\n\n## 截断后的本轮交付\n\n{OUTPUT_TRUNCATED_RESUME}"
+        )
+    else:
+        truncation_directive = ""
 
     req_ctx.current_agent = LOOP_AGENT_TYPE
     # 写作约定由模型按提示判断是否追加（只追加、不删改、expected_notes 冲突保护照旧）。
@@ -591,7 +638,11 @@ async def run_loop_agent_streaming(
             output_capped = False
             # 等待 <file> 正文时模型开头直接吐出泄漏 tool_call 协议头被早停，需经 FILE_BODY_RESUME 立即纠偏。
             leaked_tool_call_stopped = False
-            shaper = AgentTextShaper(previous_text=accumulated_text, drop_english_narration=drop_english_narration)
+            shaper = AgentTextShaper(
+                previous_text=accumulated_text,
+                drop_english_narration=drop_english_narration,
+                drop_cjk_narration=drop_cjk_narration,
+            )
 
             async for event in run_support.shape_agent_text(
                 run_openai_agents_streaming_agent(
@@ -742,7 +793,7 @@ async def run_loop_agent_streaming(
                         {"file_id": str(e.get("file_id") or ""), "title": str(e.get("title") or "")}
                         for e in req_ctx.get_pending_empty_files()
                     ]
-                    settle_events = [await _empty_file_card(pending, resume, req_ctx)] if pending else []
+                    settle_events = [await _empty_file_card(pending, resume, req_ctx, english=english)] if pending else []
                 for settle_event in settle_events:
                     yield settle_event
                 if settle_events:
@@ -857,11 +908,12 @@ async def run_loop_agent_streaming(
                     yield steering_received_event(message_id=msg["id"], preview=msg["content"][:50])
             if mid_run_steering or boundary_steering:
                 pending_self_check = False
-                followup = (
-                    f"{followup}\n{run_support.STEERING_FOLLOWUP_CONTEXT}"
-                    if followup
+                steering_ctx = (
+                    run_support.STEERING_FOLLOWUP_CONTEXT_EN
+                    if english
                     else run_support.STEERING_FOLLOWUP_CONTEXT
                 )
+                followup = f"{followup}\n{steering_ctx}" if followup else steering_ctx
             if followup is None:
                 terminated = True
                 break
@@ -918,7 +970,10 @@ async def run_loop_agent_streaming(
                     "iterations_used": runs,
                     "max_iterations": max_runs,
                     "reason": (
-                        f"这一轮已连续运行 {max_runs} 次，先停在这里。"
+                        f"This round reached the per-round run limit ({max_runs}), so I'm stopping here. "
+                        "The task may not be finished; continue the conversation to finish the remaining work."
+                        if english
+                        else f"这一轮已连续运行 {max_runs} 次，先停在这里。"
                         "任务可能未完全完成，您可以继续对话让 AI 完成剩余工作。"
                     ),
                 },

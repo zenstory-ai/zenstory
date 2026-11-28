@@ -1,6 +1,7 @@
 """单循环 agent 的文字在发给作者之前的整理（AgentTextShaper）。
 
-作者写中文时，紧接工具调用的英文过程说明不发；同一个 agent 隔着工具调用的两段文字之间补空行。
+作者写中文时，紧接工具调用的英文过程说明不发；作者写非中文时，紧接工具调用的短中文过程说明不发；
+同一个 agent 隔着工具调用的两段文字之间补空行。
 """
 
 from __future__ import annotations
@@ -40,6 +41,12 @@ _ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
 NARRATION_BUFFER_MAX_CHARS = 120
 # 汉字已经占多数、且有这么多个时，这段肯定不是英文过程句，立刻发出去。
 _CJK_FLUSH_MIN_CHARS = 4
+# 非汉字字母已经占多数、且有这么多个时，这段肯定不是中文过程句，立刻发出去。
+_NON_CJK_ALPHA_FLUSH_MIN_CHARS = 4
+
+
+def _count_non_cjk_alpha(text: str) -> int:
+    return sum(1 for ch in text if ch.isalpha() and not _CJK_CHAR_RE.match(ch))
 
 
 def is_english_process_narration(text: str) -> bool:
@@ -52,6 +59,22 @@ def is_english_process_narration(text: str) -> bool:
     letters = len(_ASCII_LETTER_RE.findall(stripped))
     cjk = len(_CJK_CHAR_RE.findall(stripped))
     return letters >= 4 and letters >= 2 * cjk
+
+
+def is_cjk_process_narration(text: str) -> bool:
+    """一小段以中文汉字为主的过程旁白：≤120 字、不含 `<`、以汉字开头且汉字数不少于非汉字字母数。
+
+    纯展示层有界语法判定（镜像 ``is_english_process_narration``），仅在作者消息不含汉字且
+    紧接工具调用前生效，绝不触碰正文、`<file>` 块或最终总结回复。
+    """
+    stripped = (text or "").strip()
+    if not stripped or len(stripped) > NARRATION_BUFFER_MAX_CHARS or "<" in stripped:
+        return False
+    if not _CJK_CHAR_RE.match(stripped):
+        return False
+    cjk = len(_CJK_CHAR_RE.findall(stripped))
+    non_cjk_alpha = _count_non_cjk_alpha(stripped)
+    return cjk >= 2 and cjk >= non_cjk_alpha
 
 
 def text_contains_cjk(text: object) -> bool:
@@ -91,12 +114,19 @@ class AgentTextShaper:
       NARRATION_BUFFER_MAX_CHARS、或出现 ``<``（``<file>`` 正文）时照常发出。
     """
 
-    def __init__(self, *, previous_text: str, drop_english_narration: bool) -> None:
+    def __init__(
+        self,
+        *,
+        previous_text: str,
+        drop_english_narration: bool,
+        drop_cjk_narration: bool = False,
+    ) -> None:
         self._previous_text = previous_text or ""
         self._drop_english_narration = drop_english_narration
+        self._drop_cjk_narration = drop_cjk_narration and not drop_english_narration
         self._started = False
         self._buffer = ""
-        self._passthrough = not drop_english_narration
+        self._passthrough = not (self._drop_english_narration or self._drop_cjk_narration)
         # 已发出文字的结尾（判断要不要补空行）与「上一段之后调用过工具」。
         self._tail = self._previous_text[-2:]
         self._after_tool_call = False
@@ -132,13 +162,23 @@ class AgentTextShaper:
         if not stripped:
             return ""
         cjk = len(_CJK_CHAR_RE.findall(self._buffer))
-        letters = len(_ASCII_LETTER_RE.findall(self._buffer))
-        if (
-            not _ASCII_LETTER_RE.match(stripped)
-            or (cjk >= _CJK_FLUSH_MIN_CHARS and cjk * 2 > letters)
-            or "<" in self._buffer
-            or len(self._buffer) > NARRATION_BUFFER_MAX_CHARS
-        ):
+        if self._drop_english_narration:
+            letters = len(_ASCII_LETTER_RE.findall(self._buffer))
+            should_flush = (
+                not _ASCII_LETTER_RE.match(stripped)
+                or (cjk >= _CJK_FLUSH_MIN_CHARS and cjk * 2 > letters)
+                or "<" in self._buffer
+                or len(self._buffer) > NARRATION_BUFFER_MAX_CHARS
+            )
+        else:
+            non_cjk_alpha = _count_non_cjk_alpha(self._buffer)
+            should_flush = (
+                not _CJK_CHAR_RE.match(stripped)
+                or (non_cjk_alpha >= _NON_CJK_ALPHA_FLUSH_MIN_CHARS and non_cjk_alpha > cjk)
+                or "<" in self._buffer
+                or len(self._buffer) > NARRATION_BUFFER_MAX_CHARS
+            )
+        if should_flush:
             self._passthrough = True
             buffered, self._buffer = self._buffer, ""
             return self._emit(buffered)
@@ -147,14 +187,19 @@ class AgentTextShaper:
     def end_segment(self, *, before_tool_call: bool) -> str:
         """一段文字结束（遇到非文字事件，或 run 结束），返回还没发出去的文字。
 
-        before_tool_call=True 且攒着的是英文过程句时丢掉。之后的下一段重新判断。
+        before_tool_call=True 且攒着的是对应异语过程句时丢掉。之后的下一段重新判断。
         """
         buffered, self._buffer = self._buffer, ""
-        self._passthrough = not self._drop_english_narration
-        if not buffered or (before_tool_call and is_english_process_narration(buffered)):
-            emitted = ""
-        else:
-            emitted = self._emit(buffered)
+        self._passthrough = not (self._drop_english_narration or self._drop_cjk_narration)
+        drop_buffered = bool(
+            before_tool_call
+            and buffered
+            and (
+                (self._drop_english_narration and is_english_process_narration(buffered))
+                or (self._drop_cjk_narration and is_cjk_process_narration(buffered))
+            )
+        )
+        emitted = "" if not buffered or drop_buffered else self._emit(buffered)
         if before_tool_call:
             self._after_tool_call = True
         return emitted

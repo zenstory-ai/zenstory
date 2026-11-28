@@ -218,6 +218,17 @@ LOOP_SOFT_LANDING_PROMPT = (
     "3. 本轮用到或改动过的文件（标题 + id）。\n"
     "用户回复「继续」后会从这里接着完成剩余部分。"
 )
+LOOP_SOFT_LANDING_PROMPT_EN = (
+    "[System note] This round is approaching its tool-call limit (at most {remaining} model call(s) left after this one). "
+    "Stop calling any tools immediately (including read_files / search_files / edit_file). "
+    "If you just called write_chapter (or create_file) and have not written its <file> body yet, finish writing that "
+    "<file>...</file> body in this reply first, then summarize. "
+    "Provide a concise progress summary in the author's language:\n"
+    "1. Work already completed;\n"
+    "2. Remaining work to finish in the next turn;\n"
+    "3. Files used or modified this round (title + id).\n"
+    "When the author replies \"continue\", you will pick up from here."
+)
 LOOP_TIME_LANDING_PROMPT = (
     "[系统提醒] 这次请求的时间快用完了。请立即停止调用任何工具（包括 read_files / search_files / edit_file / "
     "write_chapter / create_file / update_project），思考尽量简短。"
@@ -225,6 +236,14 @@ LOOP_TIME_LANDING_PROMPT = (
     "在本次回复里写完它的 <file> 正文并用 </file> 结束。然后直接用文字给作者收尾：\n"
     "- 如果作者本轮要求的内容已经全部保存完成，直接用一到三句话总结已完成的文件与字数即可，不要编造待续工作；\n"
     "- 只有作者本轮明确要求、但还没来得及完成的部分，才如实写明已完成的工作与尚未完成的部分（用户回复「继续」后会接着完成剩余部分）。"
+)
+LOOP_TIME_LANDING_PROMPT_EN = (
+    "[System note] This request is nearly out of time. Stop calling ALL tools immediately (including read_files / search_files / "
+    "edit_file / write_chapter / create_file / update_project) and keep thinking minimal. "
+    "If a <file> body is in progress or pending after write_chapter/create_file, finish writing it and close with </file>. "
+    "Then wrap up directly in the author's language:\n"
+    "- If everything the author requested this turn is already saved, summarize the saved files and word counts in 1–3 sentences without inventing remaining tasks;\n"
+    "- Only if part of the author's explicit request could not be finished in time, state plainly what is done and what remains (the author can reply \"continue\" to finish the rest)."
 )
 
 
@@ -529,11 +548,13 @@ class _ModelCallCountingFilter:
             self.landing_limit = self._remaining_calls()[1]
             if self._run_meter.past_wrap_up:
                 self._run_meter.record_wall_clock_landing_call()
-            content = LOOP_SOFT_LANDING_PROMPT.format(remaining=remaining) + facts
+            prompt = LOOP_SOFT_LANDING_PROMPT_EN if self._english else LOOP_SOFT_LANDING_PROMPT
+            content = prompt.format(remaining=remaining) + facts
         else:
             self.landing_limit = LANDING_LIMIT_WALL_CLOCK
             self._run_meter.record_wall_clock_landing_call()
-            content = LOOP_TIME_LANDING_PROMPT + facts
+            prompt = LOOP_TIME_LANDING_PROMPT_EN if self._english else LOOP_TIME_LANDING_PROMPT
+            content = prompt + facts
         reminder = {"role": "user", "content": content}
         return ModelInputData(
             input=[*list(model_data.input or []), reminder],
@@ -824,7 +845,12 @@ def _usage_dict_from_result(result: Any) -> dict[str, int]:
     return sum_response_usages(getattr(raw_response, "usage", None) for raw_response in raw_responses)
 
 
-def _format_tool_error(args: Any, *, failure_breaker: ToolFailureBreaker | None = None) -> str | None:
+def _format_tool_error(
+    args: Any,
+    *,
+    failure_breaker: ToolFailureBreaker | None = None,
+    english: bool = False,
+) -> str | None:
     """RunConfig.tool_error_formatter：把「工具不存在」改写成项目统一的结构化错误。
 
     只处理 kind == "tool_not_found"（其余返回 None 走 SDK 默认文案）。
@@ -834,9 +860,15 @@ def _format_tool_error(args: Any, *, failure_breaker: ToolFailureBreaker | None 
     if getattr(args, "kind", None) != "tool_not_found":
         return None
     tool_name = str(getattr(args, "tool_name", "") or "")
+    message = (
+        f"Tool `{tool_name}` is not in the currently available tool list; the call was not executed. "
+        "Use only tools provided in the current tool list and do not call retired or nonexistent tool names."
+        if english
+        else f"工具 {tool_name} 不在当前可用的工具清单里，调用未执行。"
+        "请只使用当前已提供的可用工具完成任务，不要再调用已停用或不存在的工具名。"
+    )
     text = tool_error_text(
-        f"工具 {tool_name} 不在当前可用的工具清单里，调用未执行。"
-        "请只使用当前已提供的可用工具完成任务，不要再调用已停用或不存在的工具名。",
+        message,
         error_type="tool_not_found",
         tool_name=tool_name,
     )
@@ -1206,7 +1238,7 @@ async def run_openai_agents_streaming_agent(
                     # 交还模型让它自行改用可用工具，不计入 ToolFailureBreaker 熔断。
                     tool_not_found_behavior="return_error_to_model",
                     tool_error_formatter=functools.partial(
-                        _format_tool_error, failure_breaker=failure_breaker
+                        _format_tool_error, failure_breaker=failure_breaker, english=english
                     ),
                 ),
             )
@@ -1690,7 +1722,10 @@ async def run_openai_agents_streaming_agent(
                     "iterations_used": run_meter.model_calls,
                     "max_iterations": run_meter.max_model_calls,
                     "reason": (
-                        "这一轮的时间快用完了，AI 先写下了阶段总结。"
+                        "This round nearly ran out of time, so the AI wrapped up with a progress summary. "
+                        "The task may not be finished; reply \"continue\" to pick it up."
+                        if english
+                        else "这一轮的时间快用完了，AI 先写下了阶段总结。"
                         "任务可能还没做完，回复「继续」就能接着做。"
                     ),
                 }
@@ -1700,7 +1735,10 @@ async def run_openai_agents_streaming_agent(
                     "iterations_used": run_meter.model_calls,
                     "max_iterations": run_meter.max_model_calls,
                     "reason": (
-                        f"这一轮的模型调用次数快到上限（{run_meter.max_model_calls} 次），"
+                        f"This round approached its model-call limit ({run_meter.max_model_calls}), "
+                        "so the AI wrapped up with a progress summary. Reply \"continue\" to finish the rest."
+                        if english
+                        else f"这一轮的模型调用次数快到上限（{run_meter.max_model_calls} 次），"
                         "AI 先写下了阶段总结。任务可能还没做完，回复「继续」就能接着做。"
                     ),
                 }
@@ -1710,7 +1748,10 @@ async def run_openai_agents_streaming_agent(
                     "iterations_used": model_turns or AGENT_TOOL_CALL_MAX_ITERATIONS,
                     "max_iterations": AGENT_TOOL_CALL_MAX_ITERATIONS,
                     "reason": (
-                        f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
+                        f"This round reached the tool-call turn limit ({AGENT_TOOL_CALL_MAX_ITERATIONS}). "
+                        "The task may not be finished; reply \"continue\" to let the AI finish the rest."
+                        if english
+                        else f"这一轮的工具调用轮数已达上限（{AGENT_TOOL_CALL_MAX_ITERATIONS} 轮）。"
                         "当前任务可能未完全完成，您可以回复「继续」让 AI 接着完成剩余工作。"
                     ),
                 }

@@ -55,7 +55,7 @@ _PREAMBLE = (
 )
 _PREAMBLE_EN = (
     "The system attached this block at the start of this turn (the author did not write it): the files, "
-    "materials and quotes the author attached, and the project information. Items marked [全文] are complete "
+    "materials and quotes the author attached, and the project information. Items marked [Full] are complete "
     "as of the start of this turn; where they differ from earlier conversation, follow this block."
 )
 
@@ -188,7 +188,15 @@ def build_loop_turn_context(
                     continue
         render_items.append(item)
 
-    rendered = assembler.format_context(render_items, None, project_status)
+    def _format_ctx(target_items: list[Any]) -> str:
+        if force_en:
+            try:
+                return assembler.format_context(target_items, None, project_status, force_en=True)
+            except TypeError:
+                return assembler.format_context(target_items, None, project_status)
+        return assembler.format_context(target_items, None, project_status)
+
+    rendered = _format_ctx(render_items)
 
     project_files = _project_files_block(
         session,
@@ -261,7 +269,7 @@ def build_loop_turn_context(
 
     result.text = _assemble_turn_text(rendered, emitted_project_files, emitted_author_edits)
     if deduped_any:
-        full_rendered = assembler.format_context(items, None, project_status) if render_items != items else rendered
+        full_rendered = _format_ctx(items) if render_items != items else rendered
         result.full_text = _assemble_turn_text(full_rendered, project_files, author_edits)
 
     # Carry forward recent full-file hashes (bounded) + overwrite with this turn's hashes.
