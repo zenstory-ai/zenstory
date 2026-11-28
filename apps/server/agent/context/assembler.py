@@ -74,6 +74,10 @@ MIN_QUERY_NAME_CHARS = 2
 PREVIOUS_CHAPTER_NOTE = (
     "（前一章用于承接情节；文风以作者的 writing_style、样文和作者自己写或改过的章节为准）"
 )
+PREVIOUS_CHAPTER_NOTE_EN = (
+    "(The previous chapter is for plot continuity; follow the author's writing_style, sample passages, "
+    "and author-written or author-edited chapters for voice and style.)"
+)
 
 
 def _render_project_notes(notes: str) -> list[str]:
@@ -1800,16 +1804,20 @@ class ContextAssembler:
         return file_id or None
 
     @classmethod
-    def _completeness_tag(cls, item: ContextItem) -> str:
+    def _completeness_tag(cls, item: ContextItem, *, force_en: bool = False) -> str:
         """渲染条目的完整性标注。
 
         生产事故：注入的条目只有标题 + 被压缩/截断的正文、结尾一个裸 "..."，
         模型无从判断看到的是不是全文，于是每轮都用 query_files 重读同一份文件。
-        现在每条都显式标注 [全文] 或 [已截断：显示 x/y 字；全文用 query_files(id=…)]。
+        现在每条都显式标注 [全文] / [Full] 或 [已截断：…] / [Truncated: …]。
         """
         metadata = item.metadata or {}
         file_id = cls.item_file_id(item)
         if metadata.get("retrieved"):
+            if force_en:
+                if file_id:
+                    return f'[Retrieved excerpt, not full text; use read_files(ids=["{file_id}"]) for full text]'
+                return "[Retrieved excerpt, not full text]"
             if file_id:
                 return f'[检索片段，非全文；全文用 read_files(ids=["{file_id}"])]'
             return "[检索片段，非全文]"
@@ -1818,6 +1826,15 @@ class ContextAssembler:
         if item.is_truncated:
             shown = metadata.get("shown_chars")
             total = metadata.get("original_chars")
+            if force_en:
+                size = (
+                    f"showing {shown}/{total} chars"
+                    if isinstance(shown, int) and isinstance(total, int)
+                    else "showing opening portion only"
+                )
+                if file_id:
+                    return f'[Truncated: {size}; use read_files(ids=["{file_id}"]) for full text]'
+                return f"[Truncated: {size}]"
             size = (
                 f"显示 {shown}/{total} 个字符"
                 if isinstance(shown, int) and isinstance(total, int)
@@ -1826,7 +1843,7 @@ class ContextAssembler:
             if file_id:
                 return f'[已截断：{size}；全文用 read_files(ids=["{file_id}"])]'
             return f"[已截断：{size}]"
-        return "[全文]"
+        return "[Full]" if force_en else "[全文]"
 
     @staticmethod
     def item_render_overhead_tokens(item: ContextItem) -> int:
@@ -1838,12 +1855,12 @@ class ContextAssembler:
         )
 
     @classmethod
-    def _item_heading(cls, item: ContextItem, prefix: str = "") -> str:
+    def _item_heading(cls, item: ContextItem, prefix: str = "", *, force_en: bool = False) -> str:
         """条目标题行：`[关系] 标题 (id=…) ← 当前焦点 [全文]`。"""
         file_id = cls.item_file_id(item)
         id_part = f" (id={file_id})" if file_id else ""
-        focus_mark = " ← 当前焦点" if item.is_focus else ""
-        tag = cls._completeness_tag(item)
+        focus_mark = (" ← Current focus" if force_en else " ← 当前焦点") if item.is_focus else ""
+        tag = cls._completeness_tag(item, force_en=force_en)
         tag_part = f" {tag}" if tag else ""
         return f"{prefix}{item.title}{id_part}{focus_mark}{tag_part}"
 
@@ -1853,6 +1870,8 @@ class ContextAssembler:
         file_inventory: dict[str, list[dict[str, Any]]] | None = None,
         project_status: dict[str, Any] | None = None,
         inventory_token_budget: int | None = None,
+        *,
+        force_en: bool = False,
     ) -> str:
         """
         Format context items into a structured prompt with clear sections.
@@ -1863,6 +1882,7 @@ class ContextAssembler:
             project_status: Optional project status for AI context
             inventory_token_budget: 文件清单段允许占用的 token 上限；
                 None 表示不限（仅受各小节条数上限约束）
+            force_en: Render section headers and completeness tags in English
 
         Returns:
             Formatted context string
@@ -1882,40 +1902,60 @@ class ContextAssembler:
             # Type narrowing: project_status is not None here
             assert project_status is not None
             parts.append(separator)
-            parts.append("项目状态 [核心信息]")
+            parts.append("Project Status [Core]" if force_en else "项目状态 [核心信息]")
             parts.append(separator)
             parts.append("")
 
             if project_status.get("summary"):
-                parts.append("【项目简介】（概要，可能是 AI 根据对话和稿件整理的；具体设定以作者原话和稿件为准）")
+                parts.append(
+                    "[Project Summary] (overview possibly synthesized by AI from conversation and drafts; author's exact words and manuscript take precedence)"
+                    if force_en
+                    else "【项目简介】（概要，可能是 AI 根据对话和稿件整理的；具体设定以作者原话和稿件为准）"
+                )
                 parts.append(project_status["summary"])
                 parts.append("")
 
             if project_status.get("writing_style"):
-                parts.append("【写作风格】（只记作者要求或确认的文风；与作者原话不一致时以作者原话为准）")
+                parts.append(
+                    "[Writing Style] (only style preferences explicitly requested or confirmed by the author; author's latest words take precedence)"
+                    if force_en
+                    else "【写作风格】（只记作者要求或确认的文风；与作者原话不一致时以作者原话为准）"
+                )
                 parts.append(project_status["writing_style"])
                 parts.append("")
 
         else:
             # Remind AI to collect project info when status is empty
             parts.append(separator)
-            parts.append("项目状态 [待收集]")
+            parts.append("Project Status [Pending]" if force_en else "项目状态 [待收集]")
             parts.append(separator)
             parts.append("")
-            parts.append("⚠️ 项目信息尚未记录！作者亲口说到以下内容时，用 update_project 记下作者说的（不记你自己的推断）：")
-            parts.append("- 小说类型/题材/背景 → summary")
-            parts.append("- 写作风格/语言偏好 → writing_style")
+            if force_en:
+                parts.append(
+                    "⚠️ Project info has not been recorded yet. When the author explicitly states the following, record only what the author stated using update_project (do not record your own assumptions):"
+                )
+                parts.append("- Genre / premise / setting -> summary")
+                parts.append("- Writing style / language preference -> writing_style")
+            else:
+                parts.append("⚠️ 项目信息尚未记录！作者亲口说到以下内容时，用 update_project 记下作者说的（不记你自己的推断）：")
+                parts.append("- 小说类型/题材/背景 → summary")
+                parts.append("- 写作风格/语言偏好 → writing_style")
             parts.append("")
 
         # Explicitly render even the empty value so a prior snapshot/history cannot fill it in.
-        parts.append("【当前写作约定】")
+        parts.append("[Current Writing Conventions]" if force_en else "【当前写作约定】")
         current_notes = (project_status or {}).get("notes")
-        parts.extend(_render_project_notes(current_notes) if current_notes else ["（空）", ""])
-        parts.append("以上是当前保存的写作约定；历史对话中的记住请求不代表本轮追加要求。")
+        empty_note = ["(empty)", ""] if force_en else ["（空）", ""]
+        parts.extend(_render_project_notes(current_notes) if current_notes else empty_note)
+        parts.append(
+            "The above are the currently saved writing conventions; remember-requests in earlier messages do not count as new additions for this turn."
+            if force_en
+            else "以上是当前保存的写作约定；历史对话中的记住请求不代表本轮追加要求。"
+        )
         parts.append("")
 
         if project_status and project_status.get("current_phase"):
-            parts.extend(["【当前阶段】", project_status["current_phase"], ""])
+            parts.extend(["[Current Phase]" if force_en else "【当前阶段】", project_status["current_phase"], ""])
 
         # File inventory section —— 受 inventory_token_budget 约束，见
         # _render_file_inventory 的说明
@@ -1950,30 +1990,30 @@ class ContextAssembler:
 
         # Outlines (detailed content)
         if sections["outline"]:
-            parts.append("【大纲详情】")
+            parts.append("[Outlines]" if force_en else "【大纲详情】")
             for item in sections["outline"]:
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
-                parts.append(self._item_heading(item, prefix))
+                parts.append(self._item_heading(item, prefix, force_en=force_en))
                 parts.append(item.content)
                 parts.append("")
 
         # Drafts (detailed content)
         if sections["draft"]:
-            parts.append("【正文详情】")
+            parts.append("[Manuscript Drafts]" if force_en else "【正文详情】")
             for item in sections["draft"]:
                 relation = item.metadata.get("relation", "")
                 prefix = f"[{relation}] " if relation else ""
-                parts.append(self._item_heading(item, prefix))
+                parts.append(self._item_heading(item, prefix, force_en=force_en))
                 if relation == "previous":
                     # 批量续写时前一章的碎句会逐章自我强化：它只用来接情节，文风另有来源。
-                    parts.append(PREVIOUS_CHAPTER_NOTE)
+                    parts.append(PREVIOUS_CHAPTER_NOTE_EN if force_en else PREVIOUS_CHAPTER_NOTE)
                 parts.append(item.content)
                 parts.append("")
 
         # Snippets
         if sections["snippet"]:
-            parts.append("【参考素材】")
+            parts.append("[Reference Materials]" if force_en else "【参考素材】")
             for item in sections["snippet"]:
                 source = item.metadata.get("source", "")
                 line_start = item.metadata.get("line_start")
@@ -1995,32 +2035,36 @@ class ContextAssembler:
                 prefix = f"[{' | '.join(meta_parts)}] " if meta_parts else ""
                 # 参考素材区块同样可能承载焦点文件（snippet 类型），必须带焦点标记，
                 # 否则模型无法从同区块的多条素材里分辨用户当前指的是哪一条。
-                parts.append(self._item_heading(item, prefix))
+                parts.append(self._item_heading(item, prefix, force_en=force_en))
                 parts.append(item.content)
                 parts.append("")
 
         # Characters
         if sections["character"]:
-            parts.append("【角色信息】")
+            parts.append("[Characters]" if force_en else "【角色信息】")
             for item in sections["character"]:
-                parts.append(self._item_heading(item))
+                parts.append(self._item_heading(item, force_en=force_en))
                 parts.append(item.content)
                 parts.append("")
 
         # Lores
         if sections["lore"]:
-            parts.append("【世界设定】")
+            parts.append("[Worldbuilding & Lore]" if force_en else "【世界设定】")
             for item in sections["lore"]:
                 category = item.metadata.get("category", "")
                 prefix = f"[{category}] " if category else ""
-                parts.append(self._item_heading(item, prefix))
+                parts.append(self._item_heading(item, prefix, force_en=force_en))
                 parts.append(item.content)
                 parts.append("")
 
         # Quotes (user-selected text)
         if sections["quote"]:
-            parts.append("【用户引用文本】")
-            parts.append("以下是用户选中并引用的文本片段，请特别关注：")
+            parts.append("[Author-Quoted Text]" if force_en else "【用户引用文本】")
+            parts.append(
+                "The author selected and quoted the following passage(s); pay close attention:"
+                if force_en
+                else "以下是用户选中并引用的文本片段，请特别关注："
+            )
             for item in sections["quote"]:
                 parts.append(f"{item.title}")
                 parts.append(item.content)

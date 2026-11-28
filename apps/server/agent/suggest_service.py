@@ -66,12 +66,17 @@ FALLBACK_SUGGESTIONS_EN = [
 ]
 
 
-# 建议提示词是中文；英文界面要单独说清输出语言，否则模型照着中文示例写中文建议。
+# 建议提示词是中文；非中文界面要单独说清输出语言：严格跟随作者最近消息的语言（支持 en/id/pt/vi/es/ru/ko/fr/pl/ar 等），
+# 仅在最近对话看不出语言时才回落到英文。
 ENGLISH_OUTPUT_RULE = (
-    "Output language: the author uses the English interface. Write every suggestion in English, "
-    "in the author's own voice (for example \"Write the full story from plan A\"), "
-    "at most 10 words each. Keep the JSON format described above."
+    "Output language: write every suggestion in the exact language of the author's most recent "
+    "messages (for example English, Bahasa Indonesia, Português, Tiếng Việt, Español, Русский, "
+    "한국어, Français, Polski, العربية, or any other language the author is using); fall back to "
+    "English only when the recent conversation has no clear language. Write in the author's own "
+    "voice (for example \"Write the full story from plan A\"), at most 10 words each. "
+    "Keep the JSON format described above."
 )
+MULTILINGUAL_OUTPUT_RULE = ENGLISH_OUTPUT_RULE
 
 
 # =============================================================================
@@ -299,8 +304,8 @@ class SuggestService:
         language: str | None = None,
     ) -> list[str]:
         """Get fallback suggestions when LLM fails."""
-        is_english = self._is_english(language)
-        fallbacks = FALLBACK_SUGGESTIONS_EN if is_english else FALLBACK_SUGGESTIONS_ZH
+        is_non_zh = self._is_non_zh(language)
+        fallbacks = FALLBACK_SUGGESTIONS_EN if is_non_zh else FALLBACK_SUGGESTIONS_ZH
         return fallbacks[:_count]
 
     def _get_recent_chat_history(
@@ -512,7 +517,7 @@ class SuggestService:
         language: str | None = None,
     ) -> str:
         """Build the static, cache-stable system prompt for suggestion generation."""
-        if self._is_english(language):
+        if self._is_non_zh(language):
             return f"{system_prompt}\n\n{ENGLISH_OUTPUT_RULE}"
         return system_prompt
 
@@ -523,12 +528,12 @@ class SuggestService:
         language: str | None = None,
     ) -> str:
         """Build the dynamic user prompt with slower-changing context before recent chat."""
-        is_english = self._is_english(language)
-        chat_str = self._format_chat_history(recent_messages, is_english)
+        is_non_zh = self._is_non_zh(language)
+        chat_str = self._format_chat_history(recent_messages, is_non_zh)
 
-        context_label = "项目信息:" if not is_english else "Project info:"
-        conversation_label = "最近对话:" if not is_english else "Recent conversation:"
-        no_context_text = "(暂无项目信息)" if not is_english else "(No project context)"
+        context_label = "项目信息:" if not is_non_zh else "Project info:"
+        conversation_label = "最近对话:" if not is_non_zh else "Recent conversation:"
+        no_context_text = "(暂无项目信息)" if not is_non_zh else "(No project context)"
 
         return "\n".join([
             context_label,
@@ -577,6 +582,13 @@ class SuggestService:
         # Normalize language string: handle "en-US", "zh-CN" formats
         normalized = language.split(",")[0].split("-")[0].strip().lower()
         return normalized.startswith("en")
+
+    def _is_non_zh(self, language: str | None) -> bool:
+        """Return True when the interface language is explicitly non-Chinese (en, id, pt, es, etc.)."""
+        if not language:
+            return False
+        normalized = language.split(",")[0].split("-")[0].strip().lower()
+        return bool(normalized) and not normalized.startswith("zh")
 
     def _format_chat_history(
         self,

@@ -160,6 +160,13 @@ def build_ui_action_turn_section(
             "- **Do NOT call `load_skill`** for Remove AI Tone / 去AI味 — the authoritative method is already provided above.",
             "- **Do NOT run unnecessary `read_files` / `search_files`**: the full text of the focus file is already in `<turn_context>` above; only read or search another file if a specific cross-chapter fact genuinely requires checking.",
             "- **Zero-change rule**: if the target text has no concrete AI-tone problems worth fixing, do NOT call `edit_file` and do NOT make cosmetic or punctuation-only edits; briefly explain to the author that the text already reads naturally and no changes were made.",
+            *(
+                [
+                    "- **Language fence**: the authoritative method above is written in Chinese; apply only the methodology and produce all replies and edits strictly in the manuscript's / author's language."
+                ]
+                if official_instructions
+                else []
+            ),
         ]
 
     scope_rule = (

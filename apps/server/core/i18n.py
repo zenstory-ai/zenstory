@@ -3,12 +3,37 @@ i18n 基础设施
 用于解析语言偏好和获取国际化消息
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from fastapi import Header
+
+if TYPE_CHECKING:
+    from sqlmodel import Session
 
 SUPPORTED_LANGUAGES: list[str] = ['zh', 'en']
 DEFAULT_LANGUAGE: str = 'zh'
 UNSUPPORTED_FALLBACK_LANGUAGE: str = 'en'
+
+DEFAULT_CHAT_SESSION_TITLE_ZH: str = "AI 助手对话"
+DEFAULT_CHAT_SESSION_TITLE_EN: str = "AI Assistant"
+NEW_CHAT_SESSION_TITLE_ZH: str = "新对话"
+NEW_CHAT_SESSION_TITLE_EN: str = "New Chat"
+
+
+def has_explicit_accept_language(accept_language: str | None) -> bool:
+    """Return True when ``accept_language`` carries at least one non-empty, non-wildcard tag."""
+    if not isinstance(accept_language, str) or not accept_language.strip():
+        return False
+    for part in accept_language.split(","):
+        tag = part.split(";")[0].strip()
+        if tag and tag != "*":
+            return True
+    return False
+
+
+_has_explicit_accept_language = has_explicit_accept_language
 
 
 def resolve_accept_language(accept_language: str | None) -> str:
@@ -20,7 +45,7 @@ def resolve_accept_language(accept_language: str | None) -> str:
     - 头部存在且命中支持的语言 -> 返回第一个命中的主语言 ('zh' 或 'en')；
     - 头部存在但无任何支持的语言 -> 回退 UNSUPPORTED_FALLBACK_LANGUAGE ('en')。
     """
-    if not accept_language or not accept_language.strip():
+    if not isinstance(accept_language, str) or not accept_language.strip():
         return DEFAULT_LANGUAGE
 
     # 解析 Accept-Language 头部
@@ -40,6 +65,48 @@ def resolve_accept_language(accept_language: str | None) -> str:
 
     # 提供了 Accept-Language 但没有任何支持的语言，回退英文
     return UNSUPPORTED_FALLBACK_LANGUAGE
+
+
+def resolve_user_language(
+    session: Session | None,
+    user_id: str | None,
+    accept_language: str | None,
+) -> str:
+    """Resolve user language with account-preference fallback when ``Accept-Language`` is absent/blank.
+
+    Precedence:
+    1. Explicit non-wildcard ``Accept-Language`` header (via ``resolve_accept_language``)
+    2. Stored account ``ui_language`` (via ``get_ui_language(session, user_id)``)
+    3. ``DEFAULT_LANGUAGE`` ('zh')
+    """
+    if has_explicit_accept_language(accept_language):
+        return resolve_accept_language(accept_language)
+
+    if session is not None and user_id:
+        from services.features.user_preference_service import (
+            get_ui_language,
+            normalize_ui_language,
+        )
+
+        stored = normalize_ui_language(get_ui_language(session, user_id))
+        if stored is not None:
+            return stored
+
+    return DEFAULT_LANGUAGE
+
+
+def default_chat_session_title(language: str | None) -> str:
+    """Localized default title for auto-created project chat sessions."""
+    if (language or "").strip().lower().startswith("en"):
+        return DEFAULT_CHAT_SESSION_TITLE_EN
+    return DEFAULT_CHAT_SESSION_TITLE_ZH
+
+
+def new_chat_session_title(language: str | None) -> str:
+    """Localized default title when the author starts a fresh chat session without a custom title."""
+    if (language or "").strip().lower().startswith("en"):
+        return NEW_CHAT_SESSION_TITLE_EN
+    return NEW_CHAT_SESSION_TITLE_ZH
 
 
 def get_accept_language(accept_language: str | None = Header(None)) -> str:

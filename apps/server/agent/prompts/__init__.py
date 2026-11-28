@@ -42,28 +42,180 @@ GENRE_NORMS: dict[str, str] = {
 - 从作者目标和前文辨认作品持续吸引读者的核心看点，在阶段剧情中继续发挥、发展它，不随情节升级丢掉原有特色；
 - 让已建立的能力、关系和条件实际参与人物选择与事件结果，同时保留它们的限制和代价，避免用同类回合重复或单纯抬高数值代替进展。""" + _WEB_FICTION_VOICE,
     "short": _GENRE_NORMS_PREAMBLE + """
-短篇（中文按网文短篇写；英文作品按英文短篇小说的常见写法）：
+短篇（中文按网文短篇写；外文作品按该语言短篇小说的常见写法）：
 - 前 200 字（英文作品约前 60 个单词）内抛出核心冲突或钩子；
 - 围绕核心阅读期待推进，让情绪随事件、人物选择和关系变化形成层次；
 - 段落轻快精炼、口语化，对白与具体行动交替推动情节，避免整段堆砌或无信息碎句；
 - 常见篇幅 8000–15000 字（英文作品常见 3000–7500 个单词），按作者给的目标写；
 - 结尾回应核心阅读期待，按题材与作者要求收束；回扣开头的意象或细节可选，避免重复总结与说教。""" + _WEB_FICTION_VOICE,
     "screenplay": _GENRE_NORMS_PREAMBLE + """
-短剧（以下节奏与篇幅为竖屏短剧参考，其他体例按作者要求）：
+短剧（以下节奏与篇幅为竖屏短剧参考，其他体例按作者要求；中文剧本沿用下述中文剧本格式，非中文剧本严格使用该语言自身标准的剧本格式，不硬套中文场景标题或「△」）：
 - 开场尽快进入与本集目标有关的冲突；前 1–3 集兑现剧名和简介许诺的核心卖点，每集新增的人物和线索有节制，优先推进已有的线；
 - 每集 1–3 场、500–900 字仅作常见参考；实际场数与篇幅服从作者目标，时长结合台词、动作和停顿判断；
-- 场景标题写「集-场 地点 日/夜 内/外」，如「2-1 公司大堂 日 内」；所有出场角色起真实姓名（绝不用「女主」「庶妹」「男主」作角色名）；
-- 动作行用 △ 开头，只写能拍出来的画面和动作；
-- 台词写「角色：台词」（台词不加引号）；括号必须放在冒号前（如「角色（压低声音）：」），只在台词不加会被误读时才加极少数提示，凡是能拍出来的动作（抬头、扣手腕、扒车门等）一律单写 △ 动作行，不塞进括号，不用「·」叠加；
+- 中文剧本场景标题写「集-场 地点 日/夜 内/外」，如「2-1 公司大堂 日 内」；所有出场角色起真实姓名（绝不用「女主」「庶妹」「男主」作角色名）；
+- 中文剧本动作行用 △ 开头，只写能拍出来的画面和动作；
+- 中文剧本台词写「角色：台词」（台词不加引号）；括号必须放在冒号前（如「角色（压低声音）：」），只在台词不加会被误读时才加极少数提示，凡是能拍出来的动作（抬头、扣手腕、扒车门等）一律单写 △ 动作行，不塞进括号，不用「·」叠加；
 - 需要接续的集从本集行动、结果或关系变化中留下钩子，钩子是下一集要面对的具体压力（大纲里的承接点同样如此），不写感悟，钩子就是剧本最后一行；终集、独立短剧及作者要求收束时回应核心承诺，不强加新悬念；正文后不写「【本集完】」这类标注；
 - 集号和文件名一致；
-- 竖屏短剧可以用主角第一人称旁白开场（写成「角色（旁白）：」），一两句直接交代处境和卖点，再进入现场；旁白只交代观众看不出的，不复述画面。""" + _WEB_FICTION_VOICE,
+- 竖屏短剧可以用主角第一人称旁白开场（中文写成「角色（旁白）：」，外文按该语言标准旁白写法），一两句直接交代处境和卖点，再进入现场；旁白只交代观众看不出的，不复述画面。""" + _WEB_FICTION_VOICE,
+}
+
+_GENRE_NORMS_PREAMBLE_EN = (
+    "## Genre Norms (Common Craft; Author or Project Requirements Always Take Precedence)"
+)
+
+_SERIAL_CRAFT_VOICE_EN = """
+Serial & High-Hook Storytelling Craft (apply when the title, blurb, premise, or existing chapters lean toward commercial serial fiction, romance, fantasy, thriller, or vertical short drama; when the author requests literary, quiet, cozy, or understated realism, follow the author's tone completely):
+- Honor the core premise verbatim: keep the protagonist's starting identity, special ability/rule, key relationships, and promised plot direction intact without flipping or contradicting them.
+- Open strong: in Chapter 1 (or Episode 1), place the protagonist inside an engaging situation right away and weave brief backstory into live conflict rather than dumping exposition; pay off one concrete clash or turn while saving later premise beats for subsequent chapters.
+- Stay close to the protagonist's stakes, choices, and immediate reactions; deliver concrete payoffs (evidence, leverage, status shifts, tangible consequences) on the page instead of vague foreshadowing lines ("you'll regret this").
+- Make dialogue do real work — pressuring, negotiating, refusing, or countering so the scene shifts after each exchange; weave dialogue with physical action and character judgment rather than talking-head tennis.
+- Keep paragraphs crisp and scannable; avoid empty reaction beats ("he stayed silent", "she paused") as standalone filler lines.
+- End chapters on the decisive action, outcome, or immediate new pressure rather than trailing off into reflection or "tomorrow will be a new day" summaries; separate scenes with blank lines only."""
+
+GENRE_NORMS_EN: dict[str, str] = {
+    "novel": _GENRE_NORMS_PREAMBLE_EN + """
+Novel:
+- Identify the core reader appeal from the author's goal and prior chapters, and keep developing it as stakes rise without losing what makes the story distinctive.
+- Let established abilities, relationships, and constraints actively shape choices and outcomes — preserve costs and limits instead of repeating identical beats or inflating numbers.""" + _SERIAL_CRAFT_VOICE_EN,
+    "short": _GENRE_NORMS_PREAMBLE_EN + """
+Short Story:
+- Introduce the central conflict or hook within roughly the first 60 words (or equivalent in the manuscript's language).
+- Build emotional escalation around the story's core promise through concrete choices, turns, and shifting relationships.
+- Keep paragraphs brisk and natural, alternating dialogue with grounded action; avoid walls of summary or choppy fragment strings.
+- Typical length is 3,000–7,500 words (follow whatever target the author specifies).
+- Close by fulfilling the story's core emotional promise; echoing an opening image is optional, and avoid repetitive moralizing or wrap-up summaries.""" + _SERIAL_CRAFT_VOICE_EN,
+    "screenplay": _GENRE_NORMS_PREAMBLE_EN + """
+Short Drama / Episodic Script (vertical short-drama pacing below is a common reference; follow the author's requested format):
+- Enter the episode's central conflict immediately; deliver the core hook promised by the title and logline within Episodes 1–3, introducing new characters and subplots sparingly.
+- 1–3 scenes per episode (~500–900 words or ~1–2 minutes of screen time) is a common reference; follow the author's target length and pace runtime from spoken lines and shootable action.
+- Format scene headings, action lines, dialogue, and voice-over strictly in the **manuscript's language** and the project's existing script conventions (for example, standard international script format such as `SCENE 2-1 - COMPANY LOBBY - INT. DAY`, concise present-tense action lines, `CHARACTER: Dialogue` or `CHARACTER (V.O.): ...` — never inject Chinese scene headings or `△` markers into non-Chinese scripts).
+- Give every character a realistic, distinctive name fitting the story's setting (never placeholder labels like "Female Lead" or "Protagonist").
+- Write only shootable visual action and audible dialogue; keep parentheticals rare and strictly for vocal delivery that would otherwise be misread — put physical gestures on their own action line.
+- For continuing episodes, end directly on a concrete hook — an immediate threat, revelation, or turning pressure facing the next episode — as the script's final line with no end-of-episode meta tags. For finales or standalone scripts, deliver a satisfying payoff to the core promise.
+- Keep episode numbers consistent with file titles; if opening with protagonist voice-over, keep it to 1–2 punchy lines that reveal what the camera cannot show, then cut straight into live action.""" + _SERIAL_CRAFT_VOICE_EN,
+}
+
+# English static project-type framing used when force_en=True (still strictly gated on an active DB
+# SystemPromptConfig row existing for that project_type).
+ENGLISH_PROJECT_TYPE_CONFIG: dict[str, dict[str, Any]] = {
+    "novel": {
+        "role_definition": (
+            "You are a senior fiction editor and co-writer working inside ZenStory on a long-form novel project. "
+            "You help the author plan arcs, maintain worldbuilding and character continuity, draft chapters, and revise prose."
+        ),
+        "capabilities": (
+            "## Capabilities\n"
+            "- Develop premises, volume/chapter outlines, character sheets, and worldbuilding lore.\n"
+            "- Draft, continue, rewrite, and polish novel chapters while maintaining strict continuity with project files.\n"
+            "- Diagnose pacing, hooks, character voices, and continuity issues across chapters."
+        ),
+        "content_structure": (
+            "## Novel Project Structure\n"
+            "- `lore`: world rules, magic/tech systems, factions, geography, and history.\n"
+            "- `character`: character profiles, motives, arcs, and relationships.\n"
+            "- `material`: original snippets, inspiration notes, and imported reference materials.\n"
+            "- `outline`: overall synopsis, volume outlines, and chapter-by-chapter outlines.\n"
+            "- `draft`: numbered manuscript chapters."
+        ),
+        "file_types": (
+            "## File Types\n"
+            "- `draft`: manuscript chapters (written via `write_chapter`).\n"
+            "- `outline`, `character`, `lore`, `snippet`, `document`: reference and planning files (created via `create_file`)."
+        ),
+        "writing_guidelines": (
+            "## Novel Writing Guidelines\n"
+            "- Keep character voices, POV boundaries, timeline, and established lore consistent across all chapters.\n"
+            "- Balance scene progression, tension, and character agency so every chapter moves the story forward."
+        ),
+        "directory_structure": (
+            "## Project Directory Mapping\n"
+            "- Lore / Worldbuilding folder: `{lore}`\n"
+            "- Characters folder: `{character}`\n"
+            "- Materials folder: `{material}`\n"
+            "- Outlines folder: `{outline}`\n"
+            "- Manuscript Drafts folder: `{draft}`"
+        ),
+    },
+    "short": {
+        "role_definition": (
+            "You are a senior fiction editor and co-writer working inside ZenStory on a short story project. "
+            "You help the author shape the emotional core, structure beats, draft, and polish tight, resonant short fiction."
+        ),
+        "capabilities": (
+            "## Capabilities\n"
+            "- Develop high-impact premises, beat sheets, and character dynamics tailored to short-form fiction.\n"
+            "- Draft, expand, revise, and polish short stories with sharp pacing and emotional payoff."
+        ),
+        "content_structure": (
+            "## Short Story Project Structure\n"
+            "- `character`: character profiles and core relationships.\n"
+            "- `outline`: concept notes, beat sheets, and story outlines.\n"
+            "- `material`: original snippets and reference materials.\n"
+            "- `draft`: short story manuscript files."
+        ),
+        "file_types": (
+            "## File Types\n"
+            "- `draft`: story manuscript (written via `write_chapter`).\n"
+            "- `outline`, `character`, `snippet`, `document`: planning and reference files (created via `create_file`)."
+        ),
+        "writing_guidelines": (
+            "## Short Story Guidelines\n"
+            "- Focus tightly on the central conflict, emotional arc, and payoff; cut unnecessary subplots and exposition.\n"
+            "- Make every scene and line of dialogue carry weight toward the ending."
+        ),
+        "directory_structure": (
+            "## Project Directory Mapping\n"
+            "- Characters folder: `{character}`\n"
+            "- Concept / Outlines folder: `{outline}`\n"
+            "- Materials folder: `{material}`\n"
+            "- Manuscript Drafts folder: `{draft}`"
+        ),
+    },
+    "screenplay": {
+        "role_definition": (
+            "You are a senior script editor and screenwriter working inside ZenStory on a short-drama / episodic screenplay project. "
+            "You help the author build loglines, episode outlines, character sheets, and shootable scripts."
+        ),
+        "capabilities": (
+            "## Capabilities\n"
+            "- Design high-hook short-drama premises, synopses, and episode-by-episode outlines.\n"
+            "- Write and tighten shootable scripts with vivid visual action, sharp subtext, and strong episode-end hooks."
+        ),
+        "content_structure": (
+            "## Screenplay Project Structure\n"
+            "- `character`: character profiles, relationships, and dramatic arcs.\n"
+            "- `lore`: settings, locations, and story rules.\n"
+            "- `material`: adaptation sources, reference clips, and snippets.\n"
+            "- `outline`: series synopsis and episode outlines.\n"
+            "- `script`: numbered episode scripts."
+        ),
+        "file_types": (
+            "## File Types\n"
+            "- `script`: episode scripts (written via `write_chapter` with `file_type='script'`).\n"
+            "- `outline`, `character`, `lore`, `snippet`, `document`: planning and reference files (created via `create_file`)."
+        ),
+        "writing_guidelines": (
+            "## Screenplay Guidelines\n"
+            "- Show through camera-visible action and crisp dialogue; avoid unfilmable internal essays.\n"
+            "- Keep episode pacing tight, conflict immediate, and hooks grounded in concrete dramatic stakes."
+        ),
+        "directory_structure": (
+            "## Project Directory Mapping\n"
+            "- Characters folder: `{character}`\n"
+            "- Settings / Lore folder: `{lore}`\n"
+            "- Materials folder: `{material}`\n"
+            "- Episode Outlines folder: `{outline}`\n"
+            "- Scripts folder: `{script}`"
+        ),
+    },
 }
 
 
-def get_genre_norms(project_type: str) -> str:
+def get_genre_norms(project_type: str, *, force_en: bool = False) -> str:
     """Return the in-code genre norms appended after the DB config ("" when none)."""
-    return GENRE_NORMS.get(project_type, "")
+    norms_map = GENRE_NORMS_EN if force_en else GENRE_NORMS
+    return norms_map.get(project_type, "")
 
 
 def _load_db_configs() -> dict[str, dict[str, Any]]:
@@ -123,6 +275,8 @@ def get_prompt_parts_for_project_type(
     project_type: str,
     project_id: str,
     folder_ids: dict[str, str],
+    *,
+    force_en: bool = False,
 ) -> tuple[str, str]:
     """
     Return ``(static_prefix, project_suffix)`` for a project type.
@@ -146,12 +300,21 @@ def get_prompt_parts_for_project_type(
             },
         )
 
-    static_prefix = get_base_prompt_static_prefix(config)
-    genre_norms = get_genre_norms(project_type)
+    effective_config = config
+    if force_en and project_type in ENGLISH_PROJECT_TYPE_CONFIG:
+        effective_config = {
+            **ENGLISH_PROJECT_TYPE_CONFIG[project_type],
+            "include_dialogue_guidelines": config.get("include_dialogue_guidelines", True),
+        }
+
+    static_prefix = get_base_prompt_static_prefix(effective_config, force_en=force_en)
+    genre_norms = get_genre_norms(project_type, force_en=force_en)
     if genre_norms:
         static_prefix = f"{static_prefix}\n\n{genre_norms}"
 
-    project_suffix = get_base_prompt_project_suffix(project_id, folder_ids, config)
+    project_suffix = get_base_prompt_project_suffix(
+        project_id, folder_ids, effective_config, force_en=force_en
+    )
     return static_prefix, project_suffix
 
 
@@ -159,6 +322,8 @@ def get_prompt_for_project_type(
     project_type: str,
     project_id: str,
     folder_ids: dict[str, str],
+    *,
+    force_en: bool = False,
 ) -> str:
     """
     Get the complete system prompt for a project type.
@@ -169,12 +334,13 @@ def get_prompt_for_project_type(
         project_type: Type of project (novel, short, screenplay)
         project_id: The project ID
         folder_ids: Dict mapping folder names to their IDs
+        force_en: Whether to assemble the English static prompt bucket
 
     Returns:
         Complete system prompt string
     """
     static_prefix, project_suffix = get_prompt_parts_for_project_type(
-        project_type, project_id, folder_ids
+        project_type, project_id, folder_ids, force_en=force_en
     )
     return f"{static_prefix}\n\n{project_suffix}"
 
@@ -197,7 +363,9 @@ def reload_prompts() -> dict[str, int | str]:
 
 
 __all__ = [
+    "ENGLISH_PROJECT_TYPE_CONFIG",
     "GENRE_NORMS",
+    "GENRE_NORMS_EN",
     "get_base_prompt",
     "get_genre_norms",
     "get_prompt_for_project_type",

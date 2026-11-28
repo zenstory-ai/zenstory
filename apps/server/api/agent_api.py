@@ -26,6 +26,7 @@ from api.agent_dependencies import AgentAuthContext, require_project_access, req
 from config.datetime_utils import advance_timestamp, normalize_datetime_to_utc, utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import resolve_user_language
 from database import create_session
 from middleware.rate_limit import require_agent_rate_limit
 from models import File, FileVersion, Project
@@ -40,10 +41,7 @@ from services.file_tree_rules import (
     resolve_new_file_order,
     validate_parent_assignment,
 )
-from services.project_service import (
-    create_project_with_default_folders,
-    resolve_template_lang,
-)
+from services.project_service import create_project_with_default_folders
 from utils.logger import get_logger, log_with_context
 from utils.title_sequence import resolve_persisted_sequence_order
 
@@ -420,7 +418,7 @@ def create_project(
     try:
         # Also enforces the plan's project limit (402) and records project_created, like the web.
         folders = create_project_with_default_folders(
-            session, project, resolve_template_lang(accept_language)
+            session, project, resolve_user_language(session, user_id, accept_language)
         )
     except APIException:
         raise
