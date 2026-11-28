@@ -103,6 +103,7 @@ export function DiscoverSkillsTab({
             options={categoryOptions}
             value={selectedCategory}
             onChange={setSelectedCategory}
+            className="self-start"
           />
         )}
       </div>
@@ -134,7 +135,7 @@ export function DiscoverSkillsTab({
             title={t("noDiscoverableSkills")}
             description={t("noDiscoverableSkillsHint")}
             action={
-              <Button size={isMobile ? "touch" : "md"} onClick={onCreate} leftIcon={<Plus className="w-4 h-4" />}>
+              <Button variant="secondary" size={isMobile ? "touch" : "md"} onClick={onCreate} leftIcon={<Plus className="w-4 h-4" />}>
                 {t("createSkill")}
               </Button>
             }
