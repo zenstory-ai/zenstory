@@ -17,8 +17,12 @@ const MAX_TEXTAREA_HEIGHT = 224;
 function autoResizeTextarea(element: HTMLTextAreaElement | null) {
   if (!element) return;
   element.style.height = "auto";
+  const computed = window.getComputedStyle(element);
+  const borderY =
+    (Number.parseFloat(computed.borderTopWidth) || 0) +
+    (Number.parseFloat(computed.borderBottomWidth) || 0);
   const nextHeight = Math.min(
-    Math.max(element.scrollHeight, MIN_TEXTAREA_HEIGHT),
+    Math.max(element.scrollHeight + borderY, MIN_TEXTAREA_HEIGHT),
     MAX_TEXTAREA_HEIGHT,
   );
   element.style.height = `${nextHeight}px`;
@@ -195,13 +199,27 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   useLayoutEffect(() => {
     if (!isOpen || loading || !project) return;
     autoResizeTextarea(summaryInputRef.current);
+  }, [isOpen, loading, project, summary]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
     autoResizeTextarea(writingStyleInputRef.current);
+  }, [isOpen, loading, project, writingStyle]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
     autoResizeTextarea(currentPhaseInputRef.current);
+  }, [isOpen, loading, project, currentPhase]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
     autoResizeTextarea(notesInputRef.current);
-    if (latestNotes !== null) {
-      autoResizeTextarea(latestNotesInputRef.current);
-    }
-  }, [isOpen, loading, project, summary, writingStyle, currentPhase, notes, latestNotes]);
+  }, [isOpen, loading, project, notes]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project || latestNotes === null) return;
+    autoResizeTextarea(latestNotesInputRef.current);
+  }, [isOpen, loading, project, latestNotes]);
 
   useEffect(() => {
     if (!isOpen || loading || !project || initialSection !== 'writing-agreements' || focusedInitialSectionRef.current) return;
@@ -403,7 +421,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 onChange={(e) => setSummary(e.target.value)}
                 placeholder={t('placeholders.summary')}
                 rows={2}
-                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-y text-base md:text-sm leading-relaxed"
+                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
               />
             </div>
 
@@ -418,7 +436,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 onChange={(e) => setWritingStyle(e.target.value)}
                 placeholder={t('placeholders.writingStyle')}
                 rows={2}
-                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-y text-base md:text-sm leading-relaxed"
+                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
               />
             </div>
 
@@ -433,7 +451,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 onChange={(e) => setCurrentPhase(e.target.value)}
                 placeholder={t('placeholders.currentPhase')}
                 rows={2}
-                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-y text-base md:text-sm leading-relaxed"
+                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
               />
             </div>
           </div>
@@ -460,7 +478,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
               }}
               placeholder={t('placeholders.notes')}
               rows={2}
-              className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-y text-base md:text-sm leading-relaxed"
+              className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
             />
             {notesConflict && (
               <div ref={notesConflictRef} className="space-y-2 scroll-mb-3">
@@ -475,7 +493,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
                   <textarea id={`${fieldId}-latest-notes`} ref={latestNotesInputRef} value={authorNotesText(latestNotes)} readOnly rows={2}
-                    className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-y text-base md:text-sm leading-relaxed" />
+                    className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed" />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>
                     <Button size="touch" disabled={saving}

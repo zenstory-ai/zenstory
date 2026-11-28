@@ -510,16 +510,17 @@ export const CardUndoControl: React.FC<{
     const blockedReason = t('chat:tool.undoLaterFirst');
     return (
       <>
-        <button
-          type="button"
-          disabled
-          title={blockedReason}
-          aria-describedby={hintId}
-          className={`inline-flex items-center gap-1 min-h-11 md:min-h-7 -my-2 md:my-0 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-60 ${className}`}
-        >
-          <RotateCcw className="w-3 h-3" />
-          {t('common:undo')}
-        </button>
+        <span title={blockedReason} className="inline-flex shrink-0">
+          <button
+            type="button"
+            disabled
+            aria-describedby={hintId}
+            className={`inline-flex items-center gap-1 min-h-11 md:min-h-7 -my-2 md:my-0 shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-[hsl(var(--text-secondary))] cursor-not-allowed opacity-60 ${className}`}
+          >
+            <RotateCcw className="w-3 h-3" />
+            {t('common:undo')}
+          </button>
+        </span>
         <span id={hintId} className="sr-only">
           {blockedReason}
         </span>

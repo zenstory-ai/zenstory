@@ -1967,13 +1967,16 @@ describe('MessageList', () => {
       expect(container.querySelectorAll('svg.lucide-feather').length).toBe(2)
       expect(container.querySelector('svg.lucide-bot')).toBeNull()
 
-      // Copy footer wrapper and ReadOnlyToolGroup toggle stay flush-aligned (no negative left margin)
+      // Copy footer wrapper and ReadOnlyToolGroup toggle stay flush-aligned (no negative left margin, inset focus rings)
       const copyButton = screen.getByTestId('copy-message-button')
+      expect(copyButton.className).toContain('focus-visible:ring-inset')
+      expect(copyButton.className).not.toContain('focus-visible:ring-offset-1')
       const footerRow = copyButton.parentElement?.parentElement as HTMLElement
       expect(footerRow.className).not.toContain('-ml-1')
 
       const readonlyToggle = screen.getByTestId('readonly-tool-group').querySelector('button') as HTMLElement
       expect(readonlyToggle.className).not.toContain('-ml-1.5')
+      expect(readonlyToggle.className).toContain('focus-visible:ring-inset')
     })
   })
 })

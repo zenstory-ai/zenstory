@@ -434,7 +434,7 @@ describe('ToolResultCard', () => {
         const { rerender } = render(card(new Set([key])))
         const blockedButton = screen.getByRole('button', { name: /undo/i })
         expect(blockedButton).toBeDisabled()
-        expect(blockedButton).toHaveAttribute('title', 'chat:tool.undoLaterFirst')
+        expect(blockedButton.parentElement).toHaveAttribute('title', 'chat:tool.undoLaterFirst')
         expect(blockedButton).toHaveAccessibleDescription('chat:tool.undoLaterFirst')
         expect(screen.getByText('chat:tool.undoLaterFirst')).toHaveClass('sr-only')
         await user.click(blockedButton)

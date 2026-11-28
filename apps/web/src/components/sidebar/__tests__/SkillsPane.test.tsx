@@ -236,4 +236,41 @@ describe('SkillsPane', () => {
     fireEvent.click(discoverBtn);
     expect(await screen.findByTestId('skills-page')).toBeInTheDocument();
   });
+
+  it('keeps the newly created skill visible and exits loading even if a silent refresh supersedes initial load or fails', async () => {
+    const createdSkill: Skill = {
+      id: 'skill-optimistic',
+      name: '短句对话',
+      description: null,
+      triggers: [],
+      instructions: '对话尽量简短。',
+      source: 'user',
+      is_active: true,
+      created_at: '2026-01-03T00:00:00Z',
+      updated_at: '2026-01-03T00:00:00Z',
+    };
+    let resolveInitial!: (value: { skills: Skill[] }) => void;
+    mockListSkills
+      .mockReturnValueOnce(new Promise((resolve) => { resolveInitial = resolve; }))
+      .mockRejectedValueOnce(new Error('transient refresh error'));
+    mockCreateSkill.mockResolvedValueOnce(createdSkill);
+
+    render(<SkillsPane />);
+    expect(screen.getByText('common:loading')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'editor:fileTree.createSkill' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/skills:form\.name/), {
+      target: { value: '短句对话' },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/skills:form\.instructions/), {
+      target: { value: '对话尽量简短。' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'common:save' }));
+
+    // Silent refresh superseded initial load and failed: loading must still clear and optimistic skill must render
+    expect(await screen.findByText('短句对话')).toBeInTheDocument();
+    expect(screen.queryByText('common:loading')).not.toBeInTheDocument();
+    resolveInitial({ skills: sampleSkills });
+  });
 });

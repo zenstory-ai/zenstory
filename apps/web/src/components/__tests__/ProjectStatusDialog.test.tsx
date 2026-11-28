@@ -195,11 +195,13 @@ describe('ProjectStatusDialog', () => {
       expect(phase.style.height).toBe('224px')
       expect(notes.style.height).toBe('100px')
 
-      // Mobile-safe >=16px text and internal scrolling on all 4 textareas
+      // Mobile-safe >=16px text, auto-sized without manual resize conflict, and internal scrolling on all 4 textareas
       for (const field of [summary, style, phase, notes]) {
         expect(field.className).toContain('text-base')
         expect(field.className).toContain('md:text-sm')
         expect(field.className).toContain('overflow-y-auto')
+        expect(field.className).toContain('resize-none')
+        expect(field.className).not.toContain('resize-y')
       }
     } finally {
       if (originalScrollHeight) {

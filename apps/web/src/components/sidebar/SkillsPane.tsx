@@ -82,6 +82,7 @@ export const SkillsPane: React.FC = () => {
 
   const mountedRef = useRef(true);
   const loadRequestRef = useRef(0);
+  const creatingSkillRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -108,7 +109,7 @@ export const SkillsPane: React.FC = () => {
       if (!mountedRef.current || requestId !== loadRequestRef.current) return;
       if (!silent) setLoadFailed(true);
     } finally {
-      if (mountedRef.current && requestId === loadRequestRef.current && !silent) {
+      if (mountedRef.current && requestId === loadRequestRef.current) {
         setLoading(false);
       }
     }
@@ -144,13 +145,18 @@ export const SkillsPane: React.FC = () => {
   }, []);
 
   const handleCancelCreate = useCallback(() => {
-    if (creatingSkill) return;
+    if (creatingSkillRef.current || creatingSkill) return;
     setIsCreateModalOpen(false);
     setCreateFormData(emptySkillForm);
   }, [creatingSkill]);
 
   const handleSaveCreate = useCallback(async () => {
-    if (creatingSkill || !createFormData.name.trim() || !createFormData.instructions.trim()) {
+    if (
+      creatingSkillRef.current ||
+      creatingSkill ||
+      !createFormData.name.trim() ||
+      !createFormData.instructions.trim()
+    ) {
       return;
     }
 
@@ -169,6 +175,7 @@ export const SkillsPane: React.FC = () => {
       return;
     }
 
+    creatingSkillRef.current = true;
     setCreatingSkill(true);
     try {
       const createData: CreateSkillRequest = {
@@ -177,8 +184,13 @@ export const SkillsPane: React.FC = () => {
         triggers,
         instructions: createFormData.instructions,
       };
-      await skillsApi.create(createData);
+      const created = await skillsApi.create(createData);
       if (!mountedRef.current) return;
+      if (created && created.is_active) {
+        setSkills((prev) =>
+          prev.some((skill) => skill.id === created.id) ? prev : [...prev, created],
+        );
+      }
       await fetchSkills({ silent: true });
       if (!mountedRef.current) return;
       setIsCreateModalOpen(false);
@@ -203,6 +215,7 @@ export const SkillsPane: React.FC = () => {
         );
       }
     } finally {
+      creatingSkillRef.current = false;
       if (mountedRef.current) setCreatingSkill(false);
     }
   }, [createFormData, creatingSkill, fetchSkills, skillCreateUpgradePrompt.surface, t]);
