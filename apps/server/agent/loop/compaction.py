@@ -44,6 +44,8 @@ from .history import (
     contains_leaked_tool_protocol,
     effective_history_provider_tokens,
     estimate_provider_items_tokens,
+    estimate_provider_text_tokens,
+    estimate_tools_schema_tokens,
     is_successful_archivable_payload,
     kept_author_messages,
     parse_tool_json,
@@ -606,9 +608,18 @@ async def compact_history(
 
     attribution = agent_usage_attribution(request_context)
     input_budget = AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
+    cold_fixed_tokens = (
+        estimate_provider_text_tokens(system_prompt) + estimate_tools_schema_tokens()
+        if history.last_prompt_tokens <= 0
+        else 0
+    )
+    source_effective_tokens = effective_history_provider_tokens(history) + cold_fixed_tokens
 
-    def _trim_for_budget(budget_tokens: int) -> list[dict[str, Any]]:
-        # 按 1.5 倍供应商 token 量纲折算字符上限，折叠超预算旧工具载荷以尽量保住全部轮次的起止脉络与文件 id 摘要。
+    def _trim_for_budget(budget_tokens: int, *, force_trim: bool = False) -> list[dict[str, Any]]:
+        if not force_trim and source_effective_tokens <= budget_tokens:
+            return source_items
+        # 仅当实测/估算已超输入预算（或 400/413/422 超窗减半重试）时才折叠旧工具载荷，
+        # 避免在 300k–600k 正常压缩区因原始 JSON / 密文字符数误伤热 KV 前缀缓存。
         trimmer_max_chars = max(200_000, int(budget_tokens * 1.5))
         return IntraRunToolOutputTrimmer(max_input_chars=trimmer_max_chars).trim_items(
             source_items, instructions_chars=len(system_prompt)
@@ -707,7 +718,7 @@ async def compact_history(
             if has_next_attempt and len(bounded) > 1 and _is_request_rejected_error(exc):
                 current_tokens = effective_history_provider_tokens(history, bounded)
                 input_budget = max(100_000, min(input_budget, current_tokens) // 2)
-                trimmed_items = _trim_for_budget(input_budget)
+                trimmed_items = _trim_for_budget(input_budget, force_trim=True)
                 log_with_context(
                     logger,
                     30,  # WARNING

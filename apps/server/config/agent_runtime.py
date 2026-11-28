@@ -161,8 +161,9 @@ AGENT_LOOP_TURN_CONTEXT_MAX_TOKENS = get_int_env("AGENT_LOOP_TURN_CONTEXT_MAX_TO
 # turn (agent/loop/wire_prefix_cache.py). Matches MiniMax's ~20m KV-cache window (measured
 # 58.6% hit rate in the 15-20m bucket before dropping at 20-30m) so active multi-turn sessions
 # reuse an identical wire prefix across turns (including pre-run compaction).
-# Payloads are stored gzip+base64 compressed (``zsgz1:``) so ~600k-token sessions stay well
-# below ``AGENT_WIRE_PREFIX_CACHE_MAX_BYTES`` (enforced against the stored compressed size).
+# Payloads are stored gzip+base64 compressed (``zsgz1:``); the 4 MiB default cap leaves
+# headroom for uncompressible Responses API ``encrypted_content`` reasoning blobs on ~400k+
+# token sessions (enforced against the stored compressed size).
 # Set <= 0 to disable.
 AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS = get_int_env(
     "AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS",
@@ -171,6 +172,6 @@ AGENT_WIRE_PREFIX_CACHE_TTL_SECONDS = get_int_env(
 )
 AGENT_WIRE_PREFIX_CACHE_MAX_BYTES = get_int_env(
     "AGENT_WIRE_PREFIX_CACHE_MAX_BYTES",
-    2 * 1024 * 1024,
+    4 * 1024 * 1024,
     minimum=1,
 )
