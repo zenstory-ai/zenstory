@@ -2596,3 +2596,200 @@ def test_wire_prefix_cache_max_bytes_default_is_4mb_and_stores_uncompressible_en
         provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
     )
     assert loaded == items
+
+
+@pytest.mark.unit
+def test_wire_prefix_cache_logs_split_short_sha256_fingerprints_and_distinguishes_mismatch_causes(
+    fake_redis, caplog
+):
+    """Diagnostics logs emit distinct short system_prompt_sha256 & tools_sha256 fields, and
+    mismatch logs cleanly attribute system_prompt_changed vs tools_changed while keeping the
+    Redis envelope backward-compatible with live entries."""
+    items = _sample_wire_items()
+    sys_v1 = "static system prompt v1"
+    sys_v2 = "static system prompt v2"
+    tools_v1 = "a" * 64
+    tools_v2 = "b" * 64
+    sys_v1_short = wire_prefix_cache.short_sha256(wire_prefix_cache.system_prompt_sha256(sys_v1))
+    sys_v2_short = wire_prefix_cache.short_sha256(wire_prefix_cache.system_prompt_sha256(sys_v2))
+    tools_v1_short = wire_prefix_cache.short_sha256(tools_v1)
+    tools_v2_short = wire_prefix_cache.short_sha256(tools_v2)
+    assert len(sys_v1_short) == wire_prefix_cache.SHORT_SHA256_LEN
+    assert len(tools_v1_short) == wire_prefix_cache.SHORT_SHA256_LEN
+
+    with caplog.at_level(logging.INFO):
+        assert wire_prefix_cache.store_wire_prefix(
+            session_id="sess-fp",
+            project_id="p",
+            user_id="u",
+            last_assistant_message_id="m1",
+            system_prompt=sys_v1,
+            provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+            tools_sha256=tools_v1,
+            items=items,
+        )
+    stored_rec = next(r for r in caplog.records if "Agent wire prefix cache stored" in r.getMessage())
+    assert stored_rec.custom_fields["system_prompt_sha256"] == sys_v1_short
+    assert stored_rec.custom_fields["tools_sha256"] == tools_v1_short
+
+    # Hit logs both distinct short SHA-256 fields.
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        hit = wire_prefix_cache.load_wire_prefix_entry(
+            session_id="sess-fp",
+            project_id="p",
+            user_id="u",
+            last_message_id="m1",
+            system_prompt=sys_v1,
+            provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+            tools_sha256=tools_v1,
+        )
+    assert hit is not None
+    hit_rec = next(r for r in caplog.records if "Agent wire prefix cache hit" in r.getMessage())
+    assert hit_rec.custom_fields["system_prompt_sha256"] == sys_v1_short
+    assert hit_rec.custom_fields["tools_sha256"] == tools_v1_short
+
+    # 1) Only system_prompt changed -> system_prompt_changed=True, tools_changed=False
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        assert (
+            wire_prefix_cache.load_wire_prefix_entry(
+                session_id="sess-fp",
+                project_id="p",
+                user_id="u",
+                last_message_id="m1",
+                system_prompt=sys_v2,
+                provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+                tools_sha256=tools_v1,
+            )
+            is None
+        )
+    miss_sys = next(r for r in caplog.records if "validation mismatch" in r.getMessage()).custom_fields
+    assert miss_sys["mismatch"] == "system_prompt"
+    assert miss_sys["system_prompt_changed"] is True
+    assert miss_sys["tools_changed"] is False
+    assert miss_sys["system_prompt_sha256"] == sys_v2_short
+    assert miss_sys["cached_system_prompt_sha256"] == sys_v1_short
+    assert miss_sys["tools_sha256"] == tools_v1_short
+    assert miss_sys["cached_tools_sha256"] == tools_v1_short
+
+    # 2) Only tools_sha256 changed -> system_prompt_changed=False, tools_changed=True
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        assert (
+            wire_prefix_cache.load_wire_prefix_entry(
+                session_id="sess-fp",
+                project_id="p",
+                user_id="u",
+                last_message_id="m1",
+                system_prompt=sys_v1,
+                provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+                tools_sha256=tools_v2,
+            )
+            is None
+        )
+    miss_tools = next(r for r in caplog.records if "validation mismatch" in r.getMessage()).custom_fields
+    assert miss_tools["mismatch"] == "tools_sha256"
+    assert miss_tools["system_prompt_changed"] is False
+    assert miss_tools["tools_changed"] is True
+    assert miss_tools["tools_sha256"] == tools_v2_short
+    assert miss_tools["cached_tools_sha256"] == tools_v1_short
+
+    # 3) Both changed -> system_prompt_changed=True AND tools_changed=True
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        assert (
+            wire_prefix_cache.load_wire_prefix_entry(
+                session_id="sess-fp",
+                project_id="p",
+                user_id="u",
+                last_message_id="m1",
+                system_prompt=sys_v2,
+                provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+                tools_sha256=tools_v2,
+            )
+            is None
+        )
+    miss_both = next(r for r in caplog.records if "validation mismatch" in r.getMessage()).custom_fields
+    assert miss_both["system_prompt_changed"] is True
+    assert miss_both["tools_changed"] is True
+
+    # 4) Neither changed (provider_key mismatch) -> both False
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        assert (
+            wire_prefix_cache.load_wire_prefix_entry(
+                session_id="sess-fp",
+                project_id="p",
+                user_id="u",
+                last_message_id="m1",
+                system_prompt=sys_v1,
+                provider_key="minimax:MiniMax-M3.1-Flash:secondary:responses",
+                tools_sha256=tools_v1,
+            )
+            is None
+        )
+    miss_prov = next(r for r in caplog.records if "validation mismatch" in r.getMessage()).custom_fields
+    assert miss_prov["mismatch"] == "provider_key"
+    assert miss_prov["system_prompt_changed"] is False
+    assert miss_prov["tools_changed"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs", "shell_engine")
+async def test_service_turn_assembly_logs_distinct_short_system_prompt_and_tools_sha256(
+    db_session: Session, fake_redis, caplog
+):
+    from agent.core.workflow_events import StreamEvent, StreamEventType
+    from agent.service import AgentService
+
+    user = User(
+        email="wire_fp_service@example.com",
+        username="wirefpservice",
+        hashed_password=hash_password("password123"),
+        email_verified=True,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(name="指纹日志", owner_id=user.id, project_type="novel")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    chat = ChatSession(user_id=user.id, project_id=project.id, title="对话")
+    db_session.add(chat)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    captured_prompt: list[str] = []
+
+    def fake_loop(state, **_kwargs):
+        captured_prompt.append(str(state.get("system_prompt") or ""))
+
+        async def _stream():
+            yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的。"})
+            yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+        return _stream()
+
+    with (
+        patch("agent.service.run_loop_agent_streaming", side_effect=fake_loop),
+        caplog.at_level(logging.INFO),
+    ):
+        async for _frame in AgentService().process_stream(
+            project_id=str(project.id),
+            user_id=str(user.id),
+            message="打个招呼",
+            session=db_session,
+            session_id=chat.id,
+        ):
+            pass
+
+    start_fields = next(r for r in caplog.records if "Starting workflow streaming" in r.getMessage()).custom_fields
+    expected_sys = wire_prefix_cache.short_sha256(wire_prefix_cache.system_prompt_sha256(captured_prompt[0]))
+    expected_tools = wire_prefix_cache.short_sha256(wire_prefix_cache.tools_schema_sha256())
+    assert start_fields["system_prompt_sha256"] == expected_sys
+    assert start_fields["tools_sha256"] == expected_tools
+    assert expected_sys != expected_tools

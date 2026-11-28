@@ -44,7 +44,7 @@ ZenStory does not have a standalone trash panel for manual deletions. However, i
 
 ### Does whole-work export back up my entire project?
 
-**Export whole work (TXT)** (or **Export whole script (TXT)**) merges and downloads saved `draft` and `script` files only. Outlines, character sheets, worldbuilding notes, materials, chat threads, AI Memory, and version history are not included in whole-work export—open important planning files and click **More Actions → Download current file (TXT)** to keep local copies separately. See [Export your manuscript](../user-guide/export.md).
+**Export whole work (TXT)** (or **Export whole script (TXT)**) merges and downloads saved `draft` and `script` files only. Outlines, character sheets, worldbuilding notes, materials, chat threads, AI Memory, and version history are not included in whole-work export—open any individual planning file in the editor and copy it directly to keep a local copy. See [Export your manuscript](../user-guide/export.md).
 
 ### Can I write offline?
 

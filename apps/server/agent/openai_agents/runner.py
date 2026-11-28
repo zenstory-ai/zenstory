@@ -35,12 +35,18 @@ from agent.core.stream_processor import (
 from agent.core.usage import sum_response_usages
 from agent.core.workflow_events import StreamEvent, StreamEventType
 from agent.core.writing_state import WritingState
+from agent.loop.wire_prefix_cache import (
+    short_sha256,
+    system_prompt_sha256,
+    tools_schema_sha256,
+)
 from agent.openai_agents.events import (
     mcp_text_result,
     parse_json_object,
     tool_error_text,
 )
 from agent.openai_agents.model import build_failover_chat_model
+from agent.openai_agents.reasoning_loop_guard import ReasoningLoopGuard
 from agent.openai_agents.repeat_edit_guard import RepeatEditGuard
 from agent.openai_agents.repeat_read_guard import (
     NO_PROGRESS_STOP_REASON,
@@ -1111,6 +1117,8 @@ async def run_openai_agents_streaming_agent(
     call_text_length = 0
     repetition_checked_at = 0
     call_head_checked = False
+    reasoning_loop_guard = ReasoningLoopGuard()
+    call_reasoning_length = 0
     english = is_non_zh_language(state.get("language"))
     active_tool_arg_streams: dict[str, _ToolArgStreamState] = {}
     last_tool_arg_stream_key: str | None = None
@@ -1272,6 +1280,8 @@ async def run_openai_agents_streaming_agent(
                     raw_type = _raw_event_type(raw)
                     if raw_type == "response.created":
                         call_text, call_text_length, repetition_checked_at, call_head_checked = [], 0, 0, False
+                        reasoning_loop_guard.reset()
+                        call_reasoning_length = 0
                         active_tool_arg_streams.clear()
                         last_tool_arg_stream_key = None
                     if raw_type == "response.output_text.delta":
@@ -1305,6 +1315,7 @@ async def run_openai_agents_streaming_agent(
                                         logger,
                                         30,  # WARNING
                                         "Model output repeats a long passage; stopping agent run",
+                                        source="output_text",
                                         agent_type=agent_type,
                                         call_text_length=call_text_length,
                                     )
@@ -1318,7 +1329,25 @@ async def run_openai_agents_streaming_agent(
                         thinking = _raw_event_delta(raw)
                         if thinking:
                             thinking_chars += len(thinking)
+                            call_reasoning_length += len(thinking)
                             yield StreamEvent(type=StreamEventType.THINKING, data={"thinking": thinking})
+                            reasoning_trip = reasoning_loop_guard.feed(thinking)
+                            if reasoning_trip is not None:
+                                log_with_context(
+                                    logger,
+                                    30,  # WARNING
+                                    "Model reasoning entered a repetition loop; stopping agent run",
+                                    source="reasoning",
+                                    agent_type=agent_type,
+                                    run_on=reasoning_trip.run_on,
+                                    window=reasoning_trip.window,
+                                    distinct_units=len(reasoning_trip.units),
+                                    sample_units=reasoning_trip.units[:4],
+                                    call_reasoning_length=call_reasoning_length,
+                                )
+                                repetition_stopped = True
+                                _safe_cancel(result, "immediate")
+                                break
                     elif raw_type == "response.output_item.added":
                         added_item = getattr(raw, "item", None)
                         if _raw_item_value(added_item, "type", "") == "function_call":
@@ -1434,8 +1463,10 @@ async def run_openai_agents_streaming_agent(
                         },
                     )
                 elif event_name == "tool_output":
-                    # 工具执行完毕后下一次 output_text 必然属于新一轮模型回复（兼容不发 response.created 的流/替身）。
+                    # 工具执行完毕后下一次 output_text / reasoning 必然属于新一轮模型回复（兼容不发 response.created 的流/替身）。
                     call_text, call_text_length, repetition_checked_at, call_head_checked = [], 0, 0, False
+                    reasoning_loop_guard.reset()
+                    call_reasoning_length = 0
                     active_tool_arg_streams.clear()
                     last_tool_arg_stream_key = None
                     call_id, result_text = _tool_output_payload(item)
@@ -1814,6 +1845,8 @@ async def run_openai_agents_streaming_agent(
             output_tokens=usage.get("output_tokens", 0),
             cache_read_tokens=usage.get("cache_read_tokens", 0),
             continued_previous_run=continuing,
+            system_prompt_sha256=short_sha256(system_prompt_sha256(system_prompt)),
+            tools_sha256=short_sha256(tools_schema_sha256()),
         )
         if not max_turns_exhausted:
             with contextlib.suppress(Exception):

@@ -33,7 +33,7 @@ export function SkillSelectionCheckbox({
       data-testid="skill-selection-toggle"
       aria-pressed={isSelected}
       aria-label={isSelected ? t("skills:batch.deselect", { name: skillName }) : t("skills:batch.select", { name: skillName })}
-      className="shrink-0 min-h-11 min-w-11 md:min-h-8 md:min-w-8 inline-flex items-center justify-center rounded-lg -ml-2 -mt-1 md:ml-0 md:mt-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
+      className="shrink-0 min-h-11 min-w-11 md:min-h-8 md:min-w-8 inline-flex items-center justify-center rounded-lg -ml-2 -mt-1 md:ml-0 md:mt-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
     >
       {isSelected ? (
         <CheckSquare className="w-5 h-5 text-[hsl(var(--accent-primary))]" />

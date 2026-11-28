@@ -28,10 +28,7 @@
     "subscriptionManageHint": "Manage your plan, benefits, and redeem codes",
     "subscriptionRenewalSoon": "{{days}} days left",
     "exportQuotaBlockedTitle": "This export is not available on your current plan",
-    "exportQuotaBlockedDesc": "Upgrade your plan to use this export.",
-    "downloadFile": "Download current file (TXT)",
-    "downloadFileSuccess": "Downloaded \"{{title}}\"",
-    "downloadFileUnsaved": "This file has changes that could not be saved yet. Save it, then download again"
+    "exportQuotaBlockedDesc": "Upgrade your plan to use this export."
   },
   "fileTree": {
     "ariaLabel": "File tree",
@@ -51,7 +48,7 @@
     "removeFromChat": "Remove from chat",
     "addToChat": "Add to chat",
     "emptyFolder": "Empty, click + to start creating",
-    "emptyMaterialFolder": "Store lyrics, poems, dialogue lines, or reference texts here. Click + to create one, or use Upload to import .txt / .md, then add it to chat for the AI",
+    "emptyMaterialFolder": "Store benchmark novels, reference passages, or writing research here. Click + to create one, or use Upload to import .txt / .md, then add it to chat for the AI",
     "folderEmpty": "No files yet",
     "loadFailed": "Couldn't load files. Please try again.",
     "createWithAI": "Tell the AI what you want to write — it can set up the outline and chapters.",
