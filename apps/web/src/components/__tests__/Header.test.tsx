@@ -578,14 +578,20 @@ describe('Header', () => {
       })
     })
 
-    it('does not show the retired project statistics action in the mobile menu', async () => {
+    it('does not show the retired project statistics or current-file download actions in the mobile menu', async () => {
       mockCurrentProjectId = 'project-123'
       render(<Header />)
 
       const menuButton = screen.getByTestId('menu-icon').closest('button')
       fireEvent.click(menuButton!)
 
+      const mobileMenu = await waitFor(() => {
+        const el = document.getElementById('header-mobile-menu')
+        expect(el).toBeInTheDocument()
+        return el!
+      })
       expect(screen.queryByTestId('project-dashboard-button-mobile')).not.toBeInTheDocument()
+      expect(mobileMenu).not.toHaveTextContent('下载当前文件（TXT）')
     })
 
     it('navigates to docs from mobile menu', async () => {

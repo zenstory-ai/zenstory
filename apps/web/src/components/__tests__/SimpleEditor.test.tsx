@@ -1215,8 +1215,85 @@ describe('SimpleEditor', () => {
       });
       expect(contentTextarea.style.height).toBe('320px');
 
+      // Narrowing while focused (e.g. vertical scrollbar appearing while typing) must not force a 0px collapse.
+      const readsBeforeNarrow = zeroHeightReads;
+      act(() => {
+        resizeCallback?.(
+          [{ contentRect: { width: 885, height: 320 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      expect(zeroHeightReads).toBe(readsBeforeNarrow);
+
       unmount();
       expect(disconnectSpy).toHaveBeenCalled();
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+  });
+
+  it('re-binds ResizeObserver to the remounted textarea after exiting diff review mode', () => {
+    const originalResizeObserver = globalThis.ResizeObserver;
+    let resizeCallback: ResizeObserverCallback | null = null;
+    const observeSpy = vi.fn();
+    const disconnectSpy = vi.fn();
+    globalThis.ResizeObserver = class MockResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb;
+      }
+      observe = observeSpy;
+      unobserve = vi.fn();
+      disconnect = disconnectSpy;
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      const baseProps = {
+        fileId: 'file-1',
+        title: 'File 1',
+        content: 'Original paragraph.\n\nSecond original paragraph.',
+        onTitleChange: vi.fn(),
+        onContentChange: vi.fn(),
+        onSave: vi.fn().mockResolvedValue({ outcome: 'saved' as const, updatedAt: '2026-10-06T10:00:00.000002' }),
+        onAcceptEdit: vi.fn(),
+        onRejectEdit: vi.fn(),
+        onResetEdit: vi.fn(),
+      };
+
+      const { rerender } = render(
+        <SimpleEditor {...baseProps} diffReviewState={reviewState('conflict')} />
+      );
+      expect(observeSpy).not.toHaveBeenCalled();
+
+      rerender(<SimpleEditor {...baseProps} diffReviewState={null} />);
+      const textarea = screen.getByPlaceholderText(
+        'editor:placeholder.contentPlaceholder'
+      ) as HTMLTextAreaElement;
+      expect(observeSpy).toHaveBeenCalledWith(textarea);
+
+      let measuredHeight = 600;
+      textarea.style.height = '600px';
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        get: () => {
+          if (textarea.style.height === '0px') return measuredHeight;
+          return Math.max(Number.parseFloat(textarea.style.height || '0'), measuredHeight);
+        },
+      });
+
+      act(() => {
+        resizeCallback?.(
+          [{ contentRect: { width: 500, height: 600 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      measuredHeight = 280;
+      act(() => {
+        resizeCallback?.(
+          [{ contentRect: { width: 850, height: 600 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      expect(textarea.style.height).toBe('280px');
     } finally {
       globalThis.ResizeObserver = originalResizeObserver;
     }

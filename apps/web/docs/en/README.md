@@ -27,7 +27,7 @@ From your first outline to final revision and export, write in the [workbench](h
 
 - [Plans & Benefits](user-guide/billing-benefits.md): Compare Free and Pro limits, check reset times, upgrade or renew Pro, and redeem codes
 - [Version History](user-guide/version-history.md): Browse per-file versions, compare any two versions side by side, and restore earlier text
-- [Export](user-guide/export.md): Export your whole manuscript or script as a `.txt` file in chapter order, or download the open file
+- [Export](user-guide/export.md): Export your whole manuscript or script as a `.txt` file in chapter order
 
 ## Advanced
 

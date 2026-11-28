@@ -24,6 +24,7 @@ interface UseEditorTextareaLayoutOptions {
   contentAreaRef: RefObject<HTMLDivElement | null>;
   displayContent: string;
   isStreaming: boolean;
+  isReviewMode?: boolean;
   zoom?: number;
 }
 
@@ -32,6 +33,7 @@ export function useEditorTextareaLayout({
   contentAreaRef,
   displayContent,
   isStreaming,
+  isReviewMode = false,
   zoom = 1,
 }: UseEditorTextareaLayoutOptions) {
   const shouldAutoScrollRef = useRef(true);
@@ -90,7 +92,12 @@ export function useEditorTextareaLayout({
   }, [zoom, adjustTextareaHeight]);
 
   // Re-measure when editor width changes (sidebar toggle, pane/viewport resize) without looping on height changes.
+  // Re-binds when exiting review mode because the textarea unmounts while DiffReviewSplitView is shown.
   useEffect(() => {
+    if (isReviewMode) {
+      lastWidthRef.current = null;
+      return;
+    }
     const textarea = textareaRef.current;
     if (!textarea || typeof ResizeObserver === "undefined") return;
 
@@ -104,15 +111,19 @@ export function useEditorTextareaLayout({
         lastWidthRef.current = 0;
         return;
       }
-      if (lastWidthRef.current === null || Math.abs(nextWidth - lastWidthRef.current) > 0.5) {
+      const prevWidth = lastWidthRef.current;
+      if (prevWidth === null || Math.abs(nextWidth - prevWidth) > 0.5) {
         lastWidthRef.current = nextWidth;
-        adjustTextareaHeight(true);
+        // Avoid forced 0px height collapse when a focused textarea narrows (e.g. scrollbar appearing while typing).
+        const shouldForceShrink =
+          prevWidth === null || nextWidth > prevWidth || document.activeElement !== textarea;
+        adjustTextareaHeight(shouldForceShrink);
       }
     });
 
     observer.observe(textarea);
     return () => observer.disconnect();
-  }, [adjustTextareaHeight, textareaRef]);
+  }, [adjustTextareaHeight, isReviewMode, textareaRef]);
 
   const handleContentScroll = useCallback(() => {
     const el = contentAreaRef.current;

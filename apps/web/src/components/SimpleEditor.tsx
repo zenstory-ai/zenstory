@@ -103,6 +103,7 @@ export const SimpleEditor = ({
     contentAreaRef,
     displayContent,
     isStreaming,
+    isReviewMode,
     zoom,
   });
 
