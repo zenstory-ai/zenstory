@@ -544,3 +544,78 @@ def test_content_range_duplicate_bracketed_chapter_disambiguates_only_on_exact_t
     assert exact["section"] == "【第五十三章 上】"
     assert "上半内容。" in exact["content"]
     assert "下半内容。" not in exact["content"]
+
+
+@pytest.mark.unit
+def test_content_range_does_not_misclassify_wrapped_dialogue_or_parenthetical_prose():
+    body = (
+        "【第一章 初见】\n"
+        "雨夜相逢。\n"
+        "（第一卷到这里结束，其实不然）\n"
+        "第一章尾段仍在同一章内。\n\n"
+        "【第二章 对峙】\n"
+        "「第一章我还没看完呢。」\n"
+        "(Chapter 1 was really boring.)\n"
+        "[Chapter 2 enters from left stage.]\n"
+        "『第三章的内容很精彩。』\n"
+        "第二章真正结尾。\n\n"
+        "【第三章 破局】\n"
+        "第三章正文。"
+    )
+
+    ch1 = apply_content_range({"id": "prose-1", "content": body}, {"section": "第一章"})
+    assert ch1["section"] == "【第一章 初见】"
+    assert "（第一卷到这里结束，其实不然）" in ch1["content"]
+    assert "第一章尾段仍在同一章内。" in ch1["content"]
+    assert "【第二章 对峙】" not in ch1["content"]
+
+    ch2 = apply_content_range({"id": "prose-1", "content": body}, {"section": "第二章"})
+    assert ch2["section"] == "【第二章 对峙】"
+    assert "「第一章我还没看完呢。」" in ch2["content"]
+    assert "(Chapter 1 was really boring.)" in ch2["content"]
+    assert "[Chapter 2 enters from left stage.]" in ch2["content"]
+    assert "『第三章的内容很精彩。』" in ch2["content"]
+    assert "第二章真正结尾。" in ch2["content"]
+    assert "【第三章 破局】" not in ch2["content"]
+
+    ch3 = apply_content_range({"id": "prose-1", "content": body}, {"section": "第三章"})
+    assert ch3["section"] == "【第三章 破局】"
+    assert "第三章正文。" in ch3["content"]
+
+
+@pytest.mark.unit
+def test_content_range_does_not_misclassify_wrapped_lines_with_trailing_prose():
+    body = (
+        "【第一章 初见】\n"
+        "开篇。\n\n"
+        "【第二章 对峙】\n"
+        "「第一章」他说。\n"
+        "【第一章】其实不对，他摇摇头。\n"
+        "(Chapter 1) she whispered softly.\n"
+        "「第1章」和「第2章」\n"
+        "第二章尾句。\n\n"
+        "【背景设定】\n"
+        "【注】其实这里还有补充说明，不应该截断背景设定。\n"
+        "背景设定完整结尾。\n\n"
+        "【人物关系】\n"
+        "林舟与陈明。"
+    )
+
+    ch1 = apply_content_range({"id": "trail-1", "content": body}, {"section": "第一章"})
+    assert ch1["section"] == "【第一章 初见】"
+    assert "开篇。" in ch1["content"]
+
+    ch2 = apply_content_range({"id": "trail-1", "content": body}, {"section": "第二章"})
+    assert ch2["section"] == "【第二章 对峙】"
+    assert "「第一章」他说。" in ch2["content"]
+    assert "【第一章】其实不对，他摇摇头。" in ch2["content"]
+    assert "(Chapter 1) she whispered softly." in ch2["content"]
+    assert "「第1章」和「第2章」" in ch2["content"]
+    assert "第二章尾句。" in ch2["content"]
+
+    bg = apply_content_range({"id": "trail-1", "content": body}, {"section": "背景设定"})
+    assert bg["section"] == "【背景设定】"
+    assert "【注】其实这里还有补充说明，不应该截断背景设定。" in bg["content"]
+    assert "背景设定完整结尾。" in bg["content"]
+    assert "【人物关系】" not in bg["content"]
+

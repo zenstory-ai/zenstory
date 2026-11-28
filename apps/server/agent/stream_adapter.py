@@ -69,7 +69,7 @@ from .core.workflow_events import (
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
 from .loop.history import slim_client_tool_result
 from .openai_agents.events import extract_tool_result_text, parse_mcp_tool_payload
-from .tools.file_ops.edit import EDIT_ERROR_USER_MESSAGES, edit_error_user_message
+from .tools.file_ops.edit import EDIT_ERROR_PROJECT_FIELD_TOO_LONG, edit_error_user_message
 
 logger = get_logger(__name__)
 
@@ -690,8 +690,12 @@ class StreamAdapter:
                 error = failure_hints["user_message"]
             elif status == "error" and tool_name in _SAFE_FILE_ERROR_TOOLS:
                 error_type = failure_hints.get("error_type")
-                if tool_name == "update_project" and (error_type or "") not in EDIT_ERROR_USER_MESSAGES:
-                    error = _UPDATE_PROJECT_GENERIC_ERROR_MESSAGE
+                if tool_name == "update_project":
+                    error = (
+                        edit_error_user_message(error_type)
+                        if error_type == EDIT_ERROR_PROJECT_FIELD_TOO_LONG
+                        else _UPDATE_PROJECT_GENERIC_ERROR_MESSAGE
+                    )
                 else:
                     error = edit_error_user_message(error_type)
 

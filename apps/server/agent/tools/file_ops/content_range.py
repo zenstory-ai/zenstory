@@ -70,27 +70,31 @@ _CHAPTER_UNITS = frozenset(
 _SUB_UNITS = frozenset({"节", "幕"})
 _MD_PREFIX_RE = re.compile(r"^\s*(?:#{1,6}\s+)?(?:\*{1,2})?\s*")
 _MD_BOLD_SUFFIX_RE = re.compile(r"\*{1,2}\s*$")
+_UNIT_BOUNDARY = r"(?=$|[ \t\u3000:：·.、—\-–|*])"
+# Sentence/clause punctuation inside wrapped delimiters indicates dialogue or
+# parenthetical prose rather than a structural heading.
+_WRAPPED_PROSE_PUNCT_RE = re.compile(r"[。！？!?…，,；;]|\.\s*$")
 _UNIT_HEADING_RE = re.compile(
     r"^\s*(?:"
-    r"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇])"
-    r"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+)(?=$|[ \t\u3000:：·.、—\-*])"
-    r"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+)"
-    r"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화])"
+    rf"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇]){_UNIT_BOUNDARY}"
+    rf"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+){_UNIT_BOUNDARY}"
+    rf"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+){_UNIT_BOUNDARY}"
+    rf"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화]){_UNIT_BOUNDARY}"
     r")",
     re.IGNORECASE,
 )
 _HEADING_RE = re.compile(
     r"^\s*(?:(?P<hashes>#{1,6})\s+)?(?:\*{1,2})?\s*(?:"
-    r"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇])"
-    r"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+)(?=$|[ \t\u3000:：·.、—\-*])"
-    r"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+)"
-    r"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화])"
-    r"|【(?P<bracketed>[^】]+)】"
+    rf"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇]){_UNIT_BOUNDARY}"
+    rf"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+){_UNIT_BOUNDARY}"
+    rf"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+){_UNIT_BOUNDARY}"
+    rf"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화]){_UNIT_BOUNDARY}"
+    r"|(?:【(?P<bracketed>[^】]+)】"
     r"|\[(?P<sq_bracketed>[^\]]+)\]"
     r"|（(?P<fw_paren>[^）]+)）"
     r"|\((?P<hw_paren>[^)]+)\)"
     r"|「(?P<corner_quote>[^」]+)」"
-    r"|『(?P<white_corner_quote>[^』]+)』"
+    r"|『(?P<white_corner_quote>[^』]+)』)(?:\*{1,2})?\s*$"
     r"|(?P<cn_section>[零〇一二两三四五六七八九十]+、\s*\S+)"
     r")",
     re.IGNORECASE,
@@ -255,16 +259,26 @@ def _headings(content: str) -> list[_Heading]:
                 unit, number = _extract_unit_and_number_from_match(match)
                 raw_wrapped, is_lens_bracket = _extract_wrapped_inner(match)
                 bracket_cleaned = raw_wrapped.strip() if raw_wrapped else None
-                if bracket_cleaned is not None and (unit is None or number is None):
+                wrapped_looks_like_prose = bool(
+                    bracket_cleaned is not None and _WRAPPED_PROSE_PUNCT_RE.search(bracket_cleaned)
+                )
+                if (
+                    bracket_cleaned is not None
+                    and not wrapped_looks_like_prose
+                    and (unit is None or number is None)
+                ):
                     inner_unit, inner_number = _extract_unit_and_number(bracket_cleaned)
                     if inner_unit is not None and inner_number is not None:
                         unit, number = inner_unit, inner_number
                 # Non-chapter wrappers ([], （）, (), 「」, 『』, or >20-char 【】) only count as
                 # headings when their inner text is a recognized chapter/episode/volume heading;
-                # ordinary dialogue or stage directions fall through without truncating sections.
+                # sentence-like dialogue or stage directions fall through without truncating sections.
                 valid_heading = True
-                if raw_wrapped is not None and (unit is None or number is None):
-                    valid_heading = is_lens_bracket and len(raw_wrapped) <= _BRACKET_NON_UNIT_MAX_CHARS
+                if raw_wrapped is not None:
+                    if wrapped_looks_like_prose:
+                        valid_heading = False
+                    elif unit is None or number is None:
+                        valid_heading = is_lens_bracket and len(raw_wrapped) <= _BRACKET_NON_UNIT_MAX_CHARS
                 if valid_heading:
                     cn_section = bool(match.group("cn_section"))
                     found.append(
