@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Compass, Upload } from "../components/icons";
+import { Compass, Plus, Upload } from "../components/icons";
 import { useIsMobile } from "../hooks/useMediaQuery";
 import { ShareSkillModal } from "../components/skills/ShareSkillModal";
 import { MySkillsTab } from "../components/skills/MySkillsTab";
@@ -28,7 +28,7 @@ export default function SkillsPage() {
         title={t("title")}
         subtitle={t("description")}
         action={
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 ${isMobile ? "w-full flex-wrap" : ""}`}>
             <input
               ref={importInputRef}
               type="file"
@@ -47,6 +47,14 @@ export default function SkillsPage() {
             >
               {t("skills:import.button")}
             </Button>
+            <Button
+              variant="primary"
+              size={isMobile ? "touch" : "md"}
+              onClick={state.handleCreate}
+              leftIcon={<Plus className="w-4 h-4" />}
+            >
+              {t("create")}
+            </Button>
           </div>
         }
       />
@@ -59,7 +67,7 @@ export default function SkillsPage() {
         ]}
         value={state.activeTab}
         onChange={(value) => state.setActiveTab(value as SkillsTabType)}
-        className="mb-6"
+        className="mb-6 self-start"
       />
 
       {/* Tab Content */}

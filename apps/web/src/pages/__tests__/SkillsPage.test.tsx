@@ -60,10 +60,16 @@ vi.mock('react-i18next', () => ({
         'skills:deleteConfirm.message': 'Are you sure you want to delete this skill?',
         'skills:batch.deleteConfirmTitle': 'Delete Skills',
         'skills:batch.deleteConfirmMessage': `Delete ${1} skills?`,
+        'batch.selectAll': 'Select All',
+        'batch.selected': `${1} selected`,
+        'batch.clearSelection': 'Clear',
+        'batch.delete': 'Delete',
         'skills:batch.selectAll': 'Select All',
         'skills:batch.selected': `${1} selected`,
         'skills:batch.clearSelection': 'Clear',
         'skills:batch.delete': 'Delete',
+        'skills:import.button': 'Import',
+        'skills:import.hint': 'Import skill package',
         'skills:form.name': 'Name',
         'skills:form.namePlaceholder': 'Skill name',
         'skills:form.description': 'Description',
@@ -1288,6 +1294,209 @@ describe('SkillsPage', () => {
         expect(screen.queryAllByPlaceholderText('Search my skills')).toHaveLength(1)
       })
       unmount()
+    })
+  })
+
+  // ========================================
+  // 8. UI/UX Overhaul Regressions
+  // ========================================
+  describe('Header actions, empty states, and batch selection UX', () => {
+    const getPrimaryButtons = () =>
+      screen
+        .getAllByRole('button')
+        .filter((btn) => btn.className.includes('bg-[hsl(var(--primary))]'))
+
+    it('groups Import (ghost) and Create (primary) in the header on both tabs and keeps filter pills content-sized', async () => {
+      render(<SkillsPage />)
+      await screen.findByText('Dialogue Expert')
+
+      const importBtn = screen.getByRole('button', { name: 'Import' })
+      const createBtn = screen.getByRole('button', { name: 'Create' })
+      expect(importBtn.parentElement).toBe(createBtn.parentElement)
+      expect(importBtn.className).toContain('border-transparent!')
+      expect(importBtn.className).not.toContain('bg-[hsl(var(--bg-secondary))]')
+      expect(createBtn.className).toContain('bg-[hsl(var(--primary))]')
+      expect(getPrimaryButtons()).toHaveLength(1)
+
+      // Top tab pills hug their content via self-start instead of stretching full width
+      const discoverTab = screen.getByRole('button', { name: 'Discover' })
+      expect(discoverTab.parentElement?.className).toContain('self-start')
+
+      // Creating from Discover tab opens the editor modal directly
+      await userEvent.click(createBtn)
+      expect(await screen.findByRole('dialog', { name: 'Create Skill' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+
+      // Switch to My Skills: still a single primary CTA (no duplicate Create in section header)
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('Writing Assistant')
+      expect(screen.getAllByRole('button', { name: 'Create' })).toHaveLength(1)
+      expect(getPrimaryButtons()).toHaveLength(1)
+    })
+
+    it('renders a compact inline empty card with Zap icon when user has 0 custom skills but has added skills', async () => {
+      vi.mocked(skillsApi.mySkills).mockResolvedValueOnce({
+        user_skills: [],
+        added_skills: mockAddedSkills,
+        total: 1,
+      })
+
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('Plot Twist Generator')
+
+      const compactEmpty = screen.getByTestId('empty-user-skills-compact')
+      expect(within(compactEmpty).getByText('No skills yet')).toBeInTheDocument()
+      expect(within(compactEmpty).getByText('Save writing rules you reuse as skills')).toBeInTheDocument()
+      expect(compactEmpty.querySelector('svg.lucide-zap')).toBeInTheDocument()
+      expect(compactEmpty.querySelector('svg.lucide-search')).not.toBeInTheDocument()
+
+      const emptyCta = within(compactEmpty).getByRole('button', { name: 'Create your first skill' })
+      expect(emptyCta.className).toContain('bg-[hsl(var(--bg-secondary))]')
+      expect(getPrimaryButtons()).toHaveLength(1)
+
+      await userEvent.click(emptyCta)
+      expect(await screen.findByRole('dialog', { name: 'Create Skill' })).toBeInTheDocument()
+    })
+
+    it('keeps a single primary CTA and Zap icon when both My Skills sections or Discover library are empty', async () => {
+      vi.mocked(publicSkillsApi.list).mockResolvedValueOnce({
+        skills: [],
+        total: 0,
+        page: 1,
+        page_size: 20,
+      })
+      vi.mocked(skillsApi.mySkills).mockResolvedValueOnce({
+        user_skills: [],
+        added_skills: [],
+        total: 0,
+      })
+
+      render(<SkillsPage />)
+      await screen.findByText('noDiscoverableSkills')
+      expect(getPrimaryButtons()).toHaveLength(1)
+      expect(screen.getByRole('button', { name: 'createSkill' }).className).toContain(
+        'bg-[hsl(var(--bg-secondary))]',
+      )
+
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('No skills yet')
+      expect(getPrimaryButtons()).toHaveLength(1)
+      expect(screen.queryByTestId('empty-user-skills-compact')).not.toBeInTheDocument()
+      expect(document.querySelector('svg.lucide-zap')).toBeInTheDocument()
+      expect(document.querySelector('svg.lucide-search')).not.toBeInTheDocument()
+    })
+
+    it('integrates Select All beside Search and reveals a contained contextual selection bar on selection', async () => {
+      vi.mocked(skillsApi.batchUpdate).mockResolvedValueOnce({ updated: 3 })
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('Writing Assistant')
+
+      const searchInput = screen.getByPlaceholderText('Search my skills')
+      const selectAllBtn = screen.getByRole('button', { name: 'Select All' })
+      // Search and Select All share one toolbar row
+      expect(selectAllBtn.parentElement).toBe(searchInput.closest('.relative')?.parentElement)
+      expect(selectAllBtn).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.queryByTestId('skills-selection-bar')).not.toBeInTheDocument()
+
+      // Selecting one card reveals the contained selection bar and highlights the card on its secondary surface
+      const addedTitle = screen.getByRole('heading', { name: 'Plot Twist Generator' })
+      const addedCard = addedTitle.closest('[data-testid="skill-card"]') as HTMLElement
+      await userEvent.click(within(addedCard).getByTestId('skill-selection-toggle'))
+      expect(addedCard.className).toContain('bg-[hsl(var(--bg-secondary))]')
+      expect(addedCard.className).toContain('ring-[hsl(var(--accent-primary)/0.25)]')
+
+      const selectionBar = screen.getByTestId('skills-selection-bar')
+      expect(within(selectionBar).getByText('1 selected')).toBeInTheDocument()
+      expect(within(selectionBar).getByRole('button', { name: 'Clear' })).toBeInTheDocument()
+      expect(within(selectionBar).getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+
+      // Clear dismisses the selection bar
+      await userEvent.click(within(selectionBar).getByRole('button', { name: 'Clear' }))
+      expect(screen.queryByTestId('skills-selection-bar')).not.toBeInTheDocument()
+
+      // Select All marks all cards and allows batch delete confirmation
+      await userEvent.click(selectAllBtn)
+      expect(selectAllBtn).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByTestId('skills-selection-bar')).toBeInTheDocument()
+      await userEvent.click(within(screen.getByTestId('skills-selection-bar')).getByRole('button', { name: 'Delete' }))
+      const confirmDialog = await screen.findByRole('dialog', { name: 'Delete Skills' })
+      await userEvent.click(within(confirmDialog).getByRole('button', { name: 'Delete' }))
+      await waitFor(() => {
+        expect(skillsApi.batchUpdate).toHaveBeenCalledWith(['skill-1', 'skill-2', 'added-1'], 'delete')
+      })
+    })
+
+    it('checks visible-item membership for Select All and hides the selection bar on empty search results', async () => {
+      vi.mocked(skillsApi.mySkills)
+        .mockResolvedValueOnce({
+          user_skills: mockUserSkills,
+          added_skills: mockAddedSkills,
+          total: 3,
+        })
+        .mockResolvedValueOnce({
+          user_skills: [mockUserSkills[1]],
+          added_skills: [],
+          total: 1,
+        })
+        .mockResolvedValueOnce({
+          user_skills: [],
+          added_skills: [],
+          total: 0,
+        })
+
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('Writing Assistant')
+
+      // Select skill-1, then filter to show only skill-2
+      const firstCard = screen.getByRole('heading', { name: 'Writing Assistant' }).closest('[data-testid="skill-card"]') as HTMLElement
+      await userEvent.click(within(firstCard).getByTestId('skill-selection-toggle'))
+
+      const searchInput = screen.getByPlaceholderText('Search my skills')
+      fireEvent.change(searchInput, { target: { value: 'Character' } })
+      await waitFor(() => {
+        expect(screen.queryByText('Writing Assistant')).not.toBeInTheDocument()
+        expect(screen.getByText('Character Builder')).toBeInTheDocument()
+      }, { timeout: 1000 })
+
+      // Select All must reflect visible membership (skill-2 is NOT selected), not raw size === visible count
+      const selectAllBtn = screen.getByRole('button', { name: 'Select All' })
+      expect(selectAllBtn).toHaveAttribute('aria-pressed', 'false')
+
+      // Clicking Select All selects the visible card (skill-2)
+      await userEvent.click(selectAllBtn)
+      expect(selectAllBtn).toHaveAttribute('aria-pressed', 'true')
+      const secondCard = screen.getByRole('heading', { name: 'Character Builder' }).closest('[data-testid="skill-card"]') as HTMLElement
+      expect(within(secondCard).getByTestId('skill-selection-toggle')).toHaveAttribute('aria-pressed', 'true')
+
+      // Searching with zero results hides the selection bar so Delete is never shown over an empty list
+      fireEvent.change(searchInput, { target: { value: 'nonexistent-xyz' } })
+      await waitFor(() => {
+        expect(screen.queryByText('Character Builder')).not.toBeInTheDocument()
+      }, { timeout: 1000 })
+      expect(screen.queryByTestId('skills-selection-bar')).not.toBeInTheDocument()
+    })
+
+    it('gives header actions, Select All, and contextual selection bar 44px touch targets on mobile', async () => {
+      mediaState.isMobile = true
+      render(<SkillsPage />)
+      await userEvent.click(screen.getByRole('button', { name: 'My Skills' }))
+      await screen.findByText('Writing Assistant')
+
+      expect(screen.getByRole('button', { name: 'Import' })).toHaveClass('min-h-[44px]')
+      expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('min-h-[44px]')
+      const selectAllBtn = screen.getByRole('button', { name: 'Select All' })
+      expect(selectAllBtn).toHaveClass('min-h-[44px]')
+
+      await userEvent.click(selectAllBtn)
+      const selectionBar = screen.getByTestId('skills-selection-bar')
+      expect(within(selectionBar).getByRole('button', { name: 'Clear' })).toHaveClass('min-h-[44px]')
+      expect(within(selectionBar).getByRole('button', { name: 'Delete' })).toHaveClass('min-h-[44px]')
     })
   })
 })

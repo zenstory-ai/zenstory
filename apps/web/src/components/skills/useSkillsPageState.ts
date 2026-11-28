@@ -473,12 +473,18 @@ export function useSkillsPageState() {
   };
 
   const handleSelectAll = () => {
-    const allIds = [...userSkills.map((s) => s.id), ...addedSkills.map((s) => s.id)];
-    if (selectedSkillIds.size === allIds.length) {
-      setSelectedSkillIds(new Set());
-    } else {
-      setSelectedSkillIds(new Set(allIds));
-    }
+    const visibleIds = [...userSkills.map((s) => s.id), ...addedSkills.map((s) => s.id)];
+    if (visibleIds.length === 0) return;
+    const allVisibleSelected = visibleIds.every((id) => selectedSkillIds.has(id));
+    setSelectedSkillIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
   };
 
   const handleClearSelection = () => {

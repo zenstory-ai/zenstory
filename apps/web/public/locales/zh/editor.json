@@ -48,7 +48,7 @@
     "removeFromChat": "从对话中移除",
     "addToChat": "添加到对话",
     "emptyFolder": "暂无内容，点击 + 开始创作",
-    "emptyMaterialFolder": "放歌词短诗、台词灵感或参考文本，点 + 新建编辑，或点上传图标导入 .txt / .md，可添加到对话让 AI 参考",
+    "emptyMaterialFolder": "放标杆书、参考片段或写作资料，点 + 新建，或点上传图标导入 .txt / .md，可添加到对话让 AI 参考",
     "folderEmpty": "还没有文件",
     "loadFailed": "文件暂时没能加载，请重试",
     "createWithAI": "告诉 AI 你想写什么，它会帮你建好大纲和章节",

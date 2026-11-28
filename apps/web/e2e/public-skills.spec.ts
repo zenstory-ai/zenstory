@@ -15,7 +15,7 @@ import { TEST_USERS } from './config'
 // UI Selectors
 const DISCOVER = {
   searchInput: 'input[placeholder*="搜索"]',
-  categoryButtons: '.flex.flex-wrap.gap-2 button, .flex.gap-2 button',
+  categoryButtons: '[data-testid="discover-category-filters"] button',
   skillCard: '[data-testid="public-skill-card"]',
   addButton: 'button:has-text("添加")',
   addedBadge: 'button:has-text("已添加")',
@@ -93,7 +93,7 @@ test.describe('Public Skills', () => {
     await expect(page.locator(DISCOVER.loadingSpinner)).not.toBeVisible({ timeout: 10000 })
 
     // Look for category filter buttons
-    const categoryButtons = page.locator('.flex.flex-wrap.gap-2 button, .flex.gap-2 button')
+    const categoryButtons = page.locator(DISCOVER.categoryButtons)
 
     // There should be at least an "All" or similar category button
     const count = await categoryButtons.count()
