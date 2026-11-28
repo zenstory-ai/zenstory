@@ -54,6 +54,8 @@ export {
 // 文件树和编辑器图标 (Editor, FileTree, ChatPanel)
 // ============================================
 export {
+  BookMarked,
+  Feather,
   File,
   Folder,
   FolderOpen,

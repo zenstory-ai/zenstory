@@ -552,4 +552,18 @@ describe('FileVersionHistory current-text marker and restore confirmation', () =
     fireEvent.click(screen.getByRole('button', { name: 'clearSelection' }))
     expect(screen.queryByText('selectedVersions')).not.toBeInTheDocument()
   })
+
+  it('uses the Feather icon instead of Bot for AI-authored versions', async () => {
+    getVersions.mockResolvedValue({
+      total: 1,
+      versions: [{ ...version(2), change_type: 'ai_edit', change_source: 'ai' }],
+    })
+    render(
+      <FileVersionHistory fileId="file-1" fileTitle="Draft" onClose={vi.fn()} />,
+    )
+    await screen.findByText('v2')
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.querySelector('svg.lucide-feather')).not.toBeNull()
+    expect(dialog.querySelector('svg.lucide-bot')).toBeNull()
+  })
 })

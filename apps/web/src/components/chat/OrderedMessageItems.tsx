@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Loader2, Sparkles } from 'lucide-react';
+import { Feather, Loader2, Sparkles } from 'lucide-react';
 import type { StreamRenderItem } from '../../hooks/streaming/types';
 import { LazyMarkdown } from '../LazyMarkdown';
 import { ToolResultCard } from '../ToolResultCard';
@@ -178,7 +178,7 @@ export function OrderedMessageItems({
               <div className={`inline-flex items-center rounded-lg ${
                 isMobile ? 'gap-1.5 px-2.5 py-0.5' : 'gap-1.5 px-2.5 py-1'
               } bg-[hsl(var(--accent-primary)/0.08)] border border-[hsl(var(--accent-primary)/0.2)]`}>
-                <Bot size={13} className="text-[hsl(var(--accent-primary))] shrink-0" />
+                <Feather size={13} className="text-[hsl(var(--accent-primary))] shrink-0" aria-hidden="true" />
                 <span className={`text-xs font-medium text-[hsl(var(--accent-primary))] ${isMobile ? 'truncate max-w-[140px]' : ''}`}>
                   {agentLabel(item.agentType, item.agentName)}
                 </span>

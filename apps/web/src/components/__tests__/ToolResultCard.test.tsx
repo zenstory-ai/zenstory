@@ -147,18 +147,11 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
     'chat:fileType.script': 'Script',
     'chat:fileType.document': 'Document',
     'chat:fileType.default': 'File',
-    'chat:edit.replace': 'Replace',
-    'chat:edit.append': 'Append',
-    'chat:edit.prepend': 'Prepend',
     'chat:edit.label_delete': 'Delete',
     'chat:edit.label_add': 'Add',
     'chat:edit.append_content': 'Append content',
     'chat:edit.prepend_content': 'Prepend content',
     'chat:edit.insert_content': 'Insert content',
-    'chat:edit.insert_after': 'Insert after',
-    'chat:edit.insert_before': 'Insert before',
-    'chat:edit.insert_after_label': 'After',
-    'chat:edit.insert_before_label': 'Before',
     'chat:edit.delete_content': 'Delete content',
     'common:undo': 'Undo',
     'common:retry': 'Retry',
@@ -441,7 +434,13 @@ describe('ToolResultCard', () => {
         const { rerender } = render(card(new Set([key])))
         const blockedButton = screen.getByRole('button', { name: /undo/i })
         expect(blockedButton).toBeDisabled()
+        expect(blockedButton.parentElement).toHaveAttribute('title', 'chat:tool.undoLaterFirst')
+        if (toolName === 'edit_file') {
+          expect(blockedButton.parentElement).toHaveClass('ml-auto')
+          expect(blockedButton).not.toHaveClass('ml-auto')
+        }
         expect(blockedButton).toHaveAccessibleDescription('chat:tool.undoLaterFirst')
+        expect(screen.getByText('chat:tool.undoLaterFirst')).toHaveClass('sr-only')
         await user.click(blockedButton)
         expect(onUndo).not.toHaveBeenCalled()
 
@@ -1983,6 +1982,55 @@ describe('ToolResultCard', () => {
       expect(summary?.className).toContain('min-h-11')
       expect(chevron?.getAttribute('class')).toContain('group-open:rotate-90')
       expect(screen.getByText('第七章 开窍')).toBeInTheDocument()
+    })
+
+    it('renders flat divide-y edit details without nested frames or op headers, and orders insert anchors naturally', async () => {
+      const user = userEvent.setup()
+      const { container } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          result={{
+            data: {
+              id: 'file-1',
+              title: '第七章 开窍',
+              file_type: 'draft',
+              details: [
+                { op: 'replace', old_preview: '旧句子', new_preview: '新句子', count: 2 },
+                { op: 'insert_after', anchor_preview: '后插锚点', text_preview: '后插正文' },
+                { op: 'insert_before', anchor_preview: '前插锚点', text_preview: '前插正文' },
+              ],
+            },
+          }}
+        />
+      )
+
+      const summary = container.querySelector('summary')
+      expect(summary).not.toBeNull()
+      await user.click(summary!)
+
+      // Flat divide-y list without nested per-edit card borders or redundant op headers
+      const list = container.querySelector('.divide-y')
+      expect(list).not.toBeNull()
+      expect(screen.getByText('× 2')).toBeInTheDocument()
+      expect(screen.queryByText('chat:edit.replace')).not.toBeInTheDocument()
+      expect(screen.queryByText('chat:edit.insert_after')).not.toBeInTheDocument()
+      expect(screen.queryByText('chat:edit.insert_after_label')).not.toBeInTheDocument()
+      expect(screen.queryByText('chat:edit.insert_before_label')).not.toBeInTheDocument()
+
+      // insert_after: anchor context appears before inserted text
+      const afterAnchor = screen.getByText('后插锚点')
+      const afterText = screen.getByText('后插正文')
+      expect(
+        afterAnchor.compareDocumentPosition(afterText) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+
+      // insert_before: inserted text appears before anchor context
+      const beforeAnchor = screen.getByText('前插锚点')
+      const beforeText = screen.getByText('前插正文')
+      expect(
+        beforeText.compareDocumentPosition(beforeAnchor) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
     })
   })
 

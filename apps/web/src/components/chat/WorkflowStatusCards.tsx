@@ -5,7 +5,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Bot, CirclePause } from 'lucide-react';
+import { AlertTriangle, CirclePause, Feather } from 'lucide-react';
 import { useMobileLayout } from '../../contexts/MobileLayoutContext';
 import { isClarificationStop as isClarificationStopItem } from '../../lib/nextStep';
 import {
@@ -127,7 +127,7 @@ export function WorkflowStoppedCard({ stop }: {
 
   return (
     <div className={`inline-flex max-w-full items-start gap-2.5 ${CHAT_CARD_PROMPT_SURFACE} ${paddingClass}`}>
-      <Bot size={15} className="text-[hsl(var(--accent-primary))] mt-0.5 shrink-0" />
+      <Feather size={15} className="text-[hsl(var(--accent-primary))] mt-0.5 shrink-0" aria-hidden="true" />
       <div className="flex flex-col gap-1 min-w-0">
         <span className="text-xs font-semibold leading-5 text-[hsl(var(--text-primary))]">
           {t('workflow.waitingForReply', { ns: 'chat' })}

@@ -299,7 +299,7 @@
     "edit_no_changes": "No changes needed; file unchanged",
     "edit_partial_failed": "Some edits did not apply ({{applied}} applied / {{failed}} failed)",
     "edit_undone": "Undone",
-    "undoLaterFirst": "Undo the later change to this file first",
+    "undoLaterFirst": "Newer edits exist on this file — undo the latest edit first or restore from Version History",
     "edit_touched_author_edits": "Changed text you edited yourself",
     "edit_restored_author_deletion": "Put back a paragraph you deleted; you can undo this",
     "complete_suffix": " completed",
@@ -381,18 +381,10 @@
     "kCharacters": "{{length}}k words"
   },
   "edit": {
-    "replace": "Replace",
-    "append": "Add to end",
-    "prepend": "Add to start",
-    "insert_after": "Insert after",
-    "insert_before": "Insert before",
-    "delete": "Delete",
     "label_delete": "Delete",
     "label_add": "Add",
     "append_content": "Added at the end",
     "prepend_content": "Added at the start",
-    "insert_after_label": "Insert after",
-    "insert_before_label": "Insert before",
     "insert_content": "Inserted content",
     "delete_content": "Deleted content"
   },

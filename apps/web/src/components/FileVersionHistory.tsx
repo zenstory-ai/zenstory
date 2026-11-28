@@ -3,7 +3,7 @@ import {
   History,
   RotateCcw,
   GitCompare,
-  Bot,
+  Feather,
   User,
   Settings,
   Clock,
@@ -58,7 +58,7 @@ interface VersionRowProps {
 
 function getChangeTypeIcon(_changeType: string, changeSource: string) {
   if (changeSource === "ai") {
-    return <Bot size={14} className="text-[hsl(var(--text-secondary))]" />;
+    return <Feather size={14} className="text-[hsl(var(--text-secondary))]" />;
   }
   if (changeSource === "system") {
     return <Settings size={14} className="text-[hsl(var(--text-secondary))]" />;

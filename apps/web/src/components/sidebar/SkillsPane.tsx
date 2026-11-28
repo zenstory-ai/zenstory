@@ -1,27 +1,66 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useInRouterContext, useNavigate } from "react-router-dom";
 import { MAX_SELECTED_SKILLS, useSkillTrigger } from "../../contexts/SkillTriggerContext";
 import { skillsApi } from "../../lib/api";
-import type { Skill } from "../../types";
+import { ApiError } from "../../lib/apiClient";
+import { toast } from "../../lib/toast";
+import { SKILL_FIELD_LIMITS } from "../../config/skills";
+import { getUpgradePromptDefinition } from "../../config/upgradeExperience";
+import { useIsMobile } from "../../hooks/useMediaQuery";
+import type { CreateSkillRequest, Skill } from "../../types";
 import { LazyMarkdown } from "../LazyMarkdown";
 import { logger } from "../../lib/logger";
 import {
   Zap,
   Plus,
   Check,
+  Compass,
 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
+import { IconButton } from "../ui/IconButton";
+import { SkillEditorModal } from "../skills/SkillEditorModal";
+import { emptySkillForm, type SkillFormData } from "../skills/skillHelpers";
+import { UpgradePromptModal } from "../subscription/UpgradePromptModal";
+
+function RouterNavigateAction({
+  to,
+  render,
+}: {
+  to: string;
+  render: (onNavigate: () => void) => React.ReactNode;
+}) {
+  const navigate = useNavigate();
+  return <>{render(() => navigate(to))}</>;
+}
+
+function SafeNavigateAction({
+  to,
+  render,
+}: {
+  to: string;
+  render: (onNavigate: () => void) => React.ReactNode;
+}) {
+  const inRouter = useInRouterContext();
+  if (inRouter) {
+    return <RouterNavigateAction to={to} render={render} />;
+  }
+  return <>{render(() => window.location.assign(to))}</>;
+}
 
 /**
  * SkillsPane - Skills browser component
  *
  * Sidebar pane for skills management.
- * Displays available skills with a detail modal. The "use" action selects the
- * skill for the next chat message (shown as a chip in MessageInput).
+ * Displays available skills with a detail modal, quick custom-skill creation,
+ * and navigation to the full skills management & discovery page. The "use"
+ * action selects the skill for the next chat message (shown as a chip in MessageInput).
  */
 export const SkillsPane: React.FC = () => {
-  const { t } = useTranslation(['editor', 'common']);
+  const { t } = useTranslation(['editor', 'skills', 'common']);
+  const isMobile = useIsMobile();
+  const skillCreateUpgradePrompt = getUpgradePromptDefinition("skill_create_quota_blocked");
   const { selectedSkills, selectSkill, removeSkill } = useSkillTrigger();
   const selectedIds = useMemo(
     () => new Set(selectedSkills.map((s) => s.id)),
@@ -34,30 +73,52 @@ export const SkillsPane: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  // Load skills (again on retry)
+  // Quick-create skill modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createFormData, setCreateFormData] = useState<SkillFormData>(emptySkillForm);
+  const [creatingSkill, setCreatingSkill] = useState(false);
+  const [showSkillCreateUpgradeModal, setShowSkillCreateUpgradeModal] = useState(false);
+
+  const mountedRef = useRef(true);
+  const loadRequestRef = useRef(0);
+  const creatingSkillRef = useRef(false);
+
   useEffect(() => {
-    let cancelled = false;
-    const loadSkills = async () => {
-      try {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const fetchSkills = useCallback(async (options?: { silent?: boolean }) => {
+    const requestId = ++loadRequestRef.current;
+    const silent = options?.silent ?? false;
+    try {
+      if (!silent) {
         setLoading(true);
         setLoadFailed(false);
-        const response = await skillsApi.list();
-        if (!cancelled) setSkills((response.skills || []).filter((skill) => skill.is_active));
-      } catch (error) {
-        logger.error("Failed to load skills:", error);
-        // A failed request is not an empty skill list.
-        if (!cancelled) setLoadFailed(true);
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    };
-    loadSkills();
-    return () => {
-      cancelled = true;
-    };
-  }, [reloadKey]);
+      const response = await skillsApi.list();
+      if (!mountedRef.current || requestId !== loadRequestRef.current) return;
+      setSkills((response.skills || []).filter((skill) => skill.is_active));
+      setLoadFailed(false);
+    } catch (error) {
+      logger.error("Failed to load skills:", error);
+      // A failed request is not an empty skill list.
+      if (!mountedRef.current || requestId !== loadRequestRef.current) return;
+      if (!silent) setLoadFailed(true);
+    } finally {
+      if (mountedRef.current && requestId === loadRequestRef.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  // Load skills on mount
+  useEffect(() => {
+    void fetchSkills();
+  }, [fetchSkills]);
 
   // Handle skill click - show detail modal
   const handleSkillClick = useCallback((skill: Skill) => {
@@ -78,17 +139,118 @@ export const SkillsPane: React.FC = () => {
     selectSkill({ id: skill.id, name: skill.name });
   }, [selectedIds, removeSkill, selectSkill]);
 
+  const handleOpenCreate = useCallback(() => {
+    setCreateFormData(emptySkillForm);
+    setIsCreateModalOpen(true);
+  }, []);
+
+  const handleCancelCreate = useCallback(() => {
+    if (creatingSkillRef.current || creatingSkill) return;
+    setIsCreateModalOpen(false);
+    setCreateFormData(emptySkillForm);
+  }, [creatingSkill]);
+
+  const handleSaveCreate = useCallback(async () => {
+    if (
+      creatingSkillRef.current ||
+      creatingSkill ||
+      !createFormData.name.trim() ||
+      !createFormData.instructions.trim()
+    ) {
+      return;
+    }
+
+    const triggers = createFormData.triggers
+      .split(/[,，]/)
+      .map((trigger) => trigger.trim())
+      .filter((trigger) => trigger.length > 0);
+    if (
+      triggers.length > SKILL_FIELD_LIMITS.triggers ||
+      triggers.some((trigger) => trigger.length > SKILL_FIELD_LIMITS.trigger)
+    ) {
+      toast.error(t('skills:form.triggersTooLong', {
+        count: SKILL_FIELD_LIMITS.triggers,
+        max: SKILL_FIELD_LIMITS.trigger,
+      }));
+      return;
+    }
+
+    creatingSkillRef.current = true;
+    setCreatingSkill(true);
+    try {
+      const createData: CreateSkillRequest = {
+        name: createFormData.name,
+        description: createFormData.description || undefined,
+        triggers,
+        instructions: createFormData.instructions,
+      };
+      const created = await skillsApi.create(createData);
+      if (!mountedRef.current) return;
+      if (created && created.is_active) {
+        setSkills((prev) =>
+          prev.some((skill) => skill.id === created.id) ? prev : [...prev, created],
+        );
+        setLoadFailed(false);
+      }
+      await fetchSkills({ silent: true });
+      if (!mountedRef.current) return;
+      setIsCreateModalOpen(false);
+      setCreateFormData(emptySkillForm);
+    } catch (error) {
+      logger.error("Failed to create skill:", error);
+      if (!mountedRef.current) return;
+      if (
+        error instanceof ApiError &&
+        error.errorCode === "ERR_QUOTA_EXCEEDED"
+      ) {
+        if (skillCreateUpgradePrompt.surface === "modal") {
+          setShowSkillCreateUpgradeModal(true);
+        } else {
+          toast.error(error.message || t('skills:quota.createTitle'));
+        }
+      } else {
+        toast.error(
+          error instanceof Error && error.message
+            ? error.message
+            : t('skills:errors.saveFailed'),
+        );
+      }
+    } finally {
+      creatingSkillRef.current = false;
+      if (mountedRef.current) setCreatingSkill(false);
+    }
+  }, [createFormData, creatingSkill, fetchSkills, skillCreateUpgradePrompt.surface, t]);
+
   return (
     <div className="w-full h-full text-sm overflow-auto p-2">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-2 px-2">
-        <Zap size={14} className="text-[hsl(var(--text-secondary))]" />
-        <span className="text-sm font-medium text-[hsl(var(--text-primary))]">
-          {t('editor:fileTree.skillsFolder')}
-        </span>
-        <span className="text-xs text-[hsl(var(--text-secondary))]">
-          ({skills.length})
-        </span>
+      <div className="flex items-center justify-between gap-2 mb-2 px-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Zap size={14} className="shrink-0 text-[hsl(var(--text-secondary))]" aria-hidden="true" />
+          <span className="truncate text-sm font-medium text-[hsl(var(--text-primary))]">
+            {t('editor:fileTree.skillsFolder')}
+          </span>
+          <span className="shrink-0 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
+            ({skills.length})
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <IconButton
+            onClick={handleOpenCreate}
+            label={t('editor:fileTree.createSkill')}
+            icon={<Plus size={15} />}
+          />
+          <SafeNavigateAction
+            to="/skills"
+            render={(onNavigate) => (
+              <IconButton
+                onClick={onNavigate}
+                label={t('editor:fileTree.manageSkills')}
+                icon={<Compass size={15} />}
+              />
+            )}
+          />
+        </div>
       </div>
 
       {/* Skills list */}
@@ -103,14 +265,41 @@ export const SkillsPane: React.FC = () => {
             size="sm"
             variant="secondary"
             className="mt-2 max-md:min-h-11"
-            onClick={() => setReloadKey((key) => key + 1)}
+            onClick={() => void fetchSkills()}
           >
             {t('common:retry')}
           </Button>
         </div>
       ) : skills.length === 0 ? (
-        <div className="px-2 py-2 text-[hsl(var(--text-secondary))] text-xs italic">
-          {t('editor:fileTree.skillsEmpty')}
+        <div className="mx-1 mt-1 rounded-xl border border-dashed border-[hsl(var(--border-color))] px-3 py-4 text-center">
+          <p className="text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
+            {t('editor:fileTree.skillsEmpty')}
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              className="w-full max-md:min-h-11"
+              leftIcon={<Plus size={14} />}
+              onClick={handleOpenCreate}
+            >
+              {t('editor:fileTree.createSkill')}
+            </Button>
+            <SafeNavigateAction
+              to="/skills"
+              render={(onNavigate) => (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full max-md:min-h-11"
+                  leftIcon={<Compass size={14} />}
+                  onClick={onNavigate}
+                >
+                  {t('editor:fileTree.discoverSkills')}
+                </Button>
+              )}
+            />
+          </div>
         </div>
       ) : (
         <div className="mt-0.5">
@@ -128,8 +317,7 @@ export const SkillsPane: React.FC = () => {
                 onClick={() => handleSkillClick(skill)}
                 className="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary))]"
               >
-                <span className="w-3.5 shrink-0" />
-                <span className="text-[hsl(var(--text-secondary))]">
+                <span className="shrink-0 text-[hsl(var(--text-secondary))]">
                   <Zap size={14} aria-hidden="true" />
                 </span>
                 <span className="flex-1 truncate">{skill.name}</span>
@@ -254,6 +442,32 @@ export const SkillsPane: React.FC = () => {
             </div>
           )}
         </Modal>
+      )}
+
+      {/* Quick create custom skill modal */}
+      <SkillEditorModal
+        open={isCreateModalOpen}
+        editingSkill={null}
+        formData={createFormData}
+        onFormChange={setCreateFormData}
+        saving={creatingSkill}
+        onCancel={handleCancelCreate}
+        onSave={() => void handleSaveCreate()}
+        onResourcesChange={() => {}}
+        isMobile={isMobile}
+      />
+
+      {showSkillCreateUpgradeModal && (
+        <UpgradePromptModal
+          open={showSkillCreateUpgradeModal}
+          onClose={() => setShowSkillCreateUpgradeModal(false)}
+          promptId="skill_create_quota_blocked"
+          title={t("skills:quota.createTitle")}
+          description={t("skills:quota.createDescription")}
+          paidDescription={t("skills:quota.createPaidDescription")}
+          primaryLabel={t("skills:quota.upgradePrimary")}
+          secondaryLabel={t("skills:quota.upgradeSecondary")}
+        />
       )}
     </div>
   );

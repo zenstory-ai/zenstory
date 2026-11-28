@@ -352,7 +352,7 @@ export const MessageRow = React.memo(function MessageRow({
               isUser
                 ? 'justify-end mt-1 px-0.5'
                 : hasAssistantFooterActions
-                  ? 'justify-between mt-1.5 -ml-1'
+                  ? 'justify-between mt-1.5'
                   : 'justify-start mt-1.5'
             }`}
           >
@@ -376,7 +376,7 @@ export const MessageRow = React.memo(function MessageRow({
                       title={copied
                         ? t('message.copiedReply', { ns: 'chat', defaultValue: '已复制' })
                         : t('message.copyReply', { ns: 'chat', defaultValue: '复制回复' })}
-                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] w-11 h-11 md:w-7 md:h-7 ${
+                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] w-11 h-11 md:w-7 md:h-7 ${
                         copied
                           ? 'border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
                           : 'border-transparent bg-transparent text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
@@ -407,7 +407,7 @@ export const MessageRow = React.memo(function MessageRow({
                       title={!canSubmitFeedback
                         ? t('feedback.pendingSave', { ns: 'chat' })
                         : t('feedback.like', { ns: 'chat' })}
-                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] w-11 h-11 md:w-7 md:h-7 ${
+                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] w-11 h-11 md:w-7 md:h-7 ${
                         selectedFeedbackVote === 'up'
                           ? 'border-[hsl(var(--success)/0.35)] bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success-text))]'
                           : 'border-transparent bg-transparent text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'
@@ -427,7 +427,7 @@ export const MessageRow = React.memo(function MessageRow({
                       title={!canSubmitFeedback
                         ? t('feedback.pendingSave', { ns: 'chat' })
                         : t('feedback.dislike', { ns: 'chat' })}
-                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--bg-rail))] w-11 h-11 md:w-7 md:h-7 ${
+                      className={`inline-flex items-center justify-center rounded-md border transition-[transform,background-color,border-color,color] duration-[var(--duration-instant)] ease-[var(--ease-standard)] active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(var(--accent-primary)/0.6)] w-11 h-11 md:w-7 md:h-7 ${
                         selectedFeedbackVote === 'down'
                           ? 'border-[hsl(var(--warning)/0.4)] bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning-text))]'
                           : 'border-transparent bg-transparent text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-tertiary))] hover:text-[hsl(var(--text-primary))]'

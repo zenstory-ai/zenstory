@@ -120,6 +120,8 @@ describe('ThinkingContent', () => {
     expect(preview.className).toContain('truncate')
     expect(preview.className).toContain('min-w-0')
     expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button').className).not.toContain('-ml-1.5')
+    expect(screen.getByRole('button').className).toContain('focus-visible:ring-inset')
     expect(screen.getByRole('button').querySelectorAll('.animate-pulse')).toHaveLength(3)
     expect(localStorage.getItem(EXPANDED_KEY)).toBeNull()
   })

@@ -299,7 +299,7 @@
     "edit_no_changes": "内容一致，未做改动",
     "edit_partial_failed": "部分修改未生效（成功 {{applied}} / 未生效 {{failed}}）",
     "edit_undone": "已撤销",
-    "undoLaterFirst": "先撤销后面对这个文件的修改",
+    "undoLaterFirst": "后续已有新修改，请先撤销最新修改或在历史版本中恢复",
     "edit_touched_author_edits": "改到了你手动改过的地方",
     "edit_restored_author_deletion": "放回了你删掉的段落，可以撤销",
     "complete_suffix": "完成",
@@ -381,18 +381,10 @@
     "kCharacters": "{{length}} 千字"
   },
   "edit": {
-    "replace": "替换",
-    "append": "加到末尾",
-    "prepend": "加到开头",
-    "insert_after": "插入后",
-    "insert_before": "插入前",
-    "delete": "删除",
     "label_delete": "删除",
     "label_add": "新增",
     "append_content": "加到末尾的内容",
     "prepend_content": "加到开头的内容",
-    "insert_after_label": "在此之后插入",
-    "insert_before_label": "在此之前插入",
     "insert_content": "插入内容",
     "delete_content": "删除内容"
   },

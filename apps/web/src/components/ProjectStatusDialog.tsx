@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, useId } from "react";
-import { Save, Brain, Loader2, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useId } from "react";
+import { BookMarked, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { projectApi } from "../lib/api";
 import { subscribeProjectStatusUpdated } from "../lib/projectStatusEvents";
@@ -10,6 +10,23 @@ import { ApiError } from "../lib/apiClient";
 import { authorNotesText, withAuthorNotes } from "../lib/projectNotes";
 import { toast } from "../lib/toast";
 import { logger } from "../lib/logger";
+
+const MIN_TEXTAREA_HEIGHT = 72;
+const MAX_TEXTAREA_HEIGHT = 224;
+
+function autoResizeTextarea(element: HTMLTextAreaElement | null) {
+  if (!element) return;
+  element.style.height = "auto";
+  const computed = window.getComputedStyle(element);
+  const borderY =
+    (Number.parseFloat(computed.borderTopWidth) || 0) +
+    (Number.parseFloat(computed.borderBottomWidth) || 0);
+  const nextHeight = Math.min(
+    Math.max(element.scrollHeight + borderY, MIN_TEXTAREA_HEIGHT),
+    MAX_TEXTAREA_HEIGHT,
+  );
+  element.style.height = `${nextHeight}px`;
+}
 
 interface ProjectStatusDialogProps {
   isOpen: boolean;
@@ -40,7 +57,11 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
   const [loadingLatestNotes, setLoadingLatestNotes] = useState(false);
   const [latestNotesFailed, setLatestNotesFailed] = useState(false);
   const notesBaseRef = useRef("");
+  const summaryInputRef = useRef<HTMLTextAreaElement>(null);
+  const writingStyleInputRef = useRef<HTMLTextAreaElement>(null);
+  const currentPhaseInputRef = useRef<HTMLTextAreaElement>(null);
   const notesInputRef = useRef<HTMLTextAreaElement>(null);
+  const latestNotesInputRef = useRef<HTMLTextAreaElement>(null);
   const notesSectionRef = useRef<HTMLDivElement>(null);
   const notesConflictRef = useRef<HTMLDivElement>(null);
   const viewLatestNotesRef = useRef<HTMLButtonElement>(null);
@@ -174,6 +195,31 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
     if (!isOpen || !projectId) return;
     void loadProject({ showLoading: true, preserveDirty: false });
   }, [isOpen, projectId, loadProject]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
+    autoResizeTextarea(summaryInputRef.current);
+  }, [isOpen, loading, project, summary]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
+    autoResizeTextarea(writingStyleInputRef.current);
+  }, [isOpen, loading, project, writingStyle]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
+    autoResizeTextarea(currentPhaseInputRef.current);
+  }, [isOpen, loading, project, currentPhase]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project) return;
+    autoResizeTextarea(notesInputRef.current);
+  }, [isOpen, loading, project, notes]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || loading || !project || latestNotes === null) return;
+    autoResizeTextarea(latestNotesInputRef.current);
+  }, [isOpen, loading, project, latestNotes]);
 
   useEffect(() => {
     if (!isOpen || loading || !project || initialSection !== 'writing-agreements' || focusedInitialSectionRef.current) return;
@@ -313,7 +359,7 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
       size="lg"
       title={
         <div className="flex items-center gap-2">
-          <Brain className="w-5 h-5 text-[hsl(var(--accent-primary))] shrink-0" />
+          <BookMarked className="w-5 h-5 text-[hsl(var(--accent-primary))] shrink-0" aria-hidden="true" />
           <span className="text-lg font-semibold leading-none text-[hsl(var(--text-primary))]">
             {t('title')}
           </span>
@@ -334,7 +380,6 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
             className="w-full sm:w-auto"
             isLoading={saving}
             loadingText={t('saving')}
-            leftIcon={<Save size={14} />}
           >
             {t('save')}
           </Button>
@@ -359,55 +404,56 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* Info Banner */}
-          <div className="flex items-start gap-2 px-2.5 py-2 bg-[hsl(var(--bg-tertiary))] rounded-md text-xs text-[hsl(var(--text-secondary))]">
-            <Sparkles className="w-3.5 h-3.5 text-[hsl(var(--accent-primary))] shrink-0 mt-0.5" />
-            <span className="leading-relaxed">
-              {t('infoBanner')}
-            </span>
-          </div>
+        <div className="space-y-4">
+          <p className="text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
+            {t('infoBanner')}
+          </p>
 
-          <div className="space-y-1.5">
-            <label htmlFor={`${fieldId}-summary`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
-              {t('projectSummary')}
-            </label>
-            <textarea
-              id={`${fieldId}-summary`}
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              placeholder={t('placeholders.summary')}
-              rows={5}
-              className="textarea resize-y"
-            />
-          </div>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor={`${fieldId}-summary`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">
+                {t('projectSummary')}
+              </label>
+              <textarea
+                id={`${fieldId}-summary`}
+                ref={summaryInputRef}
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder={t('placeholders.summary')}
+                rows={2}
+                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor={`${fieldId}-style`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
-              {t('writingStyle')}
-            </label>
-            <textarea
-              id={`${fieldId}-style`}
-              value={writingStyle}
-              onChange={(e) => setWritingStyle(e.target.value)}
-              placeholder={t('placeholders.writingStyle')}
-              rows={2}
-              className="textarea resize-y"
-            />
-          </div>
+            <div className="space-y-1.5">
+              <label htmlFor={`${fieldId}-style`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">
+                {t('writingStyle')}
+              </label>
+              <textarea
+                id={`${fieldId}-style`}
+                ref={writingStyleInputRef}
+                value={writingStyle}
+                onChange={(e) => setWritingStyle(e.target.value)}
+                placeholder={t('placeholders.writingStyle')}
+                rows={2}
+                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor={`${fieldId}-phase`} className="text-sm font-medium text-[hsl(var(--text-primary))]">
-              {t('currentPhase')}
-            </label>
-            <textarea
-              id={`${fieldId}-phase`}
-              value={currentPhase}
-              onChange={(e) => setCurrentPhase(e.target.value)}
-              placeholder={t('placeholders.currentPhase')}
-              rows={2}
-              className="textarea resize-y"
-            />
+            <div className="space-y-1.5">
+              <label htmlFor={`${fieldId}-phase`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">
+                {t('currentPhase')}
+              </label>
+              <textarea
+                id={`${fieldId}-phase`}
+                ref={currentPhaseInputRef}
+                value={currentPhase}
+                onChange={(e) => setCurrentPhase(e.target.value)}
+                placeholder={t('placeholders.currentPhase')}
+                rows={2}
+                className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
+              />
+            </div>
           </div>
 
           <div ref={notesSectionRef} className="space-y-1.5 border-t border-[hsl(var(--border-color))] pt-4">
@@ -431,8 +477,8 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                 }
               }}
               placeholder={t('placeholders.notes')}
-              rows={3}
-              className="textarea resize-y text-base md:text-sm"
+              rows={2}
+              className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed"
             />
             {notesConflict && (
               <div ref={notesConflictRef} className="space-y-2 scroll-mb-3">
@@ -446,8 +492,8 @@ export const ProjectStatusDialog: React.FC<ProjectStatusDialogProps> = ({
                     onClick={() => void viewLatestNotes()}>{t('viewLatestNotes')}</Button>
                 </> : <>
                   <label htmlFor={`${fieldId}-latest-notes`} className="block text-sm font-medium text-[hsl(var(--text-primary))]">{t('latestNotes')}</label>
-                  <textarea id={`${fieldId}-latest-notes`} value={authorNotesText(latestNotes)} readOnly rows={3}
-                    className="textarea resize-y text-base md:text-sm" />
+                  <textarea id={`${fieldId}-latest-notes`} ref={latestNotesInputRef} value={authorNotesText(latestNotes)} readOnly rows={2}
+                    className="textarea min-h-[72px] max-h-[224px] overflow-y-auto resize-none text-base md:text-sm leading-relaxed" />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" size="touch" disabled={saving} onClick={useLatestNotes}>{t('useLatestNotes')}</Button>
                     <Button size="touch" disabled={saving}
