@@ -72,7 +72,7 @@ from config.agent_runtime import (
 )
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
-from core.i18n import resolve_user_language
+from core.i18n import has_explicit_accept_language, resolve_user_language
 from database import create_session, get_session
 from middleware.rate_limit import (
     get_client_ip,
@@ -1425,7 +1425,7 @@ async def stream_request(
         language=accept_language,
     )
 
-    if should_offload_session_work(session) and not (accept_language and accept_language.strip()):
+    if should_offload_session_work(session) and not has_explicit_accept_language(accept_language):
         def _resolve_lang_sync() -> str:
             with create_session() as sync_session:
                 return resolve_user_language(sync_session, user_id, accept_language)
@@ -1836,7 +1836,7 @@ async def suggest_next_action(
         return SuggestResponse(suggestions=[])
 
     service = get_suggest_service()
-    if should_offload_session_work(session) and not (accept_language and accept_language.strip()):
+    if should_offload_session_work(session) and not has_explicit_accept_language(accept_language):
         def _resolve_lang_sync() -> str:
             with create_session() as sync_session:
                 return resolve_user_language(sync_session, user_id, accept_language)

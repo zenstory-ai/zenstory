@@ -8,8 +8,10 @@ from utils.text_metrics import count_words
 
 
 def test_count_words_ignores_pure_numbers():
-    """Numeric-only tokens should not count as words."""
+    """Numeric-only tokens (including Unicode No/Nl symbols) should not count as words."""
     assert count_words("123 456 7890") == 0
+    assert count_words("² ½ ① Ⅻ 〇") == 0
+    assert count_words("hello②world") == 2
 
 
 def test_count_words_counts_latin_words_and_chinese_chars():

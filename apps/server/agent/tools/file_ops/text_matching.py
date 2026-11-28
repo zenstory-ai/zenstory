@@ -105,16 +105,24 @@ def _is_hangul_trailing_jamo(ch: str) -> bool:
     return 0x1160 <= cp <= 0x11FF or 0xD7B0 <= cp <= 0xD7FF
 
 
+def _is_attached_cluster_char(ch: str) -> bool:
+    """Return True when ``ch`` attaches to the preceding base character in a grapheme/NFC cluster."""
+    return (
+        unicodedata.combining(ch) != 0
+        or unicodedata.category(ch) in ("Mn", "Mc")
+        or _is_hangul_trailing_jamo(ch)
+    )
+
+
 def _iter_nfc_clusters(text: str) -> Iterator[tuple[int, int, str]]:
-    """Yield ``(start, end, slice)`` clusters that NFC will never merge across boundaries."""
+    """Yield ``(start, end, slice)`` clusters that NFC/combining marks never merge across boundaries."""
     length = len(text)
     if length == 0:
         return
     start = 0
     idx = 1
     while idx < length:
-        ch = text[idx]
-        if unicodedata.combining(ch) == 0 and not _is_hangul_trailing_jamo(ch):
+        if not _is_attached_cluster_char(text[idx]):
             yield start, idx, text[start:idx]
             start = idx
         idx += 1
@@ -122,10 +130,11 @@ def _iter_nfc_clusters(text: str) -> Iterator[tuple[int, int, str]]:
 
 
 def _extend_past_combining(content: str, end_orig: int) -> int:
-    """Ensure an original-string end offset never splits trailing combining marks or Hangul Jamo."""
+    """Ensure an original-string end offset never splits trailing combining marks, Mc vowel signs, or Hangul Jamo."""
     length = len(content)
     while end_orig < length and (
         unicodedata.combining(content[end_orig]) != 0
+        or unicodedata.category(content[end_orig]) in ("Mn", "Mc")
         or (
             end_orig > 0
             and (
@@ -143,7 +152,8 @@ def normalize_nfc_with_spans(
     text: str, *, fold_punct: bool = False
 ) -> tuple[str, list[tuple[int, int]]]:
     """Return ``(normalized_text, orig_spans)`` where ``orig_spans[k]`` is ``(start, end)`` in ``text``."""
-    if unicodedata.is_normalized("NFC", text):
+    # Only use the 1-codepoint fast path when guaranteed free of combining marks / Mc / Hangul Jamo.
+    if text.isascii():
         norm = fold_equivalent_punctuation(text) if fold_punct else text
         return norm, [(i, i + 1) for i in range(len(text))]
 
@@ -272,11 +282,9 @@ def normalize_for_fuzzy_match(
     normalized_chars: list[str] = []
     index_map: list[int] = []
 
-    if unicodedata.is_normalized("NFC", s):
+    if s.isascii():
         for idx, ch in enumerate(s):
-            chunk = unicodedata.normalize("NFKC", ch)
-            if casefold:
-                chunk = chunk.casefold()
+            chunk = ch.casefold() if casefold else ch
 
             for out_ch in chunk:
                 if ignore_punct_whitespace:
@@ -389,8 +397,8 @@ def find_fuzzy_spans(
         pattern_words = count_words(pattern)
         if pattern_words >= 2:
             # Multi-word non-CJK phrases (e.g. "he ran") stay matchable down to 5 chars
-            # (or caller's smaller min_normalized_len), guarded by word boundaries below.
-            min_multi_word_len = min(min_normalized_len, 5)
+            # under the default floor (6), without weakening explicit caller floors > 6.
+            min_multi_word_len = 5 if min_normalized_len == 6 else min_normalized_len
             if len(normalized_pattern) < min_multi_word_len:
                 return []
         else:
@@ -807,11 +815,11 @@ def _unique_approximate_span(
 # old 以引号开头、以句号结尾（new 同样带着），替换后原文的边缘标点就残留下来：
 # 「“"有事？"他声音很冷。。」，删除则留下孤立的「“。」。这里按「同类标点」把
 # span 向两侧扩展，只吞掉与参照串边缘逐个同类的原文标点，不跨越参照串没有的换行。
-_QUOTE_CHARS = frozenset("\"'“”‘’「」『』«»‹›〝〞〟＂＇")
+_QUOTE_CHARS = frozenset("\"'“”„‘’‚「」『』«»‹›〝〞〟＂＇")
 _SENTENCE_END_CHARS = frozenset("。.！!？?…｡")
 _PAUSE_CHARS = frozenset("，,、；;：:")
 # 能确定是开引号的字符；直引号分不出开闭，按可闭合处理。
-_OPENING_QUOTE_CHARS = frozenset("“‘「『«‹〝")
+_OPENING_QUOTE_CHARS = frozenset("“„‘‚「『«‹〝")
 _DASH_CHARS = frozenset("—–-")
 _BRACKET_CHARS = frozenset("（）()【】[]《》〈〉{}〔〕")
 

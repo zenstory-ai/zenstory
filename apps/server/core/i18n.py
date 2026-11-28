@@ -22,15 +22,18 @@ NEW_CHAT_SESSION_TITLE_ZH: str = "新对话"
 NEW_CHAT_SESSION_TITLE_EN: str = "New Chat"
 
 
-def _has_explicit_accept_language(accept_language: str | None) -> bool:
+def has_explicit_accept_language(accept_language: str | None) -> bool:
     """Return True when ``accept_language`` carries at least one non-empty, non-wildcard tag."""
-    if not accept_language or not accept_language.strip():
+    if not isinstance(accept_language, str) or not accept_language.strip():
         return False
     for part in accept_language.split(","):
         tag = part.split(";")[0].strip()
         if tag and tag != "*":
             return True
     return False
+
+
+_has_explicit_accept_language = has_explicit_accept_language
 
 
 def resolve_accept_language(accept_language: str | None) -> str:
@@ -42,7 +45,7 @@ def resolve_accept_language(accept_language: str | None) -> str:
     - 头部存在且命中支持的语言 -> 返回第一个命中的主语言 ('zh' 或 'en')；
     - 头部存在但无任何支持的语言 -> 回退 UNSUPPORTED_FALLBACK_LANGUAGE ('en')。
     """
-    if not accept_language or not accept_language.strip():
+    if not isinstance(accept_language, str) or not accept_language.strip():
         return DEFAULT_LANGUAGE
 
     # 解析 Accept-Language 头部
@@ -76,7 +79,7 @@ def resolve_user_language(
     2. Stored account ``ui_language`` (via ``get_ui_language(session, user_id)``)
     3. ``DEFAULT_LANGUAGE`` ('zh')
     """
-    if _has_explicit_accept_language(accept_language):
+    if has_explicit_accept_language(accept_language):
         return resolve_accept_language(accept_language)
 
     if session is not None and user_id:

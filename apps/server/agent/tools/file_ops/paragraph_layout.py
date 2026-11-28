@@ -24,7 +24,7 @@ INLINE_SPACE = " \t　"
 _NEWLINES = "\r\n"
 # 句末标点之后还属于这一句的收尾符号（闭引号、闭括号、法式/俄式书名号）。
 _CLOSING_MARKS = frozenset("”’」』»）)】》〉〕")
-_OPENING_MARKS = frozenset("“‘「『«（(【《〈〔")
+_OPENING_MARKS = frozenset("“„‘‚「『«（(【《〈〔")
 _COLON_CHARS = frozenset("：:")
 _LEADING_BLANK_LINES = re.compile(r"\A(?:[ \t　]*\r?\n)+")
 _NEWLINE_RUN = re.compile(r"(?:\r?\n)+")

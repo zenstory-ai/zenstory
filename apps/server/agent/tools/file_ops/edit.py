@@ -3566,10 +3566,36 @@ class FileEditor:
             return place(pos, {"match_mode": exact_mode, "match_count": match_count}, exact_anchor=True)
 
         if match_mode == "exact":
-            raise _not_found(
-                f"Edit {edit_index}: anchor text not found in content (exact match)"
-                f"{_crlf_hint_if_applicable(content, anchor)}"
+            nfc_spans = (
+                locate_nfc_equivalent_spans(content, anchor, max_matches=20)
+                if not (unicodedata.is_normalized("NFC", content) and unicodedata.is_normalized("NFC", anchor))
+                else []
             )
+            if not nfc_spans:
+                raise _not_found(
+                    f"Edit {edit_index}: anchor text not found in content (exact match)"
+                    f"{_crlf_hint_if_applicable(content, anchor)}"
+                )
+            start, end = self._select_fuzzy_span(
+                content,
+                nfc_spans,
+                occurrence,
+                edit_index,
+                ambiguous=lambda count, previews: (
+                    f"Edit {edit_index}: 锚点匹配到多个位置（{count}处），"
+                    f"为避免插入到错误位置已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                    f"指定第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的锚点。"
+                    f"候选片段: {previews}"
+                ),
+            )
+            pos = end if after else start
+            detail: dict[str, Any] = {
+                "match_mode": "quote_equivalent",
+                "match_count": len(nfc_spans),
+            }
+            if occurrence is not None:
+                detail["occurrence"] = occurrence
+            return place(pos, detail, exact_anchor=True)
 
         norm_spans = _locate_normalized_exact_spans(content, anchor)
         if norm_spans:
@@ -3790,10 +3816,42 @@ class FileEditor:
             applied_edits.append(detail)
         else:
             if match_mode == "exact":
-                raise _not_found(
-                    f"Edit {edit_index}: text to delete not found in content (exact match)"
-                    f"{_crlf_hint_if_applicable(content, old_text)}"
+                nfc_spans = (
+                    locate_nfc_equivalent_spans(content, old_text, max_matches=20)
+                    if not (unicodedata.is_normalized("NFC", content) and unicodedata.is_normalized("NFC", old_text))
+                    else []
                 )
+                if not nfc_spans:
+                    raise _not_found(
+                        f"Edit {edit_index}: text to delete not found in content (exact match)"
+                        f"{_crlf_hint_if_applicable(content, old_text)}"
+                    )
+                start, end = self._select_fuzzy_span(
+                    content,
+                    nfc_spans,
+                    occurrence,
+                    edit_index,
+                    ambiguous=lambda count, previews: (
+                        f"Edit {edit_index}: 删除片段匹配到多个位置（{count}处），"
+                        f"为避免误删已中止。推荐做法：保持原参数不变，加上 occurrence=N "
+                        f"指定要删第几处（1-based，见下方候选片段序号）；或提供更长且更唯一的原文/锚点。"
+                        f"候选片段: {previews}"
+                    ),
+                )
+                matched_text = content[start:end]
+                content = content[:start] + content[end:]
+                if applied_hunks is not None:
+                    applied_hunks.append((start, end, 0))
+                detail = {
+                    "op": "delete",
+                    "match_mode": "quote_equivalent",
+                    "match_count": len(nfc_spans),
+                    "deleted_preview": _preview(matched_text),
+                }
+                if occurrence is not None:
+                    detail["occurrence"] = occurrence
+                applied_edits.append(detail)
+                return content
 
             norm_spans = _locate_normalized_exact_spans(content, old_text)
             if norm_spans:

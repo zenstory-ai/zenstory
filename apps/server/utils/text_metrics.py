@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # Per-character scripts: CJK Unified Ideographs (Basic + Ext A + Compatibility + Ext B-F)
 # and Japanese Kana (Hiragana + Katakana, excluding middle-dot/double-hyphen punctuation).
@@ -49,6 +50,27 @@ def has_cjk_or_kana(text: str | None) -> bool:
     return _CJK_CHAR_PATTERN.search(text) is not None
 
 
+def _count_letter_words_in_token(token: str) -> int:
+    """Count contiguous letter(+combining mark) runs in a non-ASCII token, excluding No/Nl numeric symbols."""
+    if token.isascii():
+        return 1
+    words = 0
+    in_word = False
+    for ch in token:
+        cat = unicodedata.category(ch)
+        if cat.startswith("L"):
+            if not in_word:
+                words += 1
+                in_word = True
+        elif cat in ("Mn", "Mc"):
+            # Combining marks stay attached to an active letter word, never starting one alone.
+            continue
+        else:
+            # Exclude Unicode No/Nl numeric symbols (e.g. ², ½, ①, Ⅻ, 〇) as word boundaries.
+            in_word = False
+    return words
+
+
 def count_words(content: str | None) -> int:
     """
     Count words across CJK and all Unicode alphabetic/syllabic scripts.
@@ -56,12 +78,15 @@ def count_words(content: str | None) -> int:
     - Each CJK ideograph or Japanese kana counts as 1 unit
     - Each contiguous Unicode word (Latin with diacritics/combining marks, Cyrillic,
       Arabic, Hangul, Greek, Devanagari, etc.) counts as 1 word
-    - Pure numbers, punctuation, and symbols are not counted
+    - Pure numbers (including Unicode No/Nl numeric symbols like ², ½, ①, Ⅻ, 〇),
+      punctuation, and symbols are not counted
     - Uses streaming ``finditer`` so large manuscripts stay O(1) in transient memory
     """
     if not content:
         return 0
 
     cjk_chars = sum(1 for _ in _CJK_CHAR_PATTERN.finditer(content))
-    word_tokens = sum(1 for _ in _WORD_TOKEN_PATTERN.finditer(content))
+    word_tokens = sum(
+        _count_letter_words_in_token(m.group(0)) for m in _WORD_TOKEN_PATTERN.finditer(content)
+    )
     return cjk_chars + word_tokens

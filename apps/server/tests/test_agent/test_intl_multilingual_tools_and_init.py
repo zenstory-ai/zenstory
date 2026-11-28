@@ -817,3 +817,149 @@ async def test_api_localized_first_work_project_and_chat_sessions_with_empty_hea
     )
     assert zh_new_resp.status_code == 200
     assert zh_new_resp.json()["title"] == "新对话"
+
+
+# ===========================================================================
+# 6. PR #521 Review Follow-up Regressions (#297 findings #1-#9)
+# ===========================================================================
+
+
+@pytest.mark.unit
+def test_i18n_guards_non_string_header_sentinel_and_wildcard_detection():
+    from fastapi import Header
+
+    from core.i18n import has_explicit_accept_language, resolve_accept_language
+
+    sentinel = Header(None, alias="Accept-Language")
+    assert has_explicit_accept_language(sentinel) is False  # type: ignore[arg-type]
+    assert resolve_accept_language(sentinel) == "zh"  # type: ignore[arg-type]
+    assert has_explicit_accept_language("*") is False
+    assert has_explicit_accept_language("*, ;q=0.9") is False
+    assert has_explicit_accept_language("id-ID,id;q=0.9") is True
+
+
+@pytest.mark.integration
+def test_chat_routes_accept_direct_python_calls_without_header_crash_and_check_auth_first(
+    db_session, monkeypatch
+):
+    from api.chat import create_new_session, get_or_create_session
+    from core.error_handler import APIException
+
+    owner, project = _seed_owner_project(db_session, monkeypatch, "direct-chat", ui_language="en")
+    other, _ = _seed_owner_project(db_session, monkeypatch, "direct-chat-other", ui_language="en")
+
+    # Direct Python calls bind accept_language=None (not a Header sentinel).
+    sess = get_or_create_session(project_id=project.id, session=db_session, current_user=owner)
+    assert sess.title == "AI Assistant"
+
+    new_sess = create_new_session(project_id=project.id, session=db_session, current_user=owner)
+    assert new_sess.title == "New Chat"
+
+    # Unauthorized call must fail before querying UserPreference for effective_title.
+    with (
+        patch("core.i18n.resolve_user_language") as mock_resolve,
+        pytest.raises(APIException) as exc_info,
+    ):
+        create_new_session(project_id=project.id, session=db_session, current_user=other)
+    assert exc_info.value.status_code == 403
+    mock_resolve.assert_not_called()
+
+
+@pytest.mark.unit
+def test_nfc_grapheme_clusters_not_split_for_arabic_tashkeel_and_devanagari_mc():
+    # NFC Arabic with tashkeel (U+064C combining=28) must NOT match prefix without the mark.
+    assert locate_nfc_equivalent_spans("كِتَابٌ", "كِتَاب") == []
+    assert locate_nfc_equivalent_spans("كِتَابٌ", "كِتَابٌ") == [(0, 7)]
+
+    # NFC Devanagari spacing combining mark (Mc: ा U+093E) and virama (Mn: ्) must NOT split clusters.
+    assert locate_nfc_equivalent_spans("कागज़", "क") == []
+    assert locate_nfc_equivalent_spans("नमस्ते", "नमस्त") == []
+    assert locate_nfc_equivalent_spans("नमस्ते", "नमस्ते") == [(0, 6)]
+
+
+@pytest.mark.unit
+def test_find_fuzzy_spans_respects_explicit_min_normalized_len_above_default():
+    # Default min_normalized_len=6 allows 2-word 5-char "he ran".
+    assert find_fuzzy_spans("He ran quickly.", "he ran") == [(0, 6)]
+    # Explicit caller floor > 6 (e.g. 8) must NOT be weakened down to 5!
+    assert find_fuzzy_spans("He ran quickly.", "he ran", min_normalized_len=8) == []
+
+
+@pytest.mark.unit
+def test_polish_low9_quotes_supported_in_edge_punct_and_paragraph_layout():
+    from agent.tools.file_ops.paragraph_layout import _OPENING_MARKS
+    from agent.tools.file_ops.text_matching import _OPENING_QUOTE_CHARS, _QUOTE_CHARS
+
+    assert "„" in _QUOTE_CHARS and "‚" in _QUOTE_CHARS
+    assert "„" in _OPENING_QUOTE_CHARS and "‚" in _OPENING_QUOTE_CHARS
+    assert "„" in _OPENING_MARKS
+    assert _starts_like_paragraph("„Cisza,” szepnął.") is True
+
+
+@pytest.mark.integration
+def test_edit_file_exact_mode_supports_nfc_on_insert_and_delete(db_session, monkeypatch):
+    user, project = _seed_owner_project(db_session, monkeypatch, "exact-nfc-ops")
+    nfd_line1 = unicodedata.normalize("NFD", "Żółć i gęśla.")
+    nfd_line2 = unicodedata.normalize("NFD", "Người lữ hành.")
+    doc = File(
+        project_id=project.id,
+        title="Chapter 1",
+        file_type="draft",
+        content=f"{nfd_line1}\n\n{nfd_line2}",
+    )
+    db_session.add(doc)
+    db_session.commit()
+    db_session.refresh(doc)
+
+    editor = FileEditor(db_session, user.id)
+    res_insert = editor.edit_file(
+        id=doc.id,
+        edits=[
+            {
+                "op": "insert_after",
+                "anchor": "Żółć i gęśla.",
+                "text": " Added.",
+                "match_mode": "exact",
+            }
+        ],
+    )
+    assert res_insert["mutation_applied"] is True
+    db_session.expire_all()
+    assert " Added." in db_session.get(File, doc.id).content
+
+    res_delete = editor.edit_file(
+        id=doc.id,
+        edits=[
+            {
+                "op": "delete",
+                "old": "Người lữ hành.",
+                "match_mode": "exact",
+            }
+        ],
+    )
+    assert res_delete["mutation_applied"] is True
+    db_session.expire_all()
+    assert nfd_line2 not in db_session.get(File, doc.id).content
+
+
+@pytest.mark.unit
+def test_content_range_canonical_accented_units_and_nfd_markdown_headings():
+    # Accent-stripped section query ("Capitulo 1") matches accented heading ("Capítulo 1")
+    # and stops cleanly at unaccented "Capitulo 2".
+    spanish = "Capítulo 1: Inicio\nTexto uno.\n\nCapitulo 2: Nudo\nTexto dos."
+    sliced_es = apply_content_range({"content": spanish}, {"section": "Capitulo 1"})
+    assert "Texto uno." in sliced_es["content"]
+    assert "Texto dos." not in sliced_es["content"]
+
+    # Vietnamese Chuong / Chương equivalence.
+    viet = "Chương 1: Mở đầu\nNội dung 1.\n\nChuong 2: Cao trào\nNội dung 2."
+    sliced_vi = apply_content_range({"content": viet}, {"section": "Chuong 1"})
+    assert "Nội dung 1." in sliced_vi["content"]
+    assert "Nội dung 2." not in sliced_vi["content"]
+
+    # NFD generic Markdown heading matched by NFC section query with exact original slice offset.
+    nfd_md = unicodedata.normalize("NFD", "## Żółć\nPierwsza sekcja.\n\n## Koniec\nDruga sekcja.")
+    sliced_md = apply_content_range({"content": nfd_md}, {"section": "Żółć"})
+    assert "Pierwsza sekcja." in sliced_md["content"]
+    assert "Druga sekcja." not in sliced_md["content"]
+

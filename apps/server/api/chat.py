@@ -173,7 +173,7 @@ def get_or_create_session(
     project_id: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-    accept_language: str | None = Header(None, alias="Accept-Language"),
+    accept_language: Annotated[str | None, Header(alias="Accept-Language")] = None,
 ):
     """Get or create a chat session for a project."""
     user_id = current_user.id
@@ -557,10 +557,13 @@ def create_new_session(
     title: str | None = None,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-    accept_language: str | None = Header(None, alias="Accept-Language"),
+    accept_language: Annotated[str | None, Header(alias="Accept-Language")] = None,
 ):
     """Create a new chat session (deactivates current one)."""
     user_id = current_user.id
+
+    # Check if project exists and is not deleted before reading user preferences.
+    verify_project_access_sync(project_id, session, current_user)
     effective_title = (
         title
         if title is not None and title.strip()
@@ -576,8 +579,6 @@ def create_new_session(
         title=effective_title,
     )
 
-    # Check if project exists and is not deleted
-    verify_project_access_sync(project_id, session, current_user)
     if _should_offload_session_work(session):
         new_session = _create_new_session_sync(project_id, user_id, effective_title)
     else:

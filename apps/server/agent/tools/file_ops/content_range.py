@@ -157,23 +157,41 @@ def _stops_section(start: _Heading, candidate: _Heading) -> bool:
     return candidate.rank <= start.rank
 
 
+_CANONICAL_UNIT_MAP: dict[str, str] = {
+    "capitulo": "capítulo",
+    "chuong": "chương",
+    "rozdzial": "rozdział",
+    "tap": "tập",
+    "episódio": "episodio",
+    "épisode": "episode",
+}
+
+
+def _canonicalize_unit(raw_unit: str | None) -> str | None:
+    if not raw_unit:
+        return None
+    lowered = unicodedata.normalize("NFC", raw_unit).lower()
+    return _CANONICAL_UNIT_MAP.get(lowered, lowered)
+
+
 def _headings(content: str) -> list[_Heading]:
     found: list[_Heading] = []
     offset = 0
     for line in content.split("\n"):
         stripped = line.strip()
         if stripped and len(stripped) <= _HEADING_MAX_CHARS:
-            match = _HEADING_RE.match(unicodedata.normalize("NFC", stripped))
+            stripped_nfc = unicodedata.normalize("NFC", stripped)
+            match = _HEADING_RE.match(stripped_nfc)
             if match:
                 hashes = match.group("hashes")
                 md_level = len(hashes) if hashes else None
-                unit = (
+                unit = _canonicalize_unit(
                     match.group("unit")
                     or match.group("vol_unit")
                     or match.group("en_unit")
                     or match.group("ko_unit")
                     or ""
-                ).lower() or None
+                )
                 number = _number(
                     match.group("num")
                     or match.group("vol_num")
@@ -186,8 +204,8 @@ def _headings(content: str) -> list[_Heading]:
                 found.append(
                     _Heading(
                         offset,
-                        stripped,
-                        _strip_heading_markup(stripped),
+                        stripped_nfc,
+                        _strip_heading_markup(stripped_nfc),
                         bracket_cleaned,
                         unit,
                         number,
@@ -201,15 +219,15 @@ def _headings(content: str) -> list[_Heading]:
                     )
                 )
             else:
-                generic = _MD_GENERIC_HEADING_RE.match(stripped)
+                generic = _MD_GENERIC_HEADING_RE.match(stripped_nfc)
                 if generic:
                     md_level = len(generic.group("hashes"))
-                    plain = _strip_heading_markup(stripped)
+                    plain = _strip_heading_markup(stripped_nfc)
                     if plain:
                         found.append(
                             _Heading(
                                 offset,
-                                stripped,
+                                stripped_nfc,
                                 plain,
                                 None,
                                 None,
@@ -227,15 +245,15 @@ def _section_bounds(content: str, section: str) -> tuple[int, int, str]:
     wanted = unicodedata.normalize("NFC", section.strip())
     wanted_match = _HEADING_RE.match(wanted)
     wanted_unit = (
-        (
+        _canonicalize_unit(
             wanted_match.group("unit")
             or wanted_match.group("vol_unit")
             or wanted_match.group("en_unit")
             or wanted_match.group("ko_unit")
             or ""
-        ).lower()
+        )
         if wanted_match
-        else ""
+        else None
     )
     wanted_number = (
         _number(
