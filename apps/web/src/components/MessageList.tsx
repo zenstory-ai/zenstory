@@ -42,7 +42,6 @@ export const MessageList = React.memo(
     showDailyCount,
     streamRenderItems,
     onIterationAssistAction,
-    onRetryEditFailure,
     nextStepsBlocked,
     scrollContainerRef: externalScrollContainerRef,
   }, ref) => {
@@ -124,7 +123,6 @@ export const MessageList = React.memo(
             isFeedbackPending={feedbackPendingMessageId === message.id}
             showDailyCount={showDailyCount}
             onIterationAssistAction={onIterationAssistAction}
-            onRetryEditFailure={onRetryEditFailure}
             nextStepsBlocked={nextStepsBlocked}
           />
         ))}
@@ -141,7 +139,6 @@ export const MessageList = React.memo(
                 onOpenFile={onOpenFile}
                 onOpenAIMemory={onOpenAIMemory}
                 onIterationAssistAction={onIterationAssistAction}
-                onRetryEditFailure={onRetryEditFailure}
                 nextStepsBlocked={nextStepsBlocked}
                 isStreaming={true}
               />
@@ -167,7 +164,6 @@ export const MessageList = React.memo(
     // The iteration-exhausted action buttons call this; omitting it here let the
     // buttons keep invoking a stale closure after the parent re-created it.
     if (prevProps.onIterationAssistAction !== nextProps.onIterationAssistAction) return false;
-    if (prevProps.onRetryEditFailure !== nextProps.onRetryEditFailure) return false;
     if (prevProps.feedbackPendingMessageId !== nextProps.feedbackPendingMessageId) return false;
     if (prevProps.showDailyCount !== nextProps.showDailyCount) return false;
     if (prevProps.nextStepsBlocked !== nextProps.nextStepsBlocked) return false;

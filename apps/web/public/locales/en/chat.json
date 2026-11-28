@@ -301,18 +301,6 @@
     "edit_restored_author_deletion": "Put back a paragraph you deleted; you can undo this",
     "complete_suffix": " completed",
     "view_edit_details": "View change details ({{count}})",
-    "failed_edits_summary": "Edits that did not apply ({{count}})",
-    "skipped_files_summary": "Skipped files ({{count}})",
-    "failed_edit_target": "Target passage",
-    "failed_edit_anchor": "Anchor",
-    "failed_edit_attempted": "Attempted text",
-    "copy_attempted_text": "Copy text",
-    "copied_attempted_text": "Copied",
-    "open_target_file": "Open target file",
-    "retry_reread_edit": "Re-read & retry",
-    "retry_reread_prompt": "Please re-read the current text of the target file first, then apply the edits that did not take effect.",
-    "retry_reread_prompt_with_title": "Please re-read the current text of \"{{title}}\" first, then apply the edits that did not take effect.",
-    "retry_tool_failure_limit_prompt": "Please re-read the current text of the relevant file(s) and retry the unfinished edits in smaller steps.",
     "failed": "{{label}} failed",
     "failureHint": {
       "notFound": "Could not find the target passage in the text; the file was not changed.",
@@ -443,10 +431,10 @@
     }
   },
   "fileEdit": {
-    "allFailed": "{{count}} edit(s) to \"{{title}}\" did not apply. Check the chat card for details or retry.",
-    "allFailedUntitled": "{{count}} edit(s) did not apply. Check the chat card for details or retry.",
-    "partialFailed": "{{count}} edit(s) to \"{{title}}\" did not apply. Check the chat card for details or retry.",
-    "partialFailedUntitled": "{{count}} edit(s) did not apply. Check the chat card for details or retry."
+    "allFailed": "{{count}} edit(s) to \"{{title}}\" did not apply; the file was not changed.",
+    "allFailedUntitled": "{{count}} edit(s) did not apply; the file was not changed.",
+    "partialFailed": "{{count}} edit(s) to \"{{title}}\" did not apply.",
+    "partialFailedUntitled": "{{count}} edit(s) did not apply."
   },
   "activity": {
     "elapsed": "AI is working · {{seconds}}s",

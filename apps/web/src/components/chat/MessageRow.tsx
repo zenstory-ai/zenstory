@@ -27,7 +27,6 @@ import {
 import {
   canPassOpenFileForToolCall,
   extractCopyableText,
-  findUnresolvedEditFailures,
   groupToolCallsForDisplay,
   toolCardPayload,
   visibleToolCalls,
@@ -56,7 +55,6 @@ export const MessageRow = React.memo(function MessageRow({
   isFeedbackPending,
   showDailyCount = true,
   onIterationAssistAction,
-  onRetryEditFailure,
   nextStepsBlocked = false,
 }: RowDataProps): React.ReactElement {
   const { t } = useTranslation(['chat']);
@@ -104,10 +102,6 @@ export const MessageRow = React.memo(function MessageRow({
   );
   const toolCalls = useMemo(() => visibleToolCalls(message.toolCalls), [message.toolCalls]);
   const toolResults = useMemo(() => visibleToolCalls(message.toolResults), [message.toolResults]);
-  const unresolvedEditFailures = useMemo(
-    () => findUnresolvedEditFailures([...toolCalls, ...toolResults]),
-    [toolCalls, toolResults],
-  );
   const shouldShowFeedbackActions =
     message.role === 'assistant' && Boolean(onSubmitFeedback) && !message.feedbackUnavailable;
   const canSubmitFeedback = shouldShowFeedbackActions && Boolean(message.backendMessageId);
@@ -174,7 +168,6 @@ export const MessageRow = React.memo(function MessageRow({
             onOpenFile={onOpenFile}
             onOpenAIMemory={onOpenAIMemory}
             onIterationAssistAction={onIterationAssistAction}
-            onRetryEditFailure={onRetryEditFailure}
             nextStepsBlocked={nextStepsBlocked}
             isStreaming={false}
             chatMessageId={message.backendMessageId}
@@ -214,23 +207,15 @@ export const MessageRow = React.memo(function MessageRow({
                 type={toolCall.status === 'pending' ? 'tool_call' : 'tool_result'}
                 toolName={toolCall.tool_name}
                 result={toolCardPayload(toolCall)}
-                toolArguments={toolCall.arguments}
                 error={toolCall.status === 'error' ? toolCall.error : undefined}
                 isPending={false}
                 interrupted={toolCall.status === 'pending'}
-                isStreaming={false}
-                nextStepsBlocked={nextStepsBlocked}
                 onUndo={onUndo}
                 onRestoreDeletion={onRestoreDeletion}
                 toolUseId={toolCall.id}
                 chatMessageId={message.backendMessageId}
                 onOpenFile={canPassOpenFileForToolCall(toolCall) ? onOpenFile : undefined}
                 onOpenAIMemory={onOpenAIMemory}
-                onRetryEditFailure={
-                  !nextStepsBlocked && unresolvedEditFailures.has(toolCall)
-                    ? onRetryEditFailure
-                    : undefined
-                }
               />
             ))}
           </div>
@@ -257,10 +242,7 @@ export const MessageRow = React.memo(function MessageRow({
                   type="tool_result"
                   toolName={run.call.tool_name}
                   result={toolCardPayload(run.call)}
-                  toolArguments={run.call.arguments}
                   error={run.call.status === 'error' ? run.call.error : undefined}
-                  isStreaming={false}
-                  nextStepsBlocked={nextStepsBlocked}
                   onUndo={onUndo}
                   onRestoreDeletion={onRestoreDeletion}
                   toolUseId={run.call.id}
@@ -271,11 +253,6 @@ export const MessageRow = React.memo(function MessageRow({
                       : undefined
                   }
                   onOpenAIMemory={onOpenAIMemory}
-                  onRetryEditFailure={
-                    !nextStepsBlocked && unresolvedEditFailures.has(run.call)
-                      ? onRetryEditFailure
-                      : undefined
-                  }
                 />
               ),
             )}
