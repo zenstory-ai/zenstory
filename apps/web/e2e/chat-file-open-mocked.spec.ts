@@ -75,7 +75,7 @@ for (const width of [390, 768, 1440]) for (const locale of ['zh', 'en'] as const
       const card = title.locator('..').locator('..');
       const header = card.locator(':scope > div').first();
       const titleBox = await title.boundingBox();
-      const countBox = await header.getByText(locale === 'zh' ? '3 字' : '3 chars', { exact: true }).boundingBox();
+      const countBox = await header.getByText(locale === 'zh' ? '3 字' : '3 words', { exact: true }).boundingBox();
       const statusBox = await header.locator(':scope > span').first().boundingBox();
       expect(Math.abs(statusBox!.y + statusBox!.height / 2 - countBox!.y - countBox!.height / 2)).toBeLessThanOrEqual(2);
       expect(statusBox!.x + statusBox!.width).toBeLessThan(countBox!.x);
