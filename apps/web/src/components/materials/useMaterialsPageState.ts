@@ -34,7 +34,6 @@ export function useMaterialsPageState() {
   const [redeemSource, setRedeemSource] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
-  const [exportingId, setExportingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Upload modal state
@@ -310,22 +309,6 @@ export function useMaterialsPageState() {
     }
   };
 
-  const handleExport = async (material: MaterialNovel) => {
-    setExportingId(material.id);
-    try {
-      await materialsApi.exportBreakdown(material.id, material.title);
-      toast.success(
-        t("materials:export.success", {
-          defaultValue: "拆解结果已导出为 TXT 文件",
-        }),
-      );
-    } catch (err) {
-      toast.error(handleApiError(err));
-    } finally {
-      setExportingId(null);
-    }
-  };
-
   // Only show the header Pro button once loading finishes and when the page body does
   // not already present a primary upgrade CTA (teaser without trial, or empty trial-used).
   const showHeaderUpgrade =
@@ -367,7 +350,6 @@ export function useMaterialsPageState() {
     setDeletingId,
     isDeleting: deleteMutation.isPending,
     retryingId,
-    exportingId,
     searchQuery,
     setSearchQuery,
     file,
@@ -386,6 +368,5 @@ export function useMaterialsPageState() {
     handleSelectFile,
     handleUpload,
     handleRetry,
-    handleExport,
   };
 }

@@ -17,7 +17,6 @@ const mockList = vi.fn();
 const mockUpload = vi.fn();
 const mockDelete = vi.fn();
 const mockRetry = vi.fn();
-const mockExportBreakdown = vi.fn();
 const mockGetStatus = vi.fn();
 const mockGetQuota = vi.fn();
 const mockGetCatalog = vi.fn();
@@ -93,7 +92,6 @@ vi.mock("../../lib/materialsApi", () => ({
     upload: (...args: unknown[]) => mockUpload(...args),
     delete: (...args: unknown[]) => mockDelete(...args),
     retry: (...args: unknown[]) => mockRetry(...args),
-    exportBreakdown: (...args: unknown[]) => mockExportBreakdown(...args),
   },
 }));
 
@@ -808,8 +806,7 @@ describe("MaterialsPage", () => {
     });
   });
 
-  it("exports completed material from card action without navigating and hides export while processing", async () => {
-    mockExportBreakdown.mockResolvedValueOnce({ filename: "凡人修仙传_拆解.txt" });
+  it("omits export action from material list cards while keeping card navigation to detail page", async () => {
     mockList.mockResolvedValueOnce([
       {
         id: "101",
@@ -838,16 +835,11 @@ describe("MaterialsPage", () => {
     const completedCard = cards.find((card) => card.textContent?.includes("凡人修仙传"))!;
     const processingCard = cards.find((card) => card.textContent?.includes("正在拆的书"))!;
 
+    expect(within(completedCard).queryByRole("button", { name: "导出拆解（TXT）" })).not.toBeInTheDocument();
     expect(within(processingCard).queryByRole("button", { name: "导出拆解（TXT）" })).not.toBeInTheDocument();
 
-    const exportBtn = within(completedCard).getByRole("button", { name: "导出拆解（TXT）" });
-    fireEvent.click(exportBtn);
-
-    await waitFor(() => {
-      expect(mockExportBreakdown).toHaveBeenCalledWith("101", "凡人修仙传");
-      expect(mockToastSuccess).toHaveBeenCalledWith("拆解结果已导出为 TXT 文件");
-    });
-    expect(mockNavigate).not.toHaveBeenCalled();
+    fireEvent.click(within(completedCard).getByRole("button", { name: "查看素材详情: 凡人修仙传" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/materials/101");
   });
 
   it("renders keyboard-accessible upload trigger button and labeled title field in upload modal", async () => {

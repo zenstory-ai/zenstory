@@ -152,13 +152,11 @@ export default function MaterialsPage() {
           exhaustedMessage={state.exhaustedMessage}
           searchQuery={state.searchQuery}
           onSearchChange={state.setSearchQuery}
-          exportingId={state.exportingId}
           retryingId={state.retryingId}
           onOpenUpload={() => state.setShowUploadModal(true)}
           onOpenUpgrade={state.openUpgradePath}
           onCardClick={state.handleCardClick}
           onDelete={state.setDeletingId}
-          onExport={state.handleExport}
           onRetry={state.handleRetry}
         />
       )}
