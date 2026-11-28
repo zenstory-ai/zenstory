@@ -2051,6 +2051,7 @@ def _read_files_sync(
                     "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。"
                     f"{format_malformed_uuid_hint(missing_ids)}",
                     error_type="files_not_found",
+                    user_message=edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND),
                     tool_name=tool_name,
                     **extra,
                 )
@@ -2580,6 +2581,7 @@ def _query_files_sync(
                         "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。"
                         f"{format_malformed_uuid_hint(missing_ids)}",
                         error_type="files_not_found",
+                        user_message=edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND),
                         tool_name=tool_name,
                         **extra,
                     )

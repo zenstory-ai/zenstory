@@ -655,3 +655,116 @@ async def test_p3_skill_error_types_cross_skill_resource_hint_and_awaiting_body_
 
     # 5) LOAD_SKILL_TOOL clarifies no-catalog rule
     assert "没有该目录说明用户未启用任何技能" in LOAD_SKILL_TOOL["description"]
+
+
+# ===========================================================================
+# Review PR #520 Follow-up Regressions (P1/P2)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_review_p1_files_not_found_uuid_hint_never_leaks_to_client_sse(db_session, owner_project):
+    """read_files & query_files files_not_found carry safe user_message so StreamAdapter never leaks model hints."""
+    user, project = owner_project
+    bad_37 = f"{uuid4()}f"
+    ctx = _make_ctx(db_session, user, project)
+    try:
+        read_raw = await mcp_tools.read_files({"ids": [bad_37]}, request_context=ctx)
+        query_raw = await mcp_tools.query_files({"ids": [bad_37]}, request_context=ctx)
+    finally:
+        ctx.clear()
+
+    read_payload = _payload(read_raw)
+    query_payload = _payload(query_raw)
+    assert read_payload["error_type"] == "files_not_found"
+    assert read_payload["user_message"] == edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND)
+    assert "<project_files>" in read_payload["error"]
+    assert query_payload["error_type"] == "files_not_found"
+    assert query_payload["user_message"] == edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND)
+    assert "<project_files>" in query_payload["error"]
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id=project.id, user_id=user.id))
+
+    async def events():
+        yield WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "read_files", "tool_use_id": "call-rf-nf", "result": read_raw},
+        )
+        yield WorkflowStreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"name": "query_files", "tool_use_id": "call-qf-nf", "result": query_raw},
+        )
+
+    emitted = [ev async for ev in adapter.process_workflow_events(events())]
+    result_events = [ev for ev in emitted if ev.type == EventType.TOOL_RESULT]
+    assert len(result_events) == 2
+    for ev in result_events:
+        assert ev.data["status"] == "error"
+        assert ev.data["error"] == edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND)
+        serialized = json.dumps(ev.data, ensure_ascii=False)
+        assert "<project_files>" not in serialized
+        assert "search_files" not in serialized
+        assert bad_37 not in serialized
+
+
+@pytest.mark.integration
+def test_review_p2_explicit_null_canonical_keys_fall_back_to_aliases_preserving_empty_delete(db_session, owner_project):
+    """Explicit null canonical keys fall back to aliases, while new="" deletion stays intact."""
+    user, project = owner_project
+    original = "　　第一句原文。\n\n　　要删除的句子。\n\n　　结尾句。"
+    chapter = _add_file(db_session, project, title="第4章 空键别名", content=original)
+    editor = FileEditor(db_session, user.id)
+
+    res = editor.edit_file(
+        chapter.id,
+        [
+            {"old": None, "old_text": "第一句原文。", "new": None, "new_text": "第一句改写。"},
+            {"op": "replace", "old": "要删除的句子。", "new": "", "new_text": "不应误用此别名"},
+            {"op": "insert_after", "anchor": "结尾句。", "text": None, "content": "\n\n　　追加一句。"},
+        ],
+    )
+    assert res["edits_applied"] == 3
+    assert res["failed_edits"] == []
+    db_session.expire_all()
+    updated = db_session.get(File, chapter.id).content
+    assert "第一句改写。" in updated
+    assert "要删除的句子。" not in updated
+    assert "不应误用此别名" not in updated
+    assert "追加一句。" in updated
+
+
+@pytest.mark.integration
+def test_review_p2_full_body_noop_with_body_guards_never_trips_whole_body_replace(db_session, owner_project):
+    """Full-body old == new no-op under body_guards=True skips whole_body_replace guard."""
+    user, project = owner_project
+    body = "　　第一段足够长的正文内容，用于触发正文保护检查。\n\n　　第二段同样足够长的正文内容，用于验证多段正文。"
+    chapter = _add_file(db_session, project, title="第5章 整篇无改动", content=body, file_type="draft")
+    editor = FileEditor(db_session, user.id)
+
+    # 1) Standalone full-body old == new -> unchanged_edits, no whole_body_replace error
+    res_only = editor.edit_file(
+        chapter.id,
+        [{"op": "replace", "old": body, "new": body}],
+        body_guards=True,
+    )
+    assert res_only["edits_applied"] == 0
+    assert res_only["mutation_applied"] is False
+    assert res_only["failed_edits"] == []
+    assert res_only["unchanged_edits"] == [{"index": 0, "op": "replace", "reason": "already_matches"}]
+
+    # 2) Full-body old == new alongside a small real edit -> real edit succeeds, no whole_body_replace
+    res_mixed = editor.edit_file(
+        chapter.id,
+        [
+            {"op": "replace", "old": body, "new": body},
+            {"op": "replace", "old": "验证多段正文。", "new": "验证多段正文无误。"},
+        ],
+        body_guards=True,
+    )
+    assert res_mixed["edits_applied"] == 1
+    assert res_mixed["mutation_applied"] is True
+    assert res_mixed["failed_edits"] == []
+    db_session.expire_all()
+    assert "验证多段正文无误。" in db_session.get(File, chapter.id).content
+

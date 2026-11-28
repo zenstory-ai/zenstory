@@ -319,6 +319,7 @@ export const EditFileCard: React.FC<{
     : [];
   const isPartialFailure = data.partial_success === true || failedEdits.length > 0;
   const appliedCount = typeof data.edits_applied === 'number' ? data.edits_applied : details.length;
+  const isNoChange = !isPartialFailure && (data.mutation_applied === false || appliedCount === 0);
   const failedCount = failedEdits.length;
   const partialFailureReason = isPartialFailure && failedEdits[0]
     ? appliedCount > 0
@@ -337,13 +338,17 @@ export const EditFileCard: React.FC<{
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {isPartialFailure ? (
           <AlertCircle className="w-4 h-4 shrink-0 text-[hsl(var(--warning-text))]" />
+        ) : isNoChange ? (
+          <Info className="w-4 h-4 shrink-0 text-[hsl(var(--text-secondary))]" />
         ) : (
           <CheckCircle2 className="w-4 h-4 shrink-0 text-[hsl(var(--success-text))]" />
         )}
-        <span className="text-sm text-[hsl(var(--text-primary))] font-medium">
+        <span className={`text-sm ${isNoChange ? 'text-[hsl(var(--text-secondary))]' : 'text-[hsl(var(--text-primary))] font-medium'}`}>
           {isPartialFailure
             ? t('chat:tool.edit_partial_failed', { applied: appliedCount, failed: failedCount || 1 })
-            : t('chat:tool.edit_success')}
+            : isNoChange
+              ? t('chat:tool.edit_no_changes')
+              : t('chat:tool.edit_success')}
         </span>
         {authorEditsTouched && (
           <span className="text-xs text-[hsl(var(--text-secondary))]">

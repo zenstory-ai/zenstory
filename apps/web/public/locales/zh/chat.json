@@ -294,6 +294,7 @@
     "readonlyGroupSummary_other": "已查阅 {{count}} 项资料",
     "update_status_description": "记录项目信息",
     "edit_success": "修改完成",
+    "edit_no_changes": "内容一致，未做改动",
     "edit_partial_failed": "部分修改未生效（成功 {{applied}} / 未生效 {{failed}}）",
     "edit_undone": "已撤销",
     "undoLaterFirst": "先撤销后面对这个文件的修改",

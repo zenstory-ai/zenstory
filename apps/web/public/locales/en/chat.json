@@ -294,6 +294,7 @@
     "readonlyGroupSummary_other": "Checked {{count}} references",
     "update_status_description": "Record project information",
     "edit_success": "Edit done",
+    "edit_no_changes": "No changes needed; file unchanged",
     "edit_partial_failed": "Some edits did not apply ({{applied}} applied / {{failed}} failed)",
     "edit_undone": "Undone",
     "undoLaterFirst": "Undo the later change to this file first",

@@ -1438,17 +1438,19 @@ class FileEditor:
                 }
                 # Normalize common field aliases BEFORE op inference so omitted-op edits
                 # using old_text/new_text or from/to still infer op=replace cleanly.
-                if "old" not in edit:
+                # Check `is None` so explicit JSON null canonical keys still fall back while
+                # preserving `new=""` deletions.
+                if edit.get("old") is None:
                     for alias in ("old_text", "from"):
                         if isinstance(edit.get(alias), str):
                             edit["old"] = edit[alias]
                             break
-                if "new" not in edit:
+                if edit.get("new") is None:
                     for alias in ("new_text", "to"):
                         if isinstance(edit.get(alias), str):
                             edit["new"] = edit[alias]
                             break
-                if "text" not in edit and isinstance(edit.get("content"), str):
+                if edit.get("text") is None and isinstance(edit.get("content"), str):
                     edit["text"] = edit.get("content")
 
                 # Normalize op field (common LLM mistakes: op is null / uses alias keys)
@@ -1486,8 +1488,8 @@ class FileEditor:
                     if (
                         isinstance(edit.get("old"), str)
                         and isinstance(edit.get("new"), str)
-                        and "anchor" not in edit
-                        and "text" not in edit
+                        and edit.get("anchor") is None
+                        and edit.get("text") is None
                     ):
                         op = "replace"
                         warnings.append(f"Edit {i}: op omitted; old+new applied as op=replace")
@@ -1578,7 +1580,6 @@ class FileEditor:
                         if isinstance(detail, dict):
                             detail["paragraph_prefixes_stripped"] = True
                 if is_noop:
-                    effective_edits.append(edit)
                     continue
 
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
@@ -1651,7 +1652,7 @@ class FileEditor:
                 file_type=file.file_type,
             )
 
-        if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
+        if content != old_content and body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
             try:
                 check_body_edit_guards(old_content, content, effective_edits)
             except EditFileError as exc:
