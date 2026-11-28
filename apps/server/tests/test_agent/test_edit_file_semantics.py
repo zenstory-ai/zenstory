@@ -621,3 +621,52 @@ def test_insert_details_report_editor_word_count_next_to_char_length(editor):
     # 7 个汉字 + 2 个英文单词；标点、换行、空格不算。
     assert detail["text_words"] == 9
     assert detail["text_len"] > detail["text_words"]
+
+
+def test_file_editor_normalizes_camelcase_and_insert_anchor_aliases_end_to_end(
+    db_session, test_user, chapter, version_engine
+):
+    """Direct FileEditor.edit_file accepts oldText/newText (preserving new='') and
+    insert_before/insert_after anchor fallback from old/old_text/oldText/target after op normalization."""
+    editor = FileEditor(db_session, user_id=test_user.id)
+
+    # 1) insert_before using old + insert_after using old_text + target + oldText
+    res1 = editor.edit_file(
+        chapter.id,
+        [
+            {"op": "insert_before", "old": "窗外下着雨", "text": "灯影摇晃。"},
+            {"op": "insert_after", "old_text": "屋里很安静。", "text": "风声渐歇。"},
+        ],
+    )
+    assert res1["mutation_applied"] is True
+    assert res1["edits_applied"] == 2
+    stored1 = _stored_content(version_engine, chapter.id)
+    assert "灯影摇晃。窗外下着雨" in stored1
+    assert "屋里很安静。风声渐歇。" in stored1
+
+    # 2) oldText/newText replacement and explicit newText="" deletion, plus omitted-op oldText/newText
+    res2 = editor.edit_file(
+        chapter.id,
+        [
+            {"op": "replace", "oldText": "他点了点头。", "newText": "他微微颔首。"},
+            {"op": "replace", "oldText": "她点了点头。", "newText": ""},
+            {"oldText": "风声渐歇。", "newText": "夜色渐沉。"},
+            {"op": "insert_after", "target": "夜色渐沉。", "text": "钟声响起。"},
+        ],
+    )
+    assert res2["mutation_applied"] is True
+    assert res2["edits_applied"] == 4
+    stored2 = _stored_content(version_engine, chapter.id)
+    assert "他微微颔首。" in stored2
+    assert "她点了点头。" not in stored2
+    assert "夜色渐沉。钟声响起。" in stored2
+
+    # 3) Canonical new="" is preserved even if newText is also supplied
+    res3 = editor.edit_file(
+        chapter.id,
+        [{"op": "replace", "old": "钟声响起。", "new": "", "newText": "不应写入"}],
+    )
+    assert res3["mutation_applied"] is True
+    stored3 = _stored_content(version_engine, chapter.id)
+    assert "钟声响起。" not in stored3
+    assert "不应写入" not in stored3

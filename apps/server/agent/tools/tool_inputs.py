@@ -18,6 +18,7 @@ Important invariants:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Annotated, Any, ClassVar, Literal
 
@@ -399,6 +400,132 @@ class WriteChapterInput(_ToolInputModel):
         return value.strip()
 
 
+_EDIT_OP_INSERT_ALIASES: dict[str, str] = {
+    "insertafter": "insert_after",
+    "after": "insert_after",
+    "insertbefore": "insert_before",
+    "before": "insert_before",
+    "insert": "insert_after",
+    "add_after": "insert_after",
+    "add_before": "insert_before",
+}
+_TOP_LEVEL_EDIT_OPTIONAL_KEYS: tuple[str, ...] = (
+    "replace_all",
+    "match_mode",
+    "occurrence",
+    "ignore_punct_whitespace",
+)
+
+
+def _first_str_value(mapping: Mapping[str, Any], keys: tuple[str, ...]) -> str | None:
+    """Return the first ``isinstance(..., str)`` value for ``keys`` (preserving ``""``)."""
+    for key in keys:
+        value = mapping.get(key)
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def _normalize_edit_item(item: Any) -> Any:
+    """Apply bounded structural alias normalization to a single edit item dict.
+
+    - Supports camelCase aliases ``oldText`` -> ``old`` and ``newText`` -> ``new``
+      when the canonical key ``is None`` (preserving explicit ``new=""`` deletions).
+    - After resolving ``op`` aliases (without touching omitted ``op`` so ``{old, new}``
+      replace inference stays intact), maps ``anchor`` from ``old`` / ``old_text`` /
+      ``oldText`` / ``target`` for ``insert_after`` and ``insert_before`` when
+      ``anchor is None``.
+    """
+    if not isinstance(item, Mapping):
+        return item
+    updated = dict(item)
+    if updated.get("old") is None and isinstance(updated.get("oldText"), str):
+        updated["old"] = updated["oldText"]
+    if updated.get("new") is None and isinstance(updated.get("newText"), str):
+        updated["new"] = updated["newText"]
+
+    op_raw = updated.get("op")
+    if op_raw is None:
+        op_raw = updated.get("operation") or updated.get("action") or updated.get("type")
+    norm_op = op_raw.strip().lower().replace("-", "_") if isinstance(op_raw, str) else ""
+    norm_op = _EDIT_OP_INSERT_ALIASES.get(norm_op, norm_op)
+    if norm_op in ("insert_after", "insert_before") and updated.get("anchor") is None:
+        anchor_val = _first_str_value(updated, ("old", "old_text", "oldText", "target"))
+        if anchor_val is not None:
+            updated["anchor"] = anchor_val
+    return updated
+
+
+def _unpack_edits_value(raw_edits: Any) -> Any:
+    """Unpack JSON-stringified ``edits`` (list[dict] or single dict) or a raw dict into ``list[dict]``.
+
+    Malformed JSON strings or non-object JSON values are returned untouched so Pydantic
+    validation rejects them with the standard Chinese error message.
+    """
+    if isinstance(raw_edits, Mapping):
+        return [dict(raw_edits)]
+    if isinstance(raw_edits, str):
+        try:
+            decoded = json.loads(raw_edits)
+        except ValueError:
+            return raw_edits
+        if isinstance(decoded, list) and all(isinstance(elem, dict) for elem in decoded):
+            return decoded
+        if isinstance(decoded, dict):
+            return [decoded]
+        return raw_edits
+    return raw_edits
+
+
+def _fold_top_level_single_edit(data: Mapping[str, Any]) -> list[dict[str, Any]] | None:
+    """Fold top-level ``old``/``new`` (or ``old_text``/``new_text`` or ``oldText``/``newText``)
+    into a 1-element replace ``edits`` list when ``edits`` is omitted/``None``."""
+    top_old = _first_str_value(data, ("old", "old_text", "oldText"))
+    top_new = _first_str_value(data, ("new", "new_text", "newText"))
+    if top_old is None or top_new is None:
+        return None
+    folded: dict[str, Any] = {
+        "op": "replace",
+        "old": top_old,
+        "new": top_new,
+    }
+    for opt_key in _TOP_LEVEL_EDIT_OPTIONAL_KEYS:
+        if opt_key in data and data[opt_key] is not None:
+            folded[opt_key] = data[opt_key]
+    return [folded]
+
+
+def normalize_edit_file_args(data: Any) -> Any:
+    """Pre-normalize structural ``edit_file`` argument shapes (id, JSON-stringified/dict edits,
+    top-level single-edit folding, and per-item camelCase/insert-anchor aliases)."""
+    if not isinstance(data, Mapping):
+        return data
+    normalized = dict(_resolve_id_aliases(data))
+    if "id" not in normalized:
+        normalized["id"] = None
+
+    has_edits_key = "edits" in normalized
+    has_ops_key = "operations" in normalized
+    raw_edits = normalized.get("edits")
+    if raw_edits is None and has_ops_key:
+        raw_edits = normalized["operations"]
+
+    if raw_edits is None:
+        folded = _fold_top_level_single_edit(normalized)
+        if folded is not None:
+            normalized["edits"] = folded
+        elif not has_edits_key and not has_ops_key:
+            normalized["edits"] = []
+        else:
+            normalized["edits"] = None
+    else:
+        normalized["edits"] = _unpack_edits_value(raw_edits)
+
+    if isinstance(normalized.get("edits"), list):
+        normalized["edits"] = [_normalize_edit_item(item) for item in normalized["edits"]]
+    return normalized
+
+
 class EditOperationInput(_ToolInputModel):
     """Schema model for a single edit item inside ``edit_file.edits``.
 
@@ -452,6 +579,11 @@ class EditOperationInput(_ToolInputModel):
         description="模糊匹配时是否忽略标点与空白差异（默认 true）",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_item_aliases(cls, data: Any) -> Any:
+        return _normalize_edit_item(data)
+
 
 _EDIT_OPERATION_ITEM_SCHEMA = export_tool_schema(EditOperationInput)
 
@@ -487,13 +619,7 @@ class EditFileInput(_ToolInputModel):
     def _normalize_aliases(cls, data: Any) -> Any:
         if not isinstance(data, Mapping):
             return data
-        normalized = dict(_resolve_id_aliases(data))
-        if "id" not in normalized:
-            normalized["id"] = None
-        if "edits" not in normalized and "operations" not in normalized:
-            normalized["edits"] = []
-        elif normalized.get("edits") is None and "operations" in normalized:
-            normalized["edits"] = normalized["operations"]
+        normalized = normalize_edit_file_args(data)
         if (
             ("continue_on_error" not in normalized or normalized.get("continue_on_error") is None)
             and isinstance(normalized.get("edits"), list)
@@ -1314,5 +1440,6 @@ __all__ = [
     "build_tool_schema",
     "export_tool_schema",
     "format_validation_error",
+    "normalize_edit_file_args",
     "validate_tool_input",
 ]
