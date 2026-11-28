@@ -41,6 +41,6 @@ See [Collaborating with the AI assistant](../user-guide/ai-assistant.md) and [AI
 | File version | A saved snapshot of a single file recorded in **History** |
 | Diff review | Side-by-side or inline review where you accept or reject proposed edits block by block |
 | Restore / Undo | Rolling a file back to a selected snapshot from **History** or an AI chat edit card |
-| Export | Downloading all saved `draft` and `script` chapters in a project—or the open file—as a UTF-8 `.txt` file |
+| Export | Downloading all saved `draft` and `script` chapters in a project as a UTF-8 `.txt` file |
 
 See [Using the editor](../user-guide/editor.md), [Version history](../user-guide/version-history.md), and [Export your manuscript](../user-guide/export.md).

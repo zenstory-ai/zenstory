@@ -28,10 +28,7 @@
     "subscriptionManageHint": "管理套餐、权益和兑换码",
     "subscriptionRenewalSoon": "剩 {{days}} 天",
     "exportQuotaBlockedTitle": "当前套餐暂不支持该导出",
-    "exportQuotaBlockedDesc": "升级套餐后即可使用这项导出。",
-    "downloadFile": "下载当前文件（TXT）",
-    "downloadFileSuccess": "已下载《{{title}}》",
-    "downloadFileUnsaved": "当前文件还有没保存上的修改，先保存再下载"
+    "exportQuotaBlockedDesc": "升级套餐后即可使用这项导出。"
   },
   "fileTree": {
     "ariaLabel": "文件树",
