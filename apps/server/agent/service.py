@@ -102,6 +102,8 @@ from .loop.wire_prefix_cache import (
     is_well_formed_wire_prefix,
     load_wire_prefix_entry,
     provider_cache_key,
+    short_sha256,
+    system_prompt_sha256,
     tools_schema_sha256,
 )
 from .openai_agents.runner import MAX_TURNS_STOP_REASON
@@ -1700,6 +1702,7 @@ class AgentService:
                 "Thinking..." if force_en else "正在思考..."
             ).to_sse()
 
+            expected_sys_sha = system_prompt_sha256(system_prompt)
             log_with_context(
                 logger,
                 20,  # INFO
@@ -1707,6 +1710,8 @@ class AgentService:
                 project_id=project_id,
                 user_id=user_id,
                 history_items=len(loop_history.items),
+                system_prompt_sha256=short_sha256(expected_sys_sha),
+                tools_sha256=short_sha256(expected_tools_sha),
             )
 
             # 进入工作流前结束请求级 session 上的事务。SQLite 分支前面的会话
@@ -2507,6 +2512,8 @@ class AgentService:
                                 session_id=session_id,
                                 skip_reason=wire_prefix_skip_reason,
                                 stop_reason=assistant_stop_reason,
+                                system_prompt_sha256=short_sha256(expected_sys_sha),
+                                tools_sha256=short_sha256(expected_tools_sha),
                             )
                     if user_id and session_id and history_saved and not stored_wire_prefix:
                         await ainvalidate_wire_prefix(session_id)

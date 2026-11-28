@@ -57,6 +57,17 @@ class WirePrefixEntry:
     context_fingerprints: dict[str, Any] | None = None
 
 
+SHORT_SHA256_LEN = 12
+
+
+def short_sha256(digest: Any, length: int = SHORT_SHA256_LEN) -> str:
+    """Compact hex prefix of a SHA-256 digest for structured diagnostic logs."""
+    if not isinstance(digest, str):
+        return ""
+    cleaned = digest.strip()
+    return cleaned[:length] if cleaned else ""
+
+
 def system_prompt_sha256(system_prompt: str) -> str:
     """Deterministic SHA-256 hex digest of the static system prompt."""
     return hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()
@@ -267,12 +278,18 @@ def load_wire_prefix_entry(
     if not isinstance(envelope, dict):
         return None
 
+    expected_sys_sha = system_prompt_sha256(system_prompt)
     expected_tools_sha = tools_sha256 if isinstance(tools_sha256, str) and tools_sha256 else tools_schema_sha256()
     expected_effort = (
         reasoning_effort.strip().lower()
         if isinstance(reasoning_effort, str) and reasoning_effort.strip()
         else effective_reasoning_effort()
     )
+
+    cached_sys_sha = envelope.get("system_prompt_sha256")
+    cached_tools_sha = envelope.get("tools_sha256")
+    system_prompt_changed = cached_sys_sha != expected_sys_sha
+    tools_changed = cached_tools_sha != expected_tools_sha
 
     mismatch: str | None = None
     if type(envelope.get("schema_version")) is not int or envelope["schema_version"] != WIRE_PREFIX_CACHE_SCHEMA_VERSION:
@@ -281,11 +298,11 @@ def load_wire_prefix_entry(
         mismatch = "scope"
     elif envelope.get("last_assistant_message_id") != last_message_id:
         mismatch = "last_message_id"
-    elif envelope.get("system_prompt_sha256") != system_prompt_sha256(system_prompt):
+    elif system_prompt_changed:
         mismatch = "system_prompt"
     elif envelope.get("provider_key") != provider_key:
         mismatch = "provider_key"
-    elif envelope.get("tools_sha256") != expected_tools_sha:
+    elif tools_changed:
         mismatch = "tools_sha256"
     elif envelope.get("reasoning_effort") != expected_effort:
         mismatch = "reasoning_effort"
@@ -297,6 +314,12 @@ def load_wire_prefix_entry(
             "Agent wire prefix cache miss due to validation mismatch",
             session_id=session_id,
             mismatch=mismatch,
+            system_prompt_changed=system_prompt_changed,
+            tools_changed=tools_changed,
+            system_prompt_sha256=short_sha256(expected_sys_sha),
+            cached_system_prompt_sha256=short_sha256(cached_sys_sha),
+            tools_sha256=short_sha256(expected_tools_sha),
+            cached_tools_sha256=short_sha256(cached_tools_sha),
         )
         return None
 
@@ -316,6 +339,8 @@ def load_wire_prefix_entry(
         session_id=session_id,
         item_count=len(items),
         payload_bytes=stored_bytes,
+        system_prompt_sha256=short_sha256(expected_sys_sha),
+        tools_sha256=short_sha256(expected_tools_sha),
     )
     return WirePrefixEntry(
         items=items,
@@ -379,6 +404,7 @@ def store_wire_prefix(
     if not _redis_available():
         return False
 
+    resolved_sys_sha = system_prompt_sha256(system_prompt)
     resolved_tools_sha = (
         tools_sha256 if isinstance(tools_sha256, str) and tools_sha256 else tools_schema_sha256()
     )
@@ -393,7 +419,7 @@ def store_wire_prefix(
         "project_id": project_id,
         "user_id": user_id,
         "last_assistant_message_id": last_assistant_message_id,
-        "system_prompt_sha256": system_prompt_sha256(system_prompt),
+        "system_prompt_sha256": resolved_sys_sha,
         "provider_key": provider_key,
         "tools_sha256": resolved_tools_sha,
         "reasoning_effort": resolved_effort,
@@ -426,6 +452,8 @@ def store_wire_prefix(
             payload_bytes=payload_bytes,
             raw_bytes=raw_bytes,
             max_bytes=cap,
+            system_prompt_sha256=short_sha256(resolved_sys_sha),
+            tools_sha256=short_sha256(resolved_tools_sha),
         )
         invalidate_wire_prefix(session_id)
         return False
@@ -445,6 +473,8 @@ def store_wire_prefix(
         payload_bytes=payload_bytes,
         raw_bytes=raw_bytes,
         ttl_seconds=ttl,
+        system_prompt_sha256=short_sha256(resolved_sys_sha),
+        tools_sha256=short_sha256(resolved_tools_sha),
     )
     return True
 

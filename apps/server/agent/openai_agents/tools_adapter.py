@@ -93,9 +93,6 @@ def _is_partial_result(text: str, *, parsed_output: dict[str, Any] | None = None
 
 def _is_rolled_back_edit_batch(tool_name: str, args: dict[str, Any]) -> bool:
     """Return True when a multi-edit call failed with effective continue_on_error=False."""
-    raw_edits = args.get("edits") if isinstance(args.get("edits"), list) else args.get("operations")
-    if not isinstance(raw_edits, list) or len(raw_edits) <= 1:
-        return False
     if tool_name == "edit_file":
         try:
             from agent.tools.tool_inputs import EditFileInput
@@ -104,6 +101,9 @@ def _is_rolled_back_edit_batch(tool_name: str, args: dict[str, Any]) -> bool:
             return len(validated.edits) > 1 and not validated.continue_on_error
         except Exception:  # noqa: BLE001
             pass
+    raw_edits = args.get("edits") if isinstance(args.get("edits"), list) else args.get("operations")
+    if not isinstance(raw_edits, list) or len(raw_edits) <= 1:
+        return False
     from agent.constants import coerce_bool
 
     raw_continue = args.get("continue_on_error")

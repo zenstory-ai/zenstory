@@ -1467,16 +1467,16 @@ class FileEditor:
                     for k, v in edit.items()
                 }
                 # Normalize common field aliases BEFORE op inference so omitted-op edits
-                # using old_text/new_text or from/to still infer op=replace cleanly.
+                # using old_text/new_text, oldText/newText, or from/to still infer op=replace cleanly.
                 # Check `is None` so explicit JSON null canonical keys still fall back while
                 # preserving `new=""` deletions.
                 if edit.get("old") is None:
-                    for alias in ("old_text", "from"):
+                    for alias in ("old_text", "oldText", "from"):
                         if isinstance(edit.get(alias), str):
                             edit["old"] = edit[alias]
                             break
                 if edit.get("new") is None:
-                    for alias in ("new_text", "to"):
+                    for alias in ("new_text", "newText", "to"):
                         if isinstance(edit.get(alias), str):
                             edit["new"] = edit[alias]
                             break
@@ -1530,6 +1530,16 @@ class FileEditor:
 
                 # Persist normalized op for subsequent logic
                 edit["op"] = op
+                # Normalize insert_* anchor aliases AFTER op normalization so omitted-op
+                # `{old, new}` replace inference above stays untouched.
+                if op in ("insert_after", "insert_before") and edit.get("anchor") is None:
+                    for alias in ("old", "old_text", "oldText", "target"):
+                        if isinstance(edit.get(alias), str):
+                            edit["anchor"] = edit[alias]
+                            warnings.append(
+                                f"Edit {i}: {op} 未提供 anchor，已使用 {alias} 字段作为插入锚点"
+                            )
+                            break
                 if (
                     exact_only
                     and active_spans is None
@@ -2511,9 +2521,9 @@ class FileEditor:
                 detail["new_preview"] = text_preview
 
     # replace 漏写 new 时可接受的替换文本键（模型常把 append 的 text 习惯带过来）。
-    _REPLACE_NEW_ALIASES = ("text", "content", "new_text", "replacement")
+    _REPLACE_NEW_ALIASES = ("text", "content", "new_text", "newText", "replacement")
     # append/prepend/insert_* 漏写 text 时可接受的写入文本键。
-    _INSERT_TEXT_ALIASES = ("new", "new_text", "replacement")
+    _INSERT_TEXT_ALIASES = ("new", "new_text", "newText", "replacement")
 
     def _run_single_edit_attempt(
         self,

@@ -723,3 +723,187 @@ def test_chinese_error_formatting_covers_all_pydantic_error_types_without_englis
     assert "取值无效" in _format_single_error({"loc": ("x",), "type": "literal_error", "msg": ""})[0]
     assert "无效" in _format_single_error({"loc": ("x",), "type": "custom_unknown", "msg": "Assertion failed, bad"})[0]
 
+
+# ---------------------------------------------------------------------------
+# 6. MiniMax-M3 edit_file structural argument pre-normalization (#4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_edit_file_unpacks_json_stringified_and_single_dict_edits():
+    # 1) JSON-stringified list of dicts
+    raw_list_str = json.dumps(
+        [
+            {"op": "replace", "oldText": "旧句", "newText": "新句"},
+            {"op": "replace", "old": "删句", "new": ""},
+        ],
+        ensure_ascii=False,
+    )
+    parsed, err = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": raw_list_str},
+        tool_name="edit_file",
+    )
+    assert err is None and parsed is not None
+    assert len(parsed.edits) == 2
+    assert parsed.edits[0]["old"] == "旧句" and parsed.edits[0]["new"] == "新句"
+    assert parsed.edits[1]["old"] == "删句" and parsed.edits[1]["new"] == ""
+    assert parsed.continue_on_error is True  # independent multi-edit default
+
+    # 2) JSON-stringified single dict -> wrapped as 1-element list
+    raw_dict_str = json.dumps({"op": "insert_before", "old": "锚点句", "text": "插入句"}, ensure_ascii=False)
+    parsed_single, err_single = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": raw_dict_str},
+        tool_name="edit_file",
+    )
+    assert err_single is None and parsed_single is not None
+    assert len(parsed_single.edits) == 1
+    assert parsed_single.edits[0]["anchor"] == "锚点句"
+
+    # 3) Raw single dict -> wrapped as 1-element list
+    parsed_raw_dict, err_raw_dict = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": {"op": "replace", "oldText": "A", "newText": ""}},
+        tool_name="edit_file",
+    )
+    assert err_raw_dict is None and parsed_raw_dict is not None
+    assert len(parsed_raw_dict.edits) == 1
+    assert parsed_raw_dict.edits[0]["old"] == "A"
+    assert parsed_raw_dict.edits[0]["new"] == ""
+
+    # 4) Coupled move inside JSON-stringified edits with newText="" -> continue_on_error=False
+    coupled_str = json.dumps(
+        [
+            {"op": "replace", "oldText": "搬走段", "newText": ""},
+            {"op": "insert_after", "old_text": "目标锚点", "text": "搬走段"},
+        ],
+        ensure_ascii=False,
+    )
+    parsed_coupled, err_coupled = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": coupled_str},
+        tool_name="edit_file",
+    )
+    assert err_coupled is None and parsed_coupled is not None
+    assert parsed_coupled.continue_on_error is False
+    assert parsed_coupled.edits[0]["new"] == ""
+    assert parsed_coupled.edits[1]["anchor"] == "目标锚点"
+
+    # 5) Malformed JSON strings and non-dict JSON values still fail cleanly
+    for bad_edits in ("{not valid json", "123", '"just a string"', "[1, 2]", "null"):
+        bad_parsed, bad_err = validate_tool_input(
+            EditFileInput,
+            {"id": "f-1", "edits": bad_edits},
+            tool_name="edit_file",
+        )
+        assert bad_parsed is None and bad_err is not None
+        assert "数组" in bad_err["message"]
+
+
+@pytest.mark.unit
+def test_edit_file_folds_top_level_single_edit_args_and_preserves_empty_new():
+    # oldText / newText with optional replace_all & match_mode when edits omitted
+    parsed, err = validate_tool_input(
+        EditFileInput,
+        {
+            "id": "f-1",
+            "oldText": "旧词",
+            "newText": "新词",
+            "replace_all": "true",
+            "match_mode": "exact",
+        },
+        tool_name="edit_file",
+    )
+    assert err is None and parsed is not None
+    assert parsed.edits == [
+        {
+            "op": "replace",
+            "old": "旧词",
+            "new": "新词",
+            "replace_all": True,
+            "match_mode": "exact",
+        }
+    ]
+
+    # old / new with explicit new="" deletion when edits is None
+    parsed_del, err_del = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": None, "old": "多余句子", "new": ""},
+        tool_name="edit_file",
+    )
+    assert err_del is None and parsed_del is not None
+    assert parsed_del.edits == [{"op": "replace", "old": "多余句子", "new": ""}]
+
+    # old_text / new_text when edits omitted
+    parsed_snake, err_snake = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "old_text": "甲", "new_text": "乙"},
+        tool_name="edit_file",
+    )
+    assert err_snake is None and parsed_snake is not None
+    assert parsed_snake.edits == [{"op": "replace", "old": "甲", "new": "乙"}]
+
+    # Missing new does NOT fold (remains empty list)
+    parsed_incomplete, err_incomplete = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "old": "只有旧文本"},
+        tool_name="edit_file",
+    )
+    assert err_incomplete is None and parsed_incomplete is not None
+    assert parsed_incomplete.edits == []
+
+    # Explicit edits=[] is NOT overwritten by stray top-level old/new
+    parsed_explicit, err_explicit = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": [], "old": "忽略", "new": "忽略"},
+        tool_name="edit_file",
+    )
+    assert err_explicit is None and parsed_explicit is not None
+    assert parsed_explicit.edits == []
+
+
+@pytest.mark.unit
+def test_edit_item_camelcase_and_insert_anchor_aliases_preserve_canonical_keys_and_omitted_op():
+    # Canonical new="" is preserved even when newText is also present
+    parsed_op, err_op = validate_tool_input(
+        EditOperationInput,
+        {"op": "replace", "old": "原句", "oldText": "别名原句", "new": "", "newText": "不应覆盖"},
+        tool_name="edit_file",
+    )
+    assert err_op is None and parsed_op is not None
+    assert parsed_op.old == "原句"
+    assert parsed_op.new == ""
+
+    # insert_before / insert_after accept old / old_text / oldText / target when anchor is None
+    for op_name in ("insert_before", "insert_after"):
+        for alias_key in ("old", "old_text", "oldText", "target"):
+            parsed_ins, err_ins = validate_tool_input(
+                EditOperationInput,
+                {"op": op_name, alias_key: "锚点段落", "text": "新增内容"},
+                tool_name="edit_file",
+            )
+            assert err_ins is None and parsed_ins is not None
+            assert parsed_ins.anchor == "锚点段落"
+
+    # Explicit anchor is never overwritten by old/target
+    parsed_keep, err_keep = validate_tool_input(
+        EditOperationInput,
+        {"op": "insert_after", "anchor": "真实锚点", "old": "忽略", "text": "新增"},
+        tool_name="edit_file",
+    )
+    assert err_keep is None and parsed_keep is not None
+    assert parsed_keep.anchor == "真实锚点"
+
+    # Omitted-op {oldText, newText} does NOT set anchor (leaves omitted-op replace inference intact)
+    parsed_omitted, err_omitted = validate_tool_input(
+        EditFileInput,
+        {"id": "f-1", "edits": [{"oldText": "甲", "newText": "乙"}]},
+        tool_name="edit_file",
+    )
+    assert err_omitted is None and parsed_omitted is not None
+    assert parsed_omitted.edits[0]["old"] == "甲"
+    assert parsed_omitted.edits[0]["new"] == "乙"
+    assert "anchor" not in parsed_omitted.edits[0]
+    assert "op" not in parsed_omitted.edits[0]
+

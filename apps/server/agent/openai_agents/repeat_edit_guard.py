@@ -146,9 +146,10 @@ def _normalize_edit_op(edit: dict[str, Any]) -> str:
 
 def _inspect_edit_args(args: dict[str, Any]) -> tuple[int, bool, int, int, bool]:
     """Return (edit_count, is_append, arg_old_chars, arg_new_chars, has_replace_all)."""
-    raw_edits = args.get("edits")
-    if raw_edits is None:
-        raw_edits = args.get("operations")
+    from agent.tools.tool_inputs import normalize_edit_file_args
+
+    normalized = normalize_edit_file_args(args)
+    raw_edits = normalized.get("edits") if isinstance(normalized, dict) else None
     if not isinstance(raw_edits, list):
         return 0, False, 0, 0, False
 
@@ -165,8 +166,24 @@ def _inspect_edit_args(args: dict[str, Any]) -> tuple[int, bool, int, int, bool]
         if op:
             ops.append(op)
         if op == "replace":
-            old_val = item.get("old") if isinstance(item.get("old"), str) else item.get("from")
-            new_val = item.get("new") if isinstance(item.get("new"), str) else item.get("to")
+            old_val = (
+                item.get("old")
+                if isinstance(item.get("old"), str)
+                else item.get("old_text")
+                if isinstance(item.get("old_text"), str)
+                else item.get("oldText")
+                if isinstance(item.get("oldText"), str)
+                else item.get("from")
+            )
+            new_val = (
+                item.get("new")
+                if isinstance(item.get("new"), str)
+                else item.get("new_text")
+                if isinstance(item.get("new_text"), str)
+                else item.get("newText")
+                if isinstance(item.get("newText"), str)
+                else item.get("to")
+            )
             if isinstance(old_val, str):
                 old_chars += len(old_val)
             if isinstance(new_val, str):
@@ -174,7 +191,15 @@ def _inspect_edit_args(args: dict[str, Any]) -> tuple[int, bool, int, int, bool]
             if coerce_bool(item.get("replace_all"), default=False):
                 has_replace_all = True
         elif op == "delete":
-            old_val = item.get("old") if isinstance(item.get("old"), str) else item.get("from")
+            old_val = (
+                item.get("old")
+                if isinstance(item.get("old"), str)
+                else item.get("old_text")
+                if isinstance(item.get("old_text"), str)
+                else item.get("oldText")
+                if isinstance(item.get("oldText"), str)
+                else item.get("from")
+            )
             if isinstance(old_val, str):
                 old_chars += len(old_val)
         elif op in ("insert_after", "insert_before", "append", "prepend"):
