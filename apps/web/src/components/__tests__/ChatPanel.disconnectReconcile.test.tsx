@@ -1,9 +1,29 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRef } from 'react';
+import { createRef, useSyncExternalStore } from 'react';
 import { ChatPanelHeader } from '../chat/ChatPanelHeader';
 import { isUnexpectedStreamDisconnect, SSE_DISCONNECT_RECONCILE_DELAY_MS } from '../../lib/agentApi';
+
+// ChatPanel is wrapped in React.memo with no props; mirror ProjectContext updates
+// via a subscribable store so project switches always trigger a re-render.
+const projectStore = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const store = {
+    currentProjectId: 'proj-1',
+    setProjectId(id: string) {
+      store.currentProjectId = id;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  return store;
+});
 
 const mocks = vi.hoisted(() => ({
   getRecentMessages: vi.fn(),
@@ -14,7 +34,6 @@ const mocks = vi.hoisted(() => ({
   clearError: vi.fn(),
   triggerFileTreeRefresh: vi.fn(),
   streamOptions: null as Record<string, (...args: unknown[]) => unknown> | null,
-  currentProjectId: 'proj-1',
   streamState: {
     isStreaming: false,
     isThinking: false,
@@ -54,24 +73,30 @@ vi.mock('../subscription/QuotaBadge', () => ({
 }));
 
 vi.mock('../../contexts/ProjectContext', () => ({
-  useProject: () => ({
-    currentProjectId: mocks.currentProjectId,
-    currentProject: { id: mocks.currentProjectId, project_type: 'novel' },
-    selectedItem: null,
-    fileTreeVersion: 1,
-    triggerFileTreeRefresh: mocks.triggerFileTreeRefresh,
-    triggerEditorRefresh: vi.fn(),
-    setAiEditingFileId: vi.fn(),
-    setIsChatStreaming: vi.fn(),
-    pendingAgentUiAction: null,
-    consumeAgentUiAction: vi.fn(),
-    setSelectedItem: vi.fn(),
-    appendFileContent: vi.fn(),
-    finishFileStreaming: vi.fn(),
-    startFileStreaming: vi.fn(),
-    streamingFileId: null,
-    refreshProject: vi.fn(),
-  }),
+  useProject: () => {
+    const currentProjectId = useSyncExternalStore(
+      (listener) => projectStore.subscribe(listener),
+      () => projectStore.currentProjectId,
+    );
+    return {
+      currentProjectId,
+      currentProject: { id: currentProjectId, project_type: 'novel' },
+      selectedItem: null,
+      fileTreeVersion: 1,
+      triggerFileTreeRefresh: mocks.triggerFileTreeRefresh,
+      triggerEditorRefresh: vi.fn(),
+      setAiEditingFileId: vi.fn(),
+      setIsChatStreaming: vi.fn(),
+      pendingAgentUiAction: null,
+      consumeAgentUiAction: vi.fn(),
+      setSelectedItem: vi.fn(),
+      appendFileContent: vi.fn(),
+      finishFileStreaming: vi.fn(),
+      startFileStreaming: vi.fn(),
+      streamingFileId: null,
+      refreshProject: vi.fn(),
+    };
+  },
 }));
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -117,6 +142,17 @@ vi.mock('../../hooks/useDraftPersistence', () => ({
   appendDraftForProject: vi.fn(() => true),
   useDraftPersistence: () => ({ draft: '', saveDraft: vi.fn(), clearDraft: vi.fn() }),
 }));
+
+vi.mock('../../lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/api')>();
+  return {
+    ...actual,
+    projectApi: {
+      ...actual.projectApi,
+      getProgress: vi.fn().mockResolvedValue([]),
+    },
+  };
+});
 
 vi.mock('../../lib/chatApi', () => ({
   getRecentMessages: (...args: unknown[]) => mocks.getRecentMessages(...args),
@@ -269,7 +305,7 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.language = 'en';
-    mocks.currentProjectId = 'proj-1';
+    projectStore.setProjectId('proj-1');
     mocks.streamState = {
       isStreaming: false,
       isThinking: false,
@@ -379,12 +415,7 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
 
   it('cancels pending reconcile for the previous project when the user switches projects during the delay', async () => {
     mocks.getRecentMessages.mockResolvedValue([]);
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const view = render(
-      <QueryClientProvider client={client}>
-        <ChatPanel />
-      </QueryClientProvider>,
-    );
+    renderChatPanel();
     await waitFor(() => expect(mocks.getRecentMessages).toHaveBeenCalledTimes(1));
     expect(mocks.getRecentMessages).toHaveBeenLastCalledWith('proj-1', 50);
 
@@ -394,12 +425,9 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
     });
 
     // Switch project before the 1.5s reconcile timer fires
-    mocks.currentProjectId = 'proj-2';
-    view.rerender(
-      <QueryClientProvider client={client}>
-        <ChatPanel />
-      </QueryClientProvider>,
-    );
+    act(() => {
+      projectStore.setProjectId('proj-2');
+    });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SSE_DISCONNECT_RECONCILE_DELAY_MS * 2);
@@ -407,6 +435,7 @@ describe('ChatPanel read-only SSE disconnect auto-reconcile', () => {
 
     // Only initial mount loads for proj-1 and proj-2 should run; no delayed reconcile for proj-1
     expect(mocks.getRecentMessages.mock.calls.filter(([pid]) => pid === 'proj-1')).toHaveLength(1);
+    expect(mocks.getRecentMessages.mock.calls.filter(([pid]) => pid === 'proj-2')).toHaveLength(1);
     expect(mocks.clearError).not.toHaveBeenCalled();
   });
 
