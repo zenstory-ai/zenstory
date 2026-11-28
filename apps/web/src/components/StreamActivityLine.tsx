@@ -5,14 +5,17 @@ import { normalizeStreamStatusText, type BodyWriteSnapshot } from "../lib/agentR
 
 /** After this long without the round finishing, reassure the author that long text takes time. */
 export const LONG_WAIT_HINT_AFTER_S = 20;
+/** After this long still thinking with no visible prose, advance the calm phase label. */
+export const LONG_THINKING_DRAFTING_AFTER_S = 45;
 
 /**
  * One quiet line under the chat while a round runs: how long it has been, plus a
  * reassurance once it gets long (authors used to stop rounds that looked stuck).
  * What the agent is doing is already shown by the step chips above, except while a file gets
  * its text (`bodyWrite`, read on each tick from the round's own events, which also covers an
- * empty-file correction rerun) or while live tool-argument preparation status (`statusText`) is
- * active. Ticks on its own so the chat panel does not re-render every second.
+ * empty-file correction rerun), while live tool-argument preparation status (`statusText`) is
+ * active, or when thinking runs 20s+ with 0 visible prose (`isThinking`). Ticks on its own so
+ * the chat panel does not re-render every second.
  */
 export const StreamActivityLine: React.FC<{
   startedAt: number | null;
@@ -20,7 +23,9 @@ export const StreamActivityLine: React.FC<{
   bodyWrite?: () => BodyWriteSnapshot | null;
   /** Live transient status text (or tick-polled getter), e.g. tool-argument preparation progress. */
   statusText?: string | (() => string | null) | null;
-}> = ({ startedAt, isMobile = false, bodyWrite, statusText }) => {
+  /** True while the round is still in its thinking phase with 0 visible prose so far. */
+  isThinking?: boolean | (() => boolean);
+}> = ({ startedAt, isMobile = false, bodyWrite, statusText, isThinking = false }) => {
   const { t, i18n } = useTranslation(["chat"]);
   const [now, setNow] = useState(() => Date.now());
 
@@ -34,6 +39,7 @@ export const StreamActivityLine: React.FC<{
   const writing = bodyWrite?.() ?? null;
   const rawStatus = typeof statusText === "function" ? statusText() : statusText;
   const liveStatus = normalizeStreamStatusText(rawStatus);
+  const thinkingWithoutProse = typeof isThinking === "function" ? isThinking() : Boolean(isThinking);
   let stage: string | null = null;
   if (writing) {
     let numberFormat: Intl.NumberFormat;
@@ -47,6 +53,10 @@ export const StreamActivityLine: React.FC<{
       : t("chat:activity.preparingBody", { title: writing.title });
   } else if (liveStatus) {
     stage = liveStatus;
+  } else if (thinkingWithoutProse && seconds >= LONG_WAIT_HINT_AFTER_S) {
+    stage = seconds >= LONG_THINKING_DRAFTING_AFTER_S
+      ? t("chat:activity.thinkingDrafting")
+      : t("chat:activity.thinkingPlanning");
   }
 
   return (

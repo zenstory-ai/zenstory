@@ -74,12 +74,25 @@ describe("getSubscriptionStatusLine", () => {
   });
 
   it("shows when an active Pro plan ends", () => {
-    expect(
-      getSubscriptionStatusLine(
-        { tier: "pro", status: "active", current_period_end: "2026-11-07T04:00:00Z", days_remaining: 30 },
-        t,
-      ),
-    ).toBe("有效期至 2026/11/07 · 剩余 30 天");
+    localStorage.setItem("zenstory-language", "zh");
+    try {
+      expect(
+        getSubscriptionStatusLine(
+          { tier: "pro", status: "active", current_period_end: "2026-11-07T04:00:00Z", days_remaining: 30 },
+          t,
+        ),
+      ).toBe("有效期至 2026/11/07 · 剩余 30 天");
+
+      localStorage.setItem("zenstory-language", "en");
+      expect(
+        getSubscriptionStatusLine(
+          { tier: "pro", status: "active", current_period_end: "2026-11-07T04:00:00Z", days_remaining: 30 },
+          t,
+        ),
+      ).toBe("有效期至 11/07/2026 · 剩余 30 天");
+    } finally {
+      localStorage.clear();
+    }
   });
 
   it("says an expired plan fell back to Free", () => {

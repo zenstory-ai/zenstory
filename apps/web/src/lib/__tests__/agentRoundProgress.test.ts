@@ -7,6 +7,7 @@ import {
   isInternalOrderingRefusal,
   isWriteToolResult,
   normalizeStreamStatusText,
+  proseUnits,
 } from '../agentRoundProgress'
 
 describe('agentRoundProgress (same output rules as the server bills a stopped round by)', () => {
@@ -80,6 +81,18 @@ describe('agentRoundProgress (same output rules as the server bills a stopped ro
     expect(counter.update('seg-2', '丙'.repeat(30))).toBe(false)
     counter.reset()
     expect(counter.update('seg-2', '丙'.repeat(PROSE_MIN_CHARS))).toBe(true)
+  })
+
+  it('counts proseUnits consistently across Russian, Arabic, Korean, Polish, Vietnamese, and Latin scripts', () => {
+    // 4 words + 1 period -> 4 * 1.5 + 1 = 7 units (same formula as English)
+    expect(proseUnits('Let me check first.')).toBe(7)
+    expect(proseUnits('Я проверю план сначала.')).toBe(7)
+    expect(proseUnits('Sprawdźmy cały ten zarys.')).toBe(7)
+    expect(proseUnits('Tôi kiểm tra trước.')).toBe(7)
+    expect(proseUnits('مرحبا بالعالم الجميل اليوم.')).toBe(7)
+    expect(proseUnits('먼저 개요를 확인해 볼게요.')).toBe(7)
+    // Short narration in Cyrillic stays well below PROSE_MIN_CHARS
+    expect(proseUnits('Сначала я проверю план главы.')).toBeLessThan(PROSE_MIN_CHARS)
   })
 })
 

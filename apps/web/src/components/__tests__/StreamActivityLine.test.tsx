@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
-import { LONG_WAIT_HINT_AFTER_S, StreamActivityLine } from '../StreamActivityLine'
+import {
+  LONG_THINKING_DRAFTING_AFTER_S,
+  LONG_WAIT_HINT_AFTER_S,
+  StreamActivityLine,
+} from '../StreamActivityLine'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -111,5 +115,29 @@ describe('StreamActivityLine', () => {
       />,
     )
     expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent('正在准备检索文件…')
+  })
+
+  it('shows calm localized thinking phases after 20s and 45s when thinking runs with 0 visible prose', () => {
+    vi.useFakeTimers()
+    render(<StreamActivityLine startedAt={Date.now()} isThinking />)
+
+    // Before 20s, standard elapsed indicator without thinking phase override
+    expect(screen.queryByTestId('stream-activity-stage')).not.toBeInTheDocument()
+    expect(screen.getByText('chat:activity.elapsed:{"seconds":0}')).toBeInTheDocument()
+
+    // At 20s+, calm planning phase + elapsed seconds + long wait hint
+    act(() => {
+      vi.advanceTimersByTime(LONG_WAIT_HINT_AFTER_S * 1000)
+    })
+    expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent('chat:activity.thinkingPlanning')
+    expect(screen.getByText(`chat:activity.seconds:{"seconds":${LONG_WAIT_HINT_AFTER_S}}`)).toBeInTheDocument()
+    expect(screen.getByText('chat:activity.longWaitHint')).toBeInTheDocument()
+
+    // At 45s+, advances to drafting/edits phase
+    act(() => {
+      vi.advanceTimersByTime((LONG_THINKING_DRAFTING_AFTER_S - LONG_WAIT_HINT_AFTER_S) * 1000)
+    })
+    expect(screen.getByTestId('stream-activity-stage')).toHaveTextContent('chat:activity.thinkingDrafting')
+    expect(screen.getByText(`chat:activity.seconds:{"seconds":${LONG_THINKING_DRAFTING_AFTER_S}}`)).toBeInTheDocument()
   })
 })

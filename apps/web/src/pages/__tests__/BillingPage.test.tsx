@@ -35,9 +35,11 @@ vi.mock('react-i18next', () => ({
           'settings:subscription.redeemCode': 'Redeem Code',
           'dashboard:billing.currentPlan': 'Current plan',
           'dashboard:billing.usageTitle': 'Usage',
-          'dashboard:billing.dailyQuotaResetHint': 'Daily AI conversation quotas reset at 00:00 Beijing time (UTC+8).',
-          'dashboard:billing.freeDailyMessageLimitHint': `Free users can send up to ${values?.limit} AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).`,
-          'dashboard:billing.monthlyQuotaResetHint': 'Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).',
+          'dashboard:billing.dailyQuotaResetHint': 'Daily AI messages reset at 00:00 UTC+8.',
+          'dashboard:billing.dailyQuotaResetHintLocal': `Daily AI messages reset at ${values?.localTime} local time (00:00 UTC+8).`,
+          'dashboard:billing.freeDailyMessageLimitHint': `Free users can send up to ${values?.limit} AI messages per day. Resets daily at 00:00 UTC+8.`,
+          'dashboard:billing.freeDailyMessageLimitHintLocal': `Free users can send up to ${values?.limit} AI messages per day. Resets daily at ${values?.localTime} local time (00:00 UTC+8).`,
+          'dashboard:billing.monthlyQuotaResetHint': 'Monthly quotas reset on the 1st at 00:00 UTC+8.',
           'common:error': 'Load failed',
           'common:retry': 'Retry',
           'dashboard:billing.compareTitle': 'Plan comparison',
@@ -412,11 +414,13 @@ describe('BillingPage', () => {
     expect(trackUpgradeClick).toHaveBeenCalledWith('billing_header_renew', 'direct', 'checkout', 'page')
   })
 
-  it('shows the free daily message limit and Beijing midnight reset beside usage', () => {
+  it('shows the free daily message limit with local reset time first and 00:00 UTC+8 parenthetically', () => {
     render(<BillingPage />)
 
     const dailyUsage = screen.getByText('AI conversations').parentElement!.parentElement!
-    expect(within(dailyUsage).getByText('Free users can send up to 3 AI messages per day. It resets the next day at 00:00 Beijing time (UTC+8).')).toBeInTheDocument()
+    expect(within(dailyUsage).getByText(/Free users can send up to 3 AI messages per day\./)).toBeInTheDocument()
+    expect(within(dailyUsage).getByText(/00:00 UTC\+8/)).toBeInTheDocument()
+    expect(within(dailyUsage).queryByText(/Beijing time/)).not.toBeInTheDocument()
     expect(within(dailyUsage).getByText('2/3')).toBeInTheDocument()
   })
 
@@ -424,9 +428,17 @@ describe('BillingPage', () => {
     render(<BillingPage />)
 
     const materialsUsage = screen.getByText('Materials').parentElement!.parentElement!
-    expect(within(materialsUsage).getByText('Monthly quotas reset on the 1st at 00:00 Beijing time (UTC+8).')).toBeInTheDocument()
+    expect(within(materialsUsage).getByText('Monthly quotas reset on the 1st at 00:00 UTC+8.')).toBeInTheDocument()
     const skillsUsage = screen.getByText('Skills').parentElement!.parentElement!
     expect(within(skillsUsage).queryByText(/Monthly quotas reset/)).not.toBeInTheDocument()
+  })
+
+  it('shows USD pricing without a CNY ¥ flash while payment options are loading for English readers', () => {
+    currentLanguage = 'en-US'
+    paymentOptionsResponse = { data: undefined, isLoading: true }
+    render(<BillingPage />)
+    expect(screen.getByText('$9.99/month, or $79/year (≈$6.58/month, save 34%)')).toBeInTheDocument()
+    expect(screen.queryByText(/¥/)).not.toBeInTheDocument()
   })
 
   it('tracks attribution, renders current usage, and supports checkout without a redemption entry', async () => {

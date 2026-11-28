@@ -763,6 +763,11 @@ export function streamAgentRequest(
   return abortController;
 }
 
+export {
+  isUnexpectedStreamDisconnect,
+  SSE_DISCONNECT_RECONCILE_DELAY_MS,
+} from "./streamDisconnect";
+
 
 
 /**

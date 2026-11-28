@@ -25,6 +25,31 @@ import {
 export const clampNumber = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+const LEGACY_ASSISTANT_SESSION_TITLES = new Set(["AI 助手对话", "AI Assistant"]);
+const LEGACY_NEW_CHAT_SESSION_TITLES = new Set(["新对话", "New Chat"]);
+
+/**
+ * Localize legacy default chat session titles ("AI 助手对话" / "AI Assistant" / "新对话" / "New Chat")
+ * symmetrically at display time while preserving any custom session titles verbatim.
+ */
+export const formatChatSessionTitle = (
+  title: string | null | undefined,
+  t: TFunction,
+  _language?: string,
+): string => {
+  const trimmed = typeof title === "string" ? title.trim() : "";
+  if (!trimmed) {
+    return t("chat:panel.title");
+  }
+  if (LEGACY_ASSISTANT_SESSION_TITLES.has(trimmed)) {
+    return t("chat:panel.title");
+  }
+  if (LEGACY_NEW_CHAT_SESSION_TITLES.has(trimmed)) {
+    return t("chat:defaultTitle");
+  }
+  return trimmed;
+};
+
 export const isNearBottom = (el: HTMLElement, thresholdPx = 48): boolean =>
   el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
 
@@ -40,6 +65,11 @@ export const keepUnsavedFile = (
 /** The account's task slots are taken: the server started and charged nothing. */
 export const isAccountRunRefusal = (code: string | null | undefined): boolean =>
   code === "ERR_ACCOUNT_RUNS_BUSY";
+
+export {
+  isUnexpectedStreamDisconnect,
+  SSE_DISCONNECT_RECONCILE_DELAY_MS,
+} from "../../lib/streamDisconnect";
 
 /**
  * This network's shared free allowance is used up: nothing was started or charged. Sending stays

@@ -3,7 +3,7 @@ import type {
   SubscriptionCatalogTier,
   SubscriptionStatusResponse,
 } from "../types/subscription";
-import { formatBeijingPeriodDate } from "./dateUtils";
+import { formatBeijingPeriodDate, formatDailyResetLocalTime } from "./dateUtils";
 
 type TranslateFn = (
   key: string,
@@ -143,15 +143,26 @@ export function getEntitlementMetricDefinitions(
   // window size and priority queueing were advertised without an
   // implementation; export formats are TXT on every plan.
   const versionsUnit = translate(t, "dashboard:billing.versionsUnit", "个");
+  const normalizedLang = (language ?? "").trim().toLowerCase();
+  const localResetTime = Boolean(normalizedLang) && !normalizedLang.startsWith("zh")
+    ? formatDailyResetLocalTime(normalizedLang)
+    : null;
   const definitions: EntitlementMetricDefinition[] = [
     {
       key: "ai_conversations_per_day",
       label: translate(t, "dashboard:billing.metricAiConversations", "每日 AI 消息"),
-      outcome: translate(
-        t,
-        "dashboard:billing.metricAiConversationsOutcome",
-        "北京时间 00:00 重置",
-      ),
+      outcome: localResetTime
+        ? translate(
+            t,
+            "dashboard:billing.metricAiConversationsOutcomeLocal",
+            "Resets at {{localTime}} local time (00:00 UTC+8)",
+            { localTime: localResetTime },
+          )
+        : translate(
+            t,
+            "dashboard:billing.metricAiConversationsOutcome",
+            "北京时间 00:00 重置",
+          ),
       value: (plan) => withUnit(plan.entitlements.ai_conversations_per_day, dayUnit),
       compareValue: (plan) => plan.entitlements.ai_conversations_per_day,
     },

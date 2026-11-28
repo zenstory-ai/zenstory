@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { formatAiQuotaResetDay } from "../../hooks/useAiMessageQuota";
+import { formatAiQuotaResetDay, formatAiQuotaResetLocal } from "../../hooks/useAiMessageQuota";
 import { UpgradePromptModal } from "./UpgradePromptModal";
 
 interface IdeaQuotaWallModalProps {
@@ -15,7 +15,11 @@ interface IdeaQuotaWallModalProps {
  */
 export function IdeaQuotaWallModal({ open, onClose, resetAt }: IdeaQuotaWallModalProps) {
   const { t, i18n } = useTranslation(["dashboard", "chat", "home"]);
-  const resetDay = formatAiQuotaResetDay(resetAt, i18n?.language);
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const resetDay = formatAiQuotaResetDay(resetAt, activeLanguage);
+  const resetLocal = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
+    ? formatAiQuotaResetLocal(resetAt, activeLanguage)
+    : null;
 
   return (
     <UpgradePromptModal
@@ -24,7 +28,14 @@ export function IdeaQuotaWallModal({ open, onClose, resetAt }: IdeaQuotaWallModa
       promptId="chat_quota_blocked"
       title={t("chat:panel.quotaExceededTitle", { defaultValue: "今天的免费 AI 消息用完了" })}
       description={
-        resetDay
+        resetLocal
+          ? t("dashboard:ideaQuota.descriptionLocal", {
+              defaultValue:
+                "They come back on {{local}} your time (00:00 UTC+8). Your idea stays in the box; press \"Start Writing\" then to pick it up. To write now, get Pro: no daily message limit.",
+              local: resetLocal,
+              day: resetDay ?? "",
+            })
+          : resetDay
           ? t("dashboard:ideaQuota.descriptionOnDay", {
               defaultValue:
                 "北京时间 {{day}} 00:00 恢复。你的想法还留在输入框里，到时点「开始创作」就能接着写。想现在就写，可以开通 Pro，AI 消息不限条数。",

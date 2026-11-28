@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { Database, Loader2, Plus } from "lucide-react";
 import { QuotaBadge } from "../subscription/QuotaBadge";
 import { IconButton } from "../ui/IconButton";
+import { formatChatSessionTitle } from "./chatHistoryHelpers";
 
 export interface ChatPanelHeaderProps {
   headerRef: React.RefObject<HTMLDivElement | null>;
@@ -18,6 +19,7 @@ export interface ChatPanelHeaderProps {
   isCreatingSession: boolean;
   newChatPending: boolean;
   isAlreadyEmptyNewChat: boolean;
+  sessionTitle?: string | null;
   onOpenAIMemory: () => void;
   onRequestNewChat: () => void;
 }
@@ -30,10 +32,15 @@ export const ChatPanelHeader: React.FC<ChatPanelHeaderProps> = ({
   isCreatingSession,
   newChatPending,
   isAlreadyEmptyNewChat,
+  sessionTitle,
   onOpenAIMemory,
   onRequestNewChat,
 }) => {
-  const { t } = useTranslation(["chat"]);
+  const { t, i18n } = useTranslation(["chat"]);
+  const activeLanguage = i18n?.resolvedLanguage || i18n?.language;
+  const displayTitle = sessionTitle
+    ? formatChatSessionTitle(sessionTitle, t, activeLanguage)
+    : t("chat:panel.title");
 
   return (
     <div
@@ -46,7 +53,7 @@ export const ChatPanelHeader: React.FC<ChatPanelHeaderProps> = ({
         data-testid="chat-panel-header-title"
       >
         <span className="min-w-0 truncate whitespace-nowrap text-sm font-medium text-[hsl(var(--text-primary))]">
-          {t("chat:panel.title")}
+          {displayTitle}
         </span>
         {isStreaming && (
           <span className="min-w-0 truncate whitespace-nowrap text-xs text-[hsl(var(--success-text))] animate-[breathe_1.5s_ease-in-out_infinite] motion-reduce:animate-none">

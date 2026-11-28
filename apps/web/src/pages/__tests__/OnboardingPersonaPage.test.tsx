@@ -20,6 +20,7 @@ const mockToastError = vi.fn();
 const mockInitializeFirstWork = vi.fn();
 const mockRequestChatOnOpen = vi.fn();
 let mockIsMobile = false;
+let mockUiLanguage = "zh";
 let mockUser: { id: string } | null = { id: "user-onboarding-1" };
 let mockLocationState: { from?: { pathname?: string; search?: string; hash?: string } } | null = {
   from: { pathname: "/dashboard/projects", search: "", hash: "" },
@@ -27,7 +28,11 @@ let mockLocationState: { from?: { pathname?: string; search?: string; hash?: str
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    i18n: { language: "zh" },
+    i18n: {
+      get language() {
+        return mockUiLanguage;
+      },
+    },
     t: (
       key: string,
       defaultValueOrOptions?: string | Record<string, unknown>,
@@ -135,6 +140,7 @@ describe("OnboardingPersonaPage", () => {
     mockUser = { id: "user-onboarding-1" };
     mockLocationState = { from: { pathname: "/dashboard/projects", search: "", hash: "" } };
     mockIsMobile = false;
+    mockUiLanguage = "zh";
     mockInitializeFirstWork.mockResolvedValue(firstWorkState({ status: "ineligible", project_id: null, file_id: null, available: false, static_guidance: false }));
     localStorage.removeItem(PREFERRED_PROJECT_TYPE_STORAGE_KEY);
     localStorage.removeItem(`${PREFERRED_PROJECT_TYPE_STORAGE_KEY}:${mockUser.id}`);
@@ -304,7 +310,8 @@ describe("OnboardingPersonaPage", () => {
       mockLocationState = { from: { pathname: "/dashboard", search: "", hash: "" } };
     });
 
-    it("a chosen type opens the untouched first work", async () => {
+    it("a chosen type opens the untouched first work using getCurrentRequestLanguage", async () => {
+      localStorage.setItem("zenstory-language", "zh");
       mockInitializeFirstWork.mockResolvedValue(firstWorkState());
       renderPage();
 
@@ -318,6 +325,34 @@ describe("OnboardingPersonaPage", () => {
       expect(queryClient.getQueryData(["workspace-first-work", "user-onboarding-1"])).toMatchObject({ project_id: "first-project" });
       // Desktop shows the AI panel next to the editor already.
       expect(mockRequestChatOnOpen).not.toHaveBeenCalled();
+    });
+
+    it("falls back to getCurrentRequestLanguage (en, never zh) when i18n.language is empty/unready", async () => {
+      mockUiLanguage = "";
+      localStorage.removeItem("zenstory-language");
+      mockInitializeFirstWork.mockResolvedValue(firstWorkState());
+      renderPage();
+
+      fireEvent.click(typeButton("novel"));
+
+      await waitFor(() => {
+        expect(mockInitializeFirstWork).toHaveBeenCalledWith("novel", "en", expect.any(AbortSignal));
+      });
+    });
+
+    it("uses authentic international platforms and clean English script samples in en/onboarding.json with 100% key parity", () => {
+      const enSerialized = JSON.stringify(enOnboarding);
+      expect(enSerialized).not.toMatch(/Fanqie|Qidian|Qimao|Zhihu Yanxuan|Heiyan|Dianzhong|Hongguo|Douyin|Kuaishou|Gu family|【|△/);
+      expect(enOnboarding.start.options.novel.platforms).toEqual(["Royal Road", "Wattpad", "Kindle / Serials"]);
+      expect(enOnboarding.start.options.screenplay.platforms).toEqual(["ReelShort", "DramaBox", "Vertical Series"]);
+
+      const collectKeys = (obj: unknown, prefix = ""): string[] => {
+        if (!obj || typeof obj !== "object" || Array.isArray(obj)) return [prefix];
+        return Object.keys(obj as Record<string, unknown>)
+          .sort()
+          .flatMap((k) => collectKeys((obj as Record<string, unknown>)[k], prefix ? `${prefix}.${k}` : k));
+      };
+      expect(collectKeys(enOnboarding)).toEqual(collectKeys(zhOnboarding));
     });
 
     it("opens the first work on the AI tab on phones", async () => {

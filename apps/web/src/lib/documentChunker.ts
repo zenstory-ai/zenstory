@@ -1,30 +1,37 @@
 /**
- * Word counting utility for mixed Chinese/English text.
+ * Unicode-aware word counting utility for multilingual manuscripts.
  */
 
 /**
- * Count words in a document, handling both Chinese and English text.
+ * Scripts counted per character (Han ideographs and Japanese Hiragana/Katakana).
+ * Korean Hangul is space-delimited (eojeol) and is therefore counted by word runs.
+ */
+export const CJK_CHAR_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/gu;
+
+/**
+ * Word runs for all non-CJK alphabetic/syllabic scripts (Latin including extended
+ * diacritics for pl/vi/pt/es/fr/id/en, Cyrillic for ru, Arabic, Hangul for ko,
+ * Greek, Devanagari, etc.), keeping combining marks attached to their base letter.
+ */
+export const NON_CJK_WORD_RE = /\p{L}[\p{L}\p{M}]*/gu;
+
+/**
+ * Count words in a document across CJK and Unicode alphabetic scripts.
  *
  * Counting methodology:
- * - Chinese characters (Unicode range U+4E00 to U+9FA5): each character = 1 word
- * - English words (sequences of A-Z, a-z): each sequence = 1 word
- * - Numbers and symbols are not counted
- *
- * This hybrid approach provides accurate counts for mixed-language content.
+ * - Han ideographs and Hiragana/Katakana: each character = 1 word
+ * - All other alphabetic/syllabic scripts (en, id, pt, es, fr, pl, vi, ru, ar, ko, …):
+ *   each contiguous letter/combining-mark run = 1 word (diacritics do not split words)
+ * - Numbers and punctuation/symbols are not counted
  *
  * @param content - Document content to count words in
  * @returns Total word count
- *
- * @example
- * ```ts
- * countWords('Hello world'); // 2
- * countWords('你好世界'); // 4
- * countWords('Hello 你好 world 世界'); // 4 (2 English + 4 Chinese)
- * countWords(''); // 0
- * ```
  */
 export function countWords(content: string): number {
-  const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
-  const englishWords = (content.match(/[a-zA-Z]+/g) || []).length;
-  return chineseChars + englishWords;
+  if (!content) return 0;
+  const normalized = content.normalize('NFC');
+  const cjkChars = (normalized.match(CJK_CHAR_RE) || []).length;
+  const withoutCjk = normalized.replace(CJK_CHAR_RE, ' ');
+  const nonCjkWords = (withoutCjk.match(NON_CJK_WORD_RE) || []).length;
+  return cjkChars + nonCjkWords;
 }

@@ -18,7 +18,7 @@ import { Logo } from "../components/Logo";
 import { cn } from "../lib/utils";
 import { toast } from "../lib/toast";
 import { trackEvent } from "../lib/analytics";
-import { ApiError } from "../lib/apiClient";
+import { ApiError, getCurrentRequestLanguage } from "../lib/apiClient";
 import { getPreferredProjectType, setPreferredProjectType } from "../lib/preferredProjectType";
 import { firstWorkApi, firstWorkQueryKey } from "../lib/firstWorkApi";
 import { untouchedFirstWork } from "../hooks/useFirstWork";
@@ -97,9 +97,9 @@ interface StoredAnswers {
 const asStringList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
-/** Script lines keep their format: 【scene】, △ action, 人物：台词 (Name: line in English). */
+/** Script lines keep their format: 【scene】/INT./EXT., △ action, 人物：台词 (Name: line in English). */
 function SampleLine({ line, script }: { line: string; script: boolean }) {
-  if (script && line.startsWith("【")) {
+  if (script && (line.startsWith("【") || /^(?:INT|EXT)\.\s/.test(line))) {
     return <p className="font-sans text-[13px] font-semibold">{line}</p>;
   }
   if (script && line.startsWith("△")) {
@@ -107,7 +107,7 @@ function SampleLine({ line, script }: { line: string; script: boolean }) {
   }
   const fullWidth = line.indexOf("：");
   const colon = script ? (fullWidth >= 0 ? fullWidth : line.indexOf(":")) : -1;
-  if (colon > 0 && colon < 8) {
+  if (colon > 0 && colon < 12) {
     return (
       <p>
         <span className="font-semibold">{line.slice(0, colon)}</span>
@@ -201,7 +201,8 @@ export default function OnboardingPersonaPage() {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), FIRST_WORK_OPEN_TIMEOUT_MS);
     try {
-      const state = await firstWorkApi.initialize(type, i18n.language, controller.signal);
+      const requestLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim() || getCurrentRequestLanguage();
+      const state = await firstWorkApi.initialize(type, requestLanguage, controller.signal);
       if (!mountedRef.current) return true;
       queryClient.setQueryData(firstWorkQueryKey(userId), state);
       const work = untouchedFirstWork(state);

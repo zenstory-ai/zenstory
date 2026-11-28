@@ -1,4 +1,4 @@
-import { countWords } from './documentChunker';
+import { CJK_CHAR_RE, NON_CJK_WORD_RE, countWords } from './documentChunker';
 
 /** update_project fields an author can see; a task-board or current_phase update alone is not output. */
 const PROJECT_INFO_FIELDS = new Set(['summary', 'writing_style', 'notes']);
@@ -10,21 +10,24 @@ const PROJECT_INFO_FIELDS = new Set(['summary', 'writing_style', 'notes']);
  * `stream_billing.PROSE_MIN_CHARS`, which decides whether a stopped / interrupted round is charged.
  */
 export const PROSE_MIN_CHARS = 60;
-/** Units per Latin-letter word, as in the server's `stream_billing.LATIN_WORD_UNITS`. */
+/** Units per non-CJK alphabetic word, matching the server's `stream_billing.LATIN_WORD_UNITS`. */
 const LATIN_WORD_UNITS = 1.5;
-const LATIN_WORD = /[A-Za-zÀ-ÖØ-öø-ÿ]+/g;
 
 /**
- * Prose length the way the server counts it (`stream_billing.prose_units`): each Latin word is
- * LATIN_WORD_UNITS, every other non-whitespace character (Han, digit, punctuation) is 1.
+ * Prose length the way the server counts it (`stream_billing.prose_units`): each non-CJK
+ * alphabetic/syllabic word (Latin with diacritics, Cyrillic, Arabic, Hangul, etc.) is
+ * LATIN_WORD_UNITS, and every other non-whitespace character (Han/Kana, digit, punctuation) is 1.
  */
 export function proseUnits(text: string): number {
+  if (!text) return 0;
+  const normalized = text.normalize('NFC');
   let visible = 0;
-  for (const ch of text) {
+  for (const ch of normalized) {
     if (!/\s/.test(ch)) visible += 1;
   }
-  const words = text.match(LATIN_WORD) ?? [];
-  const letters = words.reduce((sum, word) => sum + word.length, 0);
+  const withoutCjk = normalized.replace(CJK_CHAR_RE, ' ');
+  const words = withoutCjk.match(NON_CJK_WORD_RE) ?? [];
+  const letters = words.reduce((sum, word) => sum + Array.from(word).length, 0);
   return visible - letters + LATIN_WORD_UNITS * words.length;
 }
 

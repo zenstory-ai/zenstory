@@ -5,11 +5,13 @@
  * used throughout the application for language and region-specific formatting.
  *
  * Supported locales:
- * - 'zh' (Chinese, Simplified) - Default
- * - 'en' (English)
+ * - 'en' (English) - Default fallback for non-Chinese locales (aligned with PR #478)
+ * - 'zh' (Chinese, Simplified) - Selected only for explicit zh* locales
  *
  * @module lib/i18n-helpers
  */
+
+import i18next from 'i18next';
 
 /**
  * Supported locale codes for the application.
@@ -29,30 +31,30 @@ export const SUPPORTED_LOCALES: SupportedLocale[] = ['zh', 'en'];
 /**
  * Default locale used when no preference is stored or detected.
  *
- * Falls back to Chinese (Simplified) as the primary language.
+ * Falls back to English so non-Chinese readers (en, id, pt, fr, es, etc.)
+ * never get silently routed to Chinese.
  */
-export const DEFAULT_LOCALE: SupportedLocale = 'zh';
+export const DEFAULT_LOCALE: SupportedLocale = 'en';
 
 /**
- * Get the current locale setting from localStorage.
+ * Get the current locale setting.
  *
- * Reads the user's language preference from 'zenstory-language' in localStorage.
- * Returns the default locale if no valid preference is stored or if running
- * in a server-side rendering context (window undefined).
+ * Prefers the active `i18next` language first, then reads 'zenstory-language'
+ * from localStorage, and falls back to DEFAULT_LOCALE ('en'). Only explicit
+ * `zh*` values resolve to `'zh'`.
  *
  * @returns Current locale code ('zh' or 'en')
- *
- * @example
- * ```ts
- * const locale = getLocale();
- * console.log(locale); // 'zh' or 'en'
- * ```
  */
 export function getLocale(): SupportedLocale {
+  const active = (i18next.resolvedLanguage || i18next.language || '').trim();
+  if (active) {
+    return normalizeLocale(active);
+  }
+
   try {
-    const storedLocale = localStorage.getItem('zenstory-language') as SupportedLocale;
-    if (storedLocale && SUPPORTED_LOCALES.includes(storedLocale)) {
-      return storedLocale;
+    const storedLocale = (localStorage.getItem('zenstory-language') || '').trim();
+    if (storedLocale) {
+      return normalizeLocale(storedLocale);
     }
   } catch {
     // Ignore storage access errors and fall back to default locale.
@@ -111,6 +113,9 @@ export function normalizeLocale(language: string | null | undefined): SupportedL
     return DEFAULT_LOCALE;
   }
 
-  const normalized = language.toLowerCase();
-  return normalized.startsWith('en') ? 'en' : 'zh';
+  const normalized = language.trim().toLowerCase();
+  if (!normalized) {
+    return DEFAULT_LOCALE;
+  }
+  return normalized.startsWith('zh') ? 'zh' : 'en';
 }

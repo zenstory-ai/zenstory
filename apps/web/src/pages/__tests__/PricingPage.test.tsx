@@ -52,8 +52,22 @@ vi.mock("../../components/PublicHeader", () => ({
 }));
 
 vi.mock("../../components/subscription/PaymentCheckoutModal", () => ({
-  PaymentCheckoutModal: ({ initialCycle, isRenewal }: { initialCycle: "month" | "year"; isRenewal?: boolean }) => (
-    <div data-testid="payment-checkout-cycle" data-renewal={String(Boolean(isRenewal))}>{initialCycle}</div>
+  PaymentCheckoutModal: ({
+    initialCycle,
+    isRenewal,
+    upgradeSource,
+  }: {
+    initialCycle: "month" | "year";
+    isRenewal?: boolean;
+    upgradeSource?: string;
+  }) => (
+    <div
+      data-testid="payment-checkout-cycle"
+      data-renewal={String(Boolean(isRenewal))}
+      data-source={upgradeSource ?? ""}
+    >
+      {initialCycle}
+    </div>
   ),
 }));
 
@@ -310,6 +324,28 @@ describe("PricingPage", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: /年付/ }));
     expect(await screen.findByText("$79/年")).toBeInTheDocument();
+  });
+
+  it("shows USD pricing immediately without a CNY ¥ flash while payment options are loading for English readers", async () => {
+    mockLanguage = "en";
+    mockGetPaymentOptions.mockReturnValue(new Promise(() => {}));
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper() });
+
+    expect(await screen.findByText("$9.99/月")).toBeInTheDocument();
+    expect(screen.queryByText(/¥/)).not.toBeInTheDocument();
+  });
+
+  it("passes upgradeSource attribution from query params to PaymentCheckoutModal", async () => {
+    mockUser = { id: "user-1" };
+    mockGetCatalog.mockResolvedValue(createCatalog(createDefaultTiers()));
+
+    render(<PricingPage />, { wrapper: createWrapper("/pricing?source=chat_quota_blocked") });
+    await waitFor(() => expect(getControlByName(/月付|Monthly/i)).toBeEnabled());
+
+    fireEvent.click(screen.getAllByRole("button", { name: /开通 Pro|Get Pro/i })[0]);
+    expect(screen.getByTestId("payment-checkout-cycle")).toHaveAttribute("data-source", "chat_quota_blocked");
   });
 
   it("keeps CNY pricing for English readers when card payment is not enabled", async () => {

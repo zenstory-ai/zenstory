@@ -108,6 +108,7 @@ vi.mock('react-i18next', () => ({
       if (!options || typeof options === 'string') return template
       return template.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(options[name] ?? ''))
     },
+    i18n: { language: 'zh-CN' },
   }),
 }))
 

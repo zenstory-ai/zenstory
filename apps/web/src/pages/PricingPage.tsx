@@ -98,7 +98,7 @@ export default function PricingPage() {
     ? t("dashboard:billing.ctaRenewPro", "续费 Pro")
     : t("dashboard:billing.ctaUpgradePro", "开通 Pro");
 
-  const { data: paymentOptions } = useQuery({
+  const { data: paymentOptions, isLoading: isPaymentOptionsLoading } = useQuery({
     queryKey: paymentQueryKeys.options(),
     queryFn: () => paymentApi.getOptions(),
     staleTime: 60 * 1000,
@@ -110,7 +110,11 @@ export default function PricingPage() {
   const isCardAvailable = availablePaymentMethods.includes("card");
   const isAlipayAvailable = availablePaymentMethods.includes("alipay");
   const isUsdDefaultLocale = usesUsdPricing(i18n.language);
-  const showUsdPricing = isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
+  // While paymentOptions is loading, default non-Chinese locales to USD so English/international
+  // readers never see a ¥ CNY flash before switching to USD.
+  const showUsdPricing = isPaymentOptionsLoading
+    ? isUsdDefaultLocale
+    : isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
   const monthlyUsdCents =
     proPlan?.price_monthly_usd_cents && proPlan.price_monthly_usd_cents > 0
       ? proPlan.price_monthly_usd_cents
@@ -453,6 +457,7 @@ export default function PricingPage() {
           yearlyPriceCents={proPlan?.price_yearly_cents}
           monthlyUsdPriceCents={proPlan?.price_monthly_usd_cents}
           yearlyUsdPriceCents={proPlan?.price_yearly_usd_cents}
+          upgradeSource={attributionSource}
           isRenewal={isProUser}
         />
       )}

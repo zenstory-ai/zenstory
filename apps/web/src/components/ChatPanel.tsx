@@ -64,8 +64,10 @@ import { StreamActivityLine } from "./StreamActivityLine";
 import {
   createBodyWriteProgress,
   createProseCounter,
+  getActiveStreamStatusText,
   isWriteToolResult,
 } from "../lib/agentRoundProgress";
+import { formatDailyResetLocalTime } from "../lib/dateUtils";
 import { useQuotaRefreshAfterLeave } from "../hooks/useQuotaRefreshAfterLeave";
 import {
   exhaustionLeftFilesUnfinished,
@@ -81,7 +83,9 @@ import {
   extractCompletedToolResults,
   isAccountRunRefusal,
   isNetworkQuotaRefusal,
+  isUnexpectedStreamDisconnect,
   keepUnsavedFile,
+  SSE_DISCONNECT_RECONCILE_DELAY_MS,
 } from "./chat/chatHistoryHelpers";
 import { useChatSuggestionsController } from "./chat/useChatSuggestionsController";
 import {
@@ -182,6 +186,19 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
   const bodyWriteRef = useRef(createBodyWriteProgress());
   const readBodyWrite = useCallback(() => bodyWriteRef.current.snapshot(), []);
   const stopRequestedProjectRef = useRef<string | null>(null);
+  const disconnectReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disconnectReconcileSeqRef = useRef(0);
+  const roundBaselineBackendIdsRef = useRef<Set<string>>(new Set());
+  const isStreamingRef = useRef(false);
+  const isThinkingRef = useRef(false);
+  const clearErrorRef = useRef<() => void>(() => {});
+  const cancelPendingDisconnectReconcile = useCallback(() => {
+    disconnectReconcileSeqRef.current += 1;
+    if (disconnectReconcileTimerRef.current) {
+      clearTimeout(disconnectReconcileTimerRef.current);
+      disconnectReconcileTimerRef.current = null;
+    }
+  }, []);
   const sendLockRef = useRef(false);
   const newChatAfterStopRef = useRef(false);
   const [newChatPending, setNewChatPending] = useState(false);
@@ -328,6 +345,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     lastLoadedProjectRef,
     loadChatHistory,
     hydrateAssistantBackendMessage,
+    reconcileAfterDisconnect,
     loadEarlierMessages,
     setHasMoreHistory,
     setIsLoadingMoreHistory,
@@ -342,11 +360,14 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     setIsCreatingSession(false);
     sessionRecoveryBlockedRef.current = null;
     setSessionRecoveryError(null);
+    cancelPendingDisconnectReconcile();
     return () => {
       currentProjectIdRef.current = null;
       newSessionRequestSeqRef.current += 1;
+      cancelPendingDisconnectReconcile();
     };
   }, [
+    cancelPendingDisconnectReconcile,
     currentProjectId,
     creatingSessionRef,
     newSessionRequestSeqRef,
@@ -633,6 +654,45 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
           setLastRetryMeta(null);
         }
       }
+      if (
+        currentProjectId &&
+        isUnexpectedStreamDisconnect(code, retryableFlag) &&
+        stopRequestedProjectRef.current !== currentProjectId
+      ) {
+        cancelPendingDisconnectReconcile();
+        const reconcileSeq = ++disconnectReconcileSeqRef.current;
+        const targetProjectId = currentProjectId;
+        const baselineIds = new Set(roundBaselineBackendIdsRef.current);
+        const targetSessionId = currentAgentSessionIdRef.current;
+        disconnectReconcileTimerRef.current = setTimeout(() => {
+          disconnectReconcileTimerRef.current = null;
+          const shouldApply = () =>
+            disconnectReconcileSeqRef.current === reconcileSeq &&
+            currentProjectIdRef.current === targetProjectId &&
+            !isStreamingRef.current &&
+            stopRequestedProjectRef.current !== targetProjectId &&
+            creatingSessionRef.current === null;
+          if (!shouldApply()) {
+            return;
+          }
+          // Strictly read-only GET reconcile: surface server-persisted draft/final reply,
+          // NEVER automatically retry a generation POST.
+          void reconcileAfterDisconnect(
+            targetProjectId,
+            baselineIds,
+            targetSessionId,
+            shouldApply,
+          ).then((reconciled) => {
+            if (!reconciled || !shouldApply()) {
+              return;
+            }
+            clearErrorRef.current();
+            quotaState.invalidateQuota();
+            triggerFileTreeRefresh();
+            void refreshNextStep(targetProjectId);
+          });
+        }, SSE_DISCONNECT_RECONCILE_DELAY_MS);
+      }
     },
     onToolCall: (toolName, args) => {
       proseCounterRef.current.boundary();
@@ -743,6 +803,24 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }
     },
   });
+
+  isStreamingRef.current = isStreaming;
+  isThinkingRef.current = isThinking;
+  clearErrorRef.current = clearError;
+
+  const readStreamStatusText = useCallback(
+    () => getActiveStreamStatusText(getStreamItemsSnapshot?.()),
+    [getStreamItemsSnapshot],
+  );
+  const readIsThinkingWithoutProse = useCallback(() => {
+    if (roundProgressRef.current.producedOutput) return false;
+    const items = getStreamItemsSnapshot?.() ?? [];
+    const hasVisibleProse = items.some(
+      (item) => item.type === "content" && typeof item.content === "string" && item.content.trim().length > 0,
+    );
+    if (hasVisibleProse) return false;
+    return isThinkingRef.current || items.some((item) => item.type === "thinking_content");
+  }, [getStreamItemsSnapshot]);
 
   const scroll = useChatScrollAndResize({
     currentProjectId,
@@ -921,6 +999,12 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       }, 0);
 
       historyRequestSeqRef.current += 1;
+      cancelPendingDisconnectReconcile();
+      roundBaselineBackendIdsRef.current = new Set(
+        messagesRef.current
+          .map((item) => item.backendMessageId)
+          .filter((id): id is string => Boolean(id)),
+      );
       setIsLoadingMoreHistory(false);
       resetSuggestionsForNewRound();
 
@@ -955,6 +1039,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       return true;
     },
     [
+      cancelPendingDisconnectReconcile,
       creatingSessionRef,
       currentProjectId,
       followLatestMessage,
@@ -1308,8 +1393,9 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
     progressState,
   });
 
-  const handleNewSession = () =>
-    history.runNewSession({
+  const handleNewSession = () => {
+    cancelPendingDisconnectReconcile();
+    return history.runNewSession({
       projectId: currentProjectId,
       setStarterProjectId: progressState.setStarterProjectId,
       resetSuggestionsForNewRound: suggestions.resetSuggestionsForNewRound,
@@ -1324,9 +1410,11 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
       },
       requestInitialSuggestions: suggestions.requestInitialSuggestions,
     });
+  };
 
   const stopAfterSavePendingRef = useRef(false);
   const stopRound = (): Promise<void> => {
+    cancelPendingDisconnectReconcile();
     if (stopAfterSavePendingRef.current) return Promise.resolve();
     if (currentProjectId) stopRequestedProjectRef.current = currentProjectId;
     setSteerFallback((pending) =>
@@ -1440,6 +1528,7 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
         isCreatingSession={history.isCreatingSession}
         newChatPending={newChatPending}
         isAlreadyEmptyNewChat={isAlreadyEmptyNewChat}
+        sessionTitle={history.currentSessionTitle}
         onOpenAIMemory={() => openAIMemory()}
         onRequestNewChat={requestNewChat}
       />
@@ -1557,6 +1646,8 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
                     startedAt={streamStartedAt}
                     isMobile={isMobile}
                     bodyWrite={readBodyWrite}
+                    statusText={readStreamStatusText}
+                    isThinking={readIsThinkingWithoutProse}
                   />
                 )}
 
@@ -1702,11 +1793,20 @@ const ChatPanelComponent: React.FC<ChatPanelProps> = () => {
             ? t("chat:panel.networkQuotaExceededTitle")
             : t("chat:panel.quotaExceededTitle")
         }
-        description={
-          quotaNotes.isNetworkQuotaLimit
-            ? t("chat:panel.networkQuotaExceededHint")
-            : t("chat:panel.quotaExceededHint")
-        }
+        description={(() => {
+          const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+          const localResetTime = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
+            ? formatDailyResetLocalTime(activeLanguage)
+            : null;
+          if (quotaNotes.isNetworkQuotaLimit) {
+            return localResetTime
+              ? t("chat:panel.networkQuotaExceededHintLocal", { localTime: localResetTime })
+              : t("chat:panel.networkQuotaExceededHint");
+          }
+          return localResetTime
+            ? t("chat:panel.quotaExceededHintLocal", { localTime: localResetTime })
+            : t("chat:panel.quotaExceededHint");
+        })()}
         primaryLabel={t("dashboard:billing.ctaUpgradePro")}
         secondaryLabel={t("home:pricingTeaser.viewPricing")}
       />

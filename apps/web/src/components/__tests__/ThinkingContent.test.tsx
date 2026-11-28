@@ -28,11 +28,15 @@ vi.mock('../LazyMarkdown', async () => {
 const thinkingLabels: Record<string, string> = {
   'chat:tool.edit_file': '编辑文件',
   'chat:workflow.agents.writer': '内容创作者',
+  'chat:thinking.reasoningInProgress': 'Reasoning through your request…',
 }
+
+const mockUiLanguage = vi.hoisted(() => ({ value: 'zh' }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => thinkingLabels[key] ?? key,
+    i18n: { language: mockUiLanguage.value },
   }),
 }))
 
@@ -43,6 +47,7 @@ describe('ThinkingContent', () => {
   beforeEach(() => {
     // Clear localStorage completely before each test
     localStorage.clear()
+    mockUiLanguage.value = 'zh'
     // Reset mocks
     vi.clearAllMocks()
   })
@@ -378,6 +383,28 @@ Line 3`
     expect(chevron).toBeInTheDocument()
     expect(chevron?.getAttribute('class')).toContain('motion-chevron')
     expect(chevron?.getAttribute('class')).toContain('rotate-180')
+  })
+
+  it('replaces CJK-heavy collapsed livePreview with a localized status line on non-zh UI while still showing full reasoning when expanded', async () => {
+    const user = userEvent.setup()
+    mockUiLanguage.value = 'en'
+
+    render(<ThinkingContent content="我先检查一下第一章的大纲和人物关系。" isStreaming />)
+
+    expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('Reasoning through your request…')
+    expect(screen.getByTestId('thinking-live-preview').textContent).not.toMatch(/检查一下/)
+
+    // Expanding the drawer still reveals the full sanitized reasoning if the author clicks.
+    await act(async () => {
+      await user.click(screen.getByRole('button'))
+    })
+    expect(screen.getByText(/我先检查一下第一章的大纲和人物关系/)).toBeInTheDocument()
+  })
+
+  it('keeps normal English collapsed livePreview on non-zh UI', () => {
+    mockUiLanguage.value = 'en'
+    render(<ThinkingContent content="Checking chapter 1 pacing and dialogue beats" isStreaming />)
+    expect(screen.getByTestId('thinking-live-preview')).toHaveTextContent('Checking chapter 1 pacing and dialogue beats')
   })
 
   it('shows chevron icon pointing down when collapsed', async () => {

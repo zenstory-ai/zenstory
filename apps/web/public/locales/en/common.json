@@ -152,5 +152,9 @@
     "switchToEnglish": "Switch to English",
     "toggleTheme": "Toggle theme",
     "toggleLanguage": "Toggle language"
+  },
+  "seo": {
+    "projectTitle": "Project - ZenStory",
+    "projectDescription": "AI-assisted novel writing project"
   }
 }

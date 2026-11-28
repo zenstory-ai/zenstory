@@ -49,9 +49,19 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
   hasManuscript = false,
   onSendManuscript,
 }) => {
-  const { t } = useTranslation(["chat"]);
+  const { t, i18n } = useTranslation(["chat"]);
   const kind = nextStepKind(projectType);
   const example = t(`chat:starter.example.${kind}`);
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const showMultilingualNote = Boolean(activeLanguage) && !activeLanguage.startsWith("zh");
+  const multilingualNote = showMultilingualNote && (
+    <p
+      data-testid="starter-multilingual-note"
+      className="text-xs leading-5 text-[hsl(var(--text-secondary))]"
+    >
+      {t("chat:starter.multilingualNote")}
+    </p>
+  );
   const quotaLine = remainingToday !== null && (
     <p data-testid="starter-quota" className="text-xs text-[hsl(var(--text-secondary))]">
       {t("chat:starter.quota", { count: remainingToday })}
@@ -87,6 +97,7 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
               );
             })}
           </div>
+          {multilingualNote}
           {quotaLine}
         </div>
       </section>
@@ -135,6 +146,7 @@ export const StarterCards: React.FC<StarterCardsProps> = ({
           </div>
         </div>
 
+        {multilingualNote}
         {quotaLine}
       </div>
     </section>

@@ -378,11 +378,16 @@ describe('materialsApi', () => {
           blob: async () => new Blob(['# 九天斩神诀'], { type: 'text/plain;charset=utf-8' }),
         } as Response)
 
-      const result = await materialsApi.exportBreakdown('novel-9', '九天/斩神诀: 卷一')
+      localStorage.setItem('zenstory-language', 'zh')
+      try {
+        const result = await materialsApi.exportBreakdown('novel-9', '九天/斩神诀: 卷一')
 
-      expect(result).toEqual({ filename: '九天 斩神诀 卷一_拆解.txt' })
-      expect(global.fetch).toHaveBeenCalledTimes(3)
-      expect(vi.mocked(global.fetch).mock.calls[1]?.[0]).toContain('/api/auth/refresh')
+        expect(result).toEqual({ filename: '九天 斩神诀 卷一_拆解.txt' })
+        expect(global.fetch).toHaveBeenCalledTimes(3)
+        expect(vi.mocked(global.fetch).mock.calls[1]?.[0]).toContain('/api/auth/refresh')
+      } finally {
+        localStorage.removeItem('zenstory-language')
+      }
     })
 
     it('throws structured ApiError without downloading on 404 or non-JSON 502', async () => {

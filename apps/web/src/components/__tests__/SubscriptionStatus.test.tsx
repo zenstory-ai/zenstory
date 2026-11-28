@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as subscriptionApi from '../../lib/subscriptionApi'
 import { SubscriptionStatus } from '../subscription/SubscriptionStatus'
@@ -60,7 +60,12 @@ function renderWithQuery(ui: JSX.Element) {
 describe('SubscriptionStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem('zenstory-language', 'zh')
     mediaState.isMobile = false
+  })
+
+  afterEach(() => {
+    localStorage.clear()
   })
 
   it('renders loading skeleton while query is pending', () => {

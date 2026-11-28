@@ -426,6 +426,14 @@ export function PaymentCheckoutModal({
                 </span>
               </div>
             )}
+            {isCardSelected && (
+              <p
+                data-testid="payment-usd-trust-note"
+                className="mt-2 text-xs font-medium text-[hsl(var(--text-primary))]"
+              >
+                {t('dashboard:billing.paymentUsdTrustNote', '支付后即时开通 · 通过 Creem 安全美元结算')}
+              </p>
+            )}
             <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
               {t('dashboard:billing.paymentNoAutoRenew', '一次性付款，不会自动续费。到期前续费，时长会接在当前到期日之后。')}
             </p>

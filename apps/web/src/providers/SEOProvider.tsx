@@ -53,7 +53,11 @@ function resolvedOpenGraph(config: SEOConfig, pathname: string): SEOConfig['og']
   };
 }
 
-function getRouteConfig(pathname: string, language: string): SEOConfig {
+function getRouteConfig(
+  pathname: string,
+  language: string,
+  projectRouteText?: { title: string; description: string },
+): SEOConfig {
   const langKey = language.startsWith('zh') ? 'zh' : 'en';
   let config = pageSEOConfig[pathname]?.[langKey];
 
@@ -62,18 +66,19 @@ function getRouteConfig(pathname: string, language: string): SEOConfig {
   }
 
   if (!config && pathname.startsWith('/project/')) {
+    const fallbackTitle = 'Project - ZenStory';
+    const fallbackDescription = 'AI-assisted novel writing project';
+    const rawTitle = projectRouteText?.title ?? fallbackTitle;
+    const rawDescription = projectRouteText?.description ?? fallbackDescription;
     config = {
-      zh: {
-        title: '项目 - ZenStory',
-        description: 'AI辅助的小说创作项目',
-        noindex: true,
-      },
-      en: {
-        title: 'Project - ZenStory',
-        description: 'AI-assisted novel writing project',
-        noindex: true,
-      }
-    }[langKey];
+      title: rawTitle === 'common:seo.projectTitle' || rawTitle === 'seo.projectTitle'
+        ? fallbackTitle
+        : rawTitle,
+      description: rawDescription === 'common:seo.projectDescription' || rawDescription === 'seo.projectDescription'
+        ? fallbackDescription
+        : rawDescription,
+      noindex: true,
+    };
   }
 
   const fallback = defaultSEOConfig[langKey] ?? defaultSEOConfig.en;
@@ -107,16 +112,30 @@ function getRouteConfig(pathname: string, language: string): SEOConfig {
 
 export function SEOProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation('common');
+  const projectTitle = typeof t === 'function'
+    ? t('common:seo.projectTitle', { defaultValue: 'Project - ZenStory' })
+    : 'Project - ZenStory';
+  const projectDescription = typeof t === 'function'
+    ? t('common:seo.projectDescription', { defaultValue: 'AI-assisted novel writing project' })
+    : 'AI-assisted novel writing project';
 
   const [seoConfig, setSeoConfig] = useState<SEOConfig>(() =>
-    getRouteConfig(location.pathname, i18n.language)
+    getRouteConfig(location.pathname, i18n.language, {
+      title: projectTitle,
+      description: projectDescription,
+    })
   );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSeoConfig(getRouteConfig(location.pathname, i18n.language));
-  }, [location.pathname, i18n.language]);
+    setSeoConfig(
+      getRouteConfig(location.pathname, i18n.language, {
+        title: projectTitle,
+        description: projectDescription,
+      })
+    );
+  }, [location.pathname, i18n.language, projectTitle, projectDescription]);
 
   useEffect(() => {
     if (location.pathname !== '/docs' && !location.pathname.startsWith('/docs/')) return;

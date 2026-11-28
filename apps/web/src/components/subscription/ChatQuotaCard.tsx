@@ -4,7 +4,7 @@ import { useUpgradeExposure } from "../../hooks/useUpgradeExposure";
 import { useTranslation } from "react-i18next";
 import { Clock } from "lucide-react";
 import { buildUpgradeUrl, getUpgradePromptDefinition } from "../../config/upgradeExperience";
-import { formatAiQuotaResetDay, aiQuotaPeriodKey } from "../../hooks/useAiMessageQuota";
+import { formatAiQuotaResetDay, formatAiQuotaResetLocal, aiQuotaPeriodKey } from "../../hooks/useAiMessageQuota";
 import { trackUpgradeClick } from "../../lib/upgradeAnalytics";
 import { CHAT_CARD_SURFACE } from "../chatCardStyles";
 import { Button } from "../ui/Button";
@@ -36,7 +36,11 @@ export function ChatQuotaCard({ open = true, limit, resetAt }: ChatQuotaCardProp
   const { isPaid, resolved } = usePaidPlanWhenOpen(open);
   const canUpgrade = resolved && !isPaid;
   const exposureRef = useUpgradeExposure({ enabled: open && canUpgrade && (!isMobile || activePanel === "chat"), source: chatQuotaPrompt.source, surface: "card", placement: "chat-input", period: aiQuotaPeriodKey(resetAt) });
-  const resetDay = formatAiQuotaResetDay(resetAt, i18n?.language);
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const resetDay = formatAiQuotaResetDay(resetAt, activeLanguage);
+  const resetLocal = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
+    ? formatAiQuotaResetLocal(resetAt, activeLanguage)
+    : null;
 
   if (!isMounted) return null;
 
@@ -60,7 +64,13 @@ export function ChatQuotaCard({ open = true, limit, resetAt }: ChatQuotaCardProp
         </span>
       </p>
       <p className="mt-1 pl-[23px] text-xs leading-5 text-[hsl(var(--text-secondary))]">
-        {resetDay
+        {resetLocal
+          ? t("chat:quotaCard.resetLocal", {
+              defaultValue: "They come back on {{local}} your time (00:00 UTC+8).",
+              local: resetLocal,
+              day: resetDay ?? "",
+            })
+          : resetDay
           ? t("chat:quotaCard.resetOnDay", {
               defaultValue: "北京时间 {{day}} 00:00 恢复。",
               day: resetDay,
