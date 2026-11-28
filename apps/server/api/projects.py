@@ -28,6 +28,7 @@ from config.project_templates import (
 )
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import resolve_user_language
 from core.project_access import verify_project_ownership
 from database import get_session
 from models import (
@@ -155,8 +156,8 @@ def create_project(
         project_type=request.project_type,
     )
 
-    # Parse language from Accept-Language header (default Chinese)
-    lang = resolve_template_lang(accept_language)
+    # Resolve language from Accept-Language header, falling back to stored account ui_language
+    lang = resolve_user_language(session, current_user.id, accept_language)
 
     # If no name provided, use default project name in the selected language
     if not project.name:

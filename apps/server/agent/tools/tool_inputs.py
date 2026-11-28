@@ -287,11 +287,9 @@ class CreateFileInput(_ToolInputModel):
     source_text: Annotated[Any, WithJsonSchema({"type": "string"})] = Field(
         default=None,
         description=(
-            "仅在录入作者本轮最新一条消息里已经写出的资料原文时使用（更早轮次消息中的资料不要传 source_text，"
-            "直接建空文件后在下一次回复用 <file> 写入）：逐字复制作者本轮消息中的一段完整连续原文，"
-            "范围包括原有的标题、小标题和分隔行，即使标题同时用作文件名也不省略；作者明确只要正文时按其限定的范围复制。"
-            "服务端会核对来源后直接保存，不要改标点、换行、排版或补字段。成功只证明选中的 source_text 已保存，不证明没有选入的原文也已录入。不能与 empty 或 content 同用；"
-            "AI 自己生成的大纲、人物、设定不要传此参数，仍在下一次回复用 <file> 写入。"
+            "仅用于把作者本轮最新一条消息中的一段完整连续原文逐字归档为单个文件（含原有标题与分隔行，勿改写或补字段）。"
+            "拆分/整理/提炼为多张卡片、处理更早轮次资料或 AI 自写内容时务必省略 source_text，"
+            "逐个建空文件后用 <file> 写入（勿并行调用多个无 source_text 的 create_file）。不能与 empty/content 同用。"
         ),
     )
     # Internal-only fields (used by write_chapter & tests; hidden from LLM JSON Schema)

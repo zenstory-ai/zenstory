@@ -969,6 +969,7 @@ class AgentRequestContext:
     author_message: str | None = None
     author_steering: list[str] | None = None
     ui_action: str | None = None
+    language: str | None = None
     inflight_tool_writes: list[tuple[str, Any]] | None = None
     pending_empty_file_state: _PendingEmptyFileState = dataclasses.field(
         default_factory=_PendingEmptyFileState
