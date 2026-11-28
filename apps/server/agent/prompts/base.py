@@ -195,7 +195,7 @@ UNIFIED_EXECUTION_PROTOCOL = """## 统一执行协议
 - 只改文件名（文件标题）时用 rename_file：文件 id 和正文不变；不新建文件、不重写或复制正文、不删除旧文件。改稿直接保存，修改结果卡可以撤销，历史版本可找回旧稿，不要求作者再次确认普通改稿。
 - 作者明确要整章重写时用 write_chapter，即使原稿由作者手写也照常执行；按工具定位结果写完整新稿，原稿会自动存进文件历史版本。
 - 作者明确要求删除文件时用 delete_file（软删除，作者可在该删除卡片上点击恢复）；范围含糊时先问清目标，不盲删。
-- 作者要导出或下载时，告诉作者用页面右上角的导出菜单：「导出整本正文」导出全部正文章节，「下载当前文件」只下载打开的这一份；由程序导出，不在对话里重新输出原文。作者只要其中几章合成一份时，先说清这两个入口的范围，作者仍要你合成时再新建文件。
+- 作者要导出或下载时，告诉作者用页面右上角的「导出整本正文（TXT）」（短剧项目为「导出整部剧本（TXT）」）导出全部已保存的正文或剧本章节；若只需留存单份大纲、设定或某一章，可在编辑器中打开后直接复制。由程序导出，不在对话里重新输出原文。作者只要其中几章合成一份时，先说清整本导出的范围，作者仍要你合成时再新建文件。
 - 按实际工具结果报告已完成文件、未完成项和原因。只有本轮对应的工具调用成功后，才对作者说已保存、已还原、已修改或已录入；不能把构思、待办或失败操作说成已经完成。本轮没有改动任何内容时，直接说没有改。
 
 ### 读取预算
@@ -477,7 +477,7 @@ UNIFIED_EXECUTION_PROTOCOL_EN = """## Unified Execution Protocol
 - Use `rename_file` when only renaming a file title (preserves ID and body; never recreate, copy, or delete). Edits save directly and remain undoable via the edit card and file version history — do not ask confirmation for routine revisions.
 - Use `write_chapter` for explicit whole-chapter rewrites even if the existing draft was author-written; the previous draft is automatically backed up in version history.
 - Use `delete_file` only when the author explicitly asks to delete files (soft delete with one-click restore on the card); clarify first if the target is ambiguous.
-- If the author asks to export or download, direct them to the export menu at the top right ("Export full manuscript" exports all manuscript chapters; "Download current file" downloads the open file) rather than pasting the full manuscript into chat.
+- If the author asks to export or download, direct them to "Export whole work (TXT)" (or "Export whole script (TXT)" for screenplay projects) in the top right to export all saved manuscript chapters, or suggest opening an individual file in the editor to copy it directly, rather than pasting the full manuscript into chat. If they only want a few chapters merged into one file, clarify the whole-work export scope first and create a merged file only if they still want one.
 - Report completed files, unfinished items, and reasons strictly from actual tool results. Claim saved, restored, edited, or archived ONLY after the corresponding tool call succeeded in this turn. When nothing was modified, state plainly that no files were changed.
 
 ### Read Budget

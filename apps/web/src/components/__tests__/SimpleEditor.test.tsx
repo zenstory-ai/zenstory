@@ -40,9 +40,10 @@ vi.mock('../../contexts/TextQuoteContext', () => ({
   }),
 }));
 
+let mockPinchZoom = 1;
 vi.mock('../../hooks/useGestures', () => ({
   usePinchZoom: () => ({
-    zoom: 1,
+    zoom: mockPinchZoom,
     bind: () => ({}),
     resetZoom: vi.fn(),
   }),
@@ -76,9 +77,22 @@ vi.mock('../DiffReviewSplitView', () => ({
 }));
 
 vi.mock('../SelectionToolbar', () => ({
-  // Stand-in for the floating 「引用到对话」 toolbar: just the action, no positioning.
-  SelectionToolbar: ({ onAdd }: { onAdd: () => void }) => (
-    <button type="button" onClick={onAdd}>quote-to-chat</button>
+  // Stand-in for the floating 「引用到对话」 toolbar: exposes computed coordinates for positioning assertions.
+  SelectionToolbar: ({
+    onAdd,
+    position,
+  }: {
+    onAdd: () => void;
+    position: { x: number; y: number } | null;
+  }) => (
+    <button
+      type="button"
+      onClick={onAdd}
+      data-pos-x={position?.x ?? ''}
+      data-pos-y={position?.y ?? ''}
+    >
+      quote-to-chat
+    </button>
   ),
 }));
 
@@ -149,6 +163,7 @@ describe('SimpleEditor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPinchZoom = 1;
     localStorage.clear();
     testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   });
@@ -1031,6 +1046,215 @@ describe('SimpleEditor', () => {
     fireEvent.blur(contentTextarea);
 
     expect(contentTextarea.style.height).toBe(`${measuredHeight}px`);
+  });
+
+  it('computes selection toolbar coordinates accurately and clears/hides the mirror div immediately afterward', () => {
+    vi.useFakeTimers();
+    render(
+      <SimpleEditor
+        fileId="file-mirror"
+        title="File 1"
+        content="First paragraph\n\nSecond selected phrase in editor"
+        onTitleChange={vi.fn()}
+        onContentChange={vi.fn()}
+        onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(
+      'editor:placeholder.contentPlaceholder'
+    ) as HTMLTextAreaElement;
+    const mirror = screen.getByTestId('editor-selection-mirror') as HTMLDivElement;
+
+    // Initial state: hidden and empty so it cannot inflate scrollHeight.
+    expect(mirror.style.display).toBe('none');
+    expect(mirror.innerHTML).toBe('');
+
+    const observedMirrorStyles: string[] = [];
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      top: 50,
+      right: 700,
+      bottom: 450,
+      width: 600,
+      height: 400,
+      x: 100,
+      y: 50,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(mirror, 'getBoundingClientRect').mockImplementation(() => {
+      observedMirrorStyles.push(mirror.style.cssText);
+      return {
+        left: 100,
+        top: 50,
+        right: 700,
+        bottom: 450,
+        width: 600,
+        height: 400,
+        x: 100,
+        y: 50,
+        toJSON: () => ({}),
+      };
+    });
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+      const el = originalCreateElement(tagName, options);
+      if (tagName.toLowerCase() === 'span') {
+        vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+          left: 160,
+          top: 130,
+          right: 260,
+          bottom: 154,
+          width: 100,
+          height: 24,
+          x: 160,
+          y: 130,
+          toJSON: () => ({}),
+        });
+      }
+      return el;
+    }) as typeof document.createElement);
+
+    textarea.focus();
+    textarea.setSelectionRange(17, 39);
+    fireEvent.select(textarea);
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    // Coordinates match textarea + relative span offset + span width / 2, top - 8.
+    const toolbarButton = screen.getByRole('button', { name: 'quote-to-chat' });
+    expect(toolbarButton).toHaveAttribute('data-pos-x', '210');
+    expect(toolbarButton).toHaveAttribute('data-pos-y', '122');
+
+    // During measurement, mirror stayed pinned at top:0 left:0 with overflow:hidden and pointer-events:none.
+    expect(observedMirrorStyles).toHaveLength(1);
+    expect(observedMirrorStyles[0]).toContain('top: 0');
+    expect(observedMirrorStyles[0]).toContain('left: 0');
+    expect(observedMirrorStyles[0]).toContain('pointer-events: none');
+    expect(observedMirrorStyles[0]).toContain('overflow: hidden');
+
+    // Immediately after measurement, mirror is cleared and hidden so it adds zero phantom height.
+    expect(mirror.innerHTML).toBe('');
+    expect(mirror.style.display).toBe('none');
+  });
+
+  it('shrinks stale textarea height when editor width changes via ResizeObserver without looping on height changes', () => {
+    const originalResizeObserver = globalThis.ResizeObserver;
+    let resizeCallback: ResizeObserverCallback | null = null;
+    const observeSpy = vi.fn();
+    const disconnectSpy = vi.fn();
+    globalThis.ResizeObserver = class MockResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb;
+      }
+      observe = observeSpy;
+      unobserve = vi.fn();
+      disconnect = disconnectSpy;
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      const { unmount } = render(
+        <SimpleEditor
+          fileId="file-resize"
+          title="File 1"
+          content={'line\n'.repeat(40)}
+          onTitleChange={vi.fn()}
+          onContentChange={vi.fn()}
+          onSave={vi.fn().mockResolvedValue({ outcome: 'saved', updatedAt: '2026-10-06T10:00:00.000002' })}
+        />
+      );
+
+      const contentTextarea = screen.getByPlaceholderText(
+        'editor:placeholder.contentPlaceholder'
+      ) as HTMLTextAreaElement;
+      expect(observeSpy).toHaveBeenCalledWith(contentTextarea);
+
+      let measuredHeight = 640;
+      let zeroHeightReads = 0;
+      contentTextarea.style.height = '640px';
+      Object.defineProperty(contentTextarea, 'scrollHeight', {
+        configurable: true,
+        get: () => {
+          if (contentTextarea.style.height === '0px') {
+            zeroHeightReads += 1;
+            return measuredHeight;
+          }
+          return Math.max(Number.parseFloat(contentTextarea.style.height || '0'), measuredHeight);
+        },
+      });
+
+      // First establish width at 500px.
+      act(() => {
+        resizeCallback?.(
+          [{ contentRect: { width: 500, height: 640 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      expect(contentTextarea.style.height).toBe('640px');
+      const readsAfterInitialWidth = zeroHeightReads;
+
+      // Height-only change at the same width must NOT re-trigger measurement.
+      act(() => {
+        resizeCallback?.(
+          [{ contentRect: { width: 500, height: 320 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      expect(zeroHeightReads).toBe(readsAfterInitialWidth);
+
+      // Widening the editor pane (e.g. collapsing a sidebar) shrinks height even while focused.
+      contentTextarea.focus();
+      measuredHeight = 320;
+      act(() => {
+        resizeCallback?.(
+          [{ contentRect: { width: 900, height: 640 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      expect(contentTextarea.style.height).toBe('320px');
+
+      unmount();
+      expect(disconnectSpy).toHaveBeenCalled();
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+  });
+
+  it('re-measures and shrinks textarea height when zoom changes', () => {
+    mockPinchZoom = 2;
+    const props = {
+      fileId: 'file-zoom',
+      title: 'File 1',
+      content: 'line\n'.repeat(30),
+      onTitleChange: vi.fn(),
+      onContentChange: vi.fn(),
+      onSave: vi.fn().mockResolvedValue({ outcome: 'saved' as const, updatedAt: '2026-10-06T10:00:00.000002' }),
+    };
+
+    const { rerender } = render(<SimpleEditor {...props} />);
+    const contentTextarea = screen.getByPlaceholderText(
+      'editor:placeholder.contentPlaceholder'
+    ) as HTMLTextAreaElement;
+
+    contentTextarea.style.height = '760px';
+    const measuredAtNormalZoom = 340;
+    Object.defineProperty(contentTextarea, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        if (contentTextarea.style.height === '0px') {
+          return measuredAtNormalZoom;
+        }
+        return Math.max(Number.parseFloat(contentTextarea.style.height || '0'), measuredAtNormalZoom);
+      },
+    });
+
+    contentTextarea.focus();
+    mockPinchZoom = 1;
+    rerender(<SimpleEditor {...props} />);
+
+    expect(contentTextarea.style.height).toBe(`${measuredAtNormalZoom}px`);
   });
 
   it('does not force auto-scroll to bottom when user scrolled away during streaming', async () => {

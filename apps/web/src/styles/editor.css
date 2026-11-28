@@ -112,7 +112,7 @@
 }
 
 .editor-content {
-    @apply outline-none min-h-full;
+    @apply outline-none;
     line-height: 1.8;
 }
 

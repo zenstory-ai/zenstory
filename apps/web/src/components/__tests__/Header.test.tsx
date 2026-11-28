@@ -18,8 +18,6 @@ const { mockToastError, mockToastSuccess, mockToastInfo, mockHandleApiError, moc
 // Create mutable mock values
 let mockCurrentProjectId: string | null = null
 let mockCurrentProject: { id: string; project_type: string } | null = null
-let mockSelectedItem: { id: string; type: string; title: string } | null = null
-const mockDownloadCurrentFile = vi.fn()
 let mockIsMobile = false
 let mockExportLoading = false
 let mockSubscriptionStatus = {
@@ -47,8 +45,6 @@ const headerTranslations: Record<string, string> = {
   'common:feedback.entry': '问题反馈',
   'editor:header.export': '导出正文（TXT）',
   'editor:header.exportScript': '导出整部剧本（TXT）',
-  'editor:header.downloadFile': '下载当前文件（TXT）',
-  'editor:header.downloadFileSuccess': '已下载《{{title}}》',
   'common:loading': '加载中…',
   'dashboard:billing.ctaUpgradePro': '升级专业版',
 }
@@ -161,13 +157,7 @@ vi.mock('../../contexts/ProjectContext', () => ({
   useProject: () => ({
     currentProjectId: mockCurrentProjectId,
     currentProject: mockCurrentProject,
-    selectedItem: mockSelectedItem,
   }),
-}))
-
-vi.mock('../../lib/currentFileDownload', () => ({
-  downloadCurrentFile: (id: string) => mockDownloadCurrentFile(id),
-  UnsavedEditorError: class UnsavedEditorError extends Error {},
 }))
 
 // Mock useMediaQuery hook
@@ -404,30 +394,15 @@ describe('Header', () => {
       expect(exportButton.querySelector('[role="status"]')).toBeInTheDocument()
     })
 
-    it('downloads only the selected file, separately from the whole-work export (#276)', async () => {
+    it('only shows help docs and feedback in the more menu', () => {
       mockCurrentProjectId = 'project-123'
-      mockSelectedItem = { id: 'file-9', type: 'draft', title: '第9章' }
-      mockDownloadCurrentFile.mockResolvedValueOnce({ filename: '第9章.txt' })
-      render(<Header />)
-
-      fireEvent.click(screen.getByTestId('header-more-actions'))
-      fireEvent.click(screen.getByText('下载当前文件（TXT）'))
-
-      await waitFor(() => expect(mockDownloadCurrentFile).toHaveBeenCalledWith('file-9'))
-      await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('已下载《第9章》'))
-      expect(mockExportDrafts).not.toHaveBeenCalled()
-      mockSelectedItem = null
-    })
-
-    it('offers no current-file download for a folder or when nothing is open', () => {
-      mockCurrentProjectId = 'project-123'
-      mockSelectedItem = { id: 'folder-1', type: 'folder', title: '正文' }
       render(<Header />)
 
       fireEvent.click(screen.getByTestId('header-more-actions'))
 
+      expect(screen.getByText('帮助文档')).toBeInTheDocument()
+      expect(screen.getByText('问题反馈')).toBeInTheDocument()
       expect(screen.queryByText('下载当前文件（TXT）')).not.toBeInTheDocument()
-      mockSelectedItem = null
     })
 
     it('shows translated error toast when export fails', async () => {
