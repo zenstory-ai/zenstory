@@ -2546,3 +2546,53 @@ async def test_turn_n_plus_1_wire_prefix_round_trip_on_default_responses_api_and
     cold_text = json.dumps(cold_history.items, ensure_ascii=False)
     assert "已读完第一章，灯塔熄灭的开场很有氛围。" in cold_text
     assert "第二轮继续推进主角动机。" in cold_text
+
+
+@pytest.mark.unit
+def test_wire_prefix_cache_max_bytes_default_is_4mb_and_stores_uncompressible_encrypted_content(fake_redis):
+    """Default AGENT_WIRE_PREFIX_CACHE_MAX_BYTES is 4 MiB so ~2.7MB compressed Responses payloads round-trip cleanly."""
+    import random
+
+    from config import agent_runtime
+
+    assert agent_runtime.AGENT_WIRE_PREFIX_CACHE_MAX_BYTES == 4 * 1024 * 1024
+
+    # Deterministic incompressible high-entropy base64 encrypted_content (~2.67MB raw -> ~2.69MB gzip+b64),
+    # matching production session 01440285 that overflowed the old 2 MiB cap.
+    rng = random.Random(20261128)
+    incompressible_blob = base64.b64encode(rng.randbytes(2_000_000)).decode("ascii")
+    items = [
+        {"role": "user", "content": "请续写第40章"},
+        {
+            "id": "rs_large_enc",
+            "type": "reasoning",
+            "summary": [],
+            "content": [{"type": "reasoning_text", "text": "回顾前文伏笔。"}],
+            "encrypted_content": incompressible_blob,
+        },
+        {"role": "assistant", "content": "第40章已续写完成。"},
+    ]
+
+    stored = wire_prefix_cache.store_wire_prefix(
+        session_id="sess-4mb-enc",
+        project_id="p",
+        user_id="u",
+        last_assistant_message_id="m-4mb",
+        system_prompt="sys",
+        provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+        items=items,
+    )
+    assert stored is True
+    raw_stored, _ttl = fake_redis.store["agent:wire_prefix:sess-4mb-enc"]
+    stored_bytes = len(raw_stored.encode("ascii"))
+    assert 2 * 1024 * 1024 < stored_bytes < 4 * 1024 * 1024
+
+    loaded = wire_prefix_cache.load_wire_prefix(
+        session_id="sess-4mb-enc",
+        project_id="p",
+        user_id="u",
+        last_message_id="m-4mb",
+        system_prompt="sys",
+        provider_key="minimax:MiniMax-M3.1-Flash:primary:responses",
+    )
+    assert loaded == items

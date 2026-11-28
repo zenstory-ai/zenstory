@@ -495,3 +495,261 @@ async def test_compaction_folds_large_skill_outputs_without_dropping_whole_turns
     user_texts = [str(m.get("content") or "") for m in captured_messages if m.get("role") == "user"]
     assert any("第1轮：加载技能" in text for text in user_texts)
     assert any("第2轮：继续第2章" in text for text in user_texts)
+
+
+def test_reasoning_encrypted_content_excluded_from_trimmer_and_token_estimate_without_mutation():
+    """MiniMax Responses 推理项的大体积不透明 encrypted_content 不得触发安全阀、不得被改写，且不计入 token 估算。"""
+    from agent.loop.history import estimate_provider_items_tokens
+
+    opaque_blob = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5" * 37_500  # 1.8M chars (> 1.5M valve)
+    assert len(opaque_blob) == 1_800_000
+
+    reasoning_with_blob = {
+        "id": "rs_minimax_1",
+        "type": "reasoning",
+        "summary": [],
+        "content": [{"type": "reasoning_text", "text": "先通读前两章，再核对人物设定。"}],
+        "encrypted_content": opaque_blob,
+    }
+    reasoning_without_blob = {k: v for k, v in reasoning_with_blob.items() if k != "encrypted_content"}
+
+    normal_items: list[dict[str, Any]] = [
+        {"role": "user", "content": "请通读第1-3章并续写第4章"},
+        reasoning_with_blob,
+        _fc("r1", "read_files", json.dumps({"ids": ["ch-1"]})),
+        _fco("r1", _read_output("ch-1", "正文内容" * 35_000)),  # ~140k chars
+        _fc("r2", "read_files", json.dumps({"ids": ["ch-2"]})),
+        _fco("r2", _read_output("ch-2", "续章正文" * 40_000)),  # ~160k chars
+    ]
+    baseline_items = [normal_items[0], reasoning_without_blob, *normal_items[2:]]
+
+    # Raw JSON exceeds DEFAULT_MAX_INPUT_CHARS (1.5M) solely due to encrypted_content,
+    # yet excluding encrypted_content keeps it ~300k chars (well under 1.5M).
+    assert _chars(normal_items) > DEFAULT_MAX_INPUT_CHARS
+    assert IntraRunToolOutputTrimmer._input_chars(normal_items) == IntraRunToolOutputTrimmer._input_chars(
+        baseline_items
+    )
+    assert IntraRunToolOutputTrimmer._input_chars(normal_items) < 400_000
+
+    # Trimmer MUST be a complete no-op and MUST NOT mutate the reasoning item or its encrypted_content.
+    snapshot = copy.deepcopy(normal_items)
+    md = ModelInputData(input=normal_items, instructions="系统提示" * 1_000)
+    result = IntraRunToolOutputTrimmer()(CallModelData(model_data=md, agent=None, context=None))
+    assert result is md
+    assert result.input == snapshot
+    assert result.input[1]["encrypted_content"] == opaque_blob
+
+    # Token estimator MUST ignore opaque encrypted_content completely (0 token delta).
+    assert estimate_provider_items_tokens(normal_items) == estimate_provider_items_tokens(baseline_items)
+
+
+def test_untrimmable_over_budget_hysteresis_prevents_per_call_thrashing():
+    """不可裁剪正文已超 max_input_chars 时，小工具输出不得步步重折；大工具输出越过安全阀仍正常折叠。"""
+    trimmer = IntraRunToolOutputTrimmer(max_input_chars=100_000, target_ratio=0.7)
+    # step = 30_000, half-step = 15_000.
+    # 1) Untrimmable prose (120k) already exceeds max_input_chars (100k):
+    items: list[dict[str, Any]] = [
+        {"role": "user", "content": "甲" * 60_000},
+        {"role": "assistant", "content": "乙" * 60_000},
+    ]
+
+    # Appending 4 small tool outputs (~3.5k savable each, total ~14k < 15k half-step) MUST NOT thrash!
+    for idx in range(4):
+        items.append(_fc(f"small-{idx}", "read_files", json.dumps({"ids": [f"f-{idx}"]})))
+        items.append(_fco(f"small-{idx}", _read_output(f"f-{idx}", "细" * 4_000)))
+        out = _run(trimmer, items)
+        assert out == items, f"small append #{idx} must not fold while total savable < half-step"
+
+    # Once accumulated savable crosses half-step (15k+), folding fires ONCE in a single batch...
+    items.append(_fc("small-4", "read_files", json.dumps({"ids": ["f-4"]})))
+    items.append(_fco("small-4", _read_output("f-4", "细" * 4_000)))
+    folded_once = _run(trimmer, items)
+    compacted_ids_first = [
+        it["call_id"]
+        for it in folded_once
+        if it.get("type") == "function_call_output" and COMPACTION_REASON in it["output"]
+    ]
+    assert len(compacted_ids_first) >= 4
+
+    # ...and subsequent small tool calls within the next half-step bucket keep the prefix BYTE-IDENTICAL!
+    for idx in range(5, 8):
+        items.append(_fc(f"small-{idx}", "read_files", json.dumps({"ids": [f"f-{idx}"]})))
+        items.append(_fco(f"small-{idx}", _read_output(f"f-{idx}", "细" * 4_000)))
+        grown = _run(trimmer, items)
+        assert grown[: len(folded_once)] == folded_once
+        assert COMPACTION_REASON not in grown[-1]["output"]
+
+    # 2) Genuine safety-valve case: untrimmable (40k) < max (100k), large tool reads push total to ~120k ->
+    #    folding MUST engage immediately and reduce total back to <= max_input_chars.
+    valve_items: list[dict[str, Any]] = [
+        {"role": "user", "content": "丙" * 40_000},
+        _fc("big-1", "read_files", json.dumps({"ids": ["ch-1"]})),
+        _fco("big-1", _read_output("ch-1", "章" * 40_000)),
+        _fc("big-2", "read_files", json.dumps({"ids": ["ch-2"]})),
+        _fco("big-2", _read_output("ch-2", "节" * 40_000)),
+    ]
+    trimmed = _run(trimmer, valve_items)
+    assert COMPACTION_REASON in trimmed[2]["output"]
+    assert COMPACTION_REASON not in trimmed[4]["output"]
+    assert trimmer._input_chars(trimmed) <= trimmer.max_input_chars
+
+
+@pytest.mark.asyncio
+async def test_compaction_skips_trimmer_within_token_budget_even_with_huge_encrypted_content(monkeypatch):
+    """热缓存 350k token 会话即使因 encrypted_content 原始 JSON 达 1.3M 字符，Stage-2 压缩也必须原样透传零改写。"""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from agent.loop.compaction import compact_history
+    from agent.loop.history import LoopHistory
+    from config import agent_runtime
+
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_ENABLED", False)
+
+    huge_encrypted = "ZW5jcnlwdGVkX3JlYXNvbmluZ19ibG9iXzEyMzQ1Njc4OTA=" * 24_000  # ~1.15M chars
+    tool_body = _read_output("ch-1", "第一章正文内容。" * 25_000)  # ~200k chars
+    source_items: list[dict[str, Any]] = [
+        {"role": "user", "content": "通读第一章并总结"},
+        {
+            "id": "rs_1",
+            "type": "reasoning",
+            "summary": [],
+            "content": [{"type": "reasoning_text", "text": "读取第一章。"}],
+            "encrypted_content": huge_encrypted,
+        },
+        _fc("call_read_1", "read_files", json.dumps({"ids": ["ch-1"]})),
+        _fco("call_read_1", tool_body),
+        {"role": "assistant", "content": "已通读第一章。"},
+    ]
+    assert _chars(source_items) > 1_300_000  # far exceeds old 700k * 1.5 = 1_050_000 raw char cap
+
+    history = LoopHistory(
+        items=source_items,
+        last_message_id="msg-warm-350k",
+        last_prompt_tokens=350_000,  # well below 700k AGENT_LOOP_COMPACT_INPUT_MAX_TOKENS
+        author_messages=["通读第一章并总结"],
+    )
+
+    captured_inputs: list[list[dict[str, Any]]] = []
+
+    async def fake_create_response(**kwargs):
+        captured_inputs.append(kwargs["input"])
+        resp = SimpleNamespace(
+            status="completed",
+            output=[
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "交接摘要：已完整保留热前缀。"}],
+                }
+            ],
+            usage=SimpleNamespace(input_tokens=350_000, output_tokens=120, input_tokens_details=None),
+        )
+        return resp, SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash", uses_responses_api=True)
+
+    fake_provider = SimpleNamespace(name="minimax", model="MiniMax-M3.1-Flash", uses_responses_api=True)
+    monkeypatch.setattr("agent.core.llm_failover.aordered_providers", AsyncMock(return_value=[fake_provider]))
+    monkeypatch.setattr("agent.core.llm_failover.acreate_response", fake_create_response)
+
+    outcome = await compact_history(history, system_prompt="静态系统提示", session_id="sess-warm-350k")
+
+    assert outcome.record is not None
+    assert outcome.record["summary"] == "交接摘要：已完整保留热前缀。"
+    assert len(captured_inputs) == 1
+    sent_input = captured_inputs[0]
+    # Exact prefix untouched: reasoning encrypted_content intact and tool output NOT folded!
+    assert sent_input[1]["encrypted_content"] == huge_encrypted
+    assert sent_input[3]["output"] == tool_body
+    assert COMPACTION_REASON not in sent_input[3]["output"]
+
+
+@pytest.mark.asyncio
+async def test_compaction_trims_when_genuinely_over_token_budget_or_on_422_halved_budget_retry(monkeypatch):
+    """实测超 700k 预算或 400/413/422 超窗减半重试时，_trim_for_budget 仍须正确折叠旧工具输出。"""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from agent.loop.compaction import compact_history
+    from agent.loop.history import LoopHistory
+    from config import agent_runtime
+
+    monkeypatch.setattr(agent_runtime, "AGENT_LOOP_TOOL_ARCHIVE_ENABLED", False)
+
+    read_1 = _read_output("ch-1", "旧章一正文" * 60_000)  # ~300k chars
+    read_2 = _read_output("ch-2", "旧章二正文" * 60_000)  # ~300k chars
+    items: list[dict[str, Any]] = [
+        {"role": "user", "content": "第1轮：通读前两章"},
+        _fc("c1", "read_files", json.dumps({"ids": ["ch-1"]})),
+        _fco("c1", read_1),
+        _fc("c2", "read_files", json.dumps({"ids": ["ch-2"]})),
+        _fco("c2", read_2),
+        {"role": "assistant", "content": "已通读前两章。"},
+        {"role": "user", "content": "第2轮：继续写第3章"},
+        {"role": "assistant", "content": "已完成第3章。"},
+    ]
+
+    # Case A: within 700k budget on attempt 0 -> untouched; provider returns 422 -> halved budget retry MUST trim!
+    class _Fake422Error(Exception):
+        status_code = 422
+
+    attempt_messages: list[list[dict[str, Any]]] = []
+
+    async def fake_chat_retry(**kwargs):
+        attempt_messages.append(kwargs["messages"])
+        if len(attempt_messages) == 1:
+            raise _Fake422Error("context length exceeded")
+        choice = SimpleNamespace(
+            finish_reason="stop",
+            message=SimpleNamespace(content="减半重试后的交接摘要。", tool_calls=None, function_call=None),
+        )
+        return SimpleNamespace(choices=[choice], usage=None), SimpleNamespace(model="test-model")
+
+    monkeypatch.setattr("agent.core.llm_failover.aordered_providers", AsyncMock(return_value=[]))
+    monkeypatch.setattr("agent.core.llm_failover.acreate_chat_completion", fake_chat_retry)
+
+    history_within = LoopHistory(
+        items=items,
+        last_message_id="msg-retry",
+        last_prompt_tokens=420_000,  # <= 700k on attempt 0, halves to ~195k -> trimmer_max_chars ~292k < 600k on retry
+        author_messages=["第1轮：通读前两章", "第2轮：继续写第3章"],
+    )
+    outcome_retry = await compact_history(history_within, system_prompt="sys", session_id="sess-422-retry")
+    assert outcome_retry.record is not None
+    assert outcome_retry.record["summary"] == "减半重试后的交接摘要。"
+    assert len(attempt_messages) == 2
+    attempt0_tools = [m["content"] for m in attempt_messages[0] if m.get("role") == "tool"]
+    attempt1_tools = [m["content"] for m in attempt_messages[1] if m.get("role") == "tool"]
+    assert all(COMPACTION_REASON not in content for content in attempt0_tools)
+    assert any(COMPACTION_REASON in content for content in attempt1_tools)
+
+    # Case B: genuinely over budget (> 700k tokens) -> trims immediately on attempt 0!
+    over_budget_items: list[dict[str, Any]] = [
+        {"role": "user", "content": "第1轮：通读全卷"},
+        _fc("ob1", "read_files", json.dumps({"ids": ["vol-1"]})),
+        _fco("ob1", _read_output("vol-1", "第一卷正文" * 130_000)),  # ~650k chars
+        _fc("ob2", "read_files", json.dumps({"ids": ["vol-2"]})),
+        _fco("ob2", _read_output("vol-2", "第二卷正文" * 130_000)),  # ~650k chars
+        {"role": "assistant", "content": "已通读全卷。"},
+    ]
+    over_captured: list[list[dict[str, Any]]] = []
+
+    async def fake_chat_over(**kwargs):
+        over_captured.append(kwargs["messages"])
+        choice = SimpleNamespace(
+            finish_reason="stop",
+            message=SimpleNamespace(content="超预算裁剪后的交接摘要。", tool_calls=None, function_call=None),
+        )
+        return SimpleNamespace(choices=[choice], usage=None), SimpleNamespace(model="test-model")
+
+    monkeypatch.setattr("agent.core.llm_failover.acreate_chat_completion", fake_chat_over)
+    history_over = LoopHistory(
+        items=over_budget_items,
+        last_message_id="msg-over",
+        last_prompt_tokens=820_000,
+        author_messages=["第1轮：通读全卷"],
+    )
+    outcome_over = await compact_history(history_over, system_prompt="sys", session_id="sess-over-budget")
+    assert outcome_over.record is not None
+    assert len(over_captured) == 1
+    over_tools = [m["content"] for m in over_captured[0] if m.get("role") == "tool"]
+    assert any(COMPACTION_REASON in content for content in over_tools)

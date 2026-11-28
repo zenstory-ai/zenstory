@@ -180,7 +180,11 @@ def _provider_content_tokens(value: Any) -> int:
 
 
 def estimate_provider_items_tokens(items: list[dict[str, Any]]) -> int:
-    """按供应商分词量纲粗估输入项 token 数（兼容 DB 重建项与 SDK wire-format 项）。"""
+    """按供应商分词量纲粗估输入项 token 数（兼容 DB 重建项与 SDK wire-format 项）。
+
+    仅统计实际文本字段（``content`` / ``summary`` / ``arguments`` / ``output``），
+    刻意排除 Responses API ``reasoning`` 项携带的不透明 base64 ``encrypted_content``。
+    """
     total = 0
     for item in items:
         if not isinstance(item, dict):

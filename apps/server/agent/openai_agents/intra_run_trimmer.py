@@ -21,13 +21,14 @@ DeepSeek（deepseek-flash，1M token 上下文）有自动前缀缓存：与上�
 
 因此本过滤器只是**上下文安全阀**，不是省钱工具：
 
-- 模型输入（items + instructions）不超过 ``max_input_chars``（默认 600k 字符，远低于
-  1M token）时原样返回，不做任何改写。
+- 模型输入（items + instructions，计量时排除 Responses API 的不透明 ``encrypted_content``）
+  不超过 ``max_input_chars``（默认 1,500,000 字符，远低于 1M token）时原样返回，不做任何改写。
 - 只有超预算时才折叠：按输入顺序**从最旧开始**，折叠已知读取结果、以及已成功落库的
   写入参数/回执，直到降到目标线以下。折叠量按 ``max_input_chars - target`` 的整数倍
-  量化（滞回）：输入继续增长时，折叠边界保持不动，直到再跨过一个量化台阶才前移，
-  所以两次越界之间的调用仍然共享稳定前缀；最旧优先 + 量化使结果对同一输入确定、
-  随输入增长单调。
+  量化（滞回）；若不可裁剪内容本身已逼近或超过上限导致可用节省量不足一个台阶，则按
+  半台阶量化实际折叠目标，避免在后续小工具调用上步步重折、反复击穿 KV 缓存。输入继续
+  增长时，折叠边界保持不动，直到再跨过下一个量化台阶才前移，所以两次越界之间的调用
+  仍然共享稳定前缀；最旧优先 + 量化使结果对同一输入确定、随输入增长单调。
 - 永不触碰：控制流工具（handoff_to_agent / request_clarification）、用户消息、未知
   工具、失败/部分失败的写入（它们携带模型自我纠错所需的细节）。控制流工具的载荷
   由 runner 从 SDK 的 run-item 读取，与本过滤器的输出无关。
@@ -64,7 +65,11 @@ DEFAULT_WRITE_TOOLS: frozenset[str] = frozenset(
 )
 MAX_TRACE_VALUES = 40
 
-# 安全阀阈值：1.5M 字符（约 70~75 万真实中文 token，远高于 300k 轮间压缩阈值，同时离 1M 硬顶留足约 25 万 token 缓冲）。
+# Responses API 推理项携带的不透明密文（base64，不能按正文字符计入上下文预算，也绝不改写）。
+_OPAQUE_BUDGET_KEY = "encrypted_content"
+
+# 安全阀阈值：1.5M 字符（排除不透明 encrypted_content 后约 70~75 万真实中文 token，
+# 远高于 300k 轮间压缩阈值，同时离 1M 硬顶留足约 25 万 token 缓冲）。
 # 常态全靠轮间压缩（agent/loop/compaction.py）维持前缀缓存，只有单轮工具输出或存量老会话极端暴涨才触发。
 DEFAULT_MAX_INPUT_CHARS = 1_500_000
 # 超预算后折叠到预算的 70% 左右；30% 的余量就是滞回台阶。
@@ -179,14 +184,13 @@ class IntraRunToolOutputTrimmer:
         step = max(1, self.max_input_chars - self.target_chars)
         required = math.ceil((chars_before - self.max_input_chars) / step) * step
 
-        new_items: list[Any] = list(items)
-        trimmed_count = 0
-        chars_saved = 0
         call_id_to_info = self._build_call_id_to_info(items)
+        planned: list[tuple[int, dict[str, Any], int]] = []
+        total_savable = 0
         for item_index, kind, info in self._candidates_oldest_first(items, call_id_to_info):
-            if chars_saved >= required:
+            if total_savable >= required:
                 break
-            original = new_items[item_index]
+            original = items[item_index]
             if kind == "arguments":
                 replacement = self._summarize_arguments(original, info["name"])
             else:
@@ -196,6 +200,28 @@ class IntraRunToolOutputTrimmer:
             saved = self._item_chars(original) - self._item_chars(replacement)
             if saved <= 0:
                 continue
+            planned.append((item_index, replacement, saved))
+            total_savable += saved
+
+        if not planned:
+            return items
+
+        # 当不可裁剪内容本身已逼近或超过上限、所有可折叠载荷加起来也不够 required 时，
+        # 按半台阶（step/2）量化实际折叠目标：零碎工具输出累计不足半台阶时原样返回，
+        # 避免每追加一次小工具调用就重写前缀、连续击穿 KV 缓存；同时保证输入单调增长时折叠边界单调稳定。
+        if total_savable < required:
+            effective_required = ((2 * total_savable) // step) * step // 2
+            if effective_required <= 0:
+                return items
+        else:
+            effective_required = required
+
+        new_items: list[Any] = list(items)
+        trimmed_count = 0
+        chars_saved = 0
+        for item_index, replacement, saved in planned:
+            if chars_saved >= effective_required:
+                break
             new_items[item_index] = replacement
             trimmed_count += 1
             chars_saved += saved
@@ -426,14 +452,15 @@ class IntraRunToolOutputTrimmer:
 
     @staticmethod
     def _item_chars(item: Any) -> int:
+        if isinstance(item, dict) and _OPAQUE_BUDGET_KEY in item:
+            item = {k: v for k, v in item.items() if k != _OPAQUE_BUDGET_KEY}
         try:
             return len(json.dumps(item, ensure_ascii=False, default=str))
         except (TypeError, ValueError):
             return len(str(item))
 
-    @staticmethod
-    def _input_chars(items: list[Any]) -> int:
-        try:
-            return len(json.dumps(items, ensure_ascii=False, default=str))
-        except (TypeError, ValueError):
-            return sum(len(str(item)) for item in items)
+    @classmethod
+    def _input_chars(cls, items: list[Any]) -> int:
+        if not items:
+            return 2
+        return sum(cls._item_chars(item) for item in items) + 2 * len(items)
