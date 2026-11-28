@@ -35,19 +35,15 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   type,
   toolName,
   result,
-  toolArguments,
   error,
   isPending,
   interrupted,
-  isStreaming,
-  nextStepsBlocked,
   onUndo,
   onRestoreDeletion,
   toolUseId,
   chatMessageId,
   onOpenFile,
   onOpenAIMemory,
-  onRetryEditFailure,
 }) => {
   const { t } = useTranslation(['chat', 'common']);
   const undoneEdits = useContext(UndoneEditsContext);
@@ -77,14 +73,10 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         <ToolFailureCard
           toolName={toolName}
           result={result}
-          toolArguments={toolArguments}
           isPending={isPending}
           interrupted={interrupted}
-          isStreaming={isStreaming}
-          nextStepsBlocked={nextStepsBlocked}
           onOpenFile={onOpenFile}
           onOpenAIMemory={onOpenAIMemory}
-          onRetryEditFailure={onRetryEditFailure}
           t={t}
         />
       );
@@ -150,10 +142,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
         <EditFileCard
           data={data}
           fileId={fileId}
-          toolArguments={toolArguments}
-          isStreaming={isStreaming}
-          nextStepsBlocked={nextStepsBlocked}
-          onRetryEditFailure={onRetryEditFailure}
           t={t}
           {...undoProps}
           {...sharedRowProps}

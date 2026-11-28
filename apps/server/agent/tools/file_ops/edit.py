@@ -521,36 +521,6 @@ def _preview(text: str, max_len: int = 200) -> str:
     return text[:max_len] + ("..." if len(text) > max_len else "")
 
 
-def _failed_edit_previews(edit: Any, failed_op: str) -> dict[str, str]:
-    """Extract bounded, client-safe snippet previews from a failed edit item."""
-    if not isinstance(edit, dict):
-        return {}
-    previews: dict[str, str] = {}
-    old_val = edit.get("old") if isinstance(edit.get("old"), str) else edit.get("from")
-    if isinstance(old_val, str) and old_val:
-        previews["old_preview"] = _preview(old_val, 200)
-    anchor_val = edit.get("anchor")
-    if isinstance(anchor_val, str) and anchor_val:
-        previews["anchor_preview"] = _preview(anchor_val, 200)
-    new_val: Any = edit.get("new")
-    if not isinstance(new_val, str) and failed_op == "replace":
-        for key in ("to", "text", "content", "new_text", "replacement"):
-            if isinstance(edit.get(key), str):
-                new_val = edit.get(key)
-                break
-    if isinstance(new_val, str) and new_val:
-        previews["new_preview"] = _preview(new_val, 200)
-    text_val: Any = edit.get("text")
-    if not isinstance(text_val, str) and failed_op in ("append", "prepend", "insert_after", "insert_before"):
-        for key in ("content", "new", "new_text", "replacement"):
-            if isinstance(edit.get(key), str):
-                text_val = edit.get(key)
-                break
-    if isinstance(text_val, str) and text_val:
-        previews["text_preview"] = _preview(text_val, 200)
-    return previews
-
-
 def _approximate_not_found_advice(stats: dict[str, int], *, label: str) -> str:
     if stats.get("deadline_exceeded"):
         reason = "近似扫描因截止时间到达而未完成。"
@@ -1556,7 +1526,6 @@ class FileEditor:
                     "error_type": error_type,
                     "user_message": edit_error_user_message(error_type),
                     "op": failed_op,
-                    **_failed_edit_previews(edit, failed_op),
                 }
                 if batch_anchor_invalidated:
                     failed_edit["batch_anchor_invalidated"] = True

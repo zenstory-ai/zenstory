@@ -26,7 +26,6 @@ import {
 import {
   canPassOpenFileForToolCall,
   findLastActiveStreamIndex,
-  findUnresolvedEditFailures,
   groupToolCallsForDisplay,
   normalizeOrderedStreamItems,
   toolCardPayload,
@@ -44,7 +43,6 @@ export interface OrderedMessageItemsProps {
   onOpenFile?: MessageListProps['onOpenFile'];
   onOpenAIMemory?: MessageListProps['onOpenAIMemory'];
   onIterationAssistAction?: MessageListProps['onIterationAssistAction'];
-  onRetryEditFailure?: MessageListProps['onRetryEditFailure'];
   isStreaming?: boolean;
 }
 
@@ -55,7 +53,6 @@ export function OrderedMessageItems({
   onOpenFile,
   onOpenAIMemory,
   onIterationAssistAction,
-  onRetryEditFailure,
   nextStepsBlocked = false,
   isStreaming = false,
   chatMessageId,
@@ -69,12 +66,6 @@ export function OrderedMessageItems({
     ?? (agentName && agentName !== agentType ? agentName : null);
 
   const normalizedItems = useMemo(() => normalizeOrderedStreamItems(items), [items]);
-  const unresolvedEditFailures = useMemo(() => {
-    const allCalls = normalizedItems.flatMap((item) =>
-      item.type === 'tool_calls' && item.toolCalls ? item.toolCalls : [],
-    );
-    return findUnresolvedEditFailures(allCalls);
-  }, [normalizedItems]);
 
   // Only the last visibly rendered item in an active stream is still live.
   // Earlier thinking blocks stop pulsing as soon as a newer step (tool prep, tool call, prose, or new thinking) starts.
@@ -157,25 +148,17 @@ export function OrderedMessageItems({
                     type={run.call.status === 'pending' ? 'tool_call' : 'tool_result'}
                     toolName={run.call.tool_name}
                     result={toolCardPayload(run.call)}
-                    toolArguments={run.call.arguments}
                     error={run.call.error}
                     // A call still pending in a finished round (stopped / dropped) never got its
                     // result: it did not finish, it is not still running.
                     isPending={run.call.status === 'pending' && isStreaming}
                     interrupted={run.call.status === 'pending' && !isStreaming}
-                    isStreaming={isStreaming}
-                    nextStepsBlocked={nextStepsBlocked}
                     onUndo={onUndo}
                     onRestoreDeletion={isStreaming ? undefined : onRestoreDeletion}
                     toolUseId={run.call.id}
                     chatMessageId={chatMessageId}
                     onOpenFile={canPassOpenFileForToolCall(run.call) ? onOpenFile : undefined}
                     onOpenAIMemory={onOpenAIMemory}
-                    onRetryEditFailure={
-                      !isStreaming && !nextStepsBlocked && unresolvedEditFailures.has(run.call)
-                        ? onRetryEditFailure
-                        : undefined
-                    }
                   />
                 ),
               )}

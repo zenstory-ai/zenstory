@@ -868,13 +868,6 @@ class StreamAdapter:
         return hints
 
     @staticmethod
-    def _clip_client_preview(value: str, max_len: int = 200) -> str:
-        """Defensively bound preview strings sent to clients without double-ellipsizing."""
-        if len(value) > max_len + 3 or (len(value) > max_len and not value.endswith("...")):
-            return f"{value[:max_len]}..."
-        return value
-
-    @staticmethod
     def _client_safe_warnings(raw: Any) -> list[str]:
         """过滤包含原始失败异常细节的 warning，保留纯结构性/无害提示。"""
         if not isinstance(raw, list):
@@ -889,9 +882,9 @@ class StreamAdapter:
             safe.append(text)
         return safe
 
-    @classmethod
-    def _client_safe_failed_edits(cls, raw: Any) -> list[dict[str, Any]]:
-        """只保留前端展示失败编辑项所需的有界安全字段，永不透传模型指令 error 原文。"""
+    @staticmethod
+    def _client_safe_failed_edits(raw: Any) -> list[dict[str, Any]]:
+        """只保留前端展示失败编辑项所需的安全字段，永不透传模型指令 error 原文或片段预览。"""
         if not isinstance(raw, list):
             return []
         safe_items: list[dict[str, Any]] = []
@@ -906,10 +899,6 @@ class StreamAdapter:
                 value = item.get(key)
                 if isinstance(value, str) and value:
                     entry[key] = value
-            for key in ("old_preview", "anchor_preview", "new_preview", "text_preview"):
-                value = item.get(key)
-                if isinstance(value, str) and value:
-                    entry[key] = cls._clip_client_preview(value)
             user_message = item.get("user_message")
             if isinstance(user_message, str) and user_message.strip():
                 entry["user_message"] = user_message.strip()
@@ -2143,14 +2132,12 @@ class StreamAdapter:
 
         # 失败项紧随其后，edit_index 继续顺延（保证事件 key 唯一），只发安全 user_message。
         for offset, failed in enumerate(failed_edits):
-            old_snip = failed.get("old_preview") or failed.get("anchor_preview")
-            new_snip = failed.get("new_preview") or failed.get("text_preview")
             yield file_edit_applied_event(
                 file_id=file_id,
                 edit_index=len(applied_edits) + offset,
                 op=failed.get("op") or "replace",
-                old_preview=old_snip[:50] if isinstance(old_snip, str) and old_snip else None,
-                new_preview=new_snip[:50] if isinstance(new_snip, str) and new_snip else None,
+                old_preview=None,
+                new_preview=None,
                 success=False,
                 error=failed.get("user_message") or edit_error_user_message(failed.get("error_type")),
             )
