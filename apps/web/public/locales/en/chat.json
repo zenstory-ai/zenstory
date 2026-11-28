@@ -324,6 +324,13 @@
       "permissionDenied": "You don't have permission to modify this file; nothing was changed.",
       "generic": "This step did not complete; the file was not changed."
     },
+    "partialFailureHint": {
+      "notFound": "Could not find the target passage for the remaining edit; it did not apply.",
+      "ambiguous": "The target passage for the remaining edit appeared more than once; it did not apply.",
+      "noChange": "The skipped edit matched the existing text, so no change was needed.",
+      "invalidEdit": "Part of the edit instructions was incomplete; the remaining edit did not apply.",
+      "generic": "The remaining edit did not apply; completed changes were saved."
+    },
     "skippedTitle": {
       "authorEdited": "Kept your changes",
       "protectionUnavailable": "File left unchanged",

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToolResultCard } from '../ToolResultCard';
+import { MessageList, type Message } from '../MessageList';
+import { canPassOpenFileForToolCall, toolCardPayload } from '../chat/messageHelpers';
 import { createStreamFileSyncHandlers } from '../../hooks/streaming/createStreamFileSync';
 import { toast } from '../../lib/toast';
 
@@ -36,27 +38,64 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   if (key === 'chat:fileEdit.allFailedUntitled') {
     return `有 ${options?.count} 处修改未生效，文件未改动。`;
   }
-  const map: Record<string, string> = {
-    'chat:tool.edit_success': '修改完成',
-    'chat:tool.edit_file': '编辑文件',
-    'chat:tool.batch_replace_files': '批量替换',
-    'chat:tool.write_chapter': '写章节',
-    'chat:tool.create_file': '创建文件',
-    'chat:tool.failureHint.notFound': '未在原文中找到对应段落，文件未改动。',
-    'chat:tool.failureHint.ambiguous': '要修改的片段在原文中出现多处，文件未改动。',
-    'chat:tool.failureHint.noChange': '修改前后内容一致，无需改动。',
-    'chat:tool.failureHint.authorChanged': '这个文件在 AI 读过之后又被改过，这一步没有改动。',
-    'chat:tool.failureHint.fileMissing': '目标文件已不存在或已被删除，文件未改动。',
-    'chat:tool.failureHint.permissionDenied': '无权修改该文件，文件未改动。',
-    'chat:tool.failureHint.generic': '这一步未能完成，文件未改动。',
-    'chat:edit.replace': '替换',
-    'chat:edit.insert_after': '插入后',
-    'chat:edit.label_delete': '删除',
-    'chat:edit.label_add': '新增',
-    'chat:fileType.draft': '正文',
-    'common:undo': '撤销',
-    'common:untitled': '未命名',
-  };
+  const isEn = i18nStub.language === 'en';
+  const map: Record<string, string> = isEn
+    ? {
+        'chat:tool.edit_success': 'Edit done',
+        'chat:tool.edit_file': 'Edit File',
+        'chat:tool.rename_file': 'Rename File',
+        'chat:tool.update_file': 'Update File',
+        'chat:tool.batch_replace_files': 'Batch Replace',
+        'chat:tool.write_chapter': 'Write chapter',
+        'chat:tool.create_file': 'Create File',
+        'chat:tool.failureHint.notFound': 'Could not find the target passage in the text; the file was not changed.',
+        'chat:tool.failureHint.ambiguous': 'That passage appears more than once in the text; the file was not changed.',
+        'chat:tool.failureHint.noChange': 'The text before and after was identical, so nothing needed to change.',
+        'chat:tool.failureHint.authorChanged': 'This file changed after the AI read it, so nothing was changed in this step.',
+        'chat:tool.failureHint.fileMissing': 'This file no longer exists; nothing was changed.',
+        'chat:tool.failureHint.permissionDenied': "You don't have permission to modify this file; nothing was changed.",
+        'chat:tool.failureHint.generic': 'This step did not complete; the file was not changed.',
+        'chat:tool.partialFailureHint.notFound': 'Could not find the target passage for the remaining edit; it did not apply.',
+        'chat:tool.partialFailureHint.ambiguous': 'The target passage for the remaining edit appeared more than once; it did not apply.',
+        'chat:tool.partialFailureHint.noChange': 'The skipped edit matched the existing text, so no change was needed.',
+        'chat:tool.partialFailureHint.invalidEdit': 'Part of the edit instructions was incomplete; the remaining edit did not apply.',
+        'chat:tool.partialFailureHint.generic': 'The remaining edit did not apply; completed changes were saved.',
+        'chat:edit.replace': 'Replace',
+        'chat:edit.insert_after': 'Insert after',
+        'chat:edit.label_delete': 'Delete',
+        'chat:edit.label_add': 'Add',
+        'chat:fileType.draft': 'Manuscript',
+        'common:undo': 'Undo',
+        'common:untitled': 'Untitled',
+      }
+    : {
+        'chat:tool.edit_success': '修改完成',
+        'chat:tool.edit_file': '编辑文件',
+        'chat:tool.rename_file': '重命名文件',
+        'chat:tool.update_file': '更新文件',
+        'chat:tool.batch_replace_files': '批量替换',
+        'chat:tool.write_chapter': '写章节',
+        'chat:tool.create_file': '创建文件',
+        'chat:tool.failureHint.notFound': '未在原文中找到对应段落，文件未改动。',
+        'chat:tool.failureHint.ambiguous': '要修改的片段在原文中出现多处，文件未改动。',
+        'chat:tool.failureHint.noChange': '修改前后内容一致，无需改动。',
+        'chat:tool.failureHint.authorChanged': '这个文件在 AI 读过之后又被改过，这一步没有改动。',
+        'chat:tool.failureHint.fileMissing': '目标文件已不存在或已被删除，文件未改动。',
+        'chat:tool.failureHint.permissionDenied': '无权修改该文件，文件未改动。',
+        'chat:tool.failureHint.generic': '这一步未能完成，文件未改动。',
+        'chat:tool.partialFailureHint.notFound': '部分目标片段未在原文中找到，其余修改未生效。',
+        'chat:tool.partialFailureHint.ambiguous': '部分目标片段在原文中出现多处，其余修改未生效。',
+        'chat:tool.partialFailureHint.noChange': '未生效的修改与原文一致，无需改动。',
+        'chat:tool.partialFailureHint.invalidEdit': '部分修改参数不完整，其余修改未生效。',
+        'chat:tool.partialFailureHint.generic': '其余修改未能生效，已生效的部分已保存。',
+        'chat:edit.replace': '替换',
+        'chat:edit.insert_after': '插入后',
+        'chat:edit.label_delete': '删除',
+        'chat:edit.label_add': '新增',
+        'chat:fileType.draft': '正文',
+        'common:undo': '撤销',
+        'common:untitled': '未命名',
+      };
   return map[key] ?? key;
 });
 
@@ -121,8 +160,9 @@ describe('Lightweight AI edit failure cards', () => {
       expect(screen.queryByText('修改完成')).not.toBeInTheDocument();
       expect(container.querySelector('.text-\\[hsl\\(var\\(--warning-text\\)\\)\\]')).not.toBeNull();
 
-      // Single-line safe reason from first failed edit without leaking raw model prompt
-      expect(screen.getByText('未在原文中找到对应段落，文件未改动。')).toBeInTheDocument();
+      // Single-line partial-scoped reason without claiming "文件未改动" or leaking raw model prompt
+      expect(screen.getByText('部分目标片段未在原文中找到，其余修改未生效。')).toBeInTheDocument();
+      expect(screen.queryByText(/文件未改动/)).not.toBeInTheDocument();
       expect(screen.queryByText(/RAW_MODEL_PROMPT_DO_NOT_SHOW/)).not.toBeInTheDocument();
 
       // No failed-edit drawer, copy button, or retry button
@@ -137,7 +177,7 @@ describe('Lightweight AI edit failure cards', () => {
       expect(screen.getByText('查看变更详情（1）')).toBeInTheDocument();
     });
 
-    it('uses localized failureHint in English UI instead of Chinese user_message', () => {
+    it('uses localized partialFailureHint in English UI without claiming "the file was not changed"', () => {
       i18nStub.language = 'en';
       render(
         <ToolResultCard
@@ -150,8 +190,8 @@ describe('Lightweight AI edit failure cards', () => {
                 {
                   index: 1,
                   op: 'replace',
-                  error_type: 'no_change',
-                  user_message: '中文原因',
+                  error_type: 'anchor_not_found',
+                  user_message: '未在原文中找到对应段落，文件未改动。',
                 },
               ],
             },
@@ -159,8 +199,11 @@ describe('Lightweight AI edit failure cards', () => {
         />,
       );
 
-      expect(screen.getByText('修改前后内容一致，无需改动。')).toBeInTheDocument();
-      expect(screen.queryByText('中文原因')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Could not find the target passage for the remaining edit; it did not apply.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/the file was not changed/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/文件未改动/)).not.toBeInTheDocument();
     });
   });
 
@@ -312,6 +355,56 @@ describe('Lightweight AI edit failure cards', () => {
       expect(screen.queryByRole('button', { name: '缺失文件' })).not.toBeInTheDocument();
       expect(screen.getByText('禁止访问文件')).toBeInTheDocument();
       expect(screen.getByText('缺失文件')).toBeInTheDocument();
+    });
+
+    it('does not render clickable open-file button or leak rejected title from raw arguments when rename_file/update_file fails with result: null', () => {
+      const onOpenFile = vi.fn();
+      const failedRename = {
+        id: 'tc-rename-err',
+        tool_name: 'rename_file',
+        status: 'error' as const,
+        error: 'Duplicate title',
+        result: null as unknown as Record<string, unknown>,
+        arguments: { id: 'f-deleted-or-unauthorized', title: '被拒绝的新标题' },
+      };
+      const failedUpdate = {
+        id: 'tc-update-err',
+        tool_name: 'update_file',
+        status: 'error' as const,
+        error: 'Forbidden',
+        result: null as unknown as Record<string, unknown>,
+        arguments: { id: 'f-unauthorized-2', title: '未授权覆盖标题' },
+      };
+
+      expect(canPassOpenFileForToolCall(failedRename)).toBe(false);
+      expect(canPassOpenFileForToolCall(failedUpdate)).toBe(false);
+      expect(toolCardPayload(failedRename)).toEqual({});
+      expect(toolCardPayload(failedUpdate)).toEqual({});
+
+      const assistantMsg: Message = {
+        id: 'msg-err-args',
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        displayItems: [
+          {
+            id: 'di-tools',
+            type: 'tool_calls',
+            toolCalls: [failedRename, failedUpdate],
+            timestamp: new Date(),
+          },
+        ],
+      };
+
+      render(<MessageList messages={[assistantMsg]} onOpenFile={onOpenFile} />);
+
+      expect(screen.getByText('重命名文件失败')).toBeInTheDocument();
+      expect(screen.getByText('更新文件失败')).toBeInTheDocument();
+      expect(screen.queryByText('被拒绝的新标题')).not.toBeInTheDocument();
+      expect(screen.queryByText('未授权覆盖标题')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '被拒绝的新标题' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '未授权覆盖标题' })).not.toBeInTheDocument();
+      expect(onOpenFile).not.toHaveBeenCalled();
     });
   });
 

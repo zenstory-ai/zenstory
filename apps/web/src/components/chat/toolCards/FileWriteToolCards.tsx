@@ -29,6 +29,7 @@ import {
   readChapterNumber,
   readUserFacingText,
   readWordCount,
+  resolvePartialEditFailure,
   resolveToolFailure,
   restoredAuthorDeletion,
   touchedAuthorEdits,
@@ -320,7 +321,9 @@ export const EditFileCard: React.FC<{
   const appliedCount = typeof data.edits_applied === 'number' ? data.edits_applied : details.length;
   const failedCount = failedEdits.length;
   const partialFailureReason = isPartialFailure && failedEdits[0]
-    ? resolveToolFailure(failedEdits[0], t).message
+    ? appliedCount > 0
+      ? resolvePartialEditFailure(failedEdits[0], t)
+      : resolveToolFailure(failedEdits[0], t).message
     : null;
   // The edit rewrote paragraphs the author wrote after the AI (server-side, by position).
   const authorEditsTouched = touchedAuthorEdits(data);

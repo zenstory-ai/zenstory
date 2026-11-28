@@ -295,6 +295,27 @@ export const resolveToolFailure = (
   return { kind, message: t(`chat:tool.failureHint.${kind}`) };
 };
 
+const PARTIAL_FAILURE_HINT_KINDS: ReadonlySet<ToolFailureKind> = new Set([
+  'notFound',
+  'ambiguous',
+  'noChange',
+  'invalidEdit',
+  'generic',
+]);
+
+/**
+ * 部分成功编辑卡的失败原因：只说明未生效的剩余修改，绝不声称「文件未改动 / the file was not changed」。
+ */
+export const resolvePartialEditFailure = (
+  failedEdit: Record<string, unknown> | undefined,
+  t: TranslateFn,
+): string => {
+  const errorType = readUserFacingText(failedEdit?.error_type);
+  const kind = classifyToolFailure(errorType);
+  const hintKey = PARTIAL_FAILURE_HINT_KINDS.has(kind) ? kind : 'generic';
+  return t(`chat:tool.partialFailureHint.${hintKey}`);
+};
+
 export const getEditOpIcon = (op: string): React.ReactNode => {
   switch (op) {
     case 'replace':

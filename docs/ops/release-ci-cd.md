@@ -21,8 +21,8 @@ files change and all skipped otherwise:
 - `backend-coverage` runs only after every shard succeeds, combines the shard
   data, enforces the 80% gate with `coverage report --fail-under=80`, and
   produces the `coverage.xml` uploaded to Codecov.
-- `backend-integration` runs ruff, the serial PostgreSQL regressions, the flow
-  tests, and production Prefect deployment registration.
+- `backend-integration` runs ruff, the serial PostgreSQL regressions, and
+  production Prefect deployment registration.
 
 `E2E Tests` applies the same detector rules. Scheduled and manually dispatched
 runs force E2E execution even when there is no meaningful Git diff. Check the

@@ -401,7 +401,7 @@ export function createStreamFileSyncHandlers(
       finishFileStreaming(fileId);
     }
 
-    // 批量编辑可以部分失败：给出简洁提示并引导到对话内的持久卡片查看详情或重试。
+    // 批量编辑可以部分失败：给出简洁提示，具体状态由对话内的持久卡片展示。
     if (outcome && (outcome.failedCount > 0 || outcome.allFailed)) {
       const displayTitle = (title || refs.fileEditMetaByIdRef.current.get(fileId)?.title || "").trim();
       const failedCount = outcome.failedCount > 0 ? outcome.failedCount : 1;

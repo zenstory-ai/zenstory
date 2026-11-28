@@ -29,7 +29,9 @@ from agent.tools.file_ops.edit import (
     EDIT_ERROR_CHAPTER_TARGET_AMBIGUOUS,
     EDIT_ERROR_DUPLICATED_PARAGRAPH,
     EDIT_ERROR_FILE_BUSY,
+    EDIT_ERROR_INVALID_EDIT,
     EDIT_ERROR_NO_CHANGE,
+    EDIT_ERROR_PERMISSION_DENIED,
     EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE,
     EDIT_ERROR_STALE_CONTENT,
     EDIT_ERROR_USER_MESSAGES,
@@ -95,6 +97,8 @@ def _add_file(
 @pytest.mark.unit
 def test_edit_error_user_messages_cover_all_new_types_with_neutral_copy():
     expected_types = [
+        EDIT_ERROR_INVALID_EDIT,
+        EDIT_ERROR_PERMISSION_DENIED,
         EDIT_ERROR_NO_CHANGE,
         EDIT_ERROR_FILE_BUSY,
         EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE,
@@ -110,6 +114,8 @@ def test_edit_error_user_messages_cover_all_new_types_with_neutral_copy():
         assert "正在重新定位" not in msg
         assert "正在确认" not in msg
         assert "换个方式继续" not in msg
+    assert edit_error_user_message(EDIT_ERROR_PERMISSION_DENIED) == "无权修改该文件，文件未改动。"
+    assert edit_error_user_message(EDIT_ERROR_INVALID_EDIT) == "修改参数不完整，此次修改未执行，文件未改动。"
 
 
 @pytest.mark.integration
@@ -546,5 +552,56 @@ async def test_mcp_edit_file_omits_file_id_on_forbidden_error(db_session, owner_
 
     assert resp["status"] == "error"
     assert resp["error_type"] == "permission_denied"
+    assert resp["user_message"] == "无权修改该文件，文件未改动。"
     assert "id" not in resp
     assert "title" not in resp
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_stream_adapter_strips_file_metadata_on_permission_denied_defense_in_depth():
+    parsed = {
+        "status": "error",
+        "error": "RAW_FORBIDDEN_INTERNAL_DETAIL",
+        "error_type": "permission_denied",
+        "id": "secret-file-99",
+        "title": "他人私密章节",
+        "file_type": "draft",
+        "data": {
+            "id": "secret-file-99",
+            "title": "他人私密章节",
+            "file_type": "draft",
+            "edits_applied": 0,
+        },
+    }
+    safe = StreamAdapter._safe_tool_error_payload(parsed, parsed["data"])
+    assert "id" not in safe
+    assert "title" not in safe
+    assert "file_type" not in safe
+    assert safe["edits_applied"] == 0
+
+    adapter = StreamAdapter(StreamAdapterConfig(project_id="p1", user_id="u1"))
+    events = [
+        sse
+        async for sse in adapter._process_workflow_event(
+            WorkflowStreamEvent(
+                type=StreamEventType.TOOL_RESULT,
+                data={
+                    "name": "edit_file",
+                    "result": {"content": [{"text": json.dumps(parsed, ensure_ascii=False)}]},
+                },
+            )
+        )
+    ]
+    assert [e.type for e in events] == [EventType.TOOL_RESULT]
+    card = events[0].data
+    assert card["status"] == "error"
+    assert card["error"] == "无权修改该文件，文件未改动。"
+    assert card["data"]["error_type"] == "permission_denied"
+    assert "id" not in card["data"]
+    assert "title" not in card["data"]
+    assert "file_type" not in card["data"]
+    serialized = json.dumps(card, ensure_ascii=False)
+    assert "secret-file-99" not in serialized
+    assert "他人私密章节" not in serialized
+    assert "RAW_FORBIDDEN_INTERNAL_DETAIL" not in serialized

@@ -209,17 +209,27 @@ export const visibleToolCalls = (calls: ToolCall[] | undefined): ToolCall[] =>
     return !isInternalOrderingRefusal(result) && !isGuardSkippedResult(result);
   });
 
-export const toolCardPayload = (tc: { result?: unknown; arguments?: unknown }): Record<string, unknown> =>
-  tc.result && typeof tc.result === 'object'
-    ? (tc.result as Record<string, unknown>)
-    : tc.arguments && typeof tc.arguments === 'object'
-      ? (tc.arguments as Record<string, unknown>)
-      : {};
+export const toolCardPayload = (
+  tc: { status?: ToolCall['status']; result?: unknown; arguments?: unknown },
+): Record<string, unknown> => {
+  if (tc.result && typeof tc.result === 'object') {
+    return tc.result as Record<string, unknown>;
+  }
+  if (tc.status === 'error') {
+    return {};
+  }
+  return tc.arguments && typeof tc.arguments === 'object'
+    ? (tc.arguments as Record<string, unknown>)
+    : {};
+};
 
 /** Whether a tool call may receive `onOpenFile` (never failed `create_file` or unconfirmed error rows). */
 export const canPassOpenFileForToolCall = (call: ToolCall): boolean => {
-  if (call.status === 'success') return Boolean(call.result);
-  if (call.status === 'error') return call.tool_name !== 'create_file' && Boolean(call.error);
+  const hasVerifiedResult = Boolean(call.result && typeof call.result === 'object');
+  if (call.status === 'success') return hasVerifiedResult;
+  if (call.status === 'error') {
+    return call.tool_name !== 'create_file' && Boolean(call.error) && hasVerifiedResult;
+  }
   return false;
 };
 
