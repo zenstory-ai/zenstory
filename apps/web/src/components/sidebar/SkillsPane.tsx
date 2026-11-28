@@ -190,6 +190,7 @@ export const SkillsPane: React.FC = () => {
         setSkills((prev) =>
           prev.some((skill) => skill.id === created.id) ? prev : [...prev, created],
         );
+        setLoadFailed(false);
       }
       await fetchSkills({ silent: true });
       if (!mountedRef.current) return;

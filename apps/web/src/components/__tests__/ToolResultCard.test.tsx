@@ -435,6 +435,10 @@ describe('ToolResultCard', () => {
         const blockedButton = screen.getByRole('button', { name: /undo/i })
         expect(blockedButton).toBeDisabled()
         expect(blockedButton.parentElement).toHaveAttribute('title', 'chat:tool.undoLaterFirst')
+        if (toolName === 'edit_file') {
+          expect(blockedButton.parentElement).toHaveClass('ml-auto')
+          expect(blockedButton).not.toHaveClass('ml-auto')
+        }
         expect(blockedButton).toHaveAccessibleDescription('chat:tool.undoLaterFirst')
         expect(screen.getByText('chat:tool.undoLaterFirst')).toHaveClass('sr-only')
         await user.click(blockedButton)
