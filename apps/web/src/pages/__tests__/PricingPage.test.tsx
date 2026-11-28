@@ -374,7 +374,7 @@ describe("PricingPage", () => {
     expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
   });
 
-  it("shows cross-currency payment hints based on UI language, enabled methods, and catalog USD price", async () => {
+  it("selects currency by UI language, enabled methods, and catalog USD price without rendering alternative payment hints", async () => {
     const [freeTier, proTier] = createDefaultTiers();
     mockGetCatalog.mockResolvedValue(
       createCatalog([
@@ -383,16 +383,15 @@ describe("PricingPage", () => {
       ])
     );
 
-    // zh + card & alipay -> CNY header + interpolated catalog USD price in card hint
+    // zh + card & alipay -> CNY pricing, no alternative payment hint
     mockLanguage = "zh-CN";
     mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay", "card"] });
     const zhBoth = render(<PricingPage />, { wrapper: createWrapper() });
-    expect(await screen.findByTestId("pricing-alternative-payment-hint")).toHaveTextContent(
-      "海外用户可使用银行卡以美元支付（$12.99/月）"
-    );
+    expect(await screen.findByText("¥49/月")).toBeInTheDocument();
+    expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
     zhBoth.unmount();
 
-    // zh + only alipay -> no card hint
+    // zh + only alipay -> CNY pricing, no hint
     mockLanguage = "zh-CN";
     mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay"] });
     const zhAlipayOnly = render(<PricingPage />, { wrapper: createWrapper() });
@@ -400,7 +399,7 @@ describe("PricingPage", () => {
     expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
     zhAlipayOnly.unmount();
 
-    // en + only card -> no alipay hint
+    // en + only card -> catalog USD pricing, no hint
     mockLanguage = "en";
     mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["card"] });
     const enCardOnly = render(<PricingPage />, { wrapper: createWrapper() });
@@ -408,14 +407,12 @@ describe("PricingPage", () => {
     expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
     enCardOnly.unmount();
 
-    // non-zh non-en (ja) + card & alipay -> USD pricing + alipay hint
+    // non-zh non-en (ja) + card & alipay -> catalog USD pricing, no hint
     mockLanguage = "ja";
     mockGetPaymentOptions.mockResolvedValue({ enabled: true, payment_methods: ["alipay", "card"] });
     render(<PricingPage />, { wrapper: createWrapper() });
     expect(await screen.findByText("$12.99/月")).toBeInTheDocument();
-    expect(screen.getByTestId("pricing-alternative-payment-hint")).toHaveTextContent(
-      "Alipay (CNY) is available for mainland China"
-    );
+    expect(screen.queryByTestId("pricing-alternative-payment-hint")).not.toBeInTheDocument();
   });
 
   it("covers difference-only filter behavior", async () => {
