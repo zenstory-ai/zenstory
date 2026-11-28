@@ -86,13 +86,11 @@ export interface MaterialLibrarySectionProps {
   exhaustedMessage: string;
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  exportingId: string | null;
   retryingId: string | null;
   onOpenUpload: () => void;
   onOpenUpgrade: (destination: "billing" | "pricing", source?: string) => void;
   onCardClick: (novelId: string) => void;
   onDelete: (novelId: string) => void;
-  onExport: (material: MaterialNovel) => void;
   onRetry: (novelId: string) => void;
 }
 
@@ -111,13 +109,11 @@ export function MaterialLibrarySection({
   exhaustedMessage,
   searchQuery,
   onSearchChange,
-  exportingId,
   retryingId,
   onOpenUpload,
   onOpenUpgrade,
   onCardClick,
   onDelete,
-  onExport,
   onRetry,
 }: MaterialLibrarySectionProps) {
   const { t } = useTranslation(["materials", "common"]);
@@ -227,8 +223,6 @@ export function MaterialLibrarySection({
               material={material}
               onClick={() => onCardClick(material.id)}
               onDelete={() => onDelete(material.id)}
-              onExport={() => onExport(material)}
-              isExporting={exportingId === material.id}
               onRetry={
                 // Retrying charges a monthly breakdown: the free trial cannot retry.
                 !hasWorkspaceAccess || isMaterialsQuotaExhausted

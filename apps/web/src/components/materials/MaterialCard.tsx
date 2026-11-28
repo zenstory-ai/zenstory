@@ -5,7 +5,6 @@ import {
   BookOpen,
   CheckCircle,
   Clock,
-  Download,
   FileText,
   RefreshCw,
   Trash2,
@@ -20,8 +19,6 @@ export interface MaterialCardProps {
   material: MaterialNovel;
   onClick: () => void;
   onDelete: () => void;
-  onExport?: () => void;
-  isExporting?: boolean;
   onRetry?: () => void;
   isRetrying?: boolean;
   isMobile?: boolean;
@@ -76,17 +73,12 @@ export function MaterialCard({
   material,
   onClick,
   onDelete,
-  onExport,
-  isExporting,
   onRetry,
   isRetrying,
   isMobile,
   showDeleteAction,
 }: MaterialCardProps) {
   const { t } = useTranslation(["materials", "common"]);
-  const canExport =
-    Boolean(onExport) &&
-    (material.status === "completed" || material.status === "completed_with_errors");
   const canRetryCard =
     Boolean(onRetry) &&
     (material.status === "failed" || material.status === "completed_with_errors");
@@ -160,46 +152,23 @@ export function MaterialCard({
         )}
       </div>
 
-      {(canExport || canRetryCard) && (
+      {canRetryCard && onRetry && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {canExport && onExport && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              onClick={(e) => {
-                e.stopPropagation();
-                onExport();
-              }}
-              disabled={isExporting}
-              leftIcon={
-                isExporting ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Download className="w-3.5 h-3.5" />
-                )
-              }
-            >
-              {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
-            </Button>
-          )}
-          {canRetryCard && onRetry && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="touch"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRetry();
-              }}
-              disabled={isRetrying}
-              leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />}
-            >
-              {isRetrying
-                ? t("materials:status.processing", { defaultValue: "处理中" })
-                : t("common:retry", { defaultValue: "重试" })}
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="secondary"
+            size="touch"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetry();
+            }}
+            disabled={isRetrying}
+            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />}
+          >
+            {isRetrying
+              ? t("materials:status.processing", { defaultValue: "处理中" })
+              : t("common:retry", { defaultValue: "重试" })}
+          </Button>
         </div>
       )}
 
