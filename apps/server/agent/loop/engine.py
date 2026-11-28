@@ -29,7 +29,7 @@ from agent.core.author_facing_text import (
     text_contains_cjk,
 )
 from agent.core.events import UNEXECUTED_TOOL_TEXT_LAYER, WALL_CLOCK_LIMIT
-from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, AGENT_DIRECTIVE_HEADER_EN
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, AGENT_DIRECTIVE_HEADER_EN, is_non_zh_language
 from agent.core.output_truncation import OUTPUT_TRUNCATED_RESUME, OUTPUT_TRUNCATED_RESUME_EN
 from agent.core.run_meter import AgentRunMeter
 from agent.core.stream_errors import classify_stream_exception, log_stream_exception
@@ -214,7 +214,7 @@ _UNEXECUTED_TOOL_TEXT_REASON_EN = "A tool call in the reply was written out as t
 
 
 def _english(state: WritingState) -> bool:
-    return str(state.get("language") or "").strip().lower().startswith("en")
+    return is_non_zh_language(state.get("language"))
 
 
 def _armed_replacement_id(result: Any) -> str:
@@ -539,7 +539,9 @@ async def run_loop_agent_streaming(
     author_raw_message = state.get("router_message") or state.get("user_message")
     has_cjk = text_contains_cjk(author_raw_message)
     drop_english_narration = has_cjk
-    drop_cjk_narration = bool(isinstance(author_raw_message, str) and author_raw_message.strip() and not has_cjk)
+    drop_cjk_narration = bool(
+        english and isinstance(author_raw_message, str) and author_raw_message.strip() and not has_cjk
+    )
 
     # 上一轮停在思考阶段的输出上限（历史行的 stop_reason 数出的结构化事实）：本轮第一次 run 的输入末尾
     # 加一条运行指令，要求简短思考、先交付第一部分。只进这次 SDK 输入，不写回对话历史。

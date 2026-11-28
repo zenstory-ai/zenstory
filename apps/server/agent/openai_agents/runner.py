@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from agent.core.events import WALL_CLOCK_LIMIT
+from agent.core.message_manager import is_non_zh_language
 from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
 from agent.core.run_meter import AgentRunMeter, TimingOutcome
 from agent.core.server_drain import is_draining
@@ -1110,7 +1111,7 @@ async def run_openai_agents_streaming_agent(
     call_text_length = 0
     repetition_checked_at = 0
     call_head_checked = False
-    english = str(state.get("language") or "").strip().lower().startswith("en")
+    english = is_non_zh_language(state.get("language"))
     active_tool_arg_streams: dict[str, _ToolArgStreamState] = {}
     last_tool_arg_stream_key: str | None = None
     max_turns_exhausted = False

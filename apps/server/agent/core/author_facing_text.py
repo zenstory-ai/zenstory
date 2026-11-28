@@ -36,6 +36,7 @@ _CJK = r"㐀-鿿豈-﫿"
 # 作者写中文时，调用工具前那句以英文为主的过程说明（「Now create the 分集大纲 file.」）
 # 不发给作者。只看「紧接着就调用工具」的那一小段：最后的总结、写进文件的正文都不过滤。
 _CJK_CHAR_RE = re.compile(rf"[{_CJK}]")
+_KANA_CHAR_RE = re.compile(r"[\u3040-\u30ff]")
 _ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
 # 这么长还没定下来就照常发出去（不再等），过程说明通常就一句话。
 NARRATION_BUFFER_MAX_CHARS = 120
@@ -62,13 +63,15 @@ def is_english_process_narration(text: str) -> bool:
 
 
 def is_cjk_process_narration(text: str) -> bool:
-    """一小段以中文汉字为主的过程旁白：≤120 字、不含 `<`、以汉字开头且汉字数不少于非汉字字母数。
+    """一小段以中文汉字为主的过程旁白：≤120 字、不含 `<` 与日语假名、以汉字开头且汉字数不少于非汉字字母数。
 
-    纯展示层有界语法判定（镜像 ``is_english_process_narration``），仅在作者消息不含汉字且
-    紧接工具调用前生效，绝不触碰正文、`<file>` 块或最终总结回复。
+    纯展示层有界语法判定（镜像 ``is_english_process_narration``），仅在非中文会话、作者消息不含汉字且
+    紧接工具调用前生效，绝不触碰正文、`<file>` 块、日语文本或最终总结回复。
     """
     stripped = (text or "").strip()
     if not stripped or len(stripped) > NARRATION_BUFFER_MAX_CHARS or "<" in stripped:
+        return False
+    if _KANA_CHAR_RE.search(stripped):
         return False
     if not _CJK_CHAR_RE.match(stripped):
         return False
@@ -174,6 +177,7 @@ class AgentTextShaper:
             non_cjk_alpha = _count_non_cjk_alpha(self._buffer)
             should_flush = (
                 not _CJK_CHAR_RE.match(stripped)
+                or bool(_KANA_CHAR_RE.search(self._buffer))
                 or (non_cjk_alpha >= _NON_CJK_ALPHA_FLUSH_MIN_CHARS and non_cjk_alpha > cjk)
                 or "<" in self._buffer
                 or len(self._buffer) > NARRATION_BUFFER_MAX_CHARS

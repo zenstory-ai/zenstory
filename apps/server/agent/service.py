@@ -54,6 +54,7 @@ from .core.llm_providers import primary_model_name
 from .core.message_manager import (
     MessageManager,
     has_substantive_display_events,
+    is_non_zh_language,
     normalize_assistant_display_events,
 )
 from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome
@@ -367,10 +368,7 @@ DEFAULT_CHAT_SESSION_TITLE_EN = "AI Assistant"
 
 def _default_session_title(language: str | None) -> str:
     """Return the default chat session title for ``language`` (``"AI Assistant"`` for non-zh)."""
-    lang = (language or "").strip().lower()
-    if lang and not lang.startswith("zh"):
-        return DEFAULT_CHAT_SESSION_TITLE_EN
-    return DEFAULT_CHAT_SESSION_TITLE_ZH
+    return DEFAULT_CHAT_SESSION_TITLE_EN if is_non_zh_language(language) else DEFAULT_CHAT_SESSION_TITLE_ZH
 
 
 _PROJECT_TYPE_LABELS_ZH = {"novel": "长篇小说", "short": "短篇小说", "screenplay": "短剧剧本"}
@@ -792,7 +790,7 @@ class AgentService:
         if not user_id or not selected_skill_ids:
             return []
 
-        force_en = bool(language and language.strip().lower().startswith("en"))
+        force_en = is_non_zh_language(language)
         selected: list[dict[str, Any]] = []
         skills = resolve_selected_skills(session, user_id, selected_skill_ids)
         for skill in skills:
@@ -928,7 +926,7 @@ class AgentService:
         owned_session_id: str | None = None
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), [], ""
-        force_en = bool(language and language.strip().lower().startswith("en"))
+        force_en = is_non_zh_language(language)
         selected_skills = self._resolve_selected_skills(
             session, user_id=user_id, selected_skill_ids=selected_skill_ids, language=language
         )
@@ -1567,7 +1565,7 @@ class AgentService:
 
         try:
             lang = (language or "").strip().lower() or "zh"
-            force_en = lang.startswith("en")
+            force_en = is_non_zh_language(lang)
 
             # Emit session_started event FIRST
             yield session_started_event(session_id).to_sse()

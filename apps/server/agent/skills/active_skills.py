@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from sqlmodel import Session, select
 
+from agent.core.message_manager import is_non_zh_language
 from config.official_skill_translations import localized_skill_text
 from models import PublicSkill, SkillResource, UserAddedSkill, UserSkill
 
@@ -78,13 +79,13 @@ class ActiveSkill:
 
     def localized_display(self, language: str | None) -> tuple[str, str]:
         """Return ``(display_name, display_description)`` localized for ``language``."""
-        if not self.is_official or self.has_custom_name:
+        if not self.is_official or self.has_custom_name or not is_non_zh_language(language):
             return self.name, self.description
         display_name, display_desc = localized_skill_text(
             source=self.public_source,
             name=self.name,
             description=self.description,
-            language=language,
+            language="en",
         )
         return display_name, display_desc or ""
 
@@ -153,10 +154,36 @@ def duplicate_name_keys(skills: list[ActiveSkill], *, language: str | None = Non
     return duplicates
 
 
-def same_name_skills(skills: list[ActiveSkill], skill: ActiveSkill) -> list[ActiveSkill]:
-    """与 ``skill`` 同名（忽略大小写与空白差异）的其他技能。"""
-    key = skill_name_key(skill.name)
-    return [other for other in skills if other.id != skill.id and skill_name_key(other.name) == key]
+def _skill_name_keys(skill: ActiveSkill) -> set[str]:
+    """Stored name key plus official English display alias (when not custom-renamed)."""
+    keys = {skill_name_key(skill.name)}
+    if skill.is_official and not skill.has_custom_name:
+        en_name, _ = skill.localized_display("en")
+        if en_name:
+            keys.add(skill_name_key(en_name))
+    return keys
+
+
+def same_name_skills(
+    skills: list[ActiveSkill],
+    skill: ActiveSkill,
+    *,
+    language: str | None = None,
+) -> list[ActiveSkill]:
+    """与 ``skill`` 同名（忽略大小写与空白差异，并兼容官方技能英文展示名）的其他技能。"""
+    if language is not None:
+        key = skill_name_key(skill.localized_display(language)[0])
+        return [
+            other
+            for other in skills
+            if other.id != skill.id and skill_name_key(other.localized_display(language)[0]) == key
+        ]
+    target_keys = _skill_name_keys(skill)
+    return [
+        other
+        for other in skills
+        if other.id != skill.id and bool(_skill_name_keys(other) & target_keys)
+    ]
 
 
 def find_active_skill(skills: list[ActiveSkill], name_or_id: str) -> ActiveSkill | None:

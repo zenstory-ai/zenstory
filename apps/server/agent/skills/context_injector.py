@@ -9,6 +9,7 @@ Skill catalog (L1) for the system prompt.
 from sqlmodel import Session
 
 from agent.core.author_facing_text import text_contains_cjk
+from agent.core.message_manager import is_non_zh_language
 from utils.logger import get_logger, log_with_context
 
 from .active_skills import ActiveSkill, duplicate_name_keys, load_active_skills, skill_name_key
@@ -89,7 +90,7 @@ def _catalog_line(
     with_id: bool = False,
     language: str | None = None,
 ) -> str:
-    force_en = bool(language and language.strip().lower().startswith("en"))
+    force_en = is_non_zh_language(language)
     raw_name, raw_desc = skill.localized_display(language) if force_en else (skill.name, skill.description)
     name = " ".join(raw_name.split())
     # 同名技能只靠名称区分不了：标上 id，load_skill / read_skill_resource 传 id 才能取到指定的那个
@@ -136,7 +137,7 @@ class SkillContextInjector:
         if not skills:
             return None
 
-        force_en = bool(language and language.strip().lower().startswith("en"))
+        force_en = is_non_zh_language(language)
         duplicates = duplicate_name_keys(skills, language=language if force_en else None)
         lines = list(CATALOG_HEADER_LINES_EN if force_en else CATALOG_HEADER_LINES)
         if duplicates:

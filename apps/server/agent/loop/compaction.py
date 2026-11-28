@@ -47,12 +47,13 @@ from .history import (
     estimate_provider_text_tokens,
     estimate_tools_schema_tokens,
     is_successful_archivable_payload,
+    is_summary_message,
     kept_author_messages,
     parse_tool_json,
     query_result_full_file_ids,
     summary_message,
 )
-from .prompts import COMPACT_PROMPT, COMPACT_PROMPT_EN, SUMMARY_PREFIX, SUMMARY_PREFIX_EN
+from .prompts import COMPACT_PROMPT, COMPACT_PROMPT_EN
 
 if TYPE_CHECKING:
     from agent.core.run_meter import AgentRunMeter
@@ -108,10 +109,8 @@ class CompactionOutcome:
 
 
 # 单轮内系统注入到 SDK input 里的合成 user 项前缀（精确协议前缀，不作自然语言语义猜测）：
-# 压缩摘要、本轮系统指令、写后自查/空文件纠偏/输出截断续写/收尾提醒等。
+# 本轮系统指令、写后自查/空文件纠偏/输出截断续写/收尾提醒等（压缩摘要由 is_summary_message 识别）。
 _SYNTHETIC_USER_PREFIXES: tuple[str, ...] = (
-    SUMMARY_PREFIX,
-    SUMMARY_PREFIX_EN,
     AGENT_DIRECTIVE_HEADER,
     AGENT_DIRECTIVE_HEADER_EN,
     "[系统提醒]",
@@ -139,6 +138,8 @@ def _is_user_turn_item(item: Any) -> bool:
     if not isinstance(item, dict) or item.get("role") != "user":
         return False
     leading = _leading_user_text(item.get("content"))
+    if is_summary_message(leading):
+        return False
     return not leading.startswith(_SYNTHETIC_USER_PREFIXES)
 
 

@@ -85,7 +85,7 @@ from agent.service import (
     DEFAULT_CHAT_SESSION_TITLE_ZH,
     AgentService,
 )
-from agent.skills.active_skills import find_active_skill, load_active_skills
+from agent.skills.active_skills import find_active_skill, load_active_skills, same_name_skills
 from agent.skills.context_injector import SkillContextInjector
 from agent.suggest_service import ENGLISH_OUTPUT_RULE, SuggestService
 from core.error_handler import APIException
@@ -377,6 +377,9 @@ def test_drop_cjk_narration_symmetry_and_zero_false_drops():
     assert is_cjk_process_narration("Let me check the outline first.") is False
     assert is_cjk_process_narration("Saya akan memeriksa kerangka bab dulu.") is False
     assert is_cjk_process_narration("먼저 개요를 확인하겠습니다.") is False
+    # Japanese sentences containing Hiragana or Katakana are never treated as Chinese process chatter.
+    assert is_cjk_process_narration("第1章を確認します。") is False
+    assert is_cjk_process_narration("プロットを確認します。") is False
     assert is_cjk_process_narration("<file>\n我先看一下大纲。\n</file>") is False
     assert is_cjk_process_narration("正" * 121) is False
     assert is_english_process_narration("Now create the outline.") is True
@@ -390,6 +393,9 @@ def test_drop_cjk_narration_symmetry_and_zero_false_drops():
     assert shaper_en.feed("Checking the outline...") == "Checking the outline..."
     assert shaper_en.end_segment(before_tool_call=True) == ""
     assert shaper_en.feed("Saya periksa dulu.") == "\n\nSaya periksa dulu."
+    assert shaper_en.end_segment(before_tool_call=True) == ""
+    # Japanese Kanji+Kana pre-tool line streams immediately and is never dropped.
+    assert shaper_en.feed("第1章を確認します。") == "\n\n第1章を確認します。"
     assert shaper_en.end_segment(before_tool_call=True) == ""
     # 3. <file> block starting with CJK is NEVER dropped.
     assert shaper_en.feed("<file>\n我先看一下大纲。\n</file>") == "<file>\n我先看一下大纲。\n</file>"
@@ -456,6 +462,48 @@ async def test_loop_engine_drops_cjk_pre_tool_chatter_for_non_cjk_authors(author
     combined = "".join(texts)
     assert "我先看一下大纲" not in combined
     assert "Chapter 1 is ready." in combined
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+@pytest.mark.parametrize("author_message", ["ok", "1", "continue", "A", "https://example.com"])
+async def test_loop_engine_keeps_chinese_pre_tool_narration_for_zh_session_short_replies(
+    author_message: str,
+):
+    """P1 regression: a Chinese user (language='zh') replying 'ok' / '1' / 'continue' must NEVER
+    have legitimate Chinese pre-tool lines dropped."""
+    from agent.loop.engine import run_loop_agent_streaming
+
+    async def fake_runner(**_kwargs):
+        yield StreamEvent(type=StreamEventType.MESSAGE_START, data={"agent_type": "loop"})
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "好的，我先读取大纲和第3章。"})
+        yield StreamEvent(
+            type=StreamEventType.TOOL_USE,
+            data={"id": "t1", "name": "read_files", "status": "complete", "input": {"ids": ["f1"]}},
+        )
+        yield StreamEvent(
+            type=StreamEventType.TOOL_RESULT,
+            data={"tool_use_id": "t1", "name": "read_files", "result": '{"status":"success"}'},
+        )
+        yield StreamEvent(type=StreamEventType.TEXT, data={"text": "第3章已经写好了。"})
+        yield StreamEvent(type=StreamEventType.MESSAGE_END, data={"stop_reason": "end_turn"})
+
+    state = {
+        "user_message": author_message,
+        "router_message": author_message,
+        "language": "zh",
+        "system_prompt": "ZH SYS",
+        "messages": [],
+    }
+    texts: list[str] = []
+    with patch("agent.loop.engine.run_openai_agents_streaming_agent", side_effect=fake_runner):
+        async for ev in run_loop_agent_streaming(state):
+            if ev.type == StreamEventType.TEXT:
+                texts.append(ev.data["text"])
+
+    combined = "".join(texts)
+    assert "好的，我先读取大纲和第3章。" in combined
+    assert "第3章已经写好了。" in combined
 
 
 # =============================================================================
@@ -672,6 +720,10 @@ def test_official_skill_l1_catalog_localization_and_english_lookup(db_session: S
     assert matched is not None
     assert matched.id == custom.id
     assert matched.source == "user"
+    # same_name_skills reports official "创建大纲" as a colliding skill both with language="en" and default language=None.
+    assert [s.id for s in same_name_skills(active_with_custom, matched, language="en")] == [official.id]
+    assert [s.id for s in same_name_skills(active_with_custom, matched)] == [official.id]
+    assert same_name_skills(active_with_custom, matched, language="zh") == []
 
     # Chinese catalog remains unchanged.
     catalog_zh = SkillContextInjector().build_skill_catalog(db_session, user.id, language="zh")
@@ -796,6 +848,49 @@ def test_service_default_session_title_is_language_aware(
     created = db_session.get(ChatSession, sid)
     assert created is not None
     assert created.title == expected_title
+
+
+@pytest.mark.unit
+@pytest.mark.usefixtures("writing_prompt_configs")
+@pytest.mark.parametrize("raw_lang", ["EN", "en-US", "id", "es", "fr"])
+def test_non_zh_and_uppercase_languages_align_force_en_and_turn_context(
+    db_session: Session, raw_lang: str
+):
+    """P2 regression: uppercase 'EN' and non-zh locales like 'id'/'es'/'fr' consistently select the EN bucket
+    across MessageManager, turn_context, SkillContextInjector, and service session titles."""
+    user, project = _seed_user_project(db_session)
+    official = PublicSkill(
+        name="创建大纲",
+        description="规划大纲",
+        instructions="大纲方法",
+        source="official",
+        status="approved",
+    )
+    db_session.add(official)
+    db_session.commit()
+    db_session.refresh(official)
+    db_session.add(UserAddedSkill(user_id=user.id, public_skill_id=official.id, is_active=True))
+    db_session.commit()
+
+    catalog = SkillContextInjector().build_skill_catalog(db_session, user.id, language=raw_lang)
+    assert catalog is not None and "**Create an Outline**" in catalog
+
+    prompt = MessageManager(project.id, user.id).build_system_prompt(
+        session=db_session, language=raw_lang, skill_catalog=catalog
+    )
+    assert "## Reply & Output Language Consistency" in prompt
+    assert not text_contains_cjk(prompt)
+
+    turn_ctx = build_loop_turn_context(
+        db_session,
+        project_id=project.id,
+        user_id=user.id,
+        metadata={},
+        language=raw_lang,
+        author_message="Hello",
+    )
+    assert "Items marked [Full]" in turn_ctx.text
+    assert "[全文]" not in turn_ctx.text
 
 
 # =============================================================================

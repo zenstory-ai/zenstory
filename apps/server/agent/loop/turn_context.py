@@ -19,7 +19,12 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from agent.core.message_manager import TURN_CONTEXT_CLOSE, TURN_CONTEXT_OPEN, MessageManager
+from agent.core.message_manager import (
+    TURN_CONTEXT_CLOSE,
+    TURN_CONTEXT_OPEN,
+    MessageManager,
+    is_non_zh_language,
+)
 from agent.loop.ui_actions import UIAction, build_ui_action_turn_section
 from utils.logger import get_logger, log_with_context
 from utils.text_metrics import count_words
@@ -102,7 +107,7 @@ def build_loop_turn_context(
     from models import File
 
     assembler = context_assembler or get_context_assembler()
-    force_en = language.startswith("en")
+    force_en = is_non_zh_language(language)
     metadata = metadata if isinstance(metadata, dict) else {}
     result = LoopTurnContext()
 

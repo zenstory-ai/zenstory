@@ -35,6 +35,17 @@ AGENT_DIRECTIVE_HEADER = "[本次运行的系统指令]"
 AGENT_DIRECTIVE_HEADER_EN = "[System directive for this run]"
 
 
+def is_non_zh_language(language: object) -> bool:
+    """Return True when ``language`` is an explicit non-Chinese locale (e.g. ``en``, ``EN``, ``id``, ``es``).
+
+    Empty/None defaults to Chinese (``False``) so legacy callers without a language remain on the ``zh`` bucket.
+    """
+    if not isinstance(language, str):
+        return False
+    lang = language.strip().lower()
+    return bool(lang) and not lang.startswith("zh")
+
+
 # 落库时单个 thinking_content / reasoning_content 块的字符上限（直播 SSE 思考流不受影响），
 # 防止 200k–400k 字的深度思考块永久膨胀 PostgreSQL TOAST。
 PERSISTED_THINKING_MAX_CHARS = 8_000
@@ -612,8 +623,7 @@ class MessageManager:
 
     @staticmethod
     def _force_en(language: str | None) -> bool:
-        lang = (language or "").strip().lower() or "zh"
-        return lang.startswith("en")
+        return is_non_zh_language(language)
 
     def _build_language_section(self, force_en: bool) -> list[str]:
         """回复语言规则：完全由模型按作者最近一条消息判断，界面语言只在判断不了时兜底。"""
