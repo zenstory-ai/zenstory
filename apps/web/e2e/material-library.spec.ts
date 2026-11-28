@@ -563,8 +563,11 @@ test.describe('Material Library Flow - Processing Status', () => {
     const processingBadge = page.locator('text=/decomposing|processing|拆解中|处理中/i')
     await expect(processingBadge.first()).toBeVisible({ timeout: 5000 })
 
-    const processingCard = processingBadge.first().locator('..').locator('..')
-    await processingCard.click()
+    const processingCard = page
+      .locator(MATERIALS_PAGE.materialCard)
+      .filter({ has: processingBadge })
+      .first()
+    await processingCard.getByRole('button', { name: /查看素材详情|View material/i }).click()
     await page.waitForURL(/\/materials\//, { timeout: 5000 })
 
     // Verify processing status or progress indicator is visible on detail page
@@ -583,8 +586,11 @@ test.describe('Material Library Flow - Processing Status', () => {
 
     if (hasFailed) {
       // Click on failed material
-      const failedCard = failedBadge.first().locator('..').locator('..')
-      await failedCard.click()
+      const failedCard = page
+        .locator(MATERIALS_PAGE.materialCard)
+        .filter({ has: failedBadge })
+        .first()
+      await failedCard.getByRole('button', { name: /查看素材详情|View material/i }).click()
       await page.waitForURL(/\/materials\//, { timeout: 5000 })
 
       // Verify error message is shown
@@ -955,8 +961,11 @@ test.describe('Material Library Flow - Error Recovery', () => {
     const failedBadge = page.locator('text=/failed|失败/i')
     await expect(failedBadge.first()).toBeVisible({ timeout: 5000 })
 
-    const failedCard = failedBadge.first().locator('..').locator('..')
-    await failedCard.click()
+    const failedCard = page
+      .locator(MATERIALS_PAGE.materialCard)
+      .filter({ has: failedBadge })
+      .first()
+    await failedCard.getByRole('button', { name: /查看素材详情|View material/i }).click()
     await page.waitForURL(/\/materials\//, { timeout: 5000 })
 
     const retryButton = page.getByRole('button', { name: /Retry|重试/i }).first()
