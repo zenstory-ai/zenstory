@@ -25,17 +25,27 @@ from typing import Any
 from sqlalchemy import desc, or_
 from sqlmodel import Session, and_, select
 
-from agent.core.output_truncation import OUTPUT_TRUNCATED_REASON
+from agent.core.output_truncation import (
+    OUTPUT_TRUNCATED_HISTORY,
+    OUTPUT_TRUNCATED_HISTORY_EN,
+    OUTPUT_TRUNCATED_REASON,
+)
 from agent.core.protocol_filter import contains_leaked_tool_protocol
 from config.agent_runtime import AGENT_LOOP_COMPACT_KEEP_USER_TOKENS
 from utils.logger import get_logger, log_with_context
 
-from .prompts import KEPT_USER_TRUNCATED_SUFFIX, SUMMARY_PREFIX
+from .prompts import (
+    KEPT_USER_TRUNCATED_SUFFIX,
+    KEPT_USER_TRUNCATED_SUFFIX_EN,
+    SUMMARY_PREFIX,
+    SUMMARY_PREFIX_EN,
+)
 
 logger = get_logger(__name__)
 
 # message_metadata 里标记单循环 agent 写下的行。
 LOOP_ENGINE_METADATA_VALUE = "loop"
+SUMMARY_PREFIXES: tuple[str, ...] = (SUMMARY_PREFIX, SUMMARY_PREFIX_EN)
 _PAGE_SIZE = 100
 # 没做完就结束的一轮（落库的 stop_reason）：回放时补一句，模型知道「继续」要接着什么做。
 _INTERRUPTED_ROUND_NOTES = {
@@ -46,6 +56,14 @@ _INTERRUPTED_ROUND_NOTES = {
     "max_turns_exceeded": "（这一轮没做完：工具调用轮数到了上限。）",
     "model_call_budget_exhausted": "（这一轮没做完：模型调用次数到了上限。）",
 }
+_INTERRUPTED_ROUND_NOTES_EN = {
+    "user_stopped": "(This round ended early: the author stopped generation.)",
+    "client_disconnected": "(This round ended early: the connection dropped.)",
+    "cancelled": "(This round ended early: the connection dropped.)",
+    "run_deadline_exceeded": "(This round ended early: the turn ran out of time.)",
+    "max_turns_exceeded": "(This round ended early: the tool-call turn limit was reached.)",
+    "model_call_budget_exhausted": "(This round ended early: the model-call limit was reached.)",
+}
 # create_file / write_chapter 的结果里只对当时那一步或前端卡片有意义、回放时会误导/膨胀上下文的字段。
 _CREATE_FILE_TRANSIENT_KEYS = ("awaiting_body", "next_step", "content", "body_in_reply", "undo")
 _REPLACE_NOT_SAVED_NOTE = (
@@ -54,17 +72,28 @@ _REPLACE_NOT_SAVED_NOTE = (
     "下一次回复再用 <file>…</file> 写入，不先把整章发到聊天，"
     "也不用未保存的新稿作 edit_file 锚点。若本轮改为只读或其他任务，不要自动恢复旧写入。"
 )
+_REPLACE_NOT_SAVED_NOTE_EN = (
+    "The new body for that whole-chapter replacement was not saved; the chapter remains unchanged and the old write target has expired. "
+    "If the author still asks for a full chapter write this turn, call write_chapter again to arm a new target and stream <file>...</file> in the next reply "
+    "(never paste the full chapter into chat or use unsaved text as edit_file anchors). If the author switched to a read-only or different task, do not resume the old write."
+)
 _CREATE_NOT_SAVED_NOTE = "这次新建的正文没有确认保存；需要时先用 read_files 查这个 id 的现状。"
+_CREATE_NOT_SAVED_NOTE_EN = "The body for this newly created file was not confirmed saved; call read_files on this ID if you need its current state."
 # 落库的工具结果是前端卡片口径，不是模型当时拿到的原文：技能正文不落库，失败只留给作者看的说明。
 # 回放时如实说明，模型不会以为自己手里还有这些内容。
 _SKILL_CONTENT_NOT_KEPT = {
     "load_skill": "技能方法正文没有保留在历史里；这一轮要按这个技能做，先重新调用 load_skill 读取。",
     "read_skill_resource": "资源正文没有保留在历史里；这一轮要用它，先重新调用 read_skill_resource 读取。",
 }
+_SKILL_CONTENT_NOT_KEPT_EN = {
+    "load_skill": "The skill methodology body was not kept in history; call load_skill again if you need to apply it this turn.",
+    "read_skill_resource": "The skill resource body was not kept in history; call read_skill_resource again if you need it this turn.",
+}
 # 冷回放仅对最近 N 个用户轮次内的技能工具调用重新水合正文，避免过早的轮次膨胀冷回放输入。
 SKILL_REPLAY_RECENT_TURNS = 3
 _SkillRehydrator = Callable[[str, Any, Any], dict[str, Any] | None]
 _FAILED_CALL_NOTE = "这是当时给作者看的失败说明；工具给你的具体原因与候选没有保留，重试前先重新读取相关文件。"
+_FAILED_CALL_NOTE_EN = "This is the author-facing error summary from that turn; detailed tool diagnostics and candidates were not kept. Read the relevant file before retrying."
 
 # Stage 1 零 LLM 确定性归档压缩（tool_archive）的共享常量与收据构造。
 # compaction.py 与 history.py 共用同一纯函数，确保实时压缩与冷库回放逐字节一致。
@@ -94,6 +123,28 @@ _TOOL_ARCHIVE_NOTES: dict[str, str] = {
     "read_skill_resource": (
         "该技能参考资源已在历史归档中折叠以节省上下文；"
         "如需原文，请重新调用 read_skill_resource 读取。"
+    ),
+}
+_TOOL_ARCHIVE_NOTES_EN: dict[str, str] = {
+    "query_files": (
+        "This read-only lookup output was archived to save context; "
+        "call read_files(ids=[...]) by file ID if you need exact text."
+    ),
+    "read_files": (
+        "This file read output was archived to save context; "
+        "call read_files(ids=[...]) by file ID if you need exact text."
+    ),
+    "search_files": (
+        "This search output was archived to save context; "
+        "call search_files again for matches or read_files(ids=[...]) for full text."
+    ),
+    "load_skill": (
+        "This skill body was archived to save context; "
+        "call load_skill again if you need to apply it."
+    ),
+    "read_skill_resource": (
+        "This skill resource was archived to save context; "
+        "call read_skill_resource again if you need its full text."
     ),
 }
 _MAX_ARCHIVE_FILE_REFS = 50
@@ -357,10 +408,12 @@ def build_tool_archive_receipt(
     tool_name: str,
     output_str: str,
     parsed: dict[str, Any] | None = None,
+    *,
+    english: bool = False,
 ) -> tuple[str, list[str]]:
     """构造紧凑、确定性的只读工具归档回执 JSON，返回 ``(receipt_json, file_ids)``。
 
-    ``compaction.py`` 与 ``history.py`` 共用本函数：给定同一 ``(tool_name, output_str)`` 时，
+    ``compaction.py`` 与 ``history.py`` 共用本函数：给定同一 ``(tool_name, output_str, english)`` 时，
     实时 Stage 1 归档与冷库回放输出逐字节一致。
     """
     payload_obj = parsed if isinstance(parsed, dict) else _parse_json(output_str)
@@ -389,10 +442,13 @@ def build_tool_archive_receipt(
             if tool_name == "read_skill_resource" and isinstance(path, str) and path.strip():
                 receipt["path"] = path.strip()
     receipt["original_chars"] = len(output_str)
-    receipt["note"] = _TOOL_ARCHIVE_NOTES.get(
-        tool_name,
-        "该只读工具结果已在历史归档中折叠以节省上下文；如需原文请重新调用该工具读取。",
+    notes = _TOOL_ARCHIVE_NOTES_EN if english else _TOOL_ARCHIVE_NOTES
+    default_note = (
+        "This read-only tool output was archived to save context; call the tool again if you need its full text."
+        if english
+        else "该只读工具结果已在历史归档中折叠以节省上下文；如需原文请重新调用该工具读取。"
     )
+    receipt["note"] = notes.get(tool_name, default_note)
     return json.dumps(receipt, ensure_ascii=False, separators=(",", ":")), file_ids
 
 
@@ -628,14 +684,24 @@ def client_message_metadata(raw: str | None) -> str | None:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def summary_message(summary: str) -> dict[str, Any]:
-    return {"role": "user", "content": f"{SUMMARY_PREFIX}{summary.strip()}"}
+def is_summary_message(text_or_item: Any) -> bool:
+    """Return True when a user item or text carries either the Chinese or English compaction summary prefix."""
+    content = text_or_item.get("content") if isinstance(text_or_item, dict) else text_or_item
+    if not isinstance(content, str):
+        return False
+    return content.lstrip().startswith(SUMMARY_PREFIXES)
+
+
+def summary_message(summary: str, *, english: bool = False) -> dict[str, Any]:
+    prefix = SUMMARY_PREFIX_EN if english else SUMMARY_PREFIX
+    return {"role": "user", "content": f"{prefix}{summary.strip()}"}
 
 
 def _tool_output_text(
     call: dict[str, Any],
     *,
     skill_rehydrator: _SkillRehydrator | None = None,
+    english: bool = False,
 ) -> str:
     """持久化的工具结果（前端卡片口径）还原成交给模型的结果文字。"""
     status = str(call.get("status") or "")
@@ -644,7 +710,10 @@ def _tool_output_text(
     error = call.get("error")
     if status == "pending" and result is None and error is None:
         return json.dumps(
-            {"status": "unknown", "note": "这次调用的结果没有记录下来"},
+            {
+                "status": "unknown",
+                "note": "The result of this tool call was not recorded." if english else "这次调用的结果没有记录下来",
+            },
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -669,13 +738,13 @@ def _tool_output_text(
             # 整章替换只有落库后补发的结果才带 body_saved；只有定位结果说明新正文没有存下。
             result["body_saved"] = saved
             if not saved:
-                result["result"] = _REPLACE_NOT_SAVED_NOTE
+                result["result"] = _REPLACE_NOT_SAVED_NOTE_EN if english else _REPLACE_NOT_SAVED_NOTE
         elif streamed:
             # 新建的正文回执由 service 落库时按保存回执写进卡片（_stamp_body_receipts）；
             # 修复前写下的行没有这个键，沿用原来的推断。
             result["body_saved"] = saved if has_receipt else True
             if has_receipt and not saved:
-                result["result"] = _CREATE_NOT_SAVED_NOTE
+                result["result"] = _CREATE_NOT_SAVED_NOTE_EN if english else _CREATE_NOT_SAVED_NOTE
     elif (
         skill_rehydrator is not None
         and (status or "success") == "success"
@@ -692,9 +761,10 @@ def _tool_output_text(
     if error:
         payload["error"] = error
     if status == "error":
-        payload["note"] = _FAILED_CALL_NOTE
+        payload["note"] = _FAILED_CALL_NOTE_EN if english else _FAILED_CALL_NOTE
     elif name in _SKILL_CONTENT_NOT_KEPT and not rehydrated_skill:
-        payload["note"] = _SKILL_CONTENT_NOT_KEPT[name]
+        skill_notes = _SKILL_CONTENT_NOT_KEPT_EN if english else _SKILL_CONTENT_NOT_KEPT
+        payload["note"] = skill_notes[name]
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -764,6 +834,7 @@ def _loop_row_items(
     archived_file_ids: set[str] | None = None,
     archive_matcher: Any | None = None,
     skill_rehydrator: _SkillRehydrator | None = None,
+    english: bool = False,
 ) -> list[dict[str, Any]]:
     """一条单循环 assistant 行 → SDK 输入项（文字与成对的工具调用，按显示顺序）。"""
     raw_calls = _parse_json(getattr(row, "tool_calls", None))
@@ -802,12 +873,15 @@ def _loop_row_items(
         output_text = _tool_output_text(
             call,
             skill_rehydrator=None if should_archive else skill_rehydrator,
+            english=english,
         )
         was_archived = False
         if should_archive:
             parsed_output = _parse_json(output_text)
             if is_successful_archivable_payload(parsed_output):
-                receipt_text, fids = build_tool_archive_receipt(tool_name, output_text, parsed_output)
+                receipt_text, fids = build_tool_archive_receipt(
+                    tool_name, output_text, parsed_output, english=english
+                )
                 already_persist_slimmed = (
                     tool_name in _FILE_READ_TOOL_NAMES and _is_persist_slimmed_query_payload(parsed_output)
                 )
@@ -890,6 +964,7 @@ def _row_items(
     archived_file_ids: set[str] | None = None,
     archive_matcher: Any | None = None,
     skill_rehydrator: _SkillRehydrator | None = None,
+    english: bool = False,
 ) -> list[dict[str, Any]]:
     content = str(getattr(row, "content", "") or "")
     if row.role == "user":
@@ -904,6 +979,7 @@ def _row_items(
         archived_file_ids=archived_file_ids,
         archive_matcher=archive_matcher,
         skill_rehydrator=skill_rehydrator,
+        english=english,
     )
     stop_reason = metadata.get("stop_reason")
     status_cards = metadata.get("status_cards")
@@ -916,12 +992,11 @@ def _row_items(
         )
         if summary:
             items.append({"role": "assistant", "content": summary})
+    interrupted_notes = _INTERRUPTED_ROUND_NOTES_EN if english else _INTERRUPTED_ROUND_NOTES
     if stop_reason == "output_truncated":
-        from agent.core.output_truncation import OUTPUT_TRUNCATED_HISTORY
-
-        items.append({"role": "assistant", "content": OUTPUT_TRUNCATED_HISTORY})
-    elif isinstance(stop_reason, str) and stop_reason in _INTERRUPTED_ROUND_NOTES:
-        items.append({"role": "assistant", "content": _INTERRUPTED_ROUND_NOTES[stop_reason]})
+        items.append({"role": "assistant", "content": OUTPUT_TRUNCATED_HISTORY_EN if english else OUTPUT_TRUNCATED_HISTORY})
+    elif isinstance(stop_reason, str) and stop_reason in interrupted_notes:
+        items.append({"role": "assistant", "content": interrupted_notes[stop_reason]})
     return items
 
 
@@ -953,8 +1028,14 @@ def _recent_skill_replay_row_ids(
     return eligible
 
 
-def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list[dict[str, Any]]:
+def kept_author_messages(
+    author_messages: list[str],
+    budget_tokens: int,
+    *,
+    english: bool = False,
+) -> list[dict[str, Any]]:
     """压缩点之前最近的作者原话（按时间先后传入）：按供应商同量纲 token 预算原样保留，超出的那条截断后停下。"""
+    suffix = KEPT_USER_TRUNCATED_SUFFIX_EN if english else KEPT_USER_TRUNCATED_SUFFIX
     kept: list[dict[str, Any]] = []
     remaining = budget_tokens
     for content in reversed(author_messages):
@@ -965,7 +1046,7 @@ def kept_author_messages(author_messages: list[str], budget_tokens: int) -> list
             # 剩余预算按字符比例截一段；剩得太少就不留半句话。
             keep_chars = int(len(content) * remaining / max(tokens, 1))
             if keep_chars > 200:
-                kept.append({"role": "user", "content": content[:keep_chars] + KEPT_USER_TRUNCATED_SUFFIX})
+                kept.append({"role": "user", "content": content[:keep_chars] + suffix})
             break
         kept.append({"role": "user", "content": content})
         remaining -= tokens
@@ -1175,6 +1256,7 @@ def load_loop_history(
     chat_session_id: str,
     keep_user_tokens: int | None = None,
     carried_metadata: dict[str, Any] | None = None,
+    english: bool = False,
 ) -> LoopHistory:
     """按会话重建单循环 agent 的历史（调用方已核对会话归属）。
 
@@ -1282,11 +1364,13 @@ def load_loop_history(
             kept = [{"role": "user", "content": content} for content in stored_kept]
         else:
             kept = kept_author_messages(
-                [str(row.content or "") for row in reversed(before_rows) if row.role == "user"], keep_user_tokens
+                [str(row.content or "") for row in reversed(before_rows) if row.role == "user"],
+                keep_user_tokens,
+                english=english,
             )
         items.extend(kept)
         result.author_messages.extend(str(item["content"]) for item in kept)
-        items.append(summary_message(compaction["summary"]))
+        items.append(summary_message(compaction["summary"], english=english))
     elif compaction is not None:
         # 压缩点覆盖到的行找不到了（被删除）：退回完整历史，不凭摘要丢掉现存的行。
         log_with_context(
@@ -1393,6 +1477,7 @@ def load_loop_history(
                 archived_file_ids=result.archived_file_ids,
                 archive_matcher=_match_archive if scoped_archives else None,
                 skill_rehydrator=rehydrator,
+                english=english,
             )
         )
         if row.role == "user" and str(row.content or "").strip():

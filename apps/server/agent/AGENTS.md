@@ -273,10 +273,12 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 ## 提示词
 
 - 真实失败稿用于回归和正确反例，不把样例人物、账目、物件或情节关键词写成提示词/Agent 的特判。先定位通用的范围、输入、执行证据或权限缺口；提示策略变更须验证跨题材效果与误改，不能只证明已知样例修好了。
-- `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议，回复规则 `LOOP_AUTHOR_REPLY_PROTOCOL` 与工具规则
+- `prompts/base.py`：`get_base_prompt` 与 `UNIFIED_EXECUTION_PROTOCOL` 等共享协议（`zh`/`en` 双静态桶，经 `force_en` 选择，跨轮不变），回复规则 `LOOP_AUTHOR_REPLY_PROTOCOL` 与工具规则
   `LOOP_TOOL_USAGE_PROTOCOL`（`_LOOP_TOOL_USAGE_HEAD` + 文件 ID / 失败重试 / update_project 通用段 + `_LOOP_TOOL_USAGE_FILE_WRITES` + 思考段：
-  写正文用 write_chapter，改已有文件用 edit_file 且不整份替换正文，资料文件用 create_file）。
-- `loop/prompts.py`：单循环 agent 的输入布局、工作方式（`LOOP_WORKING_RULES`：三类项目目录规划与 `分章大纲`/`分集大纲` 边界、正文按章写、作者的稿子直接写进对应章节不另存副本、大纲是节奏的上限也是底线、写后快速自查最多一次 `edit_file` 且不重读刚写完的章节、只报工具结果给出的真实字数、以及从已删除多角色 `WRITER_PROMPT` 补回的「行文与成稿质量」六条正面原则；见 [single-loop-prompt-tuning][n-loop-prompt-tuning]）和压缩提示。
+  写正文用 write_chapter，改已有文件用 edit_file 且不整份替换正文，资料文件用 create_file）；中文全角缩进与中文剧本格式限定于中文稿件，英文静态桶与非中文作品严格遵循作品语言排版。
+- `loop/prompts.py`：单循环 agent 的中英双静态输入布局（`LOOP_INPUT_LAYOUT_SECTION[_EN]`）、工作方式（`LOOP_WORKING_RULES[_EN]`：三类项目逻辑目录规划、移除硬编码中文大纲/规范文件名并要求按作者/稿件语言命名、正文按章写、作者的稿子直接写进对应章节不另存副本、大纲是节奏的上限也是底线、写后快速自查最多一次 `edit_file` 且不重读刚写完的章节、只报工具结果给出的真实字数、以及从已删除多角色 `WRITER_PROMPT` 补回的「行文与成稿质量」六条正面原则；见 [single-loop-prompt-tuning][n-loop-prompt-tuning]、[intl-writing-experience][n-intl-writing]）和压缩提示（`COMPACT_PROMPT[_EN]` / `SUMMARY_PREFIX[_EN]`，保留会话稿件语言，不强制切回中文）。
+- `skills/active_skills.py` 与 `skills/context_injector.py`：`ActiveSkill` 携带 `public_source` / `is_official` / `has_custom_name`；`force_en=True` 时 L1 技能目录按 `config/official_skill_translations.py` 输出官方技能英文名与简介（并附语言围栏，只用方法论、严禁切换输出语言），`find_active_skill` 同时支持英文官方技能名解析，`service.py` 的 `skill_matched` 事件发出本地化展示名。
+- `core/author_facing_text.py` 与 `loop/engine.py`：展示层 `AgentTextShaper` 对称支持 `drop_english_narration`（作者消息含汉字时过滤紧接工具调用前的 ≤120 字英文过程旁白）与 `drop_cjk_narration`（作者消息不含汉字时过滤紧接工具调用前的 ≤120 字中文过程旁白，绝不触碰正文或 `<file>`）；续跑、空文件纠偏、截断、插话、软着陆与 `<turn_context>`（`context/assembler.py`、`loop/turn_context.py`）均提供 `_EN` 变体；`suggest_service.py` 对非中文界面改为跟随作者最近消息语言（支持多语种，不明时回落英文）；`service.py` 新建会话默认标题区分 `zh`（`AI 助手对话`）与非 `zh`（`AI Assistant`）。
 - `prompts/suggestions.py`：建议生成。
 - 项目写作配置只存数据库（`prompts/__init__.py`）；项目类型的默认模板在 `apps/server/config/project_templates.py`。
 
@@ -350,3 +352,4 @@ create_file 录入本轮作者资料时可传 `source_text`：只接受原始作
 [n-deepseek-cost]: ../../../.agents/notes/implemented/architecture/2026-11-25-reduce-deepseek-failover-and-summary-cost.md
 [n-tools-simplification]: ../../../.agents/notes/implemented/simplification/2026-11-26-agent-tools-simplification-b1-b2-b3.md
 [n-cache-trimmer-budget]: ../../../.agents/notes/implemented/bug-fix/2026-11-28-cache-trimmer-encrypted-content-and-compaction-budget.md
+[n-intl-writing]: ../../../.agents/notes/implemented/feature/2026-11-28-intl-writing-experience.md

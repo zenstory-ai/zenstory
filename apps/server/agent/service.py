@@ -54,6 +54,7 @@ from .core.llm_providers import primary_model_name
 from .core.message_manager import (
     MessageManager,
     has_substantive_display_events,
+    is_non_zh_language,
     normalize_assistant_display_events,
 )
 from .core.round_outcome import RUN_DEADLINE_STOP_REASON, RunOutcome
@@ -361,6 +362,15 @@ FIRST_MESSAGE_ENTRIES = frozenset(
     {DASHBOARD_IDEA_ENTRY, STARTER_EXAMPLE_ENTRY, STARTER_MANUSCRIPT_ENTRY, FIRST_MESSAGE_ENTRY}
 )
 
+DEFAULT_CHAT_SESSION_TITLE_ZH = "AI 助手对话"
+DEFAULT_CHAT_SESSION_TITLE_EN = "AI Assistant"
+
+
+def _default_session_title(language: str | None) -> str:
+    """Return the default chat session title for ``language`` (``"AI Assistant"`` for non-zh)."""
+    return DEFAULT_CHAT_SESSION_TITLE_EN if is_non_zh_language(language) else DEFAULT_CHAT_SESSION_TITLE_ZH
+
+
 _PROJECT_TYPE_LABELS_ZH = {"novel": "长篇小说", "short": "短篇小说", "screenplay": "短剧剧本"}
 _PROJECT_TYPE_LABELS_EN = {"novel": "Novel", "short": "Short Story", "screenplay": "Short Drama Script"}
 
@@ -600,6 +610,7 @@ class AgentService:
         project_id: str,
         user_id: str,
         requested_session_id: str | None,
+        language: str | None = None,
     ) -> str:
         """
         Resolve the `session_id` used by:
@@ -715,7 +726,7 @@ class AgentService:
                     id=normalized_requested,
                     user_id=user_id,
                     project_id=project_id,
-                    title="AI 助手对话",
+                    title=_default_session_title(language),
                     is_active=True,
                     message_count=0,
                 )
@@ -736,7 +747,7 @@ class AgentService:
         chat_session = ChatSession(
             user_id=user_id,
             project_id=project_id,
-            title="AI 助手对话",
+            title=_default_session_title(language),
             is_active=True,
             message_count=0,
         )
@@ -751,6 +762,7 @@ class AgentService:
         project_id: str,
         user_id: str,
         requested_session_id: str | None,
+        language: str | None = None,
     ) -> str:
         """Resolve/create chat session id using a fresh sync DB session."""
         with create_session() as sync_session:
@@ -759,6 +771,7 @@ class AgentService:
                 project_id=project_id,
                 user_id=user_id,
                 requested_session_id=requested_session_id,
+                language=language,
             )
 
     def _resolve_selected_skills(
@@ -767,6 +780,7 @@ class AgentService:
         *,
         user_id: str | None,
         selected_skill_ids: list[str] | None,
+        language: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Resolve skills the user explicitly selected for this message.
@@ -776,14 +790,18 @@ class AgentService:
         if not user_id or not selected_skill_ids:
             return []
 
+        force_en = is_non_zh_language(language)
         selected: list[dict[str, Any]] = []
         skills = resolve_selected_skills(session, user_id, selected_skill_ids)
         for skill in skills:
+            display_name = skill.localized_display(language)[0] if force_en else skill.name
             selected.append({
                 "id": skill.id,
                 "name": skill.name,
+                "display_name": display_name,
                 "instructions": skill.instructions,
                 "source": skill.source,
+                "is_official": skill.is_official,
                 "resources": [
                     resource.path for resource in list_active_skill_resources(session, skill)
                 ],
@@ -908,12 +926,15 @@ class AgentService:
         owned_session_id: str | None = None
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), [], ""
+        force_en = is_non_zh_language(language)
         selected_skills = self._resolve_selected_skills(
-            session, user_id=user_id, selected_skill_ids=selected_skill_ids
+            session, user_id=user_id, selected_skill_ids=selected_skill_ids, language=language
         )
         if cancel_event is not None and cancel_event.is_set():
             return history, LoopTurnContext(), selected_skills, ""
-        skill_catalog = get_skill_context_injector().build_skill_catalog(session, user_id)
+        skill_catalog = get_skill_context_injector().build_skill_catalog(
+            session, user_id, language=language
+        )
         system_prompt = MessageManager(project_id=project_id, user_id=user_id).build_system_prompt(
             session=session, language=language, skill_catalog=skill_catalog
         )
@@ -972,6 +993,7 @@ class AgentService:
                         user_id=user_id,
                         chat_session_id=chat_session_id,
                         carried_metadata=carried_compaction,
+                        english=force_en,
                     )
                     if cached_entry is not None and history.last_message_id == latest_message_id:
                         history.items = cached_entry.items
@@ -1097,6 +1119,7 @@ class AgentService:
                     project_id=project_id,
                     user_id=user_id,
                     requested_session_id=requested_session_id,
+                    language=language,
                 )
             else:
                 session_id = self._resolve_or_create_chat_session_id(
@@ -1104,6 +1127,7 @@ class AgentService:
                     project_id=project_id,
                     user_id=user_id,
                     requested_session_id=requested_session_id,
+                    language=language,
                 )
         else:
             session_id = requested_session_id or str(uuid.uuid4())
@@ -1541,7 +1565,7 @@ class AgentService:
 
         try:
             lang = (language or "").strip().lower() or "zh"
-            force_en = lang.startswith("en")
+            force_en = is_non_zh_language(lang)
 
             # Emit session_started event FIRST
             yield session_started_event(session_id).to_sse()
@@ -1608,7 +1632,11 @@ class AgentService:
             for selected in selected_skills:
                 yield skill_matched_event(
                     skill_id=selected["id"],
-                    skill_name=selected["name"],
+                    skill_name=(
+                        selected.get("display_name") or selected["name"]
+                        if force_en
+                        else selected["name"]
+                    ),
                     matched_trigger="selected",
                 ).to_sse()
 
@@ -1802,6 +1830,7 @@ class AgentService:
                             pre_archive = archive_old_tool_results(
                                 loop_history,
                                 turn_input_tokens=compaction_extra_tokens,
+                                english=force_en,
                             )
                             if pre_archive.admitted and pre_archive.record is not None:
                                 # 若 Stage 1 归档命中的文件在本轮被指纹去重省略，接受 Stage 1 后会立即恢复
@@ -1880,6 +1909,7 @@ class AgentService:
                                     request_context=request_context,
                                     turn_input_tokens=effective_turn_tokens,
                                     pre_archive=pre_archive,
+                                    english=force_en,
                                 )
 
                         compaction_usage = outcome.usage

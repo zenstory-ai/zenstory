@@ -241,6 +241,7 @@ def test_working_rules_and_norms_are_static_prefix_text():
 async def test_the_real_system_prompt_carries_the_red_lines_once(db_session, project_type, language):
     """真实装配的系统提示（三种作品类型、中英界面）都带一份红线。"""
     from agent.core.message_manager import MessageManager
+    from agent.prompts.base import CONTENT_RED_LINES_EN
     from models import Project, User
 
     owner = User(
@@ -260,4 +261,5 @@ async def test_the_real_system_prompt_carries_the_red_lines_once(db_session, pro
     system_prompt = MessageManager(project_id=project.id, user_id=owner.id).build_system_prompt(
         session=db_session, language=language
     )
-    assert system_prompt.count(CONTENT_RED_LINES) == 1
+    expected_red_lines = CONTENT_RED_LINES_EN if language == "en" else CONTENT_RED_LINES
+    assert system_prompt.count(expected_red_lines) == 1

@@ -23,7 +23,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from agent.core.message_manager import AGENT_DIRECTIVE_HEADER
+from agent.core.message_manager import AGENT_DIRECTIVE_HEADER, AGENT_DIRECTIVE_HEADER_EN
 from agent.core.usage import extract_response_usage, merge_usage_dicts
 from config import agent_runtime
 from config.agent_runtime import (
@@ -47,12 +47,13 @@ from .history import (
     estimate_provider_text_tokens,
     estimate_tools_schema_tokens,
     is_successful_archivable_payload,
+    is_summary_message,
     kept_author_messages,
     parse_tool_json,
     query_result_full_file_ids,
     summary_message,
 )
-from .prompts import COMPACT_PROMPT, SUMMARY_PREFIX
+from .prompts import COMPACT_PROMPT, COMPACT_PROMPT_EN
 
 if TYPE_CHECKING:
     from agent.core.run_meter import AgentRunMeter
@@ -67,6 +68,11 @@ _COMPACT_RETRY_NOTE = (
     "\n\n[重试提醒] 上一次摘要输出为空、超出单次长度被截断或混入了工具调用协议标签。"
     "本次请不在思考中逐章复述原文或预写全文，只抓关键骨架，直接输出完整纯文本交接摘要，"
     "严禁调用工具或输出任何 <tool_call>、<invoke>、<parameter> 标签。"
+)
+_COMPACT_RETRY_NOTE_EN = (
+    "\n\n[Retry reminder] The previous summary was empty, truncated at the output limit, or contained leaked tool-call protocol tags. "
+    "Keep thinking minimal — do not recount chapters or draft full text in thinking; output ONLY the complete plain-text handoff summary "
+    "in the author's / manuscript's language, and do NOT call tools or emit any <tool_call>, <invoke>, or <parameter> tags."
 )
 SKIPPED_EMPTY_OR_TRUNCATED = "empty_or_truncated_summary"
 SKIPPED_PROVIDER_ERROR = "provider_error"
@@ -103,10 +109,10 @@ class CompactionOutcome:
 
 
 # 单轮内系统注入到 SDK input 里的合成 user 项前缀（精确协议前缀，不作自然语言语义猜测）：
-# 压缩摘要、本轮系统指令、写后自查/空文件纠偏/输出截断续写/收尾提醒等。
+# 本轮系统指令、写后自查/空文件纠偏/输出截断续写/收尾提醒等（压缩摘要由 is_summary_message 识别）。
 _SYNTHETIC_USER_PREFIXES: tuple[str, ...] = (
-    SUMMARY_PREFIX,
     AGENT_DIRECTIVE_HEADER,
+    AGENT_DIRECTIVE_HEADER_EN,
     "[系统提醒]",
     "[System note]",
 )
@@ -132,6 +138,8 @@ def _is_user_turn_item(item: Any) -> bool:
     if not isinstance(item, dict) or item.get("role") != "user":
         return False
     leading = _leading_user_text(item.get("content"))
+    if is_summary_message(leading):
+        return False
     return not leading.startswith(_SYNTHETIC_USER_PREFIXES)
 
 
@@ -143,6 +151,7 @@ def archive_old_tool_results(
     min_output_chars: int | None = None,
     min_savings_tokens: int | None = None,
     compact_at_tokens: int | None = None,
+    english: bool = False,
 ) -> ToolArchiveResult:
     """Stage 1：零 LLM 确定性归档较早轮次的大体积只读工具输出。
 
@@ -248,7 +257,7 @@ def archive_old_tool_results(
         parsed = parse_tool_json(output)
         if not is_successful_archivable_payload(parsed):
             continue
-        receipt_json, file_ids = build_tool_archive_receipt(tool_name, output, parsed)
+        receipt_json, file_ids = build_tool_archive_receipt(tool_name, output, parsed, english=english)
         if len(receipt_json) >= len(output):
             continue
         new_items[idx] = {**item, "output": receipt_json}
@@ -475,13 +484,16 @@ def _responses_input(
     items: list[dict[str, Any]],
     *,
     retry_prompt: bool = False,
+    english: bool = False,
 ) -> list[dict[str, Any]]:
     """构造 Responses API 压缩输入（清理 fake id / provider_data，末尾追加压缩指令）。"""
     from agents.items import ItemHelpers
     from agents.models.fake_id import FAKE_RESPONSES_ID
     from agents.util._json import _to_dump_compatible
 
-    prompt = f"{COMPACT_PROMPT}{_COMPACT_RETRY_NOTE}" if retry_prompt else COMPACT_PROMPT
+    base_prompt = COMPACT_PROMPT_EN if english else COMPACT_PROMPT
+    retry_note = _COMPACT_RETRY_NOTE_EN if english else _COMPACT_RETRY_NOTE
+    prompt = f"{base_prompt}{retry_note}" if retry_prompt else base_prompt
     raw_list = _to_dump_compatible(ItemHelpers.input_to_new_input_list(items))  # type: ignore[arg-type]
     cleaned: list[dict[str, Any]] = []
     for item in raw_list:
@@ -507,6 +519,7 @@ def _request_messages(
     *,
     retry_prompt: bool = False,
     model: str | None = None,
+    english: bool = False,
 ) -> list[dict[str, Any]]:
     from agents.models.chatcmpl_converter import Converter
 
@@ -516,7 +529,9 @@ def _request_messages(
         bridge_responses_reasoning_for_chat_completions,
     )
 
-    prompt = f"{COMPACT_PROMPT}{_COMPACT_RETRY_NOTE}" if retry_prompt else COMPACT_PROMPT
+    base_prompt = COMPACT_PROMPT_EN if english else COMPACT_PROMPT
+    retry_note = _COMPACT_RETRY_NOTE_EN if english else _COMPACT_RETRY_NOTE
+    prompt = f"{base_prompt}{retry_note}" if retry_prompt else base_prompt
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     # Converter.items_to_messages only invokes should_replay_reasoning_content when ``model`` is non-None.
     effective_model = model or primary_model_name() or "agent"
@@ -532,9 +547,18 @@ def _request_messages(
     return messages
 
 
-def compacted_items(author_messages: list[str], summary: str, keep_user_tokens: int) -> list[dict[str, Any]]:
+def compacted_items(
+    author_messages: list[str],
+    summary: str,
+    keep_user_tokens: int,
+    *,
+    english: bool = False,
+) -> list[dict[str, Any]]:
     """压缩后的历史：最近的作者原话（预算内原文）+ 交接摘要。与 history 下一轮从库里重建的形状相同。"""
-    return [*kept_author_messages(author_messages, keep_user_tokens), summary_message(summary)]
+    return [
+        *kept_author_messages(author_messages, keep_user_tokens, english=english),
+        summary_message(summary, english=english),
+    ]
 
 
 async def compact_history(
@@ -548,6 +572,7 @@ async def compact_history(
     turn_input_tokens: int = 0,
     compact_at_tokens: int | None = None,
     pre_archive: ToolArchiveResult | None = None,
+    english: bool = False,
 ) -> CompactionOutcome:
     """两阶段压缩历史：先尝试 Stage 1 零 LLM ``tool_archive``，未达准入则回落到 Stage 2 交接摘要。
 
@@ -572,6 +597,7 @@ async def compact_history(
                 history,
                 turn_input_tokens=turn_input_tokens,
                 compact_at_tokens=compact_at_tokens,
+                english=english,
             )
         )
         if archive_result.admitted and archive_result.record is not None:
@@ -656,7 +682,9 @@ async def compact_history(
         try:
             with budget_attribution(attribution):
                 if use_responses:
-                    resp_input = _responses_input(bounded, retry_prompt=retry_after_invalid_output)
+                    resp_input = _responses_input(
+                        bounded, retry_prompt=retry_after_invalid_output, english=english
+                    )
 
                     def _build_chat_fallback(
                         fallback_provider: Any,
@@ -669,6 +697,7 @@ async def compact_history(
                                 _bounded,
                                 retry_prompt=_retry,
                                 model=getattr(fallback_provider, "model", None) or target_model,
+                                english=english,
                             ),
                             "tools": _chat_tools(),
                             "max_tokens": AGENT_LOOP_COMPACT_MAX_OUTPUT_TOKENS,
@@ -697,6 +726,7 @@ async def compact_history(
                         bounded,
                         retry_prompt=retry_after_invalid_output,
                         model=target_model,
+                        english=english,
                     )
                     response, _provider = await llm_failover.acreate_chat_completion(
                         call_site=COMPACTION_CALL_SITE,
@@ -765,6 +795,7 @@ async def compact_history(
         history.author_messages,
         summary,
         AGENT_LOOP_COMPACT_KEEP_USER_TOKENS if keep_user_tokens is None else keep_user_tokens,
+        english=english,
     )
     record = {
         "summary": summary,
