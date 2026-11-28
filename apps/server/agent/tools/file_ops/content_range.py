@@ -20,6 +20,7 @@ from utils.title_sequence import parse_chinese_number
 
 DEFAULT_RANGE_CHARS = 6000
 MAX_RANGE_CHARS = 20000
+INVALID_READ_RANGE_ERROR_TYPE = "invalid_read_range"
 # 短文件（或 start_char 之后剩余字符不超过该阈值）不切片分页：直接返回全文（或余下全文），
 # 避免模型用 start_char 把几千字的小文件拆成 2–10 步逐块翻读。
 SHORT_FILE_FULL_RETURN_MAX_CHARS = 12000
@@ -304,10 +305,15 @@ def apply_content_range(row: dict[str, Any], args: dict[str, Any]) -> dict[str, 
     else:
         start = _non_negative_int(start_char, "start_char")
         count = _positive_int(limit, "max_chars") if limit not in (None, "") else DEFAULT_RANGE_CHARS
-        if start > total:
-            raise ContentRangeError(f"start_char={start} 超出正文长度 {total}")
         if total <= SHORT_FILE_FULL_RETURN_MAX_CHARS:
+            if start > total:
+                fallback_note = (
+                    f"start_char={start} 超出该文件长度（{total} 字符），但该文件较短，已直接返回全文；"
+                    "常规长度文件可直接按 id 读取全文，无需传 start_char。"
+                )
             start, end = 0, total
+        elif start > total:
+            raise ContentRangeError(f"start_char={start} 超出正文长度 {total}")
         elif total - start <= SHORT_FILE_FULL_RETURN_MAX_CHARS:
             end = total
         else:

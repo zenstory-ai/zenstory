@@ -321,6 +321,11 @@
       "chapterReplacePending": "该章节正在等待写入完整正文，此次修改未执行。",
       "chapterTargetAmbiguous": "找到多个同编号章节，无法确认目标文件，文件未改动。",
       "invalidEdit": "修改参数不完整，此次修改未执行，文件未改动。",
+      "invalidParentId": "目标文件夹不存在，未创建文件。",
+      "invalidReadRange": "读取范围参数无效，未能读取目标内容。",
+      "skillNotFound": "未找到已启用的目标技能。",
+      "skillResourceNotFound": "未找到该技能对应的参考资料。",
+      "skillLimitExceeded": "本轮加载的技能数量已达上限。",
       "permissionDenied": "无权修改该文件，文件未改动。",
       "generic": "这一步未能完成，文件未改动。"
     },

@@ -517,35 +517,40 @@ def test_identical_replace_does_not_roll_back_the_rest_of_the_batch(db_session, 
 
 
 def test_identical_replace_never_takes_the_fuzzy_path(db_session, owner_project):
-    """F-01：old 与 new 相同但漏抄了原文的逗号和句号。原来走模糊命中，把原文的「，」「。」
-    删掉还报成功；现在不做近似改动，按 no_change 拒绝且正文一字不动。"""
+    """F-01：old 与 new 相同但漏抄了原文的逗号和句号。绝不走模糊命中（防止误删原文标点），
+    并统一无害归入 unchanged_edits（不落库、不计入 failed_edits），正文一字不动。"""
     user, project = owner_project
     original = "　　林舟点头说：“这个方案很好，真的。”然后走了。"
     chapter = _add_file(db_session, project, original)
 
-    with pytest.raises(EditBatchError) as exc:
-        FileEditor(db_session, user.id).edit_file(
-            chapter.id, [{"op": "replace", "old": "这个方案很好真的”", "new": "这个方案很好真的”"}]
-        )
+    result = FileEditor(db_session, user.id).edit_file(
+        chapter.id, [{"op": "replace", "old": "这个方案很好真的”", "new": "这个方案很好真的”"}]
+    )
 
-    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_NO_CHANGE
+    assert result["edits_applied"] == 0
+    assert result["mutation_applied"] is False
+    assert result["failed_edits"] == []
+    assert result["unchanged_edits"] == [{"index": 0, "op": "replace", "reason": "identical_old_new"}]
     db_session.expire_all()
     assert db_session.get(File, chapter.id).content == original
 
 
 @pytest.mark.parametrize("new_key", ["text", "content", "new_text", "replacement"])
 def test_identical_replace_under_a_new_alias_never_takes_the_fuzzy_path(db_session, owner_project, new_key):
-    """F-01 补漏：模型把替换文本写在 new 的别名键下，old 与它相同时同样不能走模糊命中删标点。"""
+    """F-01 补漏：模型把替换文本写在 new 的别名键下，old 与它相同时同样不能走模糊命中删标点，
+    统一归入 unchanged_edits 且正文一字不动。"""
     user, project = owner_project
     original = "　　林舟点头说：“这个方案很好，真的。”然后走了。"
     chapter = _add_file(db_session, project, original)
 
-    with pytest.raises(EditBatchError) as exc:
-        FileEditor(db_session, user.id).edit_file(
-            chapter.id, [{"op": "replace", "old": "这个方案很好真的”", new_key: "这个方案很好真的”"}]
-        )
+    result = FileEditor(db_session, user.id).edit_file(
+        chapter.id, [{"op": "replace", "old": "这个方案很好真的”", new_key: "这个方案很好真的”"}]
+    )
 
-    assert exc.value.failed_edits[0]["error_type"] == EDIT_ERROR_NO_CHANGE
+    assert result["edits_applied"] == 0
+    assert result["mutation_applied"] is False
+    assert result["failed_edits"] == []
+    assert result["unchanged_edits"] == [{"index": 0, "op": "replace", "reason": "identical_old_new"}]
     db_session.expire_all()
     assert db_session.get(File, chapter.id).content == original
 

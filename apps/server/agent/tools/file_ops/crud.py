@@ -57,7 +57,9 @@ from utils.title_sequence import (
 )
 
 from .edit import (
+    EDIT_ERROR_INVALID_PARENT_ID,
     NORMALIZED_QUOTE_FILE_TYPES,
+    EditFileError,
     acquire_file_write_lock,
     normalize_ai_body_first_indent,
     resolve_write_quote_style,
@@ -77,6 +79,88 @@ from .serialization import (
 logger = get_logger(__name__)
 
 
+
+
+LOGICAL_FOLDER_ALIASES: dict[str, str] = {
+    "draft": "draft-folder",
+    "outline": "outline-folder",
+    "character": "character-folder",
+    "lore": "lore-folder",
+    "material": "material-folder",
+    "script": "script-folder",
+}
+_LOGICAL_ALIAS_FILE_TYPES: dict[str, str] = {
+    "draft": "draft",
+    "outline": "outline",
+    "character": "character",
+    "lore": "lore",
+    "material": "snippet",
+    "script": "script",
+}
+
+
+def resolve_logical_folder_alias(
+    session: Session,
+    project_id: str,
+    project_type: str | None,
+    raw_parent_id: str | None,
+) -> str | None:
+    """Resolve a deterministic logical folder alias (draft/outline/character/lore/material/script).
+
+    Resolves ONLY when there is a single unambiguous matching top-level folder in the
+    current project (or the single expected template root folder when none exists yet).
+    Returns None when ``raw_parent_id`` is not a logical alias or when matching is ambiguous.
+    """
+    if not isinstance(raw_parent_id, str):
+        return None
+    alias = raw_parent_id.strip().lower()
+    suffix = LOGICAL_FOLDER_ALIASES.get(alias)
+    if suffix is None:
+        return None
+
+    from config.project_templates import get_file_type_mapping, get_folders_for_type
+
+    effective_type = project_type or "novel"
+    expected_id = f"{project_id}-{suffix}"
+    expected_file_type = _LOGICAL_ALIAS_FILE_TYPES[alias]
+    matching_titles = {
+        title
+        for lang in ("zh", "en")
+        for title, mapped_type in get_file_type_mapping(effective_type, lang).items()
+        if mapped_type == expected_file_type
+    }
+
+    top_folders = list(
+        session.exec(
+            select(File.id, File.title).where(
+                File.project_id == project_id,
+                File.is_deleted.is_(False),
+                File.file_type == FILE_TYPE_FOLDER,
+                col(File.parent_id).is_(None),
+            )
+        ).all()
+    )
+    matched_ids: list[str] = []
+    for folder_id, folder_title in top_folders:
+        if (
+            folder_id == expected_id or (folder_title or "").strip() in matching_titles
+        ) and folder_id not in matched_ids:
+            matched_ids.append(folder_id)
+
+    if len(matched_ids) == 1:
+        return matched_ids[0]
+    if len(matched_ids) > 1:
+        # Multiple top-level folders match this logical type -> refuse to guess.
+        return None
+
+    expected_suffixes = {
+        str(cfg.get("id"))
+        for cfg in get_folders_for_type(effective_type, "zh")
+        if isinstance(cfg, dict) and isinstance(cfg.get("id"), str)
+    }
+    if suffix in expected_suffixes:
+        return expected_id
+    return None
 
 
 def _invalid_parent_message(
@@ -172,16 +256,22 @@ def resolve_create_target(
     """
     resolved = parent_id or None
     if resolved is not None:
-        parent = session.get(File, resolved)
-        if parent is None or parent.is_deleted or parent.project_id != project_id:
-            if (
-                project_type == "screenplay"
-                and resolved == f"{project_id}-draft-folder"
-                and file_type in ("draft", "script", "document")
-            ):
-                resolved = f"{project_id}-script-folder"
-        elif parent.file_type != FILE_TYPE_FOLDER:
-            resolved = find_nearest_folder_ancestor(session, project_id, resolved)
+        if file_type == FILE_TYPE_FOLDER and resolved == project_id:
+            resolved = None
+        else:
+            parent = session.get(File, resolved)
+            if parent is None or parent.is_deleted or parent.project_id != project_id:
+                alias_target = resolve_logical_folder_alias(session, project_id, project_type, resolved)
+                if alias_target is not None:
+                    resolved = alias_target
+                elif (
+                    project_type == "screenplay"
+                    and resolved == f"{project_id}-draft-folder"
+                    and file_type in ("draft", "script", "document")
+                ):
+                    resolved = f"{project_id}-script-folder"
+            elif parent.file_type != FILE_TYPE_FOLDER:
+                resolved = find_nearest_folder_ancestor(session, project_id, resolved)
     seq_num = extract_sequence_number_with_metadata(
         (title or "").strip(),
         metadata,
@@ -376,6 +466,37 @@ class FileCRUD:
 
             return folder
 
+        # Normalize root-folder creation when parent_id == project_id, and resolve deterministic
+        # logical folder aliases (draft/outline/character/lore/material/script) when unambiguous.
+        if parent_id is not None:
+            if file_type == FILE_TYPE_FOLDER and parent_id == project_id:
+                log_with_context(
+                    logger,
+                    20,  # INFO
+                    "Normalized project_id parent_id to root for folder creation",
+                    project_id=project_id,
+                    user_id=self.user_id,
+                    title=title,
+                )
+                parent_id = None
+            else:
+                existing_parent = self.session.get(File, parent_id, populate_existing=True)
+                if not existing_parent or existing_parent.is_deleted or existing_parent.project_id != project_id:
+                    alias_target = resolve_logical_folder_alias(
+                        self.session, project_id, project.project_type, parent_id
+                    )
+                    if alias_target is not None:
+                        log_with_context(
+                            logger,
+                            20,  # INFO
+                            "Resolved logical folder alias for create_file parent_id",
+                            project_id=project_id,
+                            user_id=self.user_id,
+                            alias=parent_id,
+                            resolved_parent_id=alias_target,
+                        )
+                        parent_id = alias_target
+
         # Validate parent_id exists and belongs to project
         if parent_id is not None:
             parent = self.session.get(File, parent_id, populate_existing=True)
@@ -424,8 +545,9 @@ class FileCRUD:
                                 parent_id=parent_id,
                                 fallback_parent_id=fallback_parent_id,
                             )
-                            raise ValueError(
-                                _invalid_parent_message(parent_id, project_id, expected_root_folders)
+                            raise EditFileError(
+                                _invalid_parent_message(parent_id, project_id, expected_root_folders),
+                                error_type=EDIT_ERROR_INVALID_PARENT_ID,
                             )
                     else:
                         log_with_context(
@@ -437,8 +559,9 @@ class FileCRUD:
                             parent_id=parent_id,
                             file_type=file_type,
                         )
-                        raise ValueError(
-                            _invalid_parent_message(parent_id, project_id, expected_root_folders)
+                        raise EditFileError(
+                            _invalid_parent_message(parent_id, project_id, expected_root_folders),
+                            error_type=EDIT_ERROR_INVALID_PARENT_ID,
                         )
 
         # 父节点必须是 folder（与 REST 层同一不变量，见 validate_parent_assignment）。

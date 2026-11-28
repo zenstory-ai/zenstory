@@ -179,15 +179,34 @@ def test_edit_file_batch_and_partial_errors_preserve_file_meta_without_failed_pr
 
 
 @pytest.mark.integration
-def test_edit_file_identical_old_and_new_returns_no_change(db_session, owner_project):
+def test_edit_file_identical_old_and_new_classifies_unchanged_and_quote_noop_returns_no_change(db_session, owner_project):
     user, project = owner_project
-    chapter = _add_file(db_session, project, title="第6章 无变化", file_type="draft")
+    chapter = _add_file(
+        db_session,
+        project,
+        title="第6章 无变化",
+        content="　　“回来了？”母亲问。",
+        file_type="draft",
+    )
 
+    # Explicit old == new (no-op intent, even with drift) -> unchanged_edits, no mutation, no failure
+    noop_result = FileEditor(db_session, user.id).edit_file(
+        chapter.id,
+        [{"op": "replace", "old": "不存在且相同的文本", "new": "不存在且相同的文本"}],
+        continue_on_error=False,
+    )
+    assert noop_result["edits_applied"] == 0
+    assert noop_result["mutation_applied"] is False
+    assert noop_result["failed_edits"] == []
+    assert noop_result["unchanged_edits"] == [{"index": 0, "op": "replace", "reason": "identical_old_new"}]
+
+    # Non-identical old != new whose normalized write matches original -> EDIT_ERROR_NO_CHANGE with safe fields
     with pytest.raises(EditBatchError) as exc:
         FileEditor(db_session, user.id).edit_file(
             chapter.id,
-            [{"op": "replace", "old": "不存在且相同的文本", "new": "不存在且相同的文本"}],
+            [{"op": "replace", "old": "“回来了？”母亲问。", "new": '"回来了？"母亲问。'}],
             continue_on_error=False,
+            normalize_quotes=True,
         )
 
     fields = exc.value.payload_fields()

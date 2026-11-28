@@ -321,6 +321,11 @@
       "chapterReplacePending": "This chapter is waiting for its full body to be written; this edit did not run.",
       "chapterTargetAmbiguous": "Multiple chapters matched that number, so no file was changed.",
       "invalidEdit": "The edit instructions were incomplete, so the file was not changed.",
+      "invalidParentId": "The target folder does not exist, so no file was created.",
+      "invalidReadRange": "The requested read range was invalid, so the content could not be read.",
+      "skillNotFound": "The requested active skill could not be found.",
+      "skillResourceNotFound": "The requested reference file could not be found in that skill.",
+      "skillLimitExceeded": "The limit for loaded skills in this turn has been reached.",
       "permissionDenied": "You don't have permission to modify this file; nothing was changed.",
       "generic": "This step did not complete; the file was not changed."
     },

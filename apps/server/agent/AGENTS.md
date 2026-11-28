@@ -149,7 +149,7 @@ agent/
 - **可恢复删除**：`delete_file(id, recursive=false)` 对目标文件（及 `recursive=true` 时的存活子树）执行软删除并统一打上同一 `deleted_at` 时间戳，结果卡返回 `id`、`title`、`file_type`、`restored=false`；作者点击聊天删除卡上的「恢复」调用 `POST /api/v1/files/{file_id}/restore`，在项目排他锁与文件写锁下校验父目录存活及同级重名，按同一 `deleted_at` 恢复该次删除的文件或目录子树（不复活更早单独删除的子项），并通过 `record_delete_card_restored` 将 `restored=true` 写回 `ChatMessage.tool_calls` 供刷新展示与后续轮次历史回放。工作台不单独设侧栏回收站。
 - **正文按章号写入**（`mcp_tools.write_chapter`）：`write_chapter(chapter, title, file_type=draft|script, parent_id?, empty?)` 在本项目未删除的
   draft / script 里按标题开头的章号（draft）或集号（script）解析目标（`utils.title_sequence.extract_sequence_number(unit=…)`，无前缀章号时按 `file_type` 回退读取 `file_metadata` 的 `chapter_number` / `episode_number` 以识别导入拆章，有界的标识符解析；
-  给了 parent_id 只看那个目录，先按 `file_ops.crud.resolve_create_target` 与 create_file 同样归一父节点；正文分在多个目录而没给 parent_id 时
+  给了 parent_id 只看那个目录，先按 `file_ops.crud.resolve_create_target` 与 create_file 同样归一父节点（支持确定性逻辑目录别名 `draft`/`outline`/`character`/`lore`/`material`/`script`——仅在当前项目存在唯一匹配顶级目录或唯一默认模板目录时解析，多义不猜测；`create_file(file_type="folder")` 误传 `parent_id=project_id` 归一为根目录、`write_chapter` 误传 `parent_id=project_id` 在单正文目录无歧义时等同省略，系统提示词默认要求 `write_chapter` 省略 `parent_id`；父目录校验失败抛 `invalid_parent_id` 且 `create_file` 纳入客户端安全错误白名单 `_SAFE_FILE_ERROR_TOOLS`）；正文分在多个目录而没给 parent_id 时
   不把唯一的同号章节当替换目标（`chapter_target_ambiguous`）；标题里的编号与 chapter 不一致时拒绝，没有编号时补上）。没有 → 走 `_create_file_sync` 的新建路径（没给 parent_id 时放进同类型章节所在的唯一目录，没有则放项目默认正文目录 `-draft-folder` / `-script-folder`，不落在项目根）
   （`action=created`，两次回复协议、待写守卫、空文件纠偏 / 回滚、退还时移除空白占位都照旧）；恰好一个 → `action=replaced`，定位时不改数据库，
   记下 `updated_at` 与原长度、绑定待写守卫（传入了非裸章号的新章名时记为 `new_title`，在 `</file>` 落库同一事务内一并更新标题；不记建好时的版本：补不成不回滚、不算可取消的空文件；记下替换的定位结果，

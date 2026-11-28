@@ -203,6 +203,11 @@ export type ToolFailureKind =
   | 'chapterReplacePending'
   | 'chapterTargetAmbiguous'
   | 'invalidEdit'
+  | 'invalidParentId'
+  | 'invalidReadRange'
+  | 'skillNotFound'
+  | 'skillResourceNotFound'
+  | 'skillLimitExceeded'
   | 'permissionDenied'
   | 'generic';
 
@@ -238,8 +243,13 @@ export const classifyToolFailure = (errorType: string | undefined): ToolFailureK
   if (normalized === 'chapter_replace_pending') return 'chapterReplacePending';
   if (normalized === 'chapter_target_ambiguous') return 'chapterTargetAmbiguous';
   if (normalized === 'invalid_edit') return 'invalidEdit';
+  if (normalized === 'invalid_parent_id') return 'invalidParentId';
+  if (normalized === 'invalid_read_range') return 'invalidReadRange';
+  if (normalized === 'skill_not_found') return 'skillNotFound';
+  if (normalized === 'skill_resource_not_found') return 'skillResourceNotFound';
+  if (normalized === 'skill_limit_exceeded') return 'skillLimitExceeded';
   if (normalized === 'permission_denied') return 'permissionDenied';
-  if (/(^|_)file_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
+  if (/(^|_)files?_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
   if (/(ambiguous|multiple_match)/.test(normalized)) return 'ambiguous';
   if (/(anchor|old_text|text|pattern|match|passage)_not_found|no_match/.test(normalized)) return 'notFound';
   return 'generic';

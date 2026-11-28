@@ -1481,6 +1481,12 @@ describe('ToolResultCard', () => {
       ['anchor_not_found', 'chat:tool.failureHint.notFound'],
       ['ambiguous_match', 'chat:tool.failureHint.ambiguous'],
       ['file_not_found', 'chat:tool.failureHint.fileMissing'],
+      ['files_not_found', 'chat:tool.failureHint.fileMissing'],
+      ['invalid_read_range', 'chat:tool.failureHint.invalidReadRange'],
+      ['invalid_parent_id', 'chat:tool.failureHint.invalidParentId'],
+      ['skill_not_found', 'chat:tool.failureHint.skillNotFound'],
+      ['skill_resource_not_found', 'chat:tool.failureHint.skillResourceNotFound'],
+      ['skill_limit_exceeded', 'chat:tool.failureHint.skillLimitExceeded'],
       ['tool_not_found', 'chat:tool.failureHint.generic'],
       ['malformed_tool_result', 'chat:tool.failureHint.generic'],
     ])('maps error_type %s to a friendly hint', (errorType, expected) => {

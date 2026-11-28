@@ -896,6 +896,10 @@ class _ReadSnapshots:
         with self._lock:
             return self._is_fully_seen_locked(file_id)
 
+    def has_written(self, file_id: str) -> bool:
+        with self._lock:
+            return file_id in self._sources["written"]
+
     def seen_spans(self, file_id: str) -> list[tuple[int, int]]:
         """返回模型通过范围读取看过的字符区间（仅当区间对应的正文仍是最新快照时有效）。"""
         with self._lock:
@@ -1111,6 +1115,12 @@ class AgentRequestContext:
         """模型在本请求里看过这个文件的全文（上下文全文、按 id 读到、或整份写下的）。"""
         if isinstance(self.read_snapshots, _ReadSnapshots):
             return self.read_snapshots.seen(str(file_id or ""))
+        return False
+
+    def has_written_file(self, file_id: str) -> bool:
+        """模型在本请求里已对这个文件提交过写入（edit_file / 落库正文等）。"""
+        if isinstance(self.read_snapshots, _ReadSnapshots):
+            return self.read_snapshots.has_written(str(file_id or ""))
         return False
 
     def seen_file_spans(self, file_id: str) -> list[tuple[int, int]]:
