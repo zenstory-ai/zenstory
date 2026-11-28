@@ -2,8 +2,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
 import type { MaterialNovel } from "../../lib/materialsApi";
 import { materialJobErrorText } from "../../lib/materialsAccess";
-import { AlertCircle, ChevronLeft, Download, RefreshCw } from "../icons";
-import { DashboardSearchBar } from "../dashboard/DashboardSearchBar";
+import { AlertCircle, ChevronLeft, Download, Loader2, RefreshCw } from "../icons";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { isActiveMaterialStatus } from "./materialHelpers";
@@ -11,70 +10,73 @@ import { isActiveMaterialStatus } from "./materialHelpers";
 export interface MaterialDetailHeaderProps {
   material: MaterialNovel;
   isMobile: boolean;
-  showMobileContent: boolean;
-  searchQuery: string;
   isExporting: boolean;
   onBack: () => void;
-  onSearchChange: (query: string) => void;
   onExport: () => void;
 }
 
 export function MaterialDetailHeader({
   material,
   isMobile,
-  showMobileContent,
-  searchQuery,
   isExporting,
   onBack,
-  onSearchChange,
   onExport,
 }: MaterialDetailHeaderProps) {
   const { t } = useTranslation(["materials", "common"]);
+  const isExportDisabled = isActiveMaterialStatus(material.status);
+  const exportLabel = t("materials:export.button", { defaultValue: "导出拆解（TXT）" });
+  const exportDisabledTitle = isExportDisabled
+    ? t("materials:export.unavailableWhileProcessing", { defaultValue: "拆解完成后可导出" })
+    : undefined;
 
   return (
-    <header className="shrink-0 border-b border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-secondary))]">
-      <div className={`flex gap-3 ${isMobile ? "flex-col px-3 py-3" : "items-center justify-between px-5 py-3"}`}>
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+    <header className="shrink-0 border-b border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-rail))]">
+      <div className="flex min-h-12 items-center justify-between gap-2 px-3 py-1.5 md:gap-3 md:px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-2.5">
           <IconButton
-            size="touch"
+            size="auto"
             label={t("common:back", { defaultValue: "返回" })}
             icon={<ChevronLeft className="h-5 w-5" />}
             onClick={onBack}
           />
-          <div className="min-w-0">
-            <h1 id="material-title" className="heading-display break-words text-xl font-semibold tracking-tight text-[hsl(var(--text-primary))] md:text-2xl">
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <h1
+              id="material-title"
+              title={material.title}
+              className="truncate text-sm font-semibold tracking-tight text-[hsl(var(--text-primary))] md:text-base"
+            >
               {material.title}
             </h1>
-            <p className="mt-0.5 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
+            <span className="shrink-0 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
               {material.chapters_count == null ? "—" : material.chapters_count.toLocaleString(i18n.language)} {t("materials:detail.readableChapters")}
-            </p>
+            </span>
           </div>
         </div>
-        <div className={isMobile ? "flex w-full flex-col items-stretch gap-2" : "flex shrink-0 items-center gap-2"}>
-          {!(isMobile && showMobileContent) && (
-            <DashboardSearchBar
-              value={searchQuery}
-              onChange={onSearchChange}
-              placeholder={t("materials:detail.searchPlaceholder")}
-              className={isMobile ? "w-full" : "w-56 shrink-0 lg:w-64"}
+        <div className="flex shrink-0 items-center">
+          {isMobile ? (
+            <IconButton
+              size="touch"
+              label={exportLabel}
+              title={exportDisabledTitle ?? exportLabel}
+              icon={isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              onClick={onExport}
+              disabled={isExportDisabled || isExporting}
+              aria-busy={isExporting || undefined}
             />
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onExport}
+              isLoading={isExporting}
+              disabled={isExportDisabled}
+              title={exportDisabledTitle}
+              leftIcon={<Download className="h-4 w-4" />}
+              className="shrink-0"
+            >
+              {exportLabel}
+            </Button>
           )}
-          <Button
-            variant="secondary"
-            size={isMobile ? "touch" : "md"}
-            onClick={onExport}
-            isLoading={isExporting}
-            disabled={isActiveMaterialStatus(material.status)}
-            title={
-              isActiveMaterialStatus(material.status)
-                ? t("materials:export.unavailableWhileProcessing", { defaultValue: "拆解完成后可导出" })
-                : undefined
-            }
-            leftIcon={<Download className="h-4 w-4" />}
-            className={isMobile ? "w-full" : "shrink-0"}
-          >
-            {t("materials:export.button", { defaultValue: "导出拆解（TXT）" })}
-          </Button>
         </div>
       </div>
     </header>

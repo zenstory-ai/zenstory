@@ -74,7 +74,7 @@ export function MaterialOverview({ material, folders, onCategoryClick }: Materia
   return (
     <article className="material-detail material-overview" aria-labelledby={titleId}>
       <header className="material-overview-header">
-        <h2 id={titleId} className="heading-display text-2xl font-semibold leading-snug tracking-tight text-[hsl(var(--text-primary))] md:text-[28px]">
+        <h2 id={titleId} className="text-2xl font-semibold leading-snug tracking-tight text-[hsl(var(--text-primary))]">
           {t("materials:detail.overview")}
         </h2>
         {material.author && (
@@ -118,7 +118,7 @@ export function MaterialOverview({ material, folders, onCategoryClick }: Materia
               }
               onClick={() => onCategoryClick(folder.id)}
             >
-              <span>{folder.title} ·</span>
+              <span>{folder.title}</span>
               <span className="tabular-nums">{folder.count === undefined ? "—" : folder.count.toLocaleString(i18n.language)}</span>
             </button>
           ))}

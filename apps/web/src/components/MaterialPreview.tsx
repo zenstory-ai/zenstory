@@ -30,9 +30,9 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[hsl(var(--bg-canvas))]">
       {/* Top action bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))]">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-canvas))]">
         <BookOpen size={16} className="text-[hsl(var(--accent-primary))] shrink-0" />
         <span className="text-sm font-medium text-[hsl(var(--text-primary))] truncate">
           {preview.title}
@@ -42,22 +42,25 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
         </span>
         <div className="flex-1" />
         <button
+          type="button"
           onClick={onAttachToChat}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-[hsl(var(--border-primary))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors"
+          className="inline-flex items-center gap-1 px-2.5 py-1 max-md:min-h-11 text-xs rounded-lg border border-[hsl(var(--border-color))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-tertiary))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
         >
           <MessageSquarePlus size={14} />
           {t('editor:fileTree.attachToChat')}
         </button>
         <button
+          type="button"
           onClick={onAddToProject}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-1 px-2.5 py-1 max-md:min-h-11 text-xs font-medium rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary-hover))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-light))]"
         >
           <Plus size={14} />
           {t('editor:fileTree.addToProject')}
         </button>
         <button
+          type="button"
           onClick={onBack}
-          className="text-xs text-[hsl(var(--accent-primary))] hover:underline cursor-pointer"
+          className="inline-flex items-center px-2 py-1 max-md:min-h-11 text-xs text-[hsl(var(--accent-primary))] hover:underline cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
         >
           {t('editor:fileTree.backToEdit')}
         </button>

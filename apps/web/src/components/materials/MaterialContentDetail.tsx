@@ -101,7 +101,7 @@ export function MaterialContentDetail({ item }: MaterialContentDetailProps) {
         </div>
 
         {chapter.summary && (
-          <div className="mb-8 rounded-xl border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-primary))] p-4">
+          <div className="material-chapter-summary mb-8 rounded-xl border border-[hsl(var(--separator-color))] bg-[hsl(var(--bg-rail))] p-4">
             <h3 className="text-sm font-semibold text-[hsl(var(--text-secondary))] mb-2">
               {t("materials:detail.summary")}
             </h3>

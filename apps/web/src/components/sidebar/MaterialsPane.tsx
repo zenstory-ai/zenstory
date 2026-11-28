@@ -378,7 +378,7 @@ export const MaterialsPane: React.FC = () => {
                 }
               }}
               placeholder={t('editor:fileTree.searchMaterials')}
-              className={`w-full pl-2 py-1 text-xs rounded border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] ${searchQuery ? 'pr-7' : 'pr-2'}`}
+              className={`w-full pl-2 py-1 max-md:min-h-11 text-xs rounded border border-[hsl(var(--border-primary))] bg-[hsl(var(--bg-secondary))] text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] focus:outline-none focus:border-[hsl(var(--accent-primary))] ${searchQuery ? 'pr-7 max-md:pr-11' : 'pr-2'}`}
             />
             {searchQuery && (
               <button
@@ -386,7 +386,7 @@ export const MaterialsPane: React.FC = () => {
                 onClick={() => handleSearch('')}
                 aria-label={t('common:clearSearch')}
                 title={t('common:clearSearch')}
-                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+                className="absolute right-1 max-md:right-0 top-1/2 -translate-y-1/2 p-1 max-md:min-h-11 max-md:min-w-11 inline-flex items-center justify-center rounded text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
               >
                 <X size={12} aria-hidden="true" />
               </button>
@@ -405,7 +405,7 @@ export const MaterialsPane: React.FC = () => {
           ) : searchError ? (
             <div className="px-2 py-2 text-xs text-[hsl(var(--error-text))]">
               <p>{t('materials:searchLoadFailed', { defaultValue: '素材搜索失败，请重试。' })}</p>
-              <button className="mt-1 underline" onClick={() => handleSearch(searchQuery)}>
+              <button type="button" className="mt-1 inline-flex items-center max-md:min-h-11 underline" onClick={() => handleSearch(searchQuery)}>
                 {t('common:retry', { defaultValue: '重试' })}
               </button>
             </div>
@@ -420,7 +420,7 @@ export const MaterialsPane: React.FC = () => {
               return (
               <div
                 key={`${result.novel_id}:${result.entity_type}:${result.entity_id}`}
-                className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                className="flex items-center gap-2 px-2 py-1 max-md:min-h-11 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                 onClick={() => handleEntityClick(result.novel_id, result.entity_type, result.entity_id)}
               >
                 <span className="w-3" />
@@ -477,7 +477,7 @@ export const MaterialsPane: React.FC = () => {
         ) : materialLib.error ? (
           <div className="px-3 py-3 text-xs text-[hsl(var(--error-text))]">
             <p>{t('materials:libraryLoadFailed', { defaultValue: '素材库加载失败，请重试。' })}</p>
-            <button className="mt-1 underline" onClick={() => void materialLib.refetch()}>
+            <button type="button" className="mt-1 inline-flex items-center max-md:min-h-11 underline" onClick={() => void materialLib.refetch()}>
               {t('common:retry', { defaultValue: '重试' })}
             </button>
           </div>
@@ -494,7 +494,7 @@ export const MaterialsPane: React.FC = () => {
               <div key={lib.id} className="mb-1">
                 {/* Novel header */}
                 <div
-                  className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                  className="flex items-center gap-2 px-2 py-1.5 max-md:min-h-11 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                   onClick={() => materialLib.toggleNovel(lib.id)}
                 >
                   <ChevronRight
@@ -526,7 +526,7 @@ export const MaterialsPane: React.FC = () => {
                           <div key={type}>
                             {/* Entity type header */}
                             <div
-                              className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                              className="flex items-center gap-2 px-2 py-1 max-md:min-h-11 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                               style={{ marginLeft: 12 }}
                               onClick={() => handleEntityTypeToggle(lib.id, type)}
                             >
@@ -559,7 +559,7 @@ export const MaterialsPane: React.FC = () => {
                                     <button
                                       type="button"
                                       onClick={() => void loadEntityList(lib.id, type, true)}
-                                      className="underline hover:no-underline"
+                                      className="inline-flex items-center max-md:min-h-11 underline hover:no-underline"
                                     >
                                       {t('common:retry')}
                                     </button>
@@ -571,7 +571,7 @@ export const MaterialsPane: React.FC = () => {
                                     return (
                                     <div
                                       key={item.id}
-                                      className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
+                                      className="flex items-center gap-2 px-2 py-1 max-md:min-h-11 rounded cursor-pointer group transition-colors text-[hsl(var(--text-primary))] hover:bg-[hsl(var(--bg-tertiary))]"
                                       style={{ marginLeft: 24 }}
                                       onClick={() => {
                                         if (batchMode) {
@@ -652,9 +652,10 @@ export const MaterialsPane: React.FC = () => {
             {t('editor:fileTree.batchSelected', { count: selectedItems.size })}
           </span>
           <button
+            type="button"
             onClick={handleBatchImport}
             disabled={isBatchImporting}
-            className="px-2 py-1 text-xs rounded bg-[hsl(var(--accent-primary))] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="px-2.5 py-1 max-md:min-h-11 text-xs font-medium rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary-hover))] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-light))] disabled:opacity-50"
           >
             {isBatchImporting ? t('common:loading') : t('editor:fileTree.batchImport')}
           </button>

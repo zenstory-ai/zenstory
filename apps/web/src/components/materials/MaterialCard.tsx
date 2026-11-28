@@ -1,8 +1,7 @@
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
-  BookOpen,
   CheckCircle,
   Clock,
   FileText,
@@ -11,6 +10,7 @@ import {
 } from "../icons";
 import type { MaterialNovel } from "../../lib/materialsApi";
 import { materialJobErrorText } from "../../lib/materialsAccess";
+import { Badge, type BadgeProps } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
 import { MaterialTrialBookNote } from "./MaterialTrialNotes";
@@ -28,7 +28,7 @@ export interface MaterialCardProps {
 interface StatusPresentation {
   icon: ReactNode;
   text: string;
-  colorClass: string;
+  variant: NonNullable<BadgeProps["variant"]>;
 }
 
 function getMaterialStatusPresentation(
@@ -38,33 +38,33 @@ function getMaterialStatusPresentation(
   switch (status) {
     case "completed":
       return {
-        icon: <CheckCircle className="w-4 h-4 text-[hsl(var(--success-text))]" />,
+        icon: <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />,
         text: t("materials:status.completed"),
-        colorClass: "text-[hsl(var(--success-text))] bg-[hsl(var(--success)/0.1)]",
+        variant: "success",
       };
     case "completed_with_errors":
       return {
-        icon: <AlertCircle className="w-4 h-4 text-[hsl(var(--warning-text))]" />,
+        icon: <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />,
         text: t("materials:status.completed_with_errors", { defaultValue: "部分完成" }),
-        colorClass: "text-[hsl(var(--warning-text))] bg-[hsl(var(--warning)/0.1)]",
+        variant: "warning",
       };
     case "processing":
       return {
-        icon: <RefreshCw className="w-4 h-4 text-[hsl(var(--info-text))] animate-spin" />,
+        icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />,
         text: t("materials:status.processing"),
-        colorClass: "text-[hsl(var(--info-text))] bg-[hsl(var(--info)/0.1)]",
+        variant: "info",
       };
     case "failed":
       return {
-        icon: <AlertCircle className="w-4 h-4 text-[hsl(var(--error-text))]" />,
+        icon: <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />,
         text: t("materials:status.failed"),
-        colorClass: "text-[hsl(var(--error-text))] bg-[hsl(var(--error)/0.1)]",
+        variant: "error",
       };
     default:
       return {
-        icon: <Clock className="w-4 h-4 text-[hsl(var(--text-tertiary))]" />,
+        icon: <Clock className="w-3.5 h-3.5" aria-hidden="true" />,
         text: t("materials:status.pending"),
-        colorClass: "text-[hsl(var(--text-tertiary))] bg-[hsl(var(--bg-tertiary))]",
+        variant: "neutral",
       };
   }
 }
@@ -82,111 +82,112 @@ export function MaterialCard({
   const canRetryCard =
     Boolean(onRetry) &&
     (material.status === "failed" || material.status === "completed_with_errors");
+  const showChapterCount =
+    material.status === "completed" || material.status === "completed_with_errors";
   const openMaterialLabel = `${t("materials:viewMaterialDetail", {
     defaultValue: "查看素材详情",
   })}: ${material.title}`;
 
-  const handleOpenByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onClick();
-    }
-  };
-
   const statusPresentation = getMaterialStatusPresentation(material.status, t);
 
   return (
-    <div
+    <article
       data-testid="material-card"
-      className={`group relative bg-[hsl(var(--bg-secondary))] rounded-2xl border border-[hsl(var(--border-color))] hover:border-[hsl(var(--accent-primary)/0.3)] transition-colors ${isMobile ? "p-3" : "p-4"}`}
+      onClick={onClick}
+      className="group relative flex flex-col rounded-2xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-5 cursor-pointer transition-[border-color,box-shadow,background-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] hover:border-[hsl(var(--accent-primary)/0.3)] hover:shadow-sm"
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onClick}
-        onKeyDown={handleOpenByKeyboard}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClick();
+        }}
         aria-label={openMaterialLabel}
-        className="cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.6)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--bg-secondary))]"
-      >
-        <div className="flex items-start justify-between gap-3 mb-3 pr-10">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-10 h-10 rounded-lg bg-[hsl(var(--accent-primary)/0.1)] flex items-center justify-center shrink-0">
-              <BookOpen className="w-5 h-5 text-[hsl(var(--accent-primary))]" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-[hsl(var(--text-primary))] truncate">
-                {material.title}
-              </h3>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] truncate">
-                {material.original_filename}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Badge */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${statusPresentation.colorClass}`}>
-            {statusPresentation.icon}
+        className="absolute inset-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)]"
+      />
+      <div className="relative pointer-events-none flex flex-1 flex-col">
+        <div className="flex items-center justify-between gap-2">
+          <Badge
+            variant={statusPresentation.variant}
+            size="md"
+            icon={statusPresentation.icon}
+            className="font-medium"
+          >
             {statusPresentation.text}
-          </span>
+          </Badge>
+          <IconButton
+            label={t("materials:deleteConfirm.title", { defaultValue: "删除素材" })}
+            tone="danger"
+            icon={<Trash2 className="w-4 h-4" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className={`relative pointer-events-auto -mr-1.5 -my-1.5 ${
+              showDeleteAction
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+            }`}
+          />
         </div>
 
-        {/* Stats */}
-        {(material.status === "completed" || material.status === "completed_with_errors") && (
-          <div className="flex items-center gap-4 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
-            <div className="flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5" />
-              <span>{material.chapters_count || 0} {t("materials:chapters")}</span>
-            </div>
-          </div>
+        <h3
+          title={material.title}
+          className="mt-2 line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.01em] text-[hsl(var(--text-primary))]"
+        >
+          {material.title}
+        </h3>
+
+        {material.original_filename && (
+          <p
+            title={material.original_filename}
+            className="mt-1.5 truncate text-xs text-[hsl(var(--text-secondary))]"
+          >
+            {material.original_filename}
+          </p>
         )}
 
         <MaterialTrialBookNote material={material} />
 
-        {/* Error Message */}
         {(material.status === "failed" || material.status === "completed_with_errors") && material.error_message && (
-          <p className="text-xs text-[hsl(var(--error-text))] mt-2 line-clamp-2">
+          <p className="mt-2 line-clamp-2 text-xs text-[hsl(var(--error-text))]">
             {materialJobErrorText(material.error_message)}
           </p>
         )}
-      </div>
 
-      {canRetryCard && onRetry && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="touch"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRetry();
-            }}
-            disabled={isRetrying}
-            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />}
-          >
-            {isRetrying
-              ? t("materials:status.processing", { defaultValue: "处理中" })
-              : t("common:retry", { defaultValue: "重试" })}
-          </Button>
+        <div data-testid="material-card-footer" className="mt-auto pt-4">
+          <div className="flex items-center justify-between gap-3 border-t border-[hsl(var(--separator-color)/0.55)] pt-3">
+            <div className="min-w-0 flex-1 text-xs tabular-nums text-[hsl(var(--text-secondary))]">
+              {showChapterCount ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{material.chapters_count || 0} {t("materials:chapters")}</span>
+                </span>
+              ) : (
+                <span>—</span>
+              )}
+            </div>
+            {canRetryCard && onRetry && (
+              <Button
+                type="button"
+                variant="secondary"
+                size={isMobile ? "touch" : "sm"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRetry();
+                }}
+                disabled={isRetrying}
+                leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? "animate-spin" : ""}`} />}
+                className="relative pointer-events-auto shrink-0"
+              >
+                {isRetrying
+                  ? t("materials:status.processing", { defaultValue: "处理中" })
+                  : t("common:retry", { defaultValue: "重试" })}
+              </Button>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Delete Button */}
-      <IconButton
-        label={t("materials:deleteConfirm.title", { defaultValue: "删除素材" })}
-        tone="danger"
-        icon={<Trash2 className="w-4 h-4" />}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className={`absolute top-2 right-2 ${
-          showDeleteAction
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-        }`}
-      />
-    </div>
+      </div>
+    </article>
   );
 }
