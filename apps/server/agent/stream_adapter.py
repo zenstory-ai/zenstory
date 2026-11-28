@@ -676,17 +676,6 @@ class StreamAdapter:
             if isinstance(parsed_result, dict) and parsed_result.get("error") is not None:
                 error = str(parsed_result.get("error"))
 
-            # edit_file 全部编辑都没生效时是 error（tool_result_status 已判），这里补上人话错因。
-            # 判据只看 all_failed，不看工具层 status：mcp_tools 的 _derive_edit_status 在 all_failed 时
-            # 已经把 status 置成 error，若再要求 success，data 会被置 None、error 也为空，前端拿到空白失败卡。
-            edit_all_failed = (
-                tool_name == "edit_file"
-                and isinstance(result_data, dict)
-                and bool(result_data.get("all_failed"))
-            )
-            if edit_all_failed:
-                error = error or self._summarize_edit_failures(result_data)
-
             # 工具失败卡片只给作者看人话：工具自带 user_message 时用它替换 error，
             # 并把 error_type / user_message 放进 data，前端按 error_type 兜底文案；
             # 原始错误（给模型看的指令、内部 id、英文异常）不进卡片。
@@ -805,6 +794,11 @@ class StreamAdapter:
             # 也要把逐条失败事件发出去，让用户看到「哪几处没改成」；
             # 原子回滚或预检失败（status=error 且非 edit_all_failed）不发虚假的 file_edit_* 事件。
             # 被 RepeatEditGuard 软跳过（guard_skipped=True）的调用未执行，不发假 file_edit 事件。
+            edit_all_failed = (
+                tool_name == "edit_file"
+                and isinstance(result_data, dict)
+                and bool(result_data.get("all_failed"))
+            )
             if (
                 tool_name == "edit_file"
                 and (status == "success" or edit_all_failed)
@@ -955,13 +949,22 @@ class StreamAdapter:
     def _safe_tool_error_payload(cls, parsed_result: Any, result_data: Any) -> dict[str, Any]:
         """为 edit_file / batch_replace_files / write_chapter 失败卡构建严格白名单载荷。"""
         safe: dict[str, Any] = {}
+        error_type: str | None = None
         for source in (parsed_result, result_data):
             if not isinstance(source, dict):
                 continue
-            for key in ("id", "title", "file_type"):
-                value = source.get(key)
-                if key not in safe and isinstance(value, str) and value.strip():
-                    safe[key] = value.strip()
+            raw_error_type = source.get("error_type")
+            if error_type is None and isinstance(raw_error_type, str) and raw_error_type.strip():
+                error_type = raw_error_type.strip().lower()
+        strip_file_meta = error_type == "permission_denied"
+        for source in (parsed_result, result_data):
+            if not isinstance(source, dict):
+                continue
+            if not strip_file_meta:
+                for key in ("id", "title", "file_type"):
+                    value = source.get(key)
+                    if key not in safe and isinstance(value, str) and value.strip():
+                        safe[key] = value.strip()
             for key in ("edits_total", "edits_applied"):
                 value = source.get(key)
                 if key not in safe and isinstance(value, int) and not isinstance(value, bool):
@@ -2205,29 +2208,6 @@ class StreamAdapter:
                 file_type=file_type,
                 title=title,
             )
-
-    @staticmethod
-    def _normalize_edit_failures(raw: Any) -> list[dict[str, Any]]:
-        """把 edit_file 返回的 failed_edits 归一化成事件可用的字典列表。"""
-        if not isinstance(raw, list):
-            return []
-        failures: list[dict[str, Any]] = []
-        for item in raw:
-            if isinstance(item, dict):
-                failures.append(item)
-            elif item:
-                failures.append({"error": str(item)})
-        return failures
-
-    @classmethod
-    def _summarize_edit_failures(cls, result: dict[str, Any]) -> str:
-        """把全部失败的编辑汇总成一句给模型看的错误说明。"""
-        failures = cls._normalize_edit_failures(result.get("failed_edits"))
-        reasons = [str(item.get("error")) for item in failures if item.get("error")]
-        if not reasons:
-            reasons = [str(w) for w in result.get("warnings") or [] if w]
-        detail = "；".join(reasons) if reasons else "未提供原因"
-        return f"全部 {len(failures)} 处编辑均未生效：{detail}"
 
 
 def _card_files(raw: Any) -> list[dict[str, str]] | None:

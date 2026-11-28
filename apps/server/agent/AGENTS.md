@@ -118,7 +118,7 @@ agent/
   （`summary`、`covers_through_message_id`、`kept_author_messages`、`created_at`），之后的历史 = 压缩点之前最近的作者原话（`AGENT_LOOP_COMPACT_KEEP_USER_TOKENS`
   预算内原文）+ 「【上下文已压缩】」摘要消息 + 压缩点之后的行。保留的作者原话按 `kept_author_messages`（压缩那一轮实际发出的文字，含截断后缀）原样回放，
   不按行重新截断，前缀跨轮逐字不变（再次压缩时被截断过的原话再截一次，按行重算会挪动截断点、让之后整段历史缓存 miss）；没有这个字段的旧记录照旧按行重算。`kept_author_messages` 只给模型回放，聊天历史接口（`client_message_metadata`）不把它发给浏览器。压缩用量以一条 MESSAGE_END 汇入本轮用量；从不在工具循环中途压缩。
-  没压缩成时记 `message_metadata.compaction_skipped`（`reason`、`at_prompt_tokens`）：仅模型输出不可用（如 `empty_or_truncated_summary`）触发 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS`（+100k）退避，瞬时 `provider_error` 不退避、下一轮立即重试（防止单次 5xx 把长会话锁死拖到 950k）；
+  没压缩成时记 `message_metadata.compaction_skipped`（`reason`、`at_prompt_tokens`）：仅模型输出不可用（如 `empty_or_truncated_summary`）触发 `AGENT_LOOP_COMPACT_RETRY_GROWTH_TOKENS`（+100k）退避，瞬时 `provider_error` 不退避、下一轮立即重试（防止单次 5xx 把长会话锁死拖到 950k）；冷库回放时会将陈旧热缓存 `compaction_skipped.at_prompt_tokens` 对齐到跳过前固定冷锚点（`LoopHistory.compaction_skipped_cold_items_tokens` + `cold_fixed_tokens`：未超压缩阈值则清零、否则钳位到该固定冷基线），并在运行期历史安全阀（`bound_history_for_provider`）中扣除 `cold_fixed_tokens`；
   本轮没有 assistant 行时两种记录写在本轮作者 user 行上（「对话已压缩」显示事件本身不算回复，压缩后没有任何产出的一轮也只落作者行）；
   重试（`retry_unanswered`）删掉这条没得到回复的作者行前接过它上面的记录，本轮历史照它重建，本轮没有新记录时随本轮的行落库，不重付摘要。
   作者看得到这一步：摘要调用前发 `thinking`（`step=history_compaction`，「正在压缩对话…」）；成功后发 `history_compacted`（`data.summary`），

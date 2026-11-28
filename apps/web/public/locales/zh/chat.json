@@ -324,6 +324,13 @@
       "permissionDenied": "无权修改该文件，文件未改动。",
       "generic": "这一步未能完成，文件未改动。"
     },
+    "partialFailureHint": {
+      "notFound": "部分目标片段未在原文中找到，其余修改未生效。",
+      "ambiguous": "部分目标片段在原文中出现多处，其余修改未生效。",
+      "noChange": "未生效的修改与原文一致，无需改动。",
+      "invalidEdit": "部分修改参数不完整，其余修改未生效。",
+      "generic": "其余修改未能生效，已生效的部分已保存。"
+    },
     "skippedTitle": {
       "authorEdited": "保留了你改过的内容",
       "protectionUnavailable": "文件未改动",

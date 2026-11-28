@@ -312,6 +312,8 @@ EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_ANCHOR_NOT_FOUND: "未在原文中找到对应段落，文件未改动。",
     EDIT_ERROR_ANCHOR_AMBIGUOUS: "要修改的片段在原文中出现多处，文件未改动。",
     EDIT_ERROR_FILE_NOT_FOUND: "未找到目标文件，文件未改动。",
+    EDIT_ERROR_INVALID_EDIT: "修改参数不完整，此次修改未执行，文件未改动。",
+    EDIT_ERROR_PERMISSION_DENIED: "无权修改该文件，文件未改动。",
     EDIT_ERROR_STALE_CONTENT: "该文件在 AI 读取后又被修改过，未在旧内容上改动。",
     EDIT_ERROR_NO_CHANGE: "修改前后内容一致，无需改动。",
     EDIT_ERROR_FILE_BUSY: "目标文件正忙，此次修改未写入。",
