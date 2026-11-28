@@ -307,6 +307,11 @@ EDIT_ERROR_DUPLICATED_PARAGRAPH = "duplicated_paragraph"
 EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE = "pre_write_history_unavailable"
 EDIT_ERROR_CHAPTER_REPLACE_PENDING = "chapter_replace_pending"
 EDIT_ERROR_CHAPTER_TARGET_AMBIGUOUS = "chapter_target_ambiguous"
+EDIT_ERROR_INVALID_PARENT_ID = "invalid_parent_id"
+EDIT_ERROR_INVALID_READ_RANGE = "invalid_read_range"
+EDIT_ERROR_SKILL_NOT_FOUND = "skill_not_found"
+EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND = "skill_resource_not_found"
+EDIT_ERROR_SKILL_LIMIT_EXCEEDED = "skill_limit_exceeded"
 
 EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_ANCHOR_NOT_FOUND: "未在原文中找到对应段落，文件未改动。",
@@ -322,8 +327,42 @@ EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_DUPLICATED_PARAGRAPH: "此次修改会导致正文出现重复段落，未保存改动。",
     EDIT_ERROR_CHAPTER_REPLACE_PENDING: "该章节正在等待写入完整正文，此次修改未执行。",
     EDIT_ERROR_CHAPTER_TARGET_AMBIGUOUS: "找到多个同编号章节，无法确认目标文件，文件未改动。",
+    EDIT_ERROR_INVALID_PARENT_ID: "目标文件夹不存在，未创建文件。",
+    EDIT_ERROR_INVALID_READ_RANGE: "读取范围参数无效，未能读取目标内容。",
+    EDIT_ERROR_SKILL_NOT_FOUND: "未找到已启用的目标技能。",
+    EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND: "未找到该技能对应的参考资料。",
+    EDIT_ERROR_SKILL_LIMIT_EXCEEDED: "本轮加载的技能数量已达上限。",
 }
 EDIT_ERROR_GENERIC_USER_MESSAGE = "此次修改未能生效，文件未改动。"
+
+_STANDARD_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+_STANDARD_UUID_LEN = 36
+
+
+def format_malformed_uuid_hint(file_ids: Sequence[str]) -> str:
+    """Return a crisp format/length diagnostic when any missing ID is not a standard 36-char UUID.
+
+    Never guesses, fuzzy-matches, or auto-corrects UUIDs.
+    """
+    malformed: list[str] = []
+    for raw in file_ids:
+        if not isinstance(raw, str):
+            continue
+        cleaned = raw.strip()
+        if not cleaned or _STANDARD_UUID_RE.match(cleaned):
+            continue
+        if cleaned not in malformed:
+            malformed.append(cleaned)
+    if not malformed:
+        return ""
+    sample = "、".join(f"「{fid}」（长度 {len(fid)}）" for fid in malformed[:3])
+    return (
+        f" 注意：传入 ID {sample} 不符合标准 {_STANDARD_UUID_LEN} 位 UUID 格式（8-4-4-4-12），"
+        "可能存在多抄、漏抄或截断；请直接从 <project_files> 或 search_files 结果逐字复制完整 ID。"
+    )
 
 # 近似/模糊匹配改动后附在 detail 上的提醒（模型与作者都能看到实际改了哪段原文）。
 FUZZY_EDIT_WARNING = "已按近似匹配改动，请核对"
@@ -547,11 +586,53 @@ def _batch_anchor_invalidated(original: str, staged: str, edit: dict[str, Any]) 
     )
 
 
-def _paragraph_break_error(edit_index: int, label: str) -> EditFileError:
+def _compact_paragraph_break_excerpt(content: str, pattern: str, *, max_chars: int = 240) -> str:
+    """When a cross-paragraph match is uniquely identifiable, return a compact verbatim excerpt."""
+    spans = find_fuzzy_spans(
+        content,
+        pattern,
+        ignore_punct_whitespace=True,
+        max_matches=2,
+        keep_line_breaks=False,
+    )
+    if len(spans) != 1:
+        return ""
+    start, end = spans[0]
+    if "\n" not in content[start:end] and "\r" not in content[start:end]:
+        return ""
+    line_start = content.rfind("\n", 0, start)
+    seg_start = 0 if line_start < 0 else line_start + 1
+    line_end = content.find("\n", end)
+    seg_end = len(content) if line_end < 0 else line_end
+    excerpt = content[seg_start:seg_end]
+    if len(excerpt) > max_chars:
+        nl = content.find("\n", start, end)
+        if nl >= 0:
+            half = max_chars // 2
+            left = max(seg_start, nl - half)
+            right = min(seg_end, nl + half)
+            excerpt = content[left:right]
+        else:
+            excerpt = excerpt[:max_chars]
+    return f" 原文对应跨段片段（含实际换行与缩进）：{json.dumps(excerpt, ensure_ascii=False)}"
+
+
+def _paragraph_break_error(
+    edit_index: int,
+    label: str,
+    *,
+    content: str | None = None,
+    pattern: str | None = None,
+) -> EditFileError:
+    excerpt_hint = (
+        _compact_paragraph_break_excerpt(content, pattern)
+        if isinstance(content, str) and isinstance(pattern, str) and pattern
+        else ""
+    )
     return _not_found(
         f"Edit {edit_index}: {label}在原文里对应的那段跨过了段落分隔（原文这里有换行），"
         f"{label}里却没有换行；照这样改会把两段并成一段，已中止。请按原文的分段把换行"
-        f"（以及下一段段首的缩进）照抄进 old 和 new，或者拆成每段一条 edit。"
+        f"（以及下一段段首的缩进）照抄进 old 和 new，或者拆成每段一条 edit。{excerpt_hint}"
     )
 
 
@@ -1289,13 +1370,19 @@ class FileEditor:
             raise EditFileError(
                 "文件不存在或已删除。不要猜测、枚举或改写相似 id；"
                 "先用 search_files 不带关键词查询当前文件列表，再从结果逐字复制目标 id。"
-                "确认前不要继续写，也不能把失败解释成权限问题。",
+                "确认前不要继续写，也不能把失败解释成权限问题。"
+                f"{format_malformed_uuid_hint([id])}",
                 error_type=EDIT_ERROR_FILE_NOT_FOUND,
             )
 
         # Check permission (target must belong to the current tool-context project)
         check_file_access_in_tool_context(
             self.session, file, self.user_id, request_context=self.request_context
+        )
+        already_edited_this_turn = (
+            self.request_context is not None
+            and hasattr(self.request_context, "has_written_file")
+            and bool(self.request_context.has_written_file(file.id))
         )
 
         old_content = file.content or ""
@@ -1344,6 +1431,28 @@ class FileEditor:
                 if not isinstance(edit, dict):
                     raise ValueError(f"Edit {i}: invalid edit object, must be JSON object")
 
+                # 剥离模型偶发夹带的 NUL 字节（\x00），避免 PostgreSQL DataError。
+                edit = {
+                    k: (v.replace("\x00", "") if isinstance(v, str) and "\x00" in v else v)
+                    for k, v in edit.items()
+                }
+                # Normalize common field aliases BEFORE op inference so omitted-op edits
+                # using old_text/new_text or from/to still infer op=replace cleanly.
+                # Check `is None` so explicit JSON null canonical keys still fall back while
+                # preserving `new=""` deletions.
+                if edit.get("old") is None:
+                    for alias in ("old_text", "from"):
+                        if isinstance(edit.get(alias), str):
+                            edit["old"] = edit[alias]
+                            break
+                if edit.get("new") is None:
+                    for alias in ("new_text", "to"):
+                        if isinstance(edit.get(alias), str):
+                            edit["new"] = edit[alias]
+                            break
+                if edit.get("text") is None and isinstance(edit.get("content"), str):
+                    edit["text"] = edit.get("content")
+
                 # Normalize op field (common LLM mistakes: op is null / uses alias keys)
                 op_raw = edit.get("op")
                 if op_raw is None:
@@ -1351,6 +1460,10 @@ class FileEditor:
 
                 op = op_raw.strip().lower() if isinstance(op_raw, str) else ""
                 op = op.replace("-", "_")
+
+                if op == "replace_all":
+                    op = "replace"
+                    edit["replace_all"] = True
 
                 alias_map = {
                     "insertafter": "insert_after",
@@ -1375,8 +1488,8 @@ class FileEditor:
                     if (
                         isinstance(edit.get("old"), str)
                         and isinstance(edit.get("new"), str)
-                        and "anchor" not in edit
-                        and "text" not in edit
+                        and edit.get("anchor") is None
+                        and edit.get("text") is None
                     ):
                         op = "replace"
                         warnings.append(f"Edit {i}: op omitted; old+new applied as op=replace")
@@ -1384,19 +1497,6 @@ class FileEditor:
                         raise ValueError(
                             f"Edit {i}: missing op. Each edit must include op=replace/append/insert_after/insert_before"
                         )
-
-                # 剥离模型偶发夹带的 NUL 字节（\x00），避免 PostgreSQL DataError。
-                edit = {
-                    k: (v.replace("\x00", "") if isinstance(v, str) and "\x00" in v else v)
-                    for k, v in edit.items()
-                }
-                # Normalize common field aliases
-                if "old" not in edit and isinstance(edit.get("from"), str):
-                    edit["old"] = edit.get("from")
-                if "new" not in edit and isinstance(edit.get("to"), str):
-                    edit["new"] = edit.get("to")
-                if "text" not in edit and isinstance(edit.get("content"), str):
-                    edit["text"] = edit.get("content")
 
                 # Persist normalized op for subsequent logic
                 edit["op"] = op
@@ -1480,7 +1580,6 @@ class FileEditor:
                         if isinstance(detail, dict):
                             detail["paragraph_prefixes_stripped"] = True
                 if is_noop:
-                    effective_edits.append(edit)
                     continue
 
                 if content == content_before_edit and len(applied_edits) > applied_before_edit:
@@ -1513,9 +1612,14 @@ class FileEditor:
                 )
                 if batch_anchor_invalidated:
                     error_text += (
-                        "（前面的 edit 已改掉此项基于批次开始原文的 old/anchor。"
-                        "请基于前一项后的文本重新定位，或拆成单独调用并先读取当前正文；"
-                        "不要忽略前项后强行匹配。）"
+                        "（前面的 edit 已改掉此项基于批次开始原文的 old/anchor；"
+                        "同一文件的多处独立编辑请合并进一次 edit_file 的 edits 数组并避免前后项重叠；"
+                        "依赖前项的改动请基于前一项后的文本重新定位，或拆成单独调用并先读取当前正文，不要忽略前项后强行匹配。）"
+                    )
+                elif already_edited_this_turn and error_type == EDIT_ERROR_ANCHOR_NOT_FOUND:
+                    error_text += (
+                        "（提示：本轮此前已修改过该文件，请把对同一文件的多处编辑合并进一次 edit_file 的 edits 数组，"
+                        "避免拆成多次或并列调用导致旧锚点失效。）"
                     )
                 if exact_only and failed_op in ("replace", "delete", "insert_after", "insert_before"):
                     if active_spans is None:
@@ -1548,7 +1652,7 @@ class FileEditor:
                 file_type=file.file_type,
             )
 
-        if body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
+        if content != old_content and body_guards and file.file_type in BODY_GUARD_FILE_TYPES:
             try:
                 check_body_edit_guards(old_content, content, effective_edits)
             except EditFileError as exc:
@@ -1912,7 +2016,8 @@ class FileEditor:
             missing_ids = [fid for fid in requested_ids if fid not in by_id]
             if missing_ids and not candidates:
                 raise EditFileError(
-                    "未找到属于当前项目的有效文件（文件不存在、已删除、为文件夹或不属于当前项目）。",
+                    "未找到属于当前项目的有效文件（文件不存在、已删除、为文件夹或不属于当前项目）。"
+                    f"{format_malformed_uuid_hint(missing_ids)}",
                     error_type=EDIT_ERROR_FILE_NOT_FOUND,
                 )
             for missing_id in missing_ids:
@@ -1921,7 +2026,10 @@ class FileEditor:
                         "id": missing_id,
                         "reason": EDIT_ERROR_FILE_NOT_FOUND,
                         "user_message": edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND),
-                        "error": "文件不存在、已删除、为文件夹或不属于当前项目。",
+                        "error": (
+                            "文件不存在、已删除、为文件夹或不属于当前项目。"
+                            f"{format_malformed_uuid_hint([missing_id])}"
+                        ),
                     }
                 )
             ordered_candidates = [by_id[fid] for fid in requested_ids if fid in by_id]
@@ -2402,17 +2510,22 @@ class FileEditor:
             and old_field
             and self._peek_replace_new(active_edit) == old_field
         ):
-            # old 与 new 相同就是不改。只核对原文里逐字（含引号写法等价）有这段，不走模糊/近似
-            # 定位：那条路按原文边缘标点扩展范围，会把模型漏抄的逗号、句号删掉还报成功（F-01）。
-            if locate_exact_or_quote_equivalent(content_before_edit, old_field) is None:
-                suggestions = suggest_similar_lines(content_before_edit, old_field)
-                raise EditFileError(
-                    f"Edit {edit_index}: old 与 new 相同，没有产生实际改动（且原文里没有逐字对应的这段，标点也要一致）。"
-                    f"不需要改这里就去掉这条；要改请从当前文件原文中复制并写出不同的 new。候选片段: {suggestions}",
-                    error_type=EDIT_ERROR_NO_CHANGE,
+            # old 与 new 相同即明确无修改意图：永不走模糊/近似定位（防止 F-01 误删原文标点），
+            # 统一无害归入 unchanged_edits，不修改原文、不计入 failed_edits / partial_failed。
+            matched_verbatim = locate_exact_or_quote_equivalent(content_before_edit, old_field) is not None
+            unchanged_edits.append(
+                {
+                    "index": edit_index,
+                    "op": op,
+                    "reason": "already_matches" if matched_verbatim else "identical_old_new",
+                }
+            )
+            if matched_verbatim:
+                warnings.append(f"Edit {edit_index}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
+            else:
+                warnings.append(
+                    f"Edit {edit_index}: old 与 new 相同，没有需要执行的改动，已跳过（未修改原文）"
                 )
-            unchanged_edits.append({"index": edit_index, "op": op, "reason": "already_matches"})
-            warnings.append(f"Edit {edit_index}: old 与 new 相同，原文这里已经是这样，没有修改，不用重发")
             return content_before_edit, True
 
         if op == "replace":
@@ -2593,7 +2706,7 @@ class FileEditor:
         以前 text 缺失或为空时照样记一次 applied，模型和计费都以为写进去了，
         实际文件一个字没变（空正文纠偏轮因此白跑一轮）。
         """
-        if edit.get("text") is None:
+        if edit.get("text") in (None, ""):
             for key in cls._INSERT_TEXT_ALIASES:
                 value = edit.get(key)
                 if isinstance(value, str) and value:
@@ -3062,7 +3175,7 @@ class FileEditor:
             if not spans and fuzzy_stats.get("paragraph_rejected"):
                 # 逐字（忽略标点）能对上，只是跨了段落：这就是模型要改的那段，
                 # 不能再退到近似匹配去改其中一段的局部，那样会重复写入另一段的开头。
-                raise _paragraph_break_error(edit_index, "old")
+                raise _paragraph_break_error(edit_index, "old", content=content, pattern=old_text)
 
             unseen_fuzzy_rejected = False
             if allowed_fuzzy_spans is not None and spans:
@@ -3111,7 +3224,7 @@ class FileEditor:
                         stats=approx_stats,
                     )
                 if not approx_match and approx_stats.get("paragraph_rejected"):
-                    raise _paragraph_break_error(edit_index, "old")
+                    raise _paragraph_break_error(edit_index, "old", content=content, pattern=old_text)
                 if approx_match:
                     start, end, similarity, _matched_text = approx_match
                     # 近似匹配只会给出唯一的一处；调用方若点名了第 2 处及以后，
@@ -3633,7 +3746,7 @@ class FileEditor:
                     f"Edit {edit_index}: {fuzzy_stats['paragraph_rejected']} 处候选匹配跨过了原文的段落分隔（old 里没有那处换行），已排除"
                 )
             if not spans and fuzzy_stats.get("paragraph_rejected"):
-                raise _paragraph_break_error(edit_index, "old")
+                raise _paragraph_break_error(edit_index, "old", content=content, pattern=old_text)
 
             unseen_fuzzy_rejected = False
             if allowed_fuzzy_spans is not None and spans:
@@ -3671,7 +3784,7 @@ class FileEditor:
                         stats=approx_stats,
                     )
                 if not approx_match and approx_stats.get("paragraph_rejected"):
-                    raise _paragraph_break_error(edit_index, "old")
+                    raise _paragraph_break_error(edit_index, "old", content=content, pattern=old_text)
                 if approx_match:
                     start, end, similarity, _matched_text = approx_match
                     if occurrence is not None and occurrence != 1:
@@ -3807,9 +3920,14 @@ __all__ = [
     "EDIT_ERROR_FILE_NOT_FOUND",
     "EDIT_ERROR_GENERIC",
     "EDIT_ERROR_INVALID_EDIT",
+    "EDIT_ERROR_INVALID_PARENT_ID",
+    "EDIT_ERROR_INVALID_READ_RANGE",
     "EDIT_ERROR_NO_CHANGE",
     "EDIT_ERROR_PERMISSION_DENIED",
     "EDIT_ERROR_PRE_WRITE_HISTORY_UNAVAILABLE",
+    "EDIT_ERROR_SKILL_LIMIT_EXCEEDED",
+    "EDIT_ERROR_SKILL_NOT_FOUND",
+    "EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND",
     "EDIT_ERROR_USER_MESSAGES",
     "EVENT_LOOP_LOCK_WAIT_SECONDS",
     "EditBatchError",
@@ -3820,6 +3938,7 @@ __all__ = [
     "edit_error_user_message",
     "extract_batch_replace_ui_payload",
     "extract_edit_file_ui_payload",
+    "format_malformed_uuid_hint",
     "slim_batch_replace_result_for_llm",
     "slim_edit_file_result_for_llm",
     "acquire_file_write_lock",

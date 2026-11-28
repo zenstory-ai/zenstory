@@ -19,6 +19,8 @@ from sqlmodel import Session, and_, col, select
 
 from agent.constants import CONTENT_FILE_TYPES, coerce_bool
 from agent.tools.file_ops.content_range import (
+    INVALID_READ_RANGE_ERROR_TYPE,
+    ContentRangeError,
     apply_content_range,
     count_paragraphs,
     find_literal_matches,
@@ -33,6 +35,9 @@ from agent.tools.file_ops.edit import (
     EDIT_ERROR_GENERIC,
     EDIT_ERROR_INVALID_EDIT,
     EDIT_ERROR_PERMISSION_DENIED,
+    EDIT_ERROR_SKILL_LIMIT_EXCEEDED,
+    EDIT_ERROR_SKILL_NOT_FOUND,
+    EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND,
     EDIT_ERROR_USER_MESSAGES,
     EditFileError,
     FileWriteBusyError,
@@ -41,6 +46,7 @@ from agent.tools.file_ops.edit import (
     edit_error_user_message,
     extract_batch_replace_ui_payload,
     extract_edit_file_ui_payload,
+    format_malformed_uuid_hint,
     slim_batch_replace_result_for_llm,
     slim_edit_file_result_for_llm,
 )
@@ -575,7 +581,8 @@ def _awaiting_body_data(data: dict[str, Any], title: str) -> dict[str, Any]:
         "next_step": (
             f"「{title}」已建好，正文还是空的。构思已在调用前完成，这一次思考只留一两行或直接开始，"
             "不要在思考里重新推演全盘方案或预写全文；回复第一行直接输出 <file> 写完整正文，写完用 </file> 结束；"
-            "写完之前不要调用任何工具（read_files / search_files / write_chapter / edit_file / update_project 都会被拒绝）。"
+            "不要对新建空文件调用 edit_file 写入正文，写完 </file> 之前也不要调用任何其他工具"
+            "（read_files / search_files / write_chapter / edit_file / update_project 都会被拒绝）。"
         ),
     }
 
@@ -869,7 +876,8 @@ def _source_copy_content(
 
     if matched_span is None:
         return None, _make_structured_error(
-            "source_text 不是作者本轮消息中的逐字连续原文；不要改写、拼接或补字段。没有新建文件。",
+            "source_text 不是作者本轮最新一条消息中的逐字连续原文；不要改写、拼接或补字段。"
+            "若资料在更早轮次消息中，请不要传 source_text，先调用 create_file 建空文件，再在下一次回复用 <file>...</file> 写入。没有新建文件。",
             error_type=SOURCE_TEXT_NOT_FOUND_ERROR_TYPE,
             tool_name="create_file",
         )
@@ -1057,11 +1065,14 @@ def _write_chapter_sync(
         )
     title = raw_title if titled_number is not None else _chapter_title(raw_title, number, unit)
     requested_parent_id = parsed.parent_id or None
+    passed_project_id_as_parent = requested_parent_id == project_id
+    if passed_project_id_as_parent:
+        requested_parent_id = None
     parent_id = requested_parent_id
 
     with req_ctx.session_scope() as session:
         if requested_parent_id is not None:
-            # 与 create_file 同一套父节点归一（传成上一章的文件 id、剧本项目传了 -draft-folder）：
+            # 与 create_file 同一套父节点归一（传成上一章的文件 id、剧本项目传了 -draft-folder、逻辑目录别名）：
             # 查找与新建落在同一个目录，不会在已有这一章的目录旁边再建一个。
             target = _resolve_chapter_target(
                 session, project_id, requested_parent_id, title=title, file_type=file_type
@@ -1082,6 +1093,18 @@ def _write_chapter_sync(
             )
         except Exception as e:  # noqa: BLE001
             return _make_error(f"读取章节列表失败，没有写入：{e}", tool_name=tool_name)
+        if passed_project_id_as_parent:
+            body_folders = {
+                row.parent_id or None
+                for row in rows
+                if _row_chapter_number(row, unit=unit, expected_file_type=file_type) is not None
+            }
+            if len(body_folders) > 1:
+                return _write_chapter_error(
+                    f"parent_id 不能填项目 ID；当前正文分在 {len(body_folders)} 个目录里，无法确认要写入哪一卷。"
+                    "没有写入。请传目标卷文件夹 ID（单卷项目可直接省略 parent_id）。",
+                    error_type=WRITE_CHAPTER_AMBIGUOUS_ERROR_TYPE,
+                )
         matches = [
             row
             for row in rows
@@ -1544,6 +1567,14 @@ def _create_file_sync(
                 },
                 tool_name=tool_name,
             )
+        except EditFileError as e:
+            return _make_structured_error(
+                str(e),
+                error_type=e.error_type,
+                user_message=e.user_message,
+                tool_name=tool_name,
+                mutation_applied=False,
+            )
         except Exception as e:
             return _make_error(str(e), tool_name=tool_name)
         finally:
@@ -1991,14 +2022,17 @@ def _read_files_sync(
                 "start_char": parsed.start_char,
                 "max_chars": parsed.max_chars,
             }
-            if len(requested_ids) > 1 and wants_range(range_args):
-                return _make_error(
-                    "批量读取多个文件（ids）不支持 section / tail_chars / start_char 范围参数；"
-                    "需要按范围读取某个超长文件时请只传单个文件 ID。",
+            if len(requested_ids) > 1 and parsed.section not in (None, ""):
+                return _make_structured_error(
+                    "批量读取多个文件（ids）不支持按 section 标题读取；"
+                    "需要按 section 读取单个多章合集或大纲时请只传单个文件 ID，"
+                    "批量读多文件局部可改用 tail_chars 或 start_char + max_chars。",
+                    error_type=INVALID_READ_RANGE_ERROR_TYPE,
+                    user_message=edit_error_user_message(INVALID_READ_RANGE_ERROR_TYPE),
                     tool_name=tool_name,
                 )
 
-            range_read = len(requested_ids) == 1 and wants_range(range_args)
+            range_read = wants_range(range_args)
             read_ticket = req_ctx.read_ticket()
             result = executor.query_files(
                 project_id=project_id,
@@ -2006,54 +2040,7 @@ def _read_files_sync(
                 response_mode=QUERY_FILES_RESPONSE_MODE_FULL,
             )
 
-            if range_read:
-                rows = result if isinstance(result, list) else []
-                if len(rows) == 1 and isinstance(rows[0], dict) and isinstance(rows[0].get("content"), str):
-                    full_row = rows[0]
-                    raw_full_content = full_row["content"]
-                    sliced = apply_content_range(full_row, range_args)
-                    result = [sliced]
-                    if sliced.get("content_partial"):
-                        content_range = sliced.get("content_range")
-                        span = (
-                            (int(content_range["start"]), int(content_range["end"]))
-                            if isinstance(content_range, dict)
-                            and isinstance(content_range.get("start"), int)
-                            and isinstance(content_range.get("end"), int)
-                            else None
-                        )
-                        req_ctx.record_range_read_snapshot(
-                            str(full_row.get("id") or ""),
-                            raw_full_content,
-                            span=span,
-                            ticket=read_ticket,
-                        )
-                        sliced["paragraph_count"] = count_paragraphs(raw_full_content)
-                        if parsed.show_paragraph_stats and isinstance(sliced.get("content"), str):
-                            start_offset = span[0] if span is not None else 0
-                            start_p = paragraph_index_at_offset(raw_full_content, start_offset)
-                            annotated, _ = format_paragraph_stats(
-                                sliced["content"], start_paragraph=start_p
-                            )
-                            sliced["content"] = annotated
-                            sliced["paragraph_stats_annotated"] = True
-                        return _make_result({"status": "success", "data": result}, tool_name=tool_name)
-
             rows = result if isinstance(result, list) else []
-            raw_contents: dict[str, str] = {}
-            for row in rows:
-                if isinstance(row, dict) and isinstance(row.get("content"), str):
-                    fid = str(row.get("id") or "")
-                    raw_body = row["content"]
-                    if fid:
-                        raw_contents[fid] = raw_body
-                    row["paragraph_count"] = count_paragraphs(raw_body)
-                    if parsed.show_paragraph_stats:
-                        annotated, _ = format_paragraph_stats(raw_body)
-                        row["content"] = annotated
-                        row["paragraph_stats_annotated"] = True
-                        row["raw_content_sha256"] = content_sha256(raw_body)
-
             returned_ids = {str(row.get("id") or "") for row in rows if isinstance(row, dict)}
             missing_ids = [fid for fid in requested_ids if fid not in returned_ids]
             if not rows:
@@ -2061,13 +2048,68 @@ def _read_files_sync(
                 if truncated_ids:
                     extra["truncated_ids"] = truncated_ids
                 return _make_structured_error(
-                    "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
+                    "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。"
+                    f"{format_malformed_uuid_hint(missing_ids)}",
                     error_type="files_not_found",
+                    user_message=edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND),
                     tool_name=tool_name,
                     **extra,
                 )
 
-            payload: dict[str, Any] = {"status": "success", "data": result}
+            processed_rows: list[Any] = []
+            full_rows: list[dict[str, Any]] = []
+            raw_contents: dict[str, str] = {}
+            partial_snapshots: list[tuple[str, str, tuple[int, int] | None]] = []
+            for row in rows:
+                if not isinstance(row, dict) or not isinstance(row.get("content"), str):
+                    processed_rows.append(row)
+                    continue
+                fid = str(row.get("id") or "")
+                raw_body = row["content"]
+                if range_read:
+                    row = apply_content_range(row, range_args)
+                    row["paragraph_count"] = count_paragraphs(raw_body)
+                    if row.get("content_partial"):
+                        content_range = row.get("content_range")
+                        span = (
+                            (int(content_range["start"]), int(content_range["end"]))
+                            if isinstance(content_range, dict)
+                            and isinstance(content_range.get("start"), int)
+                            and isinstance(content_range.get("end"), int)
+                            else None
+                        )
+                        if fid:
+                            partial_snapshots.append((fid, raw_body, span))
+                        if parsed.show_paragraph_stats and isinstance(row.get("content"), str):
+                            start_offset = span[0] if span is not None else 0
+                            start_p = paragraph_index_at_offset(raw_body, start_offset)
+                            annotated, _ = format_paragraph_stats(
+                                row["content"], start_paragraph=start_p
+                            )
+                            row["content"] = annotated
+                            row["paragraph_stats_annotated"] = True
+                    else:
+                        if fid:
+                            raw_contents[fid] = raw_body
+                        full_rows.append(row)
+                        if parsed.show_paragraph_stats:
+                            annotated, _ = format_paragraph_stats(raw_body)
+                            row["content"] = annotated
+                            row["paragraph_stats_annotated"] = True
+                            row["raw_content_sha256"] = content_sha256(raw_body)
+                else:
+                    if fid:
+                        raw_contents[fid] = raw_body
+                    row["paragraph_count"] = count_paragraphs(raw_body)
+                    full_rows.append(row)
+                    if parsed.show_paragraph_stats:
+                        annotated, _ = format_paragraph_stats(raw_body)
+                        row["content"] = annotated
+                        row["paragraph_stats_annotated"] = True
+                        row["raw_content_sha256"] = content_sha256(raw_body)
+                processed_rows.append(row)
+
+            payload: dict[str, Any] = {"status": "success", "data": processed_rows}
             if missing_ids:
                 payload["missing_ids"] = missing_ids
             if truncated_ids:
@@ -2077,8 +2119,20 @@ def _read_files_sync(
                     f"其余 {len(truncated_ids)} 个请另起调用读取。"
                 )
             if len(_dumps_compact(payload)) <= TOOL_RESULT_MAX_CHARS:
-                _note_file_read(result, req_ctx, ticket=read_ticket, raw_contents=raw_contents)
+                for fid, raw_body, span in partial_snapshots:
+                    req_ctx.record_range_read_snapshot(
+                        fid, raw_body, span=span, ticket=read_ticket
+                    )
+                if full_rows:
+                    _note_file_read(full_rows, req_ctx, ticket=read_ticket, raw_contents=raw_contents)
             return _make_result(payload, tool_name=tool_name)
+        except ContentRangeError as exc:
+            return _make_structured_error(
+                str(exc),
+                error_type=INVALID_READ_RANGE_ERROR_TYPE,
+                user_message=edit_error_user_message(INVALID_READ_RANGE_ERROR_TYPE),
+                tool_name=tool_name,
+            )
         except Exception as exc:
             return _make_error(str(exc), tool_name=tool_name)
 
@@ -2524,8 +2578,10 @@ def _query_files_sync(
                     if truncated_ids:
                         extra["truncated_ids"] = truncated_ids
                     return _make_structured_error(
-                        "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。",
+                        "未找到请求的任意文件（文件不存在、已删除或不属于当前项目）。"
+                        f"{format_malformed_uuid_hint(missing_ids)}",
                         error_type="files_not_found",
+                        user_message=edit_error_user_message(EDIT_ERROR_FILE_NOT_FOUND),
                         tool_name=tool_name,
                         **extra,
                     )
@@ -2548,6 +2604,13 @@ def _query_files_sync(
                 # 结果超过上限会被截断，模型拿不到全文：那时不记快照。
                 _note_file_read(result, req_ctx, ticket=read_ticket, raw_contents=raw_contents)
             return _make_result(payload, tool_name=tool_name)
+        except ContentRangeError as exc:
+            return _make_structured_error(
+                str(exc),
+                error_type=INVALID_READ_RANGE_ERROR_TYPE,
+                user_message=edit_error_user_message(INVALID_READ_RANGE_ERROR_TYPE),
+                tool_name=tool_name,
+            )
         except Exception as e:
             return _make_error(str(e), tool_name=tool_name)
 
@@ -3134,7 +3197,12 @@ def _resolve_skill_for_tool(
     if skill is None:
         available = suggest_skill_names(skills, name)
         hint = f"可用技能：{'、'.join(available)}" if available else "当前用户没有启用中的技能"
-        return None, [], _make_error(f"未找到已启用的技能「{name}」。{hint}", tool_name=tool_name)
+        return None, [], _make_structured_error(
+            f"未找到已启用的技能「{name}」。{hint}",
+            error_type=EDIT_ERROR_SKILL_NOT_FOUND,
+            user_message=edit_error_user_message(EDIT_ERROR_SKILL_NOT_FOUND),
+            tool_name=tool_name,
+        )
     # 按 id 查到的就是指定的那个；按名称查到时把同名的其他技能告诉模型，需要时改传 id
     others = [] if name.strip() in (skill.id, skill.added_id) else same_name_skills(skills, skill)
     return skill, others, None
@@ -3155,9 +3223,11 @@ def _same_name_payload(others: list) -> dict[str, Any]:
 def _skill_limit_error(tool_name: str, skill_name: str) -> dict[str, Any]:
     from agent.skills.content_budget import MAX_LOADED_SKILLS_PER_REQUEST
 
-    return _make_error(
+    return _make_structured_error(
         f"本轮最多加载 {MAX_LOADED_SKILLS_PER_REQUEST} 个不同的技能，已达上限，没有加载「{skill_name}」。"
         "请用已加载的技能完成任务；还需要其他技能时，请用户在下一条消息中继续。",
+        error_type=EDIT_ERROR_SKILL_LIMIT_EXCEEDED,
+        user_message=edit_error_user_message(EDIT_ERROR_SKILL_LIMIT_EXCEEDED),
         tool_name=tool_name,
     )
 
@@ -3255,9 +3325,34 @@ def _read_skill_resource_sync(
                     public_skill_id=skill.public_skill_id,
                 )
                 if resource is None:
+                    from agent.skills.active_skills import load_active_skills
+
                     available = [item.path for item in list_active_skill_resources(session, skill)]
                     hint = f"可用资源：{'、'.join(available)}" if available else "该技能没有资源文件"
-                    return _make_error(f"技能「{skill.name}」中没有资源 {path}。{hint}", tool_name=tool_name)
+                    other_owner_names: list[str] = []
+                    for other_skill in load_active_skills(session, req_ctx.user_id):
+                        if other_skill.id == skill.id:
+                            continue
+                        other_res = get_skill_resource(
+                            session,
+                            path,
+                            user_skill_id=other_skill.user_skill_id,
+                            public_skill_id=other_skill.public_skill_id,
+                        )
+                        if other_res is not None and other_skill.name not in other_owner_names:
+                            other_owner_names.append(other_skill.name)
+                    cross_skill_hint = (
+                        f" 注意：路径 {path} 存在于你已启用的技能「{'」「'.join(other_owner_names[:3])}」中，"
+                        "请改用对应技能名调用 read_skill_resource。"
+                        if other_owner_names
+                        else ""
+                    )
+                    return _make_structured_error(
+                        f"技能「{skill.name}」中没有资源 {path}。{hint}{cross_skill_hint}",
+                        error_type=EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND,
+                        user_message=edit_error_user_message(EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND),
+                        tool_name=tool_name,
+                    )
                 content = resource.content
                 resolved_path = resource.path
 

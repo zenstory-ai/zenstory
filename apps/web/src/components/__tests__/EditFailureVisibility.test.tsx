@@ -42,6 +42,7 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
   const map: Record<string, string> = isEn
     ? {
         'chat:tool.edit_success': 'Edit done',
+        'chat:tool.edit_no_changes': 'No changes needed; file unchanged',
         'chat:tool.edit_file': 'Edit File',
         'chat:tool.rename_file': 'Rename File',
         'chat:tool.update_file': 'Update File',
@@ -70,6 +71,7 @@ const mockT = vi.fn((key: string, options?: Record<string, unknown>) => {
       }
     : {
         'chat:tool.edit_success': '修改完成',
+        'chat:tool.edit_no_changes': '内容一致，未做改动',
         'chat:tool.edit_file': '编辑文件',
         'chat:tool.rename_file': '重命名文件',
         'chat:tool.update_file': '更新文件',
@@ -204,6 +206,60 @@ describe('Lightweight AI edit failure cards', () => {
       ).toBeInTheDocument();
       expect(screen.queryByText(/the file was not changed/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/文件未改动/)).not.toBeInTheDocument();
+    });
+
+    it('renders neutral no-change state instead of green checkmark when edit_file has only unchanged edits', async () => {
+      const user = userEvent.setup();
+      const onOpenFile = vi.fn();
+
+      const { container, rerender } = render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          onOpenFile={onOpenFile}
+          result={{
+            data: {
+              id: 'ch-noop',
+              title: '第3章 静夜',
+              file_type: 'draft',
+              mutation_applied: false,
+              edits_applied: 0,
+              details: [],
+              failed_edits: [],
+              unchanged_edits: [{ index: 0, op: 'replace', reason: 'identical_old_new' }],
+            },
+          }}
+        />,
+      );
+
+      expect(screen.getByText('内容一致，未做改动')).toBeInTheDocument();
+      expect(screen.queryByText('修改完成')).not.toBeInTheDocument();
+      expect(container.querySelector('.text-\\[hsl\\(var\\(--success-text\\)\\)\\]')).toBeNull();
+      await user.click(screen.getByRole('button', { name: '第3章 静夜' }));
+      expect(onOpenFile).toHaveBeenCalledWith('ch-noop', 'draft', '第3章 静夜');
+
+      i18nStub.language = 'en';
+      rerender(
+        <ToolResultCard
+          type="tool_result"
+          toolName="edit_file"
+          onOpenFile={onOpenFile}
+          result={{
+            data: {
+              id: 'ch-noop',
+              title: '第3章 静夜',
+              file_type: 'draft',
+              mutation_applied: false,
+              edits_applied: 0,
+              details: [],
+              failed_edits: [],
+              unchanged_edits: [{ index: 0, op: 'replace', reason: 'already_matches' }],
+            },
+          }}
+        />,
+      );
+      expect(screen.getByText('No changes needed; file unchanged')).toBeInTheDocument();
+      expect(screen.queryByText('Edit done')).not.toBeInTheDocument();
     });
   });
 

@@ -234,7 +234,12 @@ def get_folder_reference(folder_ids: dict[str, str]) -> str:
         folder_refs.append(f"- 创建素材(snippet) → parent_id='{folder_ids['material']}'")
 
     folder_refs_str = "\n".join(folder_refs)
-    return f"### 创建文件时的 parent_id\n{folder_refs_str}"
+    note = (
+        "（说明：parent_id 只能填文件夹 ID 或逻辑目录名 draft/outline/character/lore/material/script；"
+        "下方的「当前项目 ID」不是文件夹 ID，绝不要把项目 ID 传作 parent_id；"
+        "建顶级文件夹时省略 parent_id，写正文时 write_chapter 默认省略 parent_id，仅分卷时传目标卷目录 ID。）"
+    )
+    return f"### 创建文件时的 parent_id\n{folder_refs_str}\n{note}" if folder_refs_str else f"### 创建文件时的 parent_id\n{note}"
 
 
 # 工具使用规则：文件 ID 规则与过程说明是通用段，单循环 agent 的工具清单与写文件规则在下面。
@@ -281,7 +286,7 @@ _LOOP_TOOL_USAGE_HEAD = """## 工具使用规则
 _LOOP_TOOL_USAGE_FILE_WRITES = """## 写正文：write_chapter + <file> [必须遵守，格式错误会丢内容]
 
 正文（小说章节 draft、剧本分集 script）只用 write_chapter 按章号写：
-1. 这一次回复只调用 write_chapter(chapter=章号, title=章节标题, file_type=draft 或 script, parent_id=正文目录)，不同时并列调用 update_project / read_files / search_files / create_file 等其他工具；正文不写进参数，这次回复到工具调用就结束，除整轮那一句过程说明外不说别的。
+1. 这一次回复只调用 write_chapter(chapter=章号, title=章节标题, file_type=draft 或 script)（默认省略 parent_id，系统会自动放入正文目录；仅分卷写作需指定某一卷子目录时再传 parent_id），不同时并列调用 update_project / read_files / search_files / create_file 等其他工具；正文不写进参数，这次回复到工具调用就结束，除整轮那一句过程说明外不说别的。
 2. 结果的 action 说明这一章是新建的（created），还是要整章替换已有的这一章（replaced，附原来的字数）。替换时写的是这一章完整的新正文，不是改动片段。
 3. 下一次回复第一行就输出 `<file>` 开始标记（独占一行），接着写纯文本正文，最后输出 `</file>`（独占一行）。只有 `<file>` 之后的内容会写进文件；忘了 `</file>` 时，系统会在你停止输出时自动结束文件（替换已有章节时没写完的正文不会覆盖原文）。
 4. 写正文的这次回复到 `</file>` 就结束，`</file>` 之后不写总结、不调用工具。系统随后把保存结果和这一章的实际字数发给你：你先自查事实、连贯与语言硬伤（见「工作方式」；返回的字数供如实汇报，不要为凑近近似字数反复调用 edit_file 微调），确有硬伤才用至多一次 edit_file 集中修正（没硬伤就不调 edit_file），还有要写的章节就接着写下一章（按「工作方式」需要先给它补大纲条目时先补，再调用 write_chapter），全部完成后再写给作者的回复。
@@ -292,13 +297,13 @@ _LOOP_TOOL_USAGE_FILE_WRITES = """## 写正文：write_chapter + <file> [必须�
 
 **示例**（写第3章，再写第4章）：
 ```
-第 1 次回复：write_chapter(chapter=3, title='第三章 雨夜', file_type='draft', parent_id='<正文目录>')
+第 1 次回复：write_chapter(chapter=3, title='第三章 雨夜', file_type='draft')
 第 2 次回复：
 <file>
 第三章的正文...
 </file>
 （系统发回保存结果和字数）
-第 3 次回复：自查后 write_chapter(chapter=4, title='第四章 渡口', file_type='draft', parent_id='<正文目录>')
+第 3 次回复：自查后 write_chapter(chapter=4, title='第四章 渡口', file_type='draft')
 第 4 次回复：
 <file>
 第四章的正文...

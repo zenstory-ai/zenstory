@@ -74,7 +74,7 @@ from .tools.file_ops.edit import edit_error_user_message
 logger = get_logger(__name__)
 
 _UNPARSED = object()
-_SAFE_FILE_ERROR_TOOLS = frozenset({"edit_file", "batch_replace_files", "write_chapter"})
+_SAFE_FILE_ERROR_TOOLS = frozenset({"edit_file", "batch_replace_files", "write_chapter", "create_file"})
 
 
 def _with_sync_session[T](fn: Callable[[Any], T]) -> T:
@@ -947,7 +947,7 @@ class StreamAdapter:
 
     @classmethod
     def _safe_tool_error_payload(cls, parsed_result: Any, result_data: Any) -> dict[str, Any]:
-        """为 edit_file / batch_replace_files / write_chapter 失败卡构建严格白名单载荷。"""
+        """为 edit_file / batch_replace_files / write_chapter / create_file 失败卡构建严格白名单载荷。"""
         safe: dict[str, Any] = {}
         error_type: str | None = None
         for source in (parsed_result, result_data):

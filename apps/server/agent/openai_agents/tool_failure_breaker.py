@@ -337,6 +337,9 @@ class ToolFailureBreaker:
     # 同一模型回复批次内并列发出的顺序守卫拒绝（如 11 个并行 delete_file 全触发 file_body_pending）
     # 最多按 1 次计入，避免抢跑击穿熔断器、阻断 runner 交回 FILE_BODY_RESUME。
     _counted_ordering_batches: set[tuple[str, int]] = field(default_factory=set)
+    # 同一模型回复批次内并列发出的 edit_file file_not_found 最多按 1 次计入恢复族，
+    # 避免 Step N 并行 2 个坏 UUID + Step N+1 首项坏 UUID 立即熔断误杀同批合法编辑。
+    _counted_file_not_found_batches: set[int] = field(default_factory=set)
     _last_mutated_file_id: str = ""
 
     @property
@@ -376,6 +379,8 @@ class ToolFailureBreaker:
             # 同一调用成功：它的连续失败计数清零。
             self._streaks.pop(key, None)
             _clear_recovery_families(self._recovery_families, tool_name, raw_arguments, parsed_args=parsed_args)
+            if tool_name == "edit_file":
+                self._counted_file_not_found_batches.clear()
             # 跨文件的真实有效写入（非空占位、非无改动）推进了批量任务，重置连续失败计数；
             # 同文件重复写入不重置，防止单文件交替空转；total_failures 仍单调递增并受 lifetime_failure_cap 兜底。
             mutated_file_id = _verified_mutated_file_id(
@@ -411,8 +416,21 @@ class ToolFailureBreaker:
         )
         recovery_count = 0
         if recovery_key is not None:
-            recovery_count = self._recovery_families.get(recovery_key, 0) + 1
-            self._recovery_families[recovery_key] = recovery_count
+            if (
+                recovery_key == _FILE_NOT_FOUND_FAMILY
+                and reply_seq is not None
+                and reply_seq > 0
+            ):
+                batch_seq = int(reply_seq)
+                if batch_seq in self._counted_file_not_found_batches:
+                    recovery_count = self._recovery_families.get(recovery_key, 0)
+                else:
+                    self._counted_file_not_found_batches.add(batch_seq)
+                    recovery_count = self._recovery_families.get(recovery_key, 0) + 1
+                    self._recovery_families[recovery_key] = recovery_count
+            else:
+                recovery_count = self._recovery_families.get(recovery_key, 0) + 1
+                self._recovery_families[recovery_key] = recovery_count
 
         last_error = _preview(_extract_error_message(payload))
         if self.trip is None:

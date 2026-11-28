@@ -269,7 +269,7 @@ class CreateFileInput(_ToolInputModel):
     )
     parent_id: StrictOptionalStr = Field(
         default=None,
-        description="父文件ID（用于创建子文件/文件夹结构）",
+        description="父文件夹 ID（建顶级文件夹时省略；绝不要填项目 ID；也支持逻辑目录名 outline/character/lore/material/draft/script）",
     )
     metadata: dict[str, Any] | None = Field(
         default=None,
@@ -287,7 +287,8 @@ class CreateFileInput(_ToolInputModel):
     source_text: Annotated[Any, WithJsonSchema({"type": "string"})] = Field(
         default=None,
         description=(
-            "仅在录入作者本轮消息里已经写出的资料原文时使用：逐字复制作者消息中的一段完整连续原文，"
+            "仅在录入作者本轮最新一条消息里已经写出的资料原文时使用（更早轮次消息中的资料不要传 source_text，"
+            "直接建空文件后在下一次回复用 <file> 写入）：逐字复制作者本轮消息中的一段完整连续原文，"
             "范围包括原有的标题、小标题和分隔行，即使标题同时用作文件名也不省略；作者明确只要正文时按其限定的范围复制。"
             "服务端会核对来源后直接保存，不要改标点、换行、排版或补字段。成功只证明选中的 source_text 已保存，不证明没有选入的原文也已录入。不能与 empty 或 content 同用；"
             "AI 自己生成的大纲、人物、设定不要传此参数，仍在下一次回复用 <file> 写入。"
@@ -350,7 +351,7 @@ class WriteChapterInput(_ToolInputModel):
     )
     parent_id: StrictOptionalStr = Field(
         default=None,
-        description="正文所在文件夹 ID；分卷时用它指明是哪一卷",
+        description="可选；默认省略，系统自动放入正文目录。仅分卷写作需指明某一卷目录时传入文件夹 ID（也可传逻辑目录名如 draft / script）",
     )
     empty: CoercedOptionalBool = Field(
         default=None,
@@ -745,22 +746,22 @@ class ReadFilesInput(_ToolInputModel):
     )
     section: StrictOptionalStr = Field(
         default=None,
-        description="仅多章合集/大纲文件按标题段读（单章 draft 正文勿用，如「第3章」）",
+        description="仅单个多章合集/大纲文件按标题段读（不支持多文件批量；单章 draft 正文勿用，如「第3章」）",
     )
     tail_chars: OptionalNonBoolInt = Field(
         default=None,
         ge=1,
-        description="单文件仅读结尾 N 字符（上限20000）",
+        description="仅读结尾 N 字符（支持单文件或批量 ids，上限20000）",
     )
     start_char: OptionalNonBoolInt = Field(
         default=None,
         ge=0,
-        description="仅>25000字超长单文件分段起点",
+        description="分段起点（从0起；支持单文件或批量 ids；仅 >25000 字超长文件建议分段，短文件会直接返回全文）",
     )
     max_chars: OptionalNonBoolInt = Field(
         default=None,
         ge=1,
-        description="配合 start_char（默认6000，上限20000）",
+        description="配合 start_char（支持单文件或批量 ids，默认6000，上限20000）",
     )
     show_paragraph_stats: CoercedBool = Field(
         default=False,
