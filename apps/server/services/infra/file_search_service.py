@@ -368,6 +368,8 @@ class FileSearchService:
 
         text_conditions: list[Any] = []
         # Include full phrase and token-level match to improve multi-term recall.
+        # Use properly escaped ILIKE so PostgreSQL pre-filtering is case-insensitive
+        # (e.g. searching "elena" finds "Elena") while neutralizing LIKE wildcards.
         seen_terms: set[str] = set()
         for term in [phrase_term, *search_tokens]:
             normalized_term = term.strip()
@@ -377,8 +379,14 @@ class FileSearchService:
             if lowered_term in seen_terms:
                 continue
             seen_terms.add(lowered_term)
-            text_conditions.append(File.title.contains(normalized_term))
-            text_conditions.append(File.content.contains(normalized_term))  # type: ignore[attr-defined]
+            escaped_term = (
+                normalized_term.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            )
+            like_pattern = f"%{escaped_term}%"
+            text_conditions.append(col(File.title).ilike(like_pattern, escape="\\"))
+            text_conditions.append(col(File.content).ilike(like_pattern, escape="\\"))
 
         stmt = (
             select(File)

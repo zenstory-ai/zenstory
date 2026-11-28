@@ -9,6 +9,7 @@ export, stats) can share consistent behavior.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping
 from typing import Any, Final
 
@@ -55,16 +56,63 @@ _RE_ARABIC_SEQ: Final[re.Pattern[str]] = re.compile(
 _RE_PREFIX_VOLUME: Final[re.Pattern[str]] = re.compile(
     r"^\s*卷\s*([零一二三四五六七八九十百千\d]+)"
 )
+_MULTILINGUAL_CHAPTER_KEYWORDS: Final[frozenset[str]] = frozenset(
+    {
+        "chapter",
+        "bab",
+        "capítulo",
+        "capitulo",
+        "chương",
+        "chuong",
+        "глава",
+        "chapitre",
+        "rozdział",
+        "rozdzial",
+        "الفصل",
+    }
+)
+_MULTILINGUAL_EPISODE_KEYWORDS: Final[frozenset[str]] = frozenset(
+    {
+        "episode",
+        "ep",
+        "ep.",
+        "episodio",
+        "episódio",
+        "épisode",
+        "tập",
+        "tap",
+        "эпизод",
+        "серия",
+        "odcinek",
+        "الحلقة",
+    }
+)
+_MULTILINGUAL_KEYWORD_ALT: Final[str] = (
+    r"chapter|episode|ep\.?"
+    r"|bab"
+    r"|cap[íi]tulo|epis[óo]dio"
+    r"|chương|chuong|t[ậa]p"
+    r"|глава|эпизод|серия"
+    r"|chapitre|épisode"
+    r"|rozdzia[łl]|odcinek"
+    r"|الفصل|الحلقة"
+)
 _RE_EN_CHAPTER: Final[re.Pattern[str]] = re.compile(
-    r"^\s*(chapter|episode|ep\.?)\s+(\d+)\b(?!\s*[-–—~～]\s*\d)",
+    rf"^\s*({_MULTILINGUAL_KEYWORD_ALT})\s+(\d+)\b(?!\s*[-–—~～]\s*\d)",
     re.IGNORECASE,
+)
+_RE_KO_SEQ: Final[re.Pattern[str]] = re.compile(
+    r"^\s*제\s*(\d+)\s*([장화])(?!\s*[-–—~～]\s*\d)"
 )
 _RE_EMBEDDED_CN_CHAPTER: Final[re.Pattern[str]] = re.compile(
     r"第\s*([零一二三四五六七八九十百千\d]+)\s*[章集]"
 )
 _RE_EMBEDDED_EN_CHAPTER: Final[re.Pattern[str]] = re.compile(
-    r"\bchapter\s+(\d+)\b",
+    rf"(?<!\w)(?:{_MULTILINGUAL_KEYWORD_ALT})\s+(\d+)\b",
     re.IGNORECASE,
+)
+_RE_EMBEDDED_KO_CHAPTER: Final[re.Pattern[str]] = re.compile(
+    r"제\s*(\d+)\s*[장화]"
 )
 _RE_LEADING_NUM: Final[re.Pattern[str]] = re.compile(r"^\s*(\d+)\b")
 _SEQUENCE_METADATA_KEYS: Final[tuple[str, ...]] = (
@@ -133,7 +181,7 @@ def extract_sequence_number(title: str | None, *, unit: str | None = None) -> in
     When ``unit`` is supplied, only an exact compatible heading is accepted;
     generic leading numbers are ordering hints, not typed unit evidence.
     """
-    text = (title or "").strip()
+    text = unicodedata.normalize("NFC", (title or "").strip())
     if not text:
         return None
     if unit is not None and unit not in _SEQ_UNIT_VALUES:
@@ -162,11 +210,22 @@ def extract_sequence_number(title: str | None, *, unit: str | None = None) -> in
     match = _RE_EN_CHAPTER.match(text)
     if match:
         heading = match.group(1).lower()
-        compatible_unit = "章" if heading == "chapter" else "集"
+        compatible_unit = "章" if heading in _MULTILINGUAL_CHAPTER_KEYWORDS else "集"
         if unit is not None and unit != compatible_unit:
             return None
         try:
             parsed = int(match.group(2))
+        except ValueError:
+            parsed = 0
+        return parsed if parsed > 0 else None
+
+    match = _RE_KO_SEQ.match(text)
+    if match:
+        compatible_unit = "章" if match.group(2) == "장" else "集"
+        if unit is not None and unit != compatible_unit:
+            return None
+        try:
+            parsed = int(match.group(1))
         except ValueError:
             parsed = 0
         return parsed if parsed > 0 else None
@@ -288,7 +347,7 @@ def extract_chapter_like_sequence_number(title: str | None) -> int | None:
     Intentionally excludes generic leading-number fallback to avoid
     over-inferring from non-chapter titles such as dates.
     """
-    text = (title or "").strip()
+    text = unicodedata.normalize("NFC", (title or "").strip())
     if not text:
         return None
 
@@ -314,16 +373,24 @@ def extract_chapter_like_sequence_number(title: str | None) -> int | None:
             parsed = 0
         return parsed if parsed > 0 else None
 
+    match = _RE_KO_SEQ.match(text)
+    if match:
+        try:
+            parsed = int(match.group(1))
+        except ValueError:
+            parsed = 0
+        return parsed if parsed > 0 else None
+
     return None
 
 
 def extract_chapter_sequence_in_text(text: str | None) -> int | None:
     """Extract a chapter/episode sequence number embedded in free-form phase text.
 
-    Matches Chinese ``第N章`` / ``第N集`` (Arabic or Chinese numerals) and English
-    ``Chapter N`` anywhere in ``text`` (e.g. ``已写至第3集``, ``Writing Chapter 5``).
+    Matches Chinese ``第N章`` / ``第N集`` (Arabic or Chinese numerals), Korean
+    ``제N장`` / ``제N화``, and multilingual chapter/episode headings anywhere in ``text``.
     """
-    normalized = (text or "").strip()
+    normalized = unicodedata.normalize("NFC", (text or "").strip())
     if not normalized:
         return None
 
@@ -340,6 +407,14 @@ def extract_chapter_sequence_in_text(text: str | None) -> int | None:
     if en_match:
         try:
             parsed = int(en_match.group(1))
+        except ValueError:
+            parsed = 0
+        return parsed if parsed > 0 else None
+
+    ko_match = _RE_EMBEDDED_KO_CHAPTER.search(normalized)
+    if ko_match:
+        try:
+            parsed = int(ko_match.group(1))
         except ValueError:
             parsed = 0
         return parsed if parsed > 0 else None
@@ -372,7 +447,7 @@ def prefixed_chapter_heading(raw_title: str, unit: str) -> tuple[int, str] | Non
 
 def chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
     """判断传入的章节标题是否带有章名（而非仅传入空串或「第N章 / Chapter N」这类裸编号）。"""
-    text = raw_title.replace("\x00", "").strip()
+    text = unicodedata.normalize("NFC", raw_title.replace("\x00", "").strip())
     if not text:
         return False
     prefixed = prefixed_chapter_heading(text, unit)
@@ -380,7 +455,7 @@ def chapter_title_has_subtitle(raw_title: str, unit: str) -> bool:
         text = prefixed[1]
     if extract_sequence_number(text, unit=unit) is None:
         return True
-    for pattern in (_RE_CN_SEQ, _RE_ARABIC_SEQ, _RE_EN_CHAPTER):
+    for pattern in (_RE_CN_SEQ, _RE_ARABIC_SEQ, _RE_EN_CHAPTER, _RE_KO_SEQ):
         match = pattern.match(text)
         if match:
             remainder = text[match.end() :].lstrip(" \t\u3000:：·—-–")

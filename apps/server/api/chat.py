@@ -10,7 +10,7 @@ Provides FastAPI router for chat session management:
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, desc, exists, literal
 from sqlalchemy.orm import load_only
@@ -20,6 +20,11 @@ from agent.loop.history import client_message_metadata, client_tool_calls
 from config.datetime_utils import utcnow
 from core.error_codes import ErrorCode
 from core.error_handler import APIException
+from core.i18n import (
+    default_chat_session_title,
+    new_chat_session_title,
+    resolve_user_language,
+)
 from database import create_session, get_session
 from models import ChatMessage, ChatMessageArchive, ChatMessageUxSummary, ChatSession, Project, User
 from models.chat_message_archive import has_chat_message_archive_table
@@ -168,6 +173,7 @@ def get_or_create_session(
     project_id: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    accept_language: Annotated[str | None, Header(alias="Accept-Language")] = None,
 ):
     """Get or create a chat session for a project."""
     user_id = current_user.id
@@ -188,17 +194,20 @@ def get_or_create_session(
     chat_session = active_sessions[0] if active_sessions else None
 
     if not chat_session:
+        lang = resolve_user_language(session, user_id, accept_language)
+        session_title = default_chat_session_title(lang)
         log_with_context(
             logger,
             20,  # INFO
             "Creating new chat session",
             project_id=project_id,
             user_id=user_id,
+            language=lang,
         )
         chat_session = ChatSession(
             user_id=user_id,
             project_id=project_id,
-            title="AI 助手对话",
+            title=session_title,
             is_active=True,
             message_count=0,
         )
@@ -545,12 +554,21 @@ def clear_session(
 @router.post("/session/{project_id}/new", response_model=SessionResponse)
 def create_new_session(
     project_id: str,
-    title: str = "新对话",
+    title: str | None = None,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
+    accept_language: Annotated[str | None, Header(alias="Accept-Language")] = None,
 ):
     """Create a new chat session (deactivates current one)."""
     user_id = current_user.id
+
+    # Check if project exists and is not deleted before reading user preferences.
+    verify_project_access_sync(project_id, session, current_user)
+    effective_title = (
+        title
+        if title is not None and title.strip()
+        else new_chat_session_title(resolve_user_language(session, user_id, accept_language))
+    )
 
     log_with_context(
         logger,
@@ -558,15 +576,13 @@ def create_new_session(
         "create_new_session called",
         project_id=project_id,
         user_id=user_id,
-        title=title,
+        title=effective_title,
     )
 
-    # Check if project exists and is not deleted
-    verify_project_access_sync(project_id, session, current_user)
     if _should_offload_session_work(session):
-        new_session = _create_new_session_sync(project_id, user_id, title)
+        new_session = _create_new_session_sync(project_id, user_id, effective_title)
     else:
-        new_session = _deactivate_and_create_session(session, project_id, user_id, title)
+        new_session = _deactivate_and_create_session(session, project_id, user_id, effective_title)
 
     log_with_context(
         logger,
@@ -575,7 +591,7 @@ def create_new_session(
         project_id=project_id,
         user_id=user_id,
         new_session_id=new_session.id,
-        title=title,
+        title=effective_title,
     )
 
     return SessionResponse(
