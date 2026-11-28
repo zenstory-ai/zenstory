@@ -6,6 +6,7 @@ import { AlertCircle, Book } from '../icons';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { Button } from '../ui/Button';
 import { untouchedFirstWork, useFirstWork } from '../../hooks/useFirstWork';
+import { getCurrentRequestLanguage } from '../../lib/apiClient';
 import { firstWorkApi, firstWorkQueryKey } from '../../lib/firstWorkApi';
 import type { ProjectType } from '../../types';
 
@@ -16,7 +17,7 @@ import type { ProjectType } from '../../types';
 export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated }: {
   userId: string | null; preferredType: ProjectType | null; ideaGoesHere: boolean; onCreated: () => Promise<void>;
 }) {
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const client = useQueryClient();
   const state = useFirstWork(userId);
@@ -37,8 +38,8 @@ export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated 
   useEffect(() => {
     if (!userId || state.data?.status !== 'pending' || attempted.current === userId) return;
     attempted.current = userId;
-    mutate({ type: preferredType, language: i18n.language, owner: userId });
-  }, [userId, state.data?.status, mutate, preferredType, i18n.language]);
+    mutate({ type: preferredType, language: getCurrentRequestLanguage(), owner: userId });
+  }, [userId, state.data?.status, mutate, preferredType]);
 
   const work = state.data;
   if (state.isError || initialize.isError) {
@@ -49,7 +50,7 @@ export function FirstWorkEntry({ userId, preferredType, ideaGoesHere, onCreated 
       </div>
       <Button variant="secondary" size="touch" className="shrink-0" onClick={() => {
         if (state.isError) void state.refetch();
-        else mutate({ type: preferredType, language: i18n.language, owner: userId });
+        else mutate({ type: preferredType, language: getCurrentRequestLanguage(), owner: userId });
       }}>{t('common:retry')}</Button>
     </div>;
   }

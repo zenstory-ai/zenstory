@@ -209,6 +209,19 @@ export type ToolFailureKind =
   | 'skillResourceNotFound'
   | 'skillLimitExceeded'
   | 'permissionDenied'
+  | 'sourceTextNotInMessage'
+  | 'invalidSourceText'
+  | 'sourceTextConflict'
+  | 'invalidSourceTextFileType'
+  | 'sourceTextContextMissing'
+  | 'toolFailureCircuitOpen'
+  | 'updatePlanRejected'
+  | 'chapterBodyRequiresWriteChapter'
+  | 'invalidToolInputJson'
+  | 'pendingFileBody'
+  | 'chapterWrittenThisTurn'
+  | 'wallClockWrapUp'
+  | 'editRepeatLimit'
   | 'generic';
 
 /**
@@ -249,6 +262,21 @@ export const classifyToolFailure = (errorType: string | undefined): ToolFailureK
   if (normalized === 'skill_resource_not_found') return 'skillResourceNotFound';
   if (normalized === 'skill_limit_exceeded') return 'skillLimitExceeded';
   if (normalized === 'permission_denied') return 'permissionDenied';
+  if (normalized === 'source_text_not_in_author_message') return 'sourceTextNotInMessage';
+  if (normalized === 'invalid_source_text') return 'invalidSourceText';
+  if (normalized === 'source_text_conflict') return 'sourceTextConflict';
+  if (normalized === 'invalid_source_text_file_type') return 'invalidSourceTextFileType';
+  if (normalized === 'source_text_context_missing') return 'sourceTextContextMissing';
+  if (normalized === 'tool_failure_circuit_open') return 'toolFailureCircuitOpen';
+  if (normalized === 'update_plan_rejected') return 'updatePlanRejected';
+  if (normalized === 'chapter_body_requires_write_chapter') return 'chapterBodyRequiresWriteChapter';
+  if (normalized === 'invalid_tool_input_json') return 'invalidToolInputJson';
+  // Ordering / convergence guards: normally filtered by visibleToolCalls, but if rendered
+  // from persisted history or nested cards they still get safe localized copy.
+  if (normalized === 'file_body_pending' || normalized === 'pending_empty_file_unwritten') return 'pendingFileBody';
+  if (normalized === 'chapter_written_this_turn') return 'chapterWrittenThisTurn';
+  if (normalized === 'wall_clock_wrap_up') return 'wallClockWrapUp';
+  if (normalized === 'edit_repeat_limit') return 'editRepeatLimit';
   if (/(^|_)files?_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
   if (/(ambiguous|multiple_match)/.test(normalized)) return 'ambiguous';
   if (/(anchor|old_text|text|pattern|match|passage)_not_found|no_match/.test(normalized)) return 'notFound';

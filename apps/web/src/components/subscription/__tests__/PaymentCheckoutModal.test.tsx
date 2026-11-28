@@ -473,5 +473,18 @@ describe('PaymentCheckoutModal', () => {
       await waitFor(() => expect(payBtn).toBeEnabled())
       expect(screen.getByRole('radio', { name: /年付/ })).toHaveTextContent('$79')
     })
+
+    it('renders truthful Creem USD trust copy in English when card USD is selected and hides it for Alipay', async () => {
+      i18nState.language = 'en'
+      i18nState.resources = LOCALES.en
+      renderDualCurrencyModal()
+
+      const trustNote = await screen.findByTestId('payment-usd-trust-note')
+      expect(trustNote).toHaveTextContent('Instant activation · Secure USD checkout via Creem')
+      expect(await screen.findByRole('radio', { name: /Card \(USD\)/ })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('radio', { name: /Alipay \(CNY\)/ }))
+      expect(screen.queryByTestId('payment-usd-trust-note')).not.toBeInTheDocument()
+    })
   })
 })

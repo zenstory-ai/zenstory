@@ -16,6 +16,7 @@ import {
   CHAT_CARD_WARNING_SURFACE,
 } from "../chatCardStyles";
 import { isAccountRunRefusal } from "./chatHistoryHelpers";
+import { formatDailyResetLocalTime } from "../../lib/dateUtils";
 
 export const SessionRecoveryAlert: React.FC<{
   isLoadingHistory: boolean;
@@ -133,7 +134,11 @@ export const ChatStreamErrorCard: React.FC<{
   onRetry,
   onOpenUpgradeModal,
 }) => {
-  const { t } = useTranslation(["chat", "common", "dashboard"]);
+  const { t, i18n } = useTranslation(["chat", "common", "dashboard"]);
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const localResetTime = Boolean(activeLanguage) && !activeLanguage.startsWith("zh")
+    ? formatDailyResetLocalTime(activeLanguage)
+    : null;
   return (
     <div role="alert" className={`mt-2.5 p-3 ${CHAT_CARD_WARNING_SURFACE}`}>
       <div className="flex items-start gap-2.5">
@@ -170,8 +175,12 @@ export const ChatStreamErrorCard: React.FC<{
             <div className="mt-1 space-y-2.5">
               <p className="text-xs leading-5 text-[hsl(var(--text-secondary))]">
                 {isNetworkQuotaLimit
-                  ? t("chat:panel.networkQuotaExceededHint")
-                  : t("chat:panel.quotaExceededHint")}
+                  ? localResetTime
+                    ? t("chat:panel.networkQuotaExceededHintLocal", { localTime: localResetTime })
+                    : t("chat:panel.networkQuotaExceededHint")
+                  : localResetTime
+                    ? t("chat:panel.quotaExceededHintLocal", { localTime: localResetTime })
+                    : t("chat:panel.quotaExceededHint")}
               </p>
               <Button
                 type="button"

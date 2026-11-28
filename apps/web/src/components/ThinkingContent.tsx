@@ -78,6 +78,21 @@ const PREVIEW_MAX_CLAUSE_TARGET = 48;
 const CODE_FENCE_LINE = /^\s*```/;
 const HORIZONTAL_RULE_LINE = /^\s*[-*_]{3,}\s*$/;
 const PUNCTUATION_ONLY = /^[\s.,;:!?。，；：！？…·\-—–()（）【】[\]「」『』“”‘’"']+$/;
+const HAN_CHAR_RE = /\p{Script=Han}/gu;
+const LETTER_CHAR_RE = /\p{L}/gu;
+
+/**
+ * Detects when a collapsed single-line reasoning preview is predominantly Chinese
+ * characters (e.g. model internal CJK reasoning), so non-Chinese UI readers see a
+ * clean localized status line instead of scrolling unreadable Chinese fragments.
+ */
+function isCjkHeavyPreview(preview: string): boolean {
+  if (!preview) return false;
+  const hanCount = (preview.match(HAN_CHAR_RE) || []).length;
+  if (hanCount < 3) return false;
+  const letterCount = (preview.match(LETTER_CHAR_RE) || []).length;
+  return letterCount > 0 && hanCount / letterCount >= 0.3;
+}
 
 /**
  * Strips block/inline markdown syntax from a single reasoning line so it reads
@@ -168,7 +183,7 @@ function extractThinkingPreview(displayContent: string): string {
  * @returns {React.ReactElement | null} The thinking panel, or null if empty
  */
 export function ThinkingContent({ content, isStreaming = false }: ThinkingContentProps) {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
 
   // Collapsed unless the author previously chose to expand it.
   // Note: Hooks must be called unconditionally before any early returns
@@ -192,10 +207,18 @@ export function ThinkingContent({ content, isStreaming = false }: ThinkingConten
     [content, t],
   );
 
-  const livePreview = useMemo(
-    () => (isStreaming && !isExpanded ? extractThinkingPreview(displayContent) : ""),
-    [isStreaming, isExpanded, displayContent],
-  );
+  const activeLanguage = (i18n?.resolvedLanguage || i18n?.language || "").trim().toLowerCase();
+  const isNonChineseUi = Boolean(activeLanguage) && !activeLanguage.startsWith("zh");
+
+  const livePreview = useMemo(() => {
+    if (!isStreaming || isExpanded) return "";
+    const extracted = extractThinkingPreview(displayContent);
+    if (!extracted) return "";
+    if (isNonChineseUi && isCjkHeavyPreview(extracted)) {
+      return t("chat:thinking.reasoningInProgress");
+    }
+    return extracted;
+  }, [isStreaming, isExpanded, displayContent, isNonChineseUi, t]);
 
   // Return null if nothing is left to show
   if (!displayContent || displayContent.trim().length === 0) {

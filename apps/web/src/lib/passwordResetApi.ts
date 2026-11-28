@@ -4,18 +4,10 @@
  * Both calls are anonymous: they never send the stored access token and never
  * trigger the 401 refresh flow in `apiCall`.
  */
-import { ApiError, apiErrorFromPayload, getApiBase } from './apiClient';
+import { ApiError, apiErrorFromPayload, getApiBase, getCurrentRequestLanguage } from './apiClient';
 
 export interface PasswordResetResponse {
   message: string;
-}
-
-function currentLanguage(): string {
-  try {
-    return localStorage.getItem('zenstory-language') || 'zh';
-  } catch {
-    return 'zh';
-  }
 }
 
 async function postAnonymous<T>(endpoint: string, body: unknown): Promise<T> {
@@ -23,7 +15,7 @@ async function postAnonymous<T>(endpoint: string, body: unknown): Promise<T> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept-Language': currentLanguage(),
+      'Accept-Language': getCurrentRequestLanguage(),
     },
     body: JSON.stringify(body),
   });

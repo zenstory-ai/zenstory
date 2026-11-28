@@ -169,3 +169,27 @@ export function formatBeijingPeriodDate(
     timeZone: "Asia/Shanghai",
   });
 }
+
+/**
+ * Format the daily 00:00 UTC+8 (16:00 UTC) quota reset clock time in the viewer's
+ * local timezone (e.g. "4:00 PM" in UTC, "12:00 PM" in EDT, "11:00 PM" in WIB).
+ * Returns null when the viewer's local timezone already matches 00:00 UTC+8.
+ */
+export function formatDailyResetLocalTime(
+  language?: string,
+  timeZone?: string,
+  now: Date = new Date(),
+): string | null {
+  const utc8Midnight = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 16, 0, 0),
+  );
+  const locale = (language ?? "").trim().toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
+  const options: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+  try {
+    const local = new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(utc8Midnight);
+    const utc8 = new Intl.DateTimeFormat(locale, { ...options, timeZone: "Asia/Shanghai" }).format(utc8Midnight);
+    return local === utc8 ? null : local;
+  } catch {
+    return null;
+  }
+}

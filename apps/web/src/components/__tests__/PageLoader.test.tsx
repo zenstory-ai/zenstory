@@ -40,8 +40,19 @@ describe('PageLoader', () => {
     expect(screen.queryByTestId('outer-fallback')).not.toBeInTheDocument()
   })
 
-  it('uses English fallback label before locale bundle finishes loading when language is en', () => {
+  it('uses English fallback label before locale bundle finishes loading when language is en or unknown non-zh', () => {
     i18nMock.language = 'en'
+    const first = render(<PageLoader />)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    first.unmount()
+
+    i18nMock.language = 'fr-FR'
+    const second = render(<PageLoader />)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    second.unmount()
+
+    i18nMock.language = ''
+    document.documentElement.lang = ''
     render(<PageLoader />)
     expect(screen.getByText('Loading…')).toBeInTheDocument()
   })

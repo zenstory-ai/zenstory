@@ -23,8 +23,10 @@
     "streamErrorQuotaPaused": "这一轮没做完，已经保存的内容不受影响。今天的 AI 消息用完了，额度恢复后再接着写。",
     "quotaExceededTitle": "今天的免费 AI 消息用完了",
     "quotaExceededHint": "北京时间明天 00:00 恢复。想接着写，可以开通 Pro，AI 消息不限条数。",
+    "quotaExceededHintLocal": "每天于你当地的 {{localTime}}（北京时间 00:00）恢复。想接着写，可以开通 Pro，AI 消息不限条数。",
     "networkQuotaExceededTitle": "当前网络今日免费体验额度已用完",
     "networkQuotaExceededHint": "请明天再试（北京时间 00:00 恢复），或开通 Pro 接着写。",
+    "networkQuotaExceededHintLocal": "请于你当地的 {{localTime}}（北京时间 00:00）额度恢复后再试，或开通 Pro 接着写。",
     "notCharged": "这一轮没有改动文件，不计入今日 AI 消息。",
     "notChargedError": "这次出错不计入今日 AI 消息。",
     "userStopped": "已停止",
@@ -328,6 +330,19 @@
       "skillResourceNotFound": "未找到该技能对应的参考资料。",
       "skillLimitExceeded": "本轮加载的技能数量已达上限。",
       "permissionDenied": "无权修改该文件，文件未改动。",
+      "sourceTextNotInMessage": "引用原文未能与你发送的内容完全匹配，文件未创建。",
+      "invalidSourceText": "引用原文的参数无效，文件未创建。",
+      "sourceTextConflict": "引用原文与新建内容冲突，文件未创建。",
+      "invalidSourceTextFileType": "该文件类型不支持直接引用原文创建，文件未创建。",
+      "sourceTextContextMissing": "缺少对应的原文上下文，无法直接引用保存，文件未创建。",
+      "toolFailureCircuitOpen": "同一操作连续多次未成功，AI 已暂停重试以免无效循环。",
+      "updatePlanRejected": "任务计划未通过校验，当前计划保持不变。",
+      "chapterBodyRequiresWriteChapter": "章节正文需要通过写章节流程写入，文件未改动。",
+      "invalidToolInputJson": "这一步的操作参数格式有误，未能执行，文件未改动。",
+      "pendingFileBody": "还有一个新建文件正等待写入正文，这一步暂未执行。",
+      "chapterWrittenThisTurn": "这一章本轮刚写完，没有重复重写。",
+      "wallClockWrapUp": "这一轮已进入收尾阶段，该步骤未执行。",
+      "editRepeatLimit": "同一文件本轮微调次数已达上限，已停止重复修改。",
       "generic": "这一步未能完成，文件未改动。"
     },
     "partialFailureHint": {
@@ -411,7 +426,8 @@
     "expand": "展开思考过程",
     "collapse": "收起思考过程",
     "toggleLabel": "显示思考过程",
-    "toggleHide": "隐藏思考过程"
+    "toggleHide": "隐藏思考过程",
+    "reasoningInProgress": "正在梳理思路…"
   },
   "skill": {
     "loading": "加载技能中…",
@@ -451,6 +467,8 @@
   },
   "activity": {
     "elapsed": "AI 正在处理 · {{seconds}} 秒",
+    "thinkingPlanning": "正在规划结构与细节…",
+    "thinkingDrafting": "正在组织正文与修改方案…",
     "longWaitHint": "写长内容可能要几分钟，请稍等。",
     "longWaitHintMobile": "写长内容可能要几分钟，请保持页面打开。",
     "preparingBody": "正在构思《{{title}}》开篇…",
@@ -540,6 +558,7 @@
         "screenplay": "照现在的风格续写下一集。"
       }
     },
+    "multilingualNote": "支持中文及英文、西班牙语、印尼语、葡萄牙语、越南语、俄语、韩语、法语、波兰语、阿拉伯语等多种语言直接对话，我会按你的语言回复。",
     "quota": "今天还能免费发 {{count}} 条"
   },
   "notesAdded": {

@@ -69,6 +69,7 @@ export function useChatHistory({
   const [feedbackPendingMessageId, setFeedbackPendingMessageId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [sessionRecoveryError, setSessionRecoveryError] = useState<string | null>(null);
+  const [currentSessionTitle, setCurrentSessionTitle] = useState<string | null>(null);
 
   const historyLimitRef = useRef(50);
   const historyRequestSeqRef = useRef(0);
@@ -159,6 +160,7 @@ export function useChatHistory({
         let historyMessages: ChatMessage[] | null = null;
         let hasMore = false;
         let hydratedSessionId: string | null = null;
+        let hydratedSessionTitle: string | null = null;
         let loadedLimit = 50;
 
         if (!recoverSession) {
@@ -173,6 +175,7 @@ export function useChatHistory({
               historyMessages = bootstrapped.data.recent_messages || [];
               hasMore = Boolean(bootstrapped.data.has_more_messages);
               hydratedSessionId = bootstrapped.data.chat_session?.id ?? null;
+              hydratedSessionTitle = bootstrapped.data.chat_session?.title ?? null;
               loadedLimit = Math.max(BOOTSTRAP_DEFAULT_CHAT_LIMIT, historyMessages.length);
             }
           }
@@ -197,9 +200,11 @@ export function useChatHistory({
         setSessionRecoveryError(null);
         if (recoverSession) {
           currentAgentSessionIdRef.current = historyMessages.at(-1)?.session_id ?? null;
+          setCurrentSessionTitle(null);
         } else {
           currentAgentSessionIdRef.current =
             hydratedSessionId ?? historyMessages.at(-1)?.session_id ?? null;
+          setCurrentSessionTitle(hydratedSessionTitle);
         }
         return loadedMessages;
       } catch (err) {
@@ -366,6 +371,7 @@ export function useChatHistory({
         if (!ownsRequest()) return;
         params.resetPendingContextClears();
         currentAgentSessionIdRef.current = created.id;
+        setCurrentSessionTitle(created.title ?? null);
         sessionRecoveryBlockedRef.current = null;
         setSessionRecoveryError(null);
         historyRequestSeqRef.current += 1;
@@ -415,6 +421,58 @@ export function useChatHistory({
     ],
   );
 
+  const reconcileAfterDisconnect = useCallback(
+    async (
+      projectId: string,
+      baselineBackendIds: ReadonlySet<string>,
+      expectedSessionId: string | null,
+    ): Promise<boolean> => {
+      if (currentProjectIdRef.current !== projectId) return false;
+      try {
+        // Strictly read-only GET reconcile — never retry a generation POST.
+        const recentMessages = await getRecentMessages(projectId, 50);
+        if (currentProjectIdRef.current !== projectId) return false;
+
+        const hasNewPersistedAssistant = recentMessages.some((msg) => {
+          if (msg.role !== "assistant") return false;
+          if (baselineBackendIds.has(msg.id)) return false;
+          if (expectedSessionId && msg.session_id && msg.session_id !== expectedSessionId) {
+            return false;
+          }
+          if (msg.content && msg.content.trim().length > 0) return true;
+          if (msg.tool_calls && msg.tool_calls.trim().length > 2) return true;
+          if (msg.metadata && msg.metadata.trim().length > 2) return true;
+          return false;
+        });
+
+        if (!hasNewPersistedAssistant) return false;
+
+        const mappedRecent = mapBackendHistoryMessages(recentMessages, t);
+        setMessages((prev) => {
+          const recentBackendIds = new Set(
+            mappedRecent
+              .map((item) => item.backendMessageId)
+              .filter((id): id is string => Boolean(id)),
+          );
+          const firstOverlapIndex = prev.findIndex(
+            (item) => item.backendMessageId && recentBackendIds.has(item.backendMessageId),
+          );
+          if (firstOverlapIndex > 0) {
+            return [...prev.slice(0, firstOverlapIndex), ...mappedRecent];
+          }
+          return mappedRecent;
+        });
+        currentAgentSessionIdRef.current =
+          recentMessages.at(-1)?.session_id ?? currentAgentSessionIdRef.current;
+        return true;
+      } catch (error) {
+        logger.warn("Read-only SSE disconnect reconcile failed:", error);
+        return false;
+      }
+    },
+    [currentAgentSessionIdRef, currentProjectIdRef, setMessages, t],
+  );
+
   return {
     isLoadingHistory,
     hasMoreHistory,
@@ -427,6 +485,8 @@ export function useChatHistory({
     setIsCreatingSession,
     sessionRecoveryError,
     setSessionRecoveryError,
+    currentSessionTitle,
+    setCurrentSessionTitle,
     historyRequestSeqRef,
     newSessionRequestSeqRef,
     creatingSessionRef,
@@ -434,6 +494,7 @@ export function useChatHistory({
     lastLoadedProjectRef,
     loadChatHistory,
     hydrateAssistantBackendMessage,
+    reconcileAfterDisconnect,
     loadEarlierMessages,
     handleSubmitFeedback,
     runNewSession,

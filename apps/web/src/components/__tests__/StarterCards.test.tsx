@@ -56,7 +56,22 @@ describe('StarterCards for a work that already has the author’s prose', () => 
     const handlers = await show('zh', { hasManuscript: false })
     expect(screen.getByTestId('starter-cards')).toHaveAttribute('data-variant', 'example')
     expect(screen.queryByTestId('starter-manuscript')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('starter-multilingual-note')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('starter-send'))
     expect(handlers.onSend).toHaveBeenCalledWith(zhChat.starter.example.novel)
+  })
+
+  it('shows a calm multilingual note on non-zh starter cards for both example and manuscript variants', async () => {
+    await show('en', { hasManuscript: false })
+    const note = screen.getByTestId('starter-multilingual-note')
+    expect(note).toHaveTextContent(/Español/)
+    expect(note).toHaveTextContent(/Bahasa Indonesia/)
+    expect(note).toHaveTextContent(/Русский/)
+    expect(note).toHaveTextContent(/한국어/)
+    expect(note).toHaveTextContent(/العربية/)
+    cleanup()
+
+    await show('en', { hasManuscript: true })
+    expect(screen.getByTestId('starter-multilingual-note')).toHaveTextContent(/match your language automatically/)
   })
 })

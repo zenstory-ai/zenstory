@@ -23,7 +23,7 @@ function resolveLoadingLabel(): string {
     (typeof document !== "undefined" ? document.documentElement.lang : "") ||
     "";
 
-  return rawLang.toLowerCase().startsWith("en") ? "Loading…" : "加载中…";
+  return rawLang.trim().toLowerCase().startsWith("zh") ? "加载中…" : "Loading…";
 }
 
 /**

@@ -32,6 +32,7 @@ import { SUPPORT_EMAIL, SUPPORT_MAILTO } from "../config/support";
 import type { PaymentCycle } from "../types/payment";
 import { parsePaymentCycleIntent } from "../lib/paymentCycleIntent";
 import { AUTH_PLAN_INTENT_SOURCE } from "../lib/authFlow";
+import { formatDailyResetLocalTime } from "../lib/dateUtils";
 
 type UsageKey =
   | "ai_conversations"
@@ -186,7 +187,14 @@ export default function BillingPage() {
   const isCardAvailable = availablePaymentMethods.includes("card");
   const isAlipayAvailable = availablePaymentMethods.includes("alipay");
   const isUsdDefaultLocale = usesUsdPricing(i18n.language);
-  const showUsdPricing = isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
+  // While paymentOptions is loading, default non-Chinese locales to USD so English/international
+  // readers never see a ¥ CNY flash before switching to USD.
+  const showUsdPricing = isPaymentOptionsLoading
+    ? isUsdDefaultLocale
+    : isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
+  const localDailyResetTime = !i18n.language.toLowerCase().startsWith("zh")
+    ? formatDailyResetLocalTime(i18n.language)
+    : null;
   const monthlyUsdCents =
     proPlan?.price_monthly_usd_cents && proPlan.price_monthly_usd_cents > 0
       ? proPlan.price_monthly_usd_cents
@@ -540,13 +548,25 @@ export default function BillingPage() {
                   {item.key === "ai_conversations" && metric && (
                     <p className="mt-2 text-xs text-[hsl(var(--text-secondary))]">
                       {isUpgradableTier
-                        ? t(
-                            "dashboard:billing.freeDailyMessageLimitHint",
-                            "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
-                            { limit: metric.limit }
-                          )
+                        ? localDailyResetTime
+                          ? t(
+                              "dashboard:billing.freeDailyMessageLimitHintLocal",
+                              "Free users can send up to {{limit}} AI messages per day. Resets daily at {{localTime}} local time (00:00 UTC+8).",
+                              { limit: metric.limit, localTime: localDailyResetTime }
+                            )
+                          : t(
+                              "dashboard:billing.freeDailyMessageLimitHint",
+                              "免费用户每日最多 {{limit}} 条 AI 消息，北京时间次日 00:00 恢复。",
+                              { limit: metric.limit }
+                            )
                         : metric.limit === -1
                         ? t("dashboard:billing.proNoDailyLimit", "Pro 每天的 AI 消息不限条数。")
+                        : localDailyResetTime
+                        ? t(
+                            "dashboard:billing.dailyQuotaResetHintLocal",
+                            "Daily AI messages reset at {{localTime}} local time (00:00 UTC+8).",
+                            { localTime: localDailyResetTime }
+                          )
                         : t("dashboard:billing.dailyQuotaResetHint", "每天的 AI 消息在北京时间 00:00 恢复。")}
                     </p>
                   )}

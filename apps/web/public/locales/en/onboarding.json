@@ -9,9 +9,9 @@
       "novel": {
         "title": "Novel",
         "platforms": [
-          "Fanqie",
-          "Qidian",
-          "Qimao"
+          "Royal Road",
+          "Wattpad",
+          "Kindle / Serials"
         ],
         "promise": "Get a chapter 1 draft",
         "folders": [
@@ -22,23 +22,22 @@
           "Drafts"
         ],
         "file": "Draft",
-        "sampleTitle": "Chapter 1: Stay the Blade",
+        "sampleTitle": "Chapter 1: The Mapmaker’s Debt",
         "sample": [
-          "“Noon has come. Begin!”",
-          "Qin Lang knelt below the scaffold as they dragged his father to the block.",
-          "In his last life he wept here, and three months later his family was put to death.",
-          "Now the blade had not yet fallen.",
-          "He eyed the letter in the overseer’s sleeve and stood. “Stay the blade! My father never took that silver.”",
-          "“I know where it is. In your house, my lord.”"
+          "“Midnight bell. Ink down.”",
+          "Rowan knelt beside the harbor stones as the guild wardens dragged his father onto the pier.",
+          "In the first timeline he had begged for mercy, and by autumn their house was ash.",
+          "Tonight the seal had not yet broken.",
+          "He stared at the cipher tucked inside the magistrate’s sleeve and stood. “Hold the warrant. My father never stole that ledger.”",
+          "“I know where it is. Locked in your own vault, my lord.”"
         ]
       },
       "short": {
         "title": "Short story",
         "platforms": [
-          "Zhihu Yanxuan",
-          "Fanqie Shorts",
-          "Heiyan",
-          "Dianzhong"
+          "Short Fiction Magazines",
+          "Anthologies",
+          "Substack / Serials"
         ],
         "promise": "Write up to the first twist",
         "folders": [
@@ -60,9 +59,9 @@
       "screenplay": {
         "title": "Short drama script",
         "platforms": [
-          "Hongguo",
-          "Douyin, Kuaishou",
-          "Mini-program dramas"
+          "ReelShort",
+          "DramaBox",
+          "Vertical Series"
         ],
         "promise": "Get an episode 1 script",
         "folders": [
@@ -75,12 +74,12 @@
         "file": "Script",
         "sampleTitle": "Episode 1",
         "sample": [
-          "【Gu family engagement banquet, night, interior】",
-          "△ In front of every guest, Mrs. Gu throws a glass of red wine in Su Wan’s face.",
-          "Mrs. Gu: An orphan, marrying into the Gu family? The new owner arrives tonight. Get out.",
-          "Su Wan: (wiping off the wine) No need to wait. The owner is already here.",
-          "△ A lawyer walks past Mrs. Gu and bows to Su Wan, holding out a file.",
-          "Lawyer: Chairwoman Su, the Gu Group bankruptcy filing. Will you sign now?"
+          "INT. HARBOR GRAND BALLROOM - NIGHT",
+          "In front of every guest, Evelyn Vance splashes a glass of red wine across Claire’s dress.",
+          "EVELYN: A nobody marrying into the Vance family? The new majority owner arrives tonight. Get out.",
+          "CLAIRE: (wiping her cheek) No need to wait. The owner is already here.",
+          "A corporate attorney walks past Evelyn and bows to Claire, holding out a leather folder.",
+          "ATTORNEY: Chairwoman Claire, the Vance Group buyout agreement. Ready to sign?"
         ]
       }
     }

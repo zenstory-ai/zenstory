@@ -22,9 +22,11 @@
     "accountRunsBusyTitle": "Can’t start a new task yet",
     "streamErrorQuotaPaused": "This round didn't finish; anything already saved is kept. Today's AI messages are used up, so pick it up again once they come back.",
     "quotaExceededTitle": "You've used today's free AI messages",
-    "quotaExceededHint": "They reset tomorrow at 00:00 Beijing time (UTC+8). Want to keep going? Pro has no daily message limit.",
+    "quotaExceededHint": "Resets daily at 00:00 UTC+8. Want to keep going? Pro has no daily message limit.",
+    "quotaExceededHintLocal": "Resets daily at {{localTime}} your time (00:00 UTC+8). Want to keep going? Pro has no daily message limit.",
     "networkQuotaExceededTitle": "Today's free AI allowance on this network is used up",
-    "networkQuotaExceededHint": "Please try again tomorrow (it resets at 00:00 Beijing time, UTC+8), or get Pro to keep writing.",
+    "networkQuotaExceededHint": "Please try again after the daily reset (00:00 UTC+8), or get Pro to keep writing.",
+    "networkQuotaExceededHintLocal": "Please try again after the daily reset at {{localTime}} your time (00:00 UTC+8), or get Pro to keep writing.",
     "notCharged": "No files were changed this round, so it doesn't count toward today's AI messages.",
     "notChargedError": "This error doesn't count toward today's AI messages.",
     "userStopped": "Stopped",
@@ -328,6 +330,19 @@
       "skillResourceNotFound": "The requested reference file could not be found in that skill.",
       "skillLimitExceeded": "The limit for loaded skills in this turn has been reached.",
       "permissionDenied": "You don't have permission to modify this file; nothing was changed.",
+      "sourceTextNotInMessage": "The referenced text did not match your message verbatim, so no file was created.",
+      "invalidSourceText": "The referenced text parameters were invalid, so no file was created.",
+      "sourceTextConflict": "The referenced text conflicted with the requested file content, so no file was created.",
+      "invalidSourceTextFileType": "This file type does not support verbatim source-text creation, so no file was created.",
+      "sourceTextContextMissing": "The original message context was unavailable for verbatim saving, so no file was created.",
+      "toolFailureCircuitOpen": "This action failed several times in a row, so the AI paused further retries.",
+      "updatePlanRejected": "The plan update did not pass validation, so the current plan stayed unchanged.",
+      "chapterBodyRequiresWriteChapter": "Chapter text must be written through the chapter-writing flow, so the file was not changed.",
+      "invalidToolInputJson": "The parameters for this step were malformed, so it did not run and no files were changed.",
+      "pendingFileBody": "Another newly created file is still waiting for its text, so this step did not run.",
+      "chapterWrittenThisTurn": "This chapter was just written in this turn, so it was not rewritten again.",
+      "wallClockWrapUp": "This round is wrapping up, so this step was deferred.",
+      "editRepeatLimit": "This file reached the per-turn edit limit, so repeated micro-edits were paused.",
       "generic": "This step did not complete; the file was not changed."
     },
     "partialFailureHint": {
@@ -361,8 +376,8 @@
     "default": "File"
   },
   "size": {
-    "characters": "{{length}} chars",
-    "kCharacters": "{{length}}k chars"
+    "characters": "{{length}} words",
+    "kCharacters": "{{length}}k words"
   },
   "edit": {
     "replace": "Replace",
@@ -411,7 +426,8 @@
     "expand": "Expand reasoning process",
     "collapse": "Collapse reasoning process",
     "toggleLabel": "Show reasoning process",
-    "toggleHide": "Hide reasoning process"
+    "toggleHide": "Hide reasoning process",
+    "reasoningInProgress": "Reasoning through your request…"
   },
   "skill": {
     "loading": "Loading skills…",
@@ -451,6 +467,8 @@
   },
   "activity": {
     "elapsed": "AI is working · {{seconds}}s",
+    "thinkingPlanning": "Planning structure & details…",
+    "thinkingDrafting": "Preparing response & edits…",
     "longWaitHint": "Long passages can take a few minutes.",
     "longWaitHintMobile": "Long passages can take a few minutes. Keep this page open.",
     "preparingBody": "Drafting the opening of “{{title}}”…",
@@ -484,9 +502,9 @@
   "quotaCard": {
     "paidTitle": "Today’s AI message allowance is used up",
     "title": "You've used today's {{limit}} free AI messages",
-    "resetOnDay": "They come back on {{day}} at 00:00 Beijing time (UTC+8).",
-    "resetTomorrow": "They come back tomorrow at 00:00 Beijing time (UTC+8).",
-    "resetLocal": "They come back on {{local}} your time (00:00 Beijing time).",
+    "resetOnDay": "They come back on {{day}} at 00:00 UTC+8.",
+    "resetTomorrow": "They come back tomorrow at 00:00 UTC+8.",
+    "resetLocal": "They come back on {{local}} your time (00:00 UTC+8).",
     "upgradeHint": "To keep writing now, get Pro: no daily message limit."
   },
   "nextStep": {
@@ -540,6 +558,7 @@
         "screenplay": "Write the next episode in the style I'm using now."
       }
     },
+    "multilingualNote": "Write in any language — English, Español, Bahasa Indonesia, Português, Tiếng Việt, Русский, 한국어, Français, Polski, العربية, and more — and I’ll match your language automatically.",
     "quota": "{{count}} free messages left today"
   },
   "notesAdded": {

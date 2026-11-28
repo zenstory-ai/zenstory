@@ -25,6 +25,33 @@ import {
 export const clampNumber = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+const LEGACY_ASSISTANT_SESSION_TITLES = new Set(["AI 助手对话", "AI Assistant"]);
+const LEGACY_NEW_CHAT_SESSION_TITLES = new Set(["新对话", "New Chat"]);
+
+/**
+ * Localize legacy default chat session titles ("AI 助手对话" / "新对话") at display time
+ * so non-Chinese UI readers never see Chinese default session titles, while preserving
+ * any custom session titles verbatim.
+ */
+export const formatChatSessionTitle = (
+  title: string | null | undefined,
+  t: TFunction,
+  language?: string,
+): string => {
+  const trimmed = typeof title === "string" ? title.trim() : "";
+  if (!trimmed) {
+    return t("chat:panel.title");
+  }
+  const isZh = (language ?? "").trim().toLowerCase().startsWith("zh");
+  if (LEGACY_ASSISTANT_SESSION_TITLES.has(trimmed)) {
+    return t("chat:panel.title");
+  }
+  if (LEGACY_NEW_CHAT_SESSION_TITLES.has(trimmed)) {
+    return isZh ? trimmed : t("chat:defaultTitle");
+  }
+  return trimmed;
+};
+
 export const isNearBottom = (el: HTMLElement, thresholdPx = 48): boolean =>
   el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
 
@@ -40,6 +67,22 @@ export const keepUnsavedFile = (
 /** The account's task slots are taken: the server started and charged nothing. */
 export const isAccountRunRefusal = (code: string | null | undefined): boolean =>
   code === "ERR_ACCOUNT_RUNS_BUSY";
+
+/**
+ * Delay before performing a single read-only GET reconcile after an unexpected SSE
+ * disconnect so the backend has time to commit any in-flight partial/final reply.
+ */
+export const SSE_DISCONNECT_RECONCILE_DELAY_MS = 1500;
+
+/**
+ * True when an SSE error represents an unexpected transport drop (closed/errored stream)
+ * rather than an explicit server error, quota refusal, or author-triggered abort.
+ * Callers may run a single read-only GET reconcile; NEVER automatically retry POST.
+ */
+export const isUnexpectedStreamDisconnect = (
+  code: string | null | undefined,
+  retryable: boolean | undefined,
+): boolean => retryable === true && (code === "STREAM_CLOSED" || code === "STREAM_ERROR");
 
 /**
  * This network's shared free allowance is used up: nothing was started or charged. Sending stays

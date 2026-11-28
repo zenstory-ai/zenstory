@@ -152,5 +152,9 @@
     "switchToEnglish": "切换到英文",
     "toggleTheme": "切换深色或浅色模式",
     "toggleLanguage": "切换界面语言"
+  },
+  "seo": {
+    "projectTitle": "项目 - ZenStory",
+    "projectDescription": "AI辅助的小说创作项目"
   }
 }

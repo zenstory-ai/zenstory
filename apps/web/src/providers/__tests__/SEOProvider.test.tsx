@@ -1,9 +1,24 @@
 import { fireEvent, render, renderHook, screen } from '@testing-library/react'
+import zhCommon from '../../../public/locales/zh/common.json'
+import enCommon from '../../../public/locales/en/common.json'
 
 const { mockPathname, mockLanguage } = vi.hoisted(() => ({
   mockPathname: { value: '/' },
   mockLanguage: { value: 'zh-CN' },
 }))
+
+function lookupCommonKey(locale: 'zh' | 'en', key: string): string | undefined {
+  const path = key.replace(/^common:/, '').split('.')
+  let node: unknown = locale === 'zh' ? zhCommon : enCommon
+  for (const part of path) {
+    if (node && typeof node === 'object' && part in node) {
+      node = (node as Record<string, unknown>)[part]
+    } else {
+      return undefined
+    }
+  }
+  return typeof node === 'string' ? node : undefined
+}
 
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({
@@ -12,11 +27,16 @@ vi.mock('react-router-dom', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    i18n: {
-      language: mockLanguage.value,
-    },
-  }),
+  useTranslation: () => {
+    const langKey: 'zh' | 'en' = mockLanguage.value.startsWith('zh') ? 'zh' : 'en'
+    return {
+      t: (key: string, options?: { defaultValue?: string }) =>
+        lookupCommonKey(langKey, key) ?? options?.defaultValue ?? key,
+      i18n: {
+        language: mockLanguage.value,
+      },
+    }
+  },
 }))
 
 import { SEOProvider, useSEO } from '../SEOProvider'
@@ -57,11 +77,11 @@ describe('SEOProvider', () => {
     expect(screen.getByTestId('seo-noindex')).toHaveTextContent('true')
   })
 
-  it('falls back to dynamic project SEO for project routes', () => {
+  it('falls back to dynamic project SEO for project routes in zh and non-zh locales via i18n keys', () => {
     mockPathname.value = '/project/project-1'
     mockLanguage.value = 'zh-CN'
 
-    render(
+    const zhRender = render(
       <SEOProvider>
         <SEOConsumer />
       </SEOProvider>,
@@ -70,6 +90,27 @@ describe('SEOProvider', () => {
     expect(screen.getByTestId('seo-title')).toHaveTextContent('项目 - ZenStory')
     expect(screen.getByTestId('seo-description')).toHaveTextContent('AI辅助的小说创作项目')
     expect(screen.getByTestId('seo-noindex')).toHaveTextContent('true')
+    zhRender.unmount()
+
+    mockLanguage.value = 'en'
+    const enRender = render(
+      <SEOProvider>
+        <SEOConsumer />
+      </SEOProvider>,
+    )
+    expect(screen.getByTestId('seo-title')).toHaveTextContent('Project - ZenStory')
+    expect(screen.getByTestId('seo-description')).toHaveTextContent('AI-assisted novel writing project')
+    expect(screen.getByTestId('seo-noindex')).toHaveTextContent('true')
+    enRender.unmount()
+
+    mockLanguage.value = 'fr-FR'
+    render(
+      <SEOProvider>
+        <SEOConsumer />
+      </SEOProvider>,
+    )
+    expect(screen.getByTestId('seo-title')).toHaveTextContent('Project - ZenStory')
+    expect(screen.getByTestId('seo-description')).toHaveTextContent('AI-assisted novel writing project')
   })
 
   it('merges manual SEO overrides with the active route config', () => {
