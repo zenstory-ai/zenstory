@@ -21,7 +21,15 @@ describe('MaterialPreview', () => {
     expect(screen.getByRole('listitem')).toHaveTextContent('旧信');
     expect(container.querySelector('pre code')).toHaveTextContent('第一行');
     expect(container.querySelector('script')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'editor:fileTree.addToProject' }));
+    const addButton = screen.getByRole('button', { name: 'editor:fileTree.addToProject' });
+    const headerBar = addButton.parentElement!;
+    expect(headerBar.className).toContain('bg-[hsl(var(--bg-canvas))]');
+    expect(headerBar.className).toContain('border-[hsl(var(--separator-color))]');
+    expect(addButton.className).toContain('bg-[hsl(var(--primary))]');
+    expect(addButton.className).toContain('text-[hsl(var(--primary-foreground))]');
+    expect(addButton.className).not.toContain('text-white');
+    expect(addButton.className).toContain('max-md:min-h-11');
+    fireEvent.click(addButton);
     fireEvent.click(screen.getByRole('button', { name: 'editor:fileTree.attachToChat' }));
     fireEvent.click(screen.getByRole('button', { name: 'editor:fileTree.backToEdit' }));
     for (const action of Object.values(actions)) expect(action).toHaveBeenCalledTimes(1);

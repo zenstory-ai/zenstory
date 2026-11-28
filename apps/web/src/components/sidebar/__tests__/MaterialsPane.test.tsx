@@ -286,8 +286,14 @@ describe('MaterialsPane', () => {
       expect(screen.getByText('editor:fileTree.batchImport')).toBeInTheDocument()
     })
 
+    const batchImportButton = screen.getByRole('button', { name: 'editor:fileTree.batchImport' })
+    expect(batchImportButton.className).toContain('bg-[hsl(var(--primary))]')
+    expect(batchImportButton.className).toContain('text-[hsl(var(--primary-foreground))]')
+    expect(batchImportButton.className).not.toContain('text-white')
+    expect(batchImportButton.className).toContain('max-md:min-h-11')
+
     await act(async () => {
-      fireEvent.click(screen.getByText('editor:fileTree.batchImport'))
+      fireEvent.click(batchImportButton)
       await Promise.resolve()
     })
 

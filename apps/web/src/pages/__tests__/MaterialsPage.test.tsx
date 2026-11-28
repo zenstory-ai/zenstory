@@ -3,6 +3,7 @@
 process.env.TZ = "UTC";
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -276,7 +277,7 @@ describe("MaterialsPage", () => {
     expect(screen.queryByTestId("materials-header-upgrade")).not.toBeInTheDocument();
   });
 
-  it("renders the header Pro entry with the unified primary button style alongside the free trial", async () => {
+  it("renders the header Pro entry as secondary when the page body already carries a primary trial CTA", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
     mockGetQuota.mockResolvedValue(freeQuota({ available: true, used: false, max_chapters: 20 }));
 
@@ -285,8 +286,57 @@ describe("MaterialsPage", () => {
     const trial = await screen.findByTestId("materials-trial-start");
     const headerUpgrade = screen.getByTestId("materials-header-upgrade");
     expect(headerUpgrade).toHaveTextContent("开通 Pro");
-    expect(headerUpgrade.className).toContain("bg-[hsl(var(--primary))]");
+    expect(headerUpgrade.className).toContain("bg-[hsl(var(--bg-secondary))]");
+    expect(headerUpgrade.className).not.toContain("bg-[hsl(var(--primary))]");
     expect(trial.className).toContain("bg-[hsl(var(--primary))]");
+  });
+
+  it("keeps the header Pro entry secondary when the trial-used banner carries the primary CTA", async () => {
+    mockGetStatus.mockResolvedValue(freeStatus);
+    mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 3 }));
+    mockList.mockResolvedValue([
+      { id: "n1", title: "试拆参考书", status: "completed", chapters_count: 3, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const banner = await screen.findByTestId("materials-trial-banner");
+    const bannerUpgrade = within(banner).getByRole("button", { name: "开通 Pro" });
+    const headerUpgrade = screen.getByTestId("materials-header-upgrade");
+    expect(bannerUpgrade.className).toContain("bg-[hsl(var(--primary))]");
+    expect(headerUpgrade.className).toContain("bg-[hsl(var(--bg-secondary))]");
+    expect(headerUpgrade.className).not.toContain("bg-[hsl(var(--primary))]");
+  });
+
+  it("renders skeleton cards with status semantics while materials are loading", () => {
+    mockGetStatus.mockImplementationOnce(() => new Promise(() => {}));
+
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("加载中…");
+    expect(status.querySelectorAll(".skeleton-shimmer")).toHaveLength(3);
+  });
+
+  it("demotes the header upload button to secondary when the empty paid library carries the primary upload CTA", async () => {
+    mockList.mockResolvedValueOnce([]);
+
+    const { unmount } = render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const bodyUpload = await screen.findByRole("button", { name: "materials:uploadFirst" });
+    const headerUpload = screen.getByRole("button", { name: "materials:upload" });
+    expect(bodyUpload.className).toContain("bg-[hsl(var(--primary))]");
+    expect(headerUpload.className).toContain("bg-[hsl(var(--bg-secondary))]");
+    expect(headerUpload.className).not.toContain("bg-[hsl(var(--primary))]");
+    unmount();
+
+    mockList.mockResolvedValueOnce([
+      { id: "n1", title: "已有参考书", status: "completed", chapters_count: 5, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    await screen.findByText("已有参考书");
+    const populatedHeaderUpload = screen.getByRole("button", { name: "materials:upload" });
+    expect(populatedHeaderUpload.className).toContain("bg-[hsl(var(--primary))]");
   });
 
   it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {
@@ -702,9 +752,12 @@ describe("MaterialsPage", () => {
     const detailEntry = await screen.findByRole("button", {
       name: /Keyboard Novel/,
     });
+    expect(detailEntry.tagName).toBe("BUTTON");
+    expect(detailEntry.closest("article")).toBe(screen.getByTestId("material-card"));
 
-    fireEvent.keyDown(detailEntry, { key: "Enter" });
-    fireEvent.keyDown(detailEntry, { key: " " });
+    detailEntry.focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard(" ");
 
     expect(mockNavigate).toHaveBeenNthCalledWith(1, "/materials/novel-2");
     expect(mockNavigate).toHaveBeenNthCalledWith(2, "/materials/novel-2");
@@ -727,8 +780,7 @@ describe("MaterialsPage", () => {
     render(<MaterialsPage />, { wrapper: createWrapper() });
 
     await screen.findByRole("button", { name: /Delete Fails/ });
-    const deleteButton = document.querySelector("button.absolute") as HTMLButtonElement;
-    expect(deleteButton).toBeTruthy();
+    const deleteButton = screen.getByRole("button", { name: "删除素材" });
 
     fireEvent.click(deleteButton);
     fireEvent.click(screen.getByRole("button", { name: "common:delete" }));

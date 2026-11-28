@@ -610,7 +610,7 @@ describe("MaterialDetailPage", () => {
     });
     render(<MaterialDetailPage />, { wrapper: createWrapper() });
     expect(await screen.findByText("Historical Novel")).toBeInTheDocument();
-    expect(screen.getByText("materials:detail.relationships")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /materials:detail\.relationships/ })).toBeInTheDocument();
   });
 
   it("distinguishes a genuine 404 from a retryable detail failure", async () => {
@@ -685,7 +685,7 @@ describe("MaterialDetailPage", () => {
       expect(screen.getByText("Novel One")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("materials:detail.relationships")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /materials:detail\.relationships/ })).toBeInTheDocument();
   });
 
   it("retries lazy folder loading after an initial failure", async () => {
@@ -942,7 +942,7 @@ describe("MaterialDetailPage", () => {
       expect(screen.getByText("Phoenix Core")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("materials:detail.relationships")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /materials:detail\.relationships/ })).toBeInTheDocument();
     expect(screen.queryByText("materials:detail.notEnabled")).not.toBeInTheDocument();
   });
 
@@ -1577,5 +1577,97 @@ describe("MaterialDetailPage", () => {
     render(<MaterialDetailPage />, { wrapper: createWrapper() });
     expect(await screen.findByText("拆解中的书")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导出拆解（TXT）" })).toBeDisabled();
+  });
+
+  it("aligns detail surface hierarchy, sidebar search placement, typography, and mobile icon export", async () => {
+    mockGet.mockResolvedValue({ ...referenceMaterial, title: "山海志" });
+    const { unmount } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+
+    const heading = await screen.findByRole("heading", { level: 1, name: "山海志" });
+    const header = heading.closest("header")!;
+    const aside = screen.getByRole("complementary", { name: "materials:detail.contents" });
+    const contentSection = screen.getByLabelText("materials:detail.contentLabel");
+
+    expect(header.className).toContain("bg-[hsl(var(--bg-rail))]");
+    expect(aside.className).toContain("bg-[hsl(var(--bg-rail))]");
+    expect(contentSection.className).toContain("bg-[hsl(var(--bg-canvas))]");
+    expect(within(header).queryByPlaceholderText("materials:detail.searchPlaceholder")).not.toBeInTheDocument();
+    expect(within(aside).getByPlaceholderText("materials:detail.searchPlaceholder")).toBeInTheDocument();
+
+    const overviewHeading = screen.getByRole("heading", { level: 2, name: "materials:detail.overview" });
+    expect(overviewHeading.className).not.toContain("heading-display");
+    const categoryButton = screen.getByRole("button", { name: /打开chapters目录/ });
+    expect(categoryButton.textContent).not.toContain("·");
+
+    // Selected chapter retains serif display heading, rail summary inset, and accented tree icon
+    fireEvent.click(screen.getByRole("button", { name: /materials:detail.chapters/ }));
+    const chapterButton = await screen.findByRole("button", { name: /Opening Chapter/ });
+    fireEvent.click(chapterButton);
+    expect(chapterButton).toHaveAttribute("type", "button");
+    expect(chapterButton.className).toContain("bg-[hsl(var(--accent-primary)/0.12)]");
+    expect(chapterButton.querySelector("span.text-\\[hsl\\(var\\(--accent-primary\\)\\)\\]")).toBeTruthy();
+
+    const chapterHeading = await screen.findByRole("heading", { level: 2, name: "Opening Chapter" });
+    expect(chapterHeading.className).toContain("heading-display");
+    const summaryBox = screen.getByText("Chapter summary").closest(".material-chapter-summary");
+    expect(summaryBox).not.toBeNull();
+    expect(summaryBox?.className).toContain("bg-[hsl(var(--bg-rail))]");
+    unmount();
+
+    // Mobile header uses a 44px touch IconButton for export with preserved accessible name,
+    // loading aria-busy/disabled state, and active-status disabled state
+    mediaState.isMobile = true;
+    let resolveMobileExport!: (value: { filename: string }) => void;
+    mockExportBreakdown.mockReturnValueOnce(
+      new Promise<{ filename: string }>((resolve) => {
+        resolveMobileExport = resolve;
+      }),
+    );
+    const mobileView = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    await screen.findByRole("heading", { level: 1, name: "山海志" });
+    const mobileExport = screen.getByRole("button", { name: "导出拆解（TXT）" });
+    expect(mobileExport.className).toContain("h-11");
+    expect(mobileExport.className).toContain("w-11");
+    expect(mobileExport).toBeEnabled();
+
+    fireEvent.click(mobileExport);
+    await waitFor(() => {
+      expect(mobileExport).toBeDisabled();
+      expect(mobileExport).toHaveAttribute("aria-busy", "true");
+    });
+    await act(async () => {
+      resolveMobileExport({ filename: "山海志_拆解.txt" });
+    });
+    await waitFor(() => {
+      expect(mobileExport).toBeEnabled();
+      expect(mobileExport).not.toHaveAttribute("aria-busy");
+    });
+    mobileView.unmount();
+
+    mockGet.mockResolvedValueOnce({ ...referenceMaterial, id: "novel-processing", title: "拆解中书籍", status: "processing" });
+    routeState.novelId = "novel-processing";
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    await screen.findByRole("heading", { level: 1, name: "拆解中书籍" });
+    const disabledMobileExport = screen.getByRole("button", { name: "导出拆解（TXT）" });
+    expect(disabledMobileExport).toBeDisabled();
+    expect(disabledMobileExport).toHaveAttribute("title", "拆解完成后可导出");
+  });
+
+  it("offers a secondary back-to-materials action on 404 and load errors", async () => {
+    mockGet.mockRejectedValueOnce(new ApiError(404, "not found"));
+    const { unmount } = render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByText("materials:detail.notFound")).toBeInTheDocument();
+    const backOn404 = screen.getByRole("button", { name: "返回素材库" });
+    expect(backOn404.className).toContain("bg-[hsl(var(--bg-secondary))]");
+    fireEvent.click(backOn404);
+    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/materials");
+    unmount();
+
+    mockNavigate.mockClear();
+    mockGet.mockRejectedValueOnce(new Error("offline"));
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    expect(await screen.findByRole("alert")).toHaveTextContent("素材详情加载失败，请重试。");
+    fireEvent.click(screen.getByRole("button", { name: "返回素材库" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/materials");
   });
 });
