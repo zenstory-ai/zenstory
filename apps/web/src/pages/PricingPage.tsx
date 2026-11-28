@@ -115,17 +115,6 @@ export default function PricingPage() {
   const showUsdPricing = isPaymentOptionsLoading
     ? isUsdDefaultLocale
     : isCardAvailable && (isUsdDefaultLocale || !isAlipayAvailable);
-  const monthlyUsdCents =
-    proPlan?.price_monthly_usd_cents && proPlan.price_monthly_usd_cents > 0
-      ? proPlan.price_monthly_usd_cents
-      : PRO_USD_PRICE_CENTS.month;
-  const alternativePaymentHint = !showUsdPricing && isCardAvailable
-    ? t("dashboard:billing.alternativePaymentCardHint", "海外用户可使用银行卡以美元支付（{{price}}/月）", {
-        price: formatUsd(monthlyUsdCents, i18n.language),
-      })
-    : showUsdPricing && isAlipayAvailable
-      ? t("dashboard:billing.alternativePaymentAlipayHint", "Alipay (CNY) is available for mainland China")
-      : null;
   const getDisplayPrices = (plan: (typeof sortedPlans)[number]) =>
     showUsdPricing && plan.name === "pro"
       ? {
@@ -412,15 +401,6 @@ export default function PricingPage() {
               </Card>
             ))}
           </section>
-        )}
-
-        {!isCatalogLoading && !isError && sortedPlans.length > 0 && alternativePaymentHint && (
-          <p
-            data-testid="pricing-alternative-payment-hint"
-            className="text-center text-xs text-[hsl(var(--text-secondary))]"
-          >
-            {alternativePaymentHint}
-          </p>
         )}
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
