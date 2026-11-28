@@ -25,6 +25,7 @@ from agent.tools.tool_inputs import (
     WriteChapterInput,
     build_tool_schema,
 )
+from config.project_status import PROJECT_STATUS_MAX_LENGTHS, PROJECT_STATUS_RECOMMENDED_TARGETS
 
 # 字数口径说明（保留常量供单测/外部引用；实际口径在系统提示词 LOOP_AUTHOR_REPLY_PROTOCOL 单源维护，不再在 4 个工具描述里重复）。
 WORD_COUNT_CONTRACT = (
@@ -116,7 +117,11 @@ UPDATE_PROJECT_TOOL: dict[str, Any] = build_tool_schema(
     "update_project",
     description=(
         "更新项目 AI 记忆（仅写作者定下的事实，不写AI建议）。"
-        "summary/current_phase 覆写前先合并现有内容；writing_style 只记作者明确确认的长期风格；"
+        "summary/current_phase/writing_style 覆写前先合并现有内容，但须留出字数余量："
+        f"summary 硬上限 {PROJECT_STATUS_MAX_LENGTHS['summary']} 字（建议≤{PROJECT_STATUS_RECOMMENDED_TARGETS['summary']} 字），"
+        f"current_phase / writing_style 硬上限 {PROJECT_STATUS_MAX_LENGTHS['current_phase']} 字（建议≤{PROJECT_STATUS_RECOMMENDED_TARGETS['current_phase']} 字），"
+        "接近建议值时主动精炼压缩、淘汰已过时的旧细节，切忌无休止追加；"
+        "writing_style 只记作者明确确认的长期风格；"
         "notes 仅在作者明确要求记住时追加原话（结果里的 notes_added 是实际记下的条目）；"
         "title 仅在默认名或AI起名时生效。"
     ),

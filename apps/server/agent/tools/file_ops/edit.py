@@ -316,6 +316,7 @@ EDIT_ERROR_INVALID_READ_RANGE = "invalid_read_range"
 EDIT_ERROR_SKILL_NOT_FOUND = "skill_not_found"
 EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND = "skill_resource_not_found"
 EDIT_ERROR_SKILL_LIMIT_EXCEEDED = "skill_limit_exceeded"
+EDIT_ERROR_PROJECT_FIELD_TOO_LONG = "project_field_too_long"
 
 EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_ANCHOR_NOT_FOUND: "未在原文中找到对应段落，文件未改动。",
@@ -336,6 +337,7 @@ EDIT_ERROR_USER_MESSAGES: dict[str, str] = {
     EDIT_ERROR_SKILL_NOT_FOUND: "未找到已启用的目标技能。",
     EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND: "未找到该技能对应的参考资料。",
     EDIT_ERROR_SKILL_LIMIT_EXCEEDED: "本轮加载的技能数量已达上限。",
+    EDIT_ERROR_PROJECT_FIELD_TOO_LONG: "项目信息超出字数上限，未保存。",
 }
 EDIT_ERROR_GENERIC_USER_MESSAGE = "此次修改未能生效，文件未改动。"
 

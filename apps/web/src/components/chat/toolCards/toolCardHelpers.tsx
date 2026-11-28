@@ -222,6 +222,7 @@ export type ToolFailureKind =
   | 'chapterWrittenThisTurn'
   | 'wallClockWrapUp'
   | 'editRepeatLimit'
+  | 'projectFieldTooLong'
   | 'generic';
 
 /**
@@ -277,6 +278,7 @@ export const classifyToolFailure = (errorType: string | undefined): ToolFailureK
   if (normalized === 'chapter_written_this_turn') return 'chapterWrittenThisTurn';
   if (normalized === 'wall_clock_wrap_up') return 'wallClockWrapUp';
   if (normalized === 'edit_repeat_limit') return 'editRepeatLimit';
+  if (normalized === 'project_field_too_long') return 'projectFieldTooLong';
   if (/(^|_)files?_(not_found|missing|deleted)$/.test(normalized)) return 'fileMissing';
   if (/(ambiguous|multiple_match)/.test(normalized)) return 'ambiguous';
   if (/(anchor|old_text|text|pattern|match|passage)_not_found|no_match/.test(normalized)) return 'notFound';

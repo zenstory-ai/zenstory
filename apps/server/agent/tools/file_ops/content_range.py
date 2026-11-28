@@ -25,8 +25,17 @@ INVALID_READ_RANGE_ERROR_TYPE = "invalid_read_range"
 # 短文件（或 start_char 之后剩余字符不超过该阈值）不切片分页：直接返回全文（或余下全文），
 # 避免模型用 start_char 把几千字的小文件拆成 2–10 步逐块翻读。
 SHORT_FILE_FULL_RETURN_MAX_CHARS = 12000
-_HEADING_MAX_CHARS = 40
+_HEADING_MAX_CHARS = 60
+_BRACKET_NON_UNIT_MAX_CHARS = 20
 _MAX_LISTED_HEADINGS = 40
+_BRACKET_PAIRS: tuple[tuple[str, str], ...] = (
+    ("【", "】"),
+    ("[", "]"),
+    ("（", "）"),
+    ("(", ")"),
+    ("「", "」"),
+    ("『", "』"),
+)
 _HIGHER_UNITS = frozenset({"卷", "部", "篇", "part"})
 _CHAPTER_UNITS = frozenset(
     {
@@ -61,13 +70,27 @@ _CHAPTER_UNITS = frozenset(
 _SUB_UNITS = frozenset({"节", "幕"})
 _MD_PREFIX_RE = re.compile(r"^\s*(?:#{1,6}\s+)?(?:\*{1,2})?\s*")
 _MD_BOLD_SUFFIX_RE = re.compile(r"\*{1,2}\s*$")
+_UNIT_HEADING_RE = re.compile(
+    r"^\s*(?:"
+    r"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇])"
+    r"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+)(?=$|[ \t\u3000:：·.、—\-*])"
+    r"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+)"
+    r"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화])"
+    r")",
+    re.IGNORECASE,
+)
 _HEADING_RE = re.compile(
     r"^\s*(?:(?P<hashes>#{1,6})\s+)?(?:\*{1,2})?\s*(?:"
     r"第\s*(?P<num>[零〇一二两三四五六七八九十百千万\d]+)\s*(?P<unit>[章集回节幕卷部篇])"
     r"|(?P<vol_unit>卷)\s*(?P<vol_num>[零〇一二两三四五六七八九十百千万\d]+)(?=$|[ \t\u3000:：·.、—\-*])"
     r"|(?P<en_unit>chapter|episode|part|bab|cap[íi]tulo|epis[óo]dio|chương|chuong|t[ậa]p|глава|эпизод|серия|chapitre|épisode|rozdzia[łl]|odcinek|الفصل|الحلقة)\s+(?P<en_num>\d+)"
     r"|제\s*(?P<ko_num>\d+)\s*(?P<ko_unit>[장화])"
-    r"|【(?P<bracketed>[^】]{1,20})】"
+    r"|【(?P<bracketed>[^】]+)】"
+    r"|\[(?P<sq_bracketed>[^\]]+)\]"
+    r"|（(?P<fw_paren>[^）]+)）"
+    r"|\((?P<hw_paren>[^)]+)\)"
+    r"|「(?P<corner_quote>[^」]+)」"
+    r"|『(?P<white_corner_quote>[^』]+)』"
     r"|(?P<cn_section>[零〇一二两三四五六七八九十]+、\s*\S+)"
     r")",
     re.IGNORECASE,
@@ -104,8 +127,10 @@ def _strip_heading_markup(text: str) -> str:
 
 def _unbracket(text: str) -> str:
     stripped = text.strip()
-    if stripped.startswith("【") and stripped.endswith("】") and len(stripped) > 2:
-        return stripped[1:-1].strip()
+    if len(stripped) > 2:
+        for opener, closer in _BRACKET_PAIRS:
+            if stripped.startswith(opener) and stripped.endswith(closer):
+                return stripped[len(opener) : -len(closer)].strip()
     return stripped
 
 
@@ -174,6 +199,48 @@ def _canonicalize_unit(raw_unit: str | None) -> str | None:
     return _CANONICAL_UNIT_MAP.get(lowered, lowered)
 
 
+def _extract_unit_and_number_from_match(match: re.Match[str]) -> tuple[str | None, int | None]:
+    unit = _canonicalize_unit(
+        match.group("unit")
+        or match.group("vol_unit")
+        or match.group("en_unit")
+        or match.group("ko_unit")
+        or ""
+    )
+    number = _number(
+        match.group("num")
+        or match.group("vol_num")
+        or match.group("en_num")
+        or match.group("ko_num")
+    )
+    return unit, number
+
+
+def _extract_unit_and_number(text: str) -> tuple[str | None, int | None]:
+    match = _UNIT_HEADING_RE.match(text)
+    if not match:
+        return None, None
+    return _extract_unit_and_number_from_match(match)
+
+
+def _extract_wrapped_inner(match: re.Match[str]) -> tuple[str | None, bool]:
+    """Return ``(inner_text, is_lens_bracket)`` from a ``_HEADING_RE`` match."""
+    lens_inner = match.group("bracketed")
+    if lens_inner is not None:
+        return lens_inner, True
+    for group_name in (
+        "sq_bracketed",
+        "fw_paren",
+        "hw_paren",
+        "corner_quote",
+        "white_corner_quote",
+    ):
+        value = match.group(group_name)
+        if value is not None:
+            return value, False
+    return None, False
+
+
 def _headings(content: str) -> list[_Heading]:
     found: list[_Heading] = []
     offset = 0
@@ -185,57 +252,57 @@ def _headings(content: str) -> list[_Heading]:
             if match:
                 hashes = match.group("hashes")
                 md_level = len(hashes) if hashes else None
-                unit = _canonicalize_unit(
-                    match.group("unit")
-                    or match.group("vol_unit")
-                    or match.group("en_unit")
-                    or match.group("ko_unit")
-                    or ""
-                )
-                number = _number(
-                    match.group("num")
-                    or match.group("vol_num")
-                    or match.group("en_num")
-                    or match.group("ko_num")
-                )
-                bracket_inner = match.group("bracketed")
-                bracket_cleaned = bracket_inner.strip() if bracket_inner else None
-                cn_section = bool(match.group("cn_section"))
-                found.append(
-                    _Heading(
-                        offset,
-                        stripped_nfc,
-                        _strip_heading_markup(stripped_nfc),
-                        bracket_cleaned,
-                        unit,
-                        number,
-                        md_level,
-                        _heading_rank(
-                            unit=unit,
-                            cn_section=cn_section,
-                            bracket_inner=bracket_cleaned,
-                            md_level=md_level,
-                        ),
-                    )
-                )
-            else:
-                generic = _MD_GENERIC_HEADING_RE.match(stripped_nfc)
-                if generic:
-                    md_level = len(generic.group("hashes"))
-                    plain = _strip_heading_markup(stripped_nfc)
-                    if plain:
-                        found.append(
-                            _Heading(
-                                offset,
-                                stripped_nfc,
-                                plain,
-                                None,
-                                None,
-                                None,
-                                md_level,
-                                md_level,
-                            )
+                unit, number = _extract_unit_and_number_from_match(match)
+                raw_wrapped, is_lens_bracket = _extract_wrapped_inner(match)
+                bracket_cleaned = raw_wrapped.strip() if raw_wrapped else None
+                if bracket_cleaned is not None and (unit is None or number is None):
+                    inner_unit, inner_number = _extract_unit_and_number(bracket_cleaned)
+                    if inner_unit is not None and inner_number is not None:
+                        unit, number = inner_unit, inner_number
+                # Non-chapter wrappers ([], （）, (), 「」, 『』, or >20-char 【】) only count as
+                # headings when their inner text is a recognized chapter/episode/volume heading;
+                # ordinary dialogue or stage directions fall through without truncating sections.
+                valid_heading = True
+                if raw_wrapped is not None and (unit is None or number is None):
+                    valid_heading = is_lens_bracket and len(raw_wrapped) <= _BRACKET_NON_UNIT_MAX_CHARS
+                if valid_heading:
+                    cn_section = bool(match.group("cn_section"))
+                    found.append(
+                        _Heading(
+                            offset,
+                            stripped_nfc,
+                            _strip_heading_markup(stripped_nfc),
+                            bracket_cleaned,
+                            unit,
+                            number,
+                            md_level,
+                            _heading_rank(
+                                unit=unit,
+                                cn_section=cn_section,
+                                bracket_inner=bracket_cleaned,
+                                md_level=md_level,
+                            ),
                         )
+                    )
+                    offset += len(line) + 1
+                    continue
+            generic = _MD_GENERIC_HEADING_RE.match(stripped_nfc)
+            if generic:
+                md_level = len(generic.group("hashes"))
+                plain = _strip_heading_markup(stripped_nfc)
+                if plain:
+                    found.append(
+                        _Heading(
+                            offset,
+                            stripped_nfc,
+                            plain,
+                            None,
+                            None,
+                            None,
+                            md_level,
+                            md_level,
+                        )
+                    )
         offset += len(line) + 1
     return found
 
@@ -244,31 +311,36 @@ def _section_bounds(content: str, section: str) -> tuple[int, int, str]:
     headings = _headings(content)
     wanted = unicodedata.normalize("NFC", section.strip())
     wanted_match = _HEADING_RE.match(wanted)
-    wanted_unit = (
-        _canonicalize_unit(
-            wanted_match.group("unit")
-            or wanted_match.group("vol_unit")
-            or wanted_match.group("en_unit")
-            or wanted_match.group("ko_unit")
-            or ""
-        )
-        if wanted_match
-        else None
-    )
-    wanted_number = (
-        _number(
-            wanted_match.group("num")
-            or wanted_match.group("vol_num")
-            or wanted_match.group("en_num")
-            or wanted_match.group("ko_num")
-        )
-        if wanted_match
-        else None
-    )
+    wanted_unit: str | None = None
+    wanted_number: int | None = None
+    if wanted_match:
+        wanted_unit, wanted_number = _extract_unit_and_number_from_match(wanted_match)
+        if wanted_unit is None or wanted_number is None:
+            raw_wrapped, _ = _extract_wrapped_inner(wanted_match)
+            if raw_wrapped:
+                wanted_unit, wanted_number = _extract_unit_and_number(raw_wrapped.strip())
 
     if wanted_unit and wanted_number is not None:
         # 「第3章」按章号比较：不会匹配「第13章」或「第3集」；「卷四」与「第4卷」统一按卷号比较。
         matches = [h for h in headings if h.unit == wanted_unit and h.number == wanted_number]
+        if len(matches) > 1:
+            wanted_plain = _strip_heading_markup(wanted)
+            wanted_unbracketed = _unbracket(wanted_plain)
+            exact = [
+                h
+                for h in matches
+                if (
+                    h.text == wanted
+                    or (wanted_plain and h.plain == wanted_plain)
+                    or (
+                        h.bracket_inner is not None
+                        and wanted_unbracketed
+                        and h.bracket_inner == wanted_unbracketed
+                    )
+                )
+            ]
+            if len(exact) == 1:
+                matches = exact
     else:
         wanted_plain = _strip_heading_markup(wanted)
         wanted_unbracketed = _unbracket(wanted_plain)

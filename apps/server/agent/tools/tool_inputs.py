@@ -34,7 +34,7 @@ from pydantic import (
 )
 
 from agent.constants import coerce_bool
-from config.project_status import PROJECT_STATUS_MAX_LENGTHS
+from config.project_status import PROJECT_STATUS_MAX_LENGTHS, PROJECT_STATUS_RECOMMENDED_TARGETS
 
 TOOL_INPUT_VALIDATION_ERROR_TYPE = "invalid_tool_input"
 
@@ -911,24 +911,38 @@ class UpdateProjectInput(_ToolInputModel):
         default=None,
         validation_alias=AliasChoices("summary", "projectSummary"),
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["summary"]},
-        description="作品简介（整体覆写，先合并现有内容；不含AI建议）",
+        description=(
+            f"作品简介（整体覆写，先合并现有内容；硬上限{PROJECT_STATUS_MAX_LENGTHS['summary']}字，"
+            f"建议精炼控制在{PROJECT_STATUS_RECOMMENDED_TARGETS['summary']}字以内，"
+            "接近时压缩/淘汰旧细节而非不断叠加；不含AI建议）"
+        ),
     )
     current_phase: StrictOptionalStr = Field(
         default=None,
         validation_alias=AliasChoices("current_phase", "currentPhase"),
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["current_phase"]},
-        description="当前进度（用作者使用的语言写）",
+        description=(
+            f"当前进度（用作者使用的语言写；硬上限{PROJECT_STATUS_MAX_LENGTHS['current_phase']}字，"
+            f"建议控制在{PROJECT_STATUS_RECOMMENDED_TARGETS['current_phase']}字以内，"
+            "只保留当前阶段与关键进度）"
+        ),
     )
     writing_style: StrictOptionalStr = Field(
         default=None,
         validation_alias=AliasChoices("writing_style", "writingStyle"),
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["writing_style"]},
-        description="作者确认的长期风格要求（整体覆写，先合并现有内容）",
+        description=(
+            f"作者确认的长期风格要求（整体覆写，先合并现有内容；硬上限{PROJECT_STATUS_MAX_LENGTHS['writing_style']}字，"
+            f"建议精炼控制在{PROJECT_STATUS_RECOMMENDED_TARGETS['writing_style']}字以内，"
+            "合并同类规则而非重复叠加）"
+        ),
     )
     notes: StrictOptionalStr = Field(
         default=None,
         json_schema_extra={"maxLength": PROJECT_STATUS_MAX_LENGTHS["notes"]},
-        description="作者明确要求记住的原话（仅传新条目，自动追加；一条一件事）",
+        description=(
+            f"作者明确要求记住的原话（仅传新条目，自动追加；一条一件事；硬上限{PROJECT_STATUS_MAX_LENGTHS['notes']}字）"
+        ),
     )
 
 

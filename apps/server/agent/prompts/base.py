@@ -334,7 +334,7 @@ _TOOL_USAGE_REST_COMMON = """### 文件 ID 使用规则 [非常重要]
 
 ### update_project 使用场景 [AI 记忆]
 **这是你的「AI 记忆」**（作者可在面板查看和编辑；只讨论/只审查时不调用写入；不要和需要后续写 `<file>` 正文的 create_file 或 write_chapter 并列调用）：
-- **只记作者定下的事实**：`summary` 只写作品本身（用文件标题指代文件，不写文件 id、不标「已确认」、不写 AI 建议或替作者起的人名）；`writing_style` 只记作者明确确认且要求持续沿用的长期偏好（单次局部改写要求不写入，AI 设想写在回复或大纲里）；`current_phase` 记录当前进度。三者均为整字段覆写，更新前先合并现有内容（被截断时勿覆盖），并用作者使用的语言写。
+- **只记作者定下的事实**：`summary` 只写作品本身（用文件标题指代文件，不写文件 id、不标「已确认」、不写 AI 建议或替作者起的人名）；`writing_style` 只记作者明确确认且要求持续沿用的长期偏好（单次局部改写要求不写入，AI 设想写在回复或大纲里）；`current_phase` 记录当前进度。三者均为整字段覆写，更新前先合并现有内容（被截断时勿覆盖），并用作者使用的语言写。同时控制篇幅留出余量：`summary` 硬上限 4000 字（建议精炼控制在 3000 字以内），`current_phase` / `writing_style` 硬上限 1000 字（建议精炼控制在 700 字以内）；接近建议目标时主动压缩合并、淘汰已完结的旧细节，不要无休止追加。
 - **`notes` 仅在作者明确要求记住时调用**：逐条传作者原话（用「；」或换行分隔，不加推断/前缀/括号），只传新条目（已有条目由系统保留，不可删改）；结果里的 `notes_added` 才是实际记下的内容，没有它不要说已记住。作者要求删改旧约定时不记删改指令本身，仅可记录作者给的新说法并请作者在「AI 记忆」里自行删改旧条目。
 - **`title` 作品定名**：首次给作品定名时传 `title`；作者自起的项目名不会被覆盖，按返回的 `title_note` 告知现有手动改名入口，不要自己编。
 
@@ -551,7 +551,7 @@ _TOOL_USAGE_REST_COMMON_EN = """### File ID Rules [Critical]
 
 ### `update_project` Usage [AI Memory]
 **This is your AI Memory** (visible and editable by the author; do not write during discussion/review-only turns; do not pair with `create_file` or `write_chapter` that expects a `<file>` body next):
-- **Record only author-confirmed facts**: `summary` describes the work itself (refer to files by title, never file IDs or AI proposals); `writing_style` stores only long-term style preferences the author explicitly requested or confirmed; `current_phase` tracks current progress. All three overwrite the whole field — merge with existing content before updating (do not overwrite truncated text), and write in the author's / manuscript's language.
+- **Record only author-confirmed facts**: `summary` describes the work itself (refer to files by title, never file IDs or AI proposals); `writing_style` stores only long-term style preferences the author explicitly requested or confirmed; `current_phase` tracks current progress. All three overwrite the whole field — merge with existing content before updating (do not overwrite truncated text), and write in the author's / manuscript's language. Keep comfortable headroom below hard limits: `summary` has a hard cap of 4,000 chars (keep ≤3,000), and `current_phase` / `writing_style` have a hard cap of 1,000 chars (keep ≤700); when approaching the target, compress and retire older settled details instead of endlessly appending.
 - **Call `notes` only when the author explicitly asks you to remember something**: pass only new verbatim items (existing items are preserved automatically); only `notes_added` in the tool result was actually saved.
 - **`title`**: set only when naming the work for the first time; author-chosen project titles are never overwritten.
 

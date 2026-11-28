@@ -1985,4 +1985,27 @@ describe('ToolResultCard', () => {
       expect(screen.getByText('第七章 开窍')).toBeInTheDocument()
     })
   })
+
+  describe('update_project field-too-long failure card', () => {
+    it('renders safe projectFieldTooLong copy and never leaks raw English error text', () => {
+      i18nStub.language = 'en'
+      render(
+        <ToolResultCard
+          type="tool_result"
+          toolName="update_project"
+          error="summary exceeds max length (4000)"
+          result={{
+            status: 'error',
+            error_type: 'project_field_too_long',
+            user_message: '项目信息超出字数上限，未保存。',
+          }}
+        />
+      )
+      expect(screen.getByText('Update project failed')).toBeInTheDocument()
+      expect(screen.getByText('chat:tool.failureHint.projectFieldTooLong')).toBeInTheDocument()
+      expect(screen.queryByText(/exceeds max length/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/项目信息超出字数上限/)).not.toBeInTheDocument()
+      i18nStub.language = 'zh'
+    })
+  })
 })

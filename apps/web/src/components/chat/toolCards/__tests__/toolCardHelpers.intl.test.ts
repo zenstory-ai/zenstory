@@ -50,6 +50,7 @@ describe('toolCardHelpers international failure coverage & word unit parity', ()
     ['chapter_written_this_turn', 'chapterWrittenThisTurn'],
     ['wall_clock_wrap_up', 'wallClockWrapUp'],
     ['edit_repeat_limit', 'editRepeatLimit'],
+    ['project_field_too_long', 'projectFieldTooLong'],
   ];
 
   it.each(NEW_ERROR_TYPES)(
