@@ -61,6 +61,13 @@ export default function MaterialsPage() {
     );
   }
 
+  const hasEmptyWorkspaceUploadCta =
+    state.hasWorkspaceAccess &&
+    !state.isMaterialsLoading &&
+    !state.isMaterialsError &&
+    state.materials.length === 0 &&
+    !state.isMaterialsQuotaExhausted;
+
   return (
     <>
       {/* Header */}
@@ -78,6 +85,7 @@ export default function MaterialsPage() {
         action={
           state.hasWorkspaceAccess ? (
             <Button
+              variant={hasEmptyWorkspaceUploadCta ? "secondary" : "primary"}
               size={actionSize}
               onClick={() => state.setShowUploadModal(true)}
               disabled={state.isMaterialsQuotaExhausted}
@@ -92,7 +100,11 @@ export default function MaterialsPage() {
             </Button>
           ) : state.showHeaderUpgrade ? (
             <Button
-              variant="primary"
+              variant={
+                state.trialAvailable || (state.trialUsed && state.materials.length > 0)
+                  ? "secondary"
+                  : "primary"
+              }
               size={actionSize}
               onClick={() => state.openUpgradePath("billing")}
               data-testid="materials-header-upgrade"
@@ -106,15 +118,25 @@ export default function MaterialsPage() {
       {state.proEntry.checkoutOff && !state.hasWorkspaceAccess && (
         <p
           data-testid="materials-checkout-unavailable"
-          className="mb-4 rounded-lg border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-3 py-2 text-sm text-[hsl(var(--text-secondary))]"
+          className="mb-4 rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] px-4 py-3 text-sm text-[hsl(var(--text-secondary))]"
         >
           {state.checkoutUnavailableText}
         </p>
       )}
 
       {state.isMaterialsLoading ? (
-        <div role="status" className="flex items-center justify-center h-64">
-          <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(var(--accent-primary))]" />
+        <div
+          role="status"
+          data-testid="materials-loading"
+          className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3"
+        >
+          {[0, 1, 2].map((item) => (
+            <div
+              key={item}
+              aria-hidden="true"
+              className="h-36 skeleton-shimmer rounded-2xl border border-[hsl(var(--border-color))]"
+            />
+          ))}
           <span className="sr-only">{t("common:loading", { defaultValue: "加载中…" })}</span>
         </div>
       ) : state.isMaterialsError ? (

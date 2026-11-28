@@ -39,28 +39,28 @@ function getTreeItemIcon(type: MaterialTreeItemType, isExpanded: boolean) {
   switch (type) {
     case "folder":
       return isExpanded ? (
-        <FolderOpen className="w-4 h-4 text-current" />
+        <FolderOpen className="w-4 h-4" />
       ) : (
-        <Folder className="w-4 h-4 text-[hsl(var(--text-tertiary))]" />
+        <Folder className="w-4 h-4" />
       );
     case "chapter":
-      return <BookOpen className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <BookOpen className="w-4 h-4" />;
     case "character":
-      return <User className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <User className="w-4 h-4" />;
     case "story":
-      return <Sparkles className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <Sparkles className="w-4 h-4" />;
     case "worldview":
-      return <Globe className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <Globe className="w-4 h-4" />;
     case "plot":
-      return <File className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <File className="w-4 h-4" />;
     case "storyline":
-      return <GitBranch className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <GitBranch className="w-4 h-4" />;
     case "relationship":
-      return <Users className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <Users className="w-4 h-4" />;
     case "goldenfinger":
-      return <Zap className="w-4 h-4 text-[hsl(var(--text-secondary))]" />;
+      return <Zap className="w-4 h-4" />;
     default:
-      return <File className="w-4 h-4 text-[hsl(var(--text-tertiary))]" />;
+      return <File className="w-4 h-4" />;
   }
 }
 
@@ -79,7 +79,7 @@ export function MaterialFileTree({
   const { t } = useTranslation(["materials", "common"]);
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {items.map((item) => {
         const isExpanded = searchActive || expandedFolders.has(item.id);
         const isSelected = selectedKey === materialTreeItemKey(item);
@@ -88,33 +88,42 @@ export function MaterialFileTree({
         return (
           <div key={item.id}>
             <button
+              type="button"
               id={item.type === "folder" ? `material-folder-${item.id}` : undefined}
               onClick={() => onItemClick(item)}
               aria-expanded={item.type === "folder" ? isExpanded : undefined}
               aria-current={isSelected ? "true" : undefined}
               title={item.title}
-              className={`w-full flex items-center gap-2 px-2 py-2 min-h-10 max-md:min-h-11 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] ${
+              className={`w-full flex items-center gap-2 px-2 py-1.5 min-h-8 max-md:min-h-11 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--accent-primary)/0.5)] ${
                 isSelected
-                  ? "bg-[hsl(var(--accent-primary)/0.08)] text-[hsl(var(--accent-primary))]"
+                  ? "bg-[hsl(var(--accent-primary)/0.12)] text-[hsl(var(--accent-primary))] font-medium"
                   : "hover:bg-[hsl(var(--bg-tertiary))] text-[hsl(var(--text-primary))] active:bg-[hsl(var(--bg-hover))]"
               }`}
               style={{ paddingLeft: `${level * 12 + 8}px` }}
             >
               {item.type === "folder" && (
-                <span className="shrink-0">
+                <span className="shrink-0 text-[hsl(var(--text-secondary))]">
                   <ChevronRight
                     aria-hidden="true"
                     className={`w-3.5 h-3.5 motion-chevron ${isExpanded ? "rotate-90" : ""}`}
                   />
                 </span>
               )}
-              <span className="shrink-0">{getTreeItemIcon(item.type, isExpanded)}</span>
+              <span
+                className={`shrink-0 ${
+                  isSelected
+                    ? "text-[hsl(var(--accent-primary))]"
+                    : "text-[hsl(var(--text-secondary))]"
+                }`}
+              >
+                {getTreeItemIcon(item.type, isExpanded)}
+              </span>
               <span className="truncate flex-1 text-left">{item.title}</span>
               {item.type === "folder" && loadingStates[item.id] && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[hsl(var(--accent-primary))]" />
               )}
               {item.type === "folder" && item.count !== undefined && (
-                <span className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
+                <span className="min-w-[1.5rem] shrink-0 text-right text-xs tabular-nums text-[hsl(var(--text-secondary))]">
                   {item.count.toLocaleString(i18n.language)}
                 </span>
               )}

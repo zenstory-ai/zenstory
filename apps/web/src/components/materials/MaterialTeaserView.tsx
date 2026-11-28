@@ -43,10 +43,10 @@ export function MaterialTeaserView({
                   limit: proDecompositionsLimit,
                 })}
           </p>
-          <ul className="space-y-2 text-sm text-[hsl(var(--text-secondary))]">
-            <li>• {t("materials:teaserFeatureOne", { defaultValue: "拆出章节梗概、角色、世界观和金手指" })}</li>
-            <li>• {t("materials:teaserFeatureTwo", { defaultValue: "把角色和设定添加到项目，或引用到 AI 对话" })}</li>
-            <li>• {t("materials:teaserFeatureThree", { defaultValue: "次数用完后，已拆好的内容仍可查看和引用" })}</li>
+          <ul className="list-disc space-y-2 pl-4 text-sm text-[hsl(var(--text-secondary))]">
+            <li>{t("materials:teaserFeatureOne", { defaultValue: "拆出章节梗概、角色、世界观和金手指" })}</li>
+            <li>{t("materials:teaserFeatureTwo", { defaultValue: "把角色和设定添加到项目，或引用到 AI 对话" })}</li>
+            <li>{t("materials:teaserFeatureThree", { defaultValue: "次数用完后，已拆好的内容仍可查看和引用" })}</li>
           </ul>
           {!trialAvailable && (
             <p data-testid="materials-free-try" className="text-sm text-[hsl(var(--text-secondary))]">
@@ -62,36 +62,36 @@ export function MaterialTeaserView({
           </p>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
-              <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
+              <h3 className="text-sm font-semibold leading-snug text-[hsl(var(--text-primary))]">
                 {t("materials:teaserCardCharacter", {
                   defaultValue: "角色 · 秦月儿",
                 })}
-              </div>
-              <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
+              </h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
                 {t("materials:teaserCardCharacterBody", {
                   defaultValue: "林辰的未婚妻，却选择入宗机会与力量：探狱时撕下伪装，向落难的林辰索取唯一的入宗信物青玄令。",
                 })}
               </p>
             </div>
             <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
-              <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
+              <h3 className="text-sm font-semibold leading-snug text-[hsl(var(--text-primary))]">
                 {t("materials:teaserCardSynopsis", {
                   defaultValue: "章节梗概 · 前 3 章",
                 })}
-              </div>
-              <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
+              </h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
                 {t("materials:teaserCardSynopsisBody", {
                   defaultValue: "少帅林辰蒙冤待斩 → 玉佩带来重修机会 → 未婚妻摊牌索要信物。第 3 章结尾他刚恢复聚力境一重，脱困仍悬而未决。",
                 })}
               </p>
             </div>
             <div className="rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-primary))] p-4">
-              <div className="text-xs font-medium text-[hsl(var(--accent-primary))]">
+              <h3 className="text-sm font-semibold leading-snug text-[hsl(var(--text-primary))]">
                 {t("materials:teaserCardWorldview", {
                   defaultValue: "设定 · 天钨",
                 })}
-              </div>
-              <p className="mt-2 text-sm text-[hsl(var(--text-secondary))]">
+              </h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-[hsl(var(--text-secondary))]">
                 {t("materials:teaserCardWorldviewBody", {
                   defaultValue: "能穿透禁制与大阵、遮掩气息、遁入黑暗。丹田虽已修复，重伤未愈：力量有用，危机仍在。",
                 })}
