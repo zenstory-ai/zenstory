@@ -42,7 +42,7 @@ Pro users with remaining monthly breakdowns should use **Retry** on a failed car
 
 Make sure your chapters are saved to the cloud (`Saved` in the status bar) and sit inside **Drafts** or **Scripts** (`draft` / `script` types). Check whether your browser blocked the file download. Exported `.txt` files use **UTF-8** encoding—if older desktop software displays garbled characters, re-open the file with UTF-8 selected and keep the original export intact before converting encodings.
 
-Outlines, character sheets, and worldbuilding files are excluded from whole-manuscript export; open any individual planning file and choose **Download current file** to save it locally. See [Export your manuscript](../user-guide/export.md).
+Outlines, character sheets, and worldbuilding files are excluded from whole-manuscript export; open any individual planning file in the editor and copy it directly to save it locally. See [Export your manuscript](../user-guide/export.md).
 
 ## Editor or page feels sluggish
 

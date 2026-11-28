@@ -25,6 +25,8 @@ export interface DashboardFilterPillsProps<T extends string> {
   onChange: (value: T) => void;
   /** Optional additional CSS classes */
   className?: string;
+  /** Optional data-testid applied to the pills container */
+  testId?: string;
 }
 
 /**
@@ -76,6 +78,7 @@ export function DashboardFilterPills<T extends string>({
   value,
   onChange,
   className,
+  testId,
 }: DashboardFilterPillsProps<T>) {
   const isMobile = useIsMobile();
   const { containerRef, indicatorRef } = useSlidingIndicator<HTMLDivElement>(value, [
@@ -86,6 +89,7 @@ export function DashboardFilterPills<T extends string>({
   return (
     <div
       ref={containerRef}
+      data-testid={testId}
       className={`group/seg relative inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-[hsl(var(--border-color))] bg-[hsl(var(--bg-secondary))] p-1 scrollbar-none ${className || ""}`}
     >
       <span

@@ -103,6 +103,8 @@ export const SimpleEditor = ({
     contentAreaRef,
     displayContent,
     isStreaming,
+    isReviewMode,
+    zoom,
   });
 
   const {
@@ -374,13 +376,18 @@ export const SimpleEditor = ({
                 placeholder={
                   isStreaming && !displayContent ? "" : t("editor:placeholder.contentPlaceholder")
                 }
-                className={`editor-content font-[family-name:var(--font-body)] w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? "cursor-default" : ""}`}
+                className={`editor-content block font-[family-name:var(--font-body)] w-full overflow-y-hidden bg-transparent text-[hsl(var(--text-primary))] placeholder-[hsl(var(--text-secondary))] outline-none border-none resize-none leading-relaxed text-base ${isStreaming ? "cursor-default" : ""}`}
                 style={{ minHeight: `${SIMPLE_EDITOR_MIN_HEIGHT_PX}px`, fontSize: `${zoom}em` }}
               />
               {/* Calm editorial waiting state before the first streamed character arrives */}
               {isStreaming && !displayContent && <EditorStreamingCanvasWaiting />}
               {/* Mirror div for calculating selection position */}
-              <div ref={mirrorRef} aria-hidden="true" />
+              <div
+                ref={mirrorRef}
+                aria-hidden="true"
+                data-testid="editor-selection-mirror"
+                style={{ display: "none" }}
+              />
               {/* Typing cursor for streaming */}
               {isStreaming && displayContent && (
                 <span

@@ -25,7 +25,7 @@ Opening a project brings up the top toolbar and the left, center, and right work
 ### 1. Project top toolbar
 
 - **Left side**: Click the ZenStory logo to **Back to dashboard**, or click the current project title to open the **Project Switcher**. The switcher always includes a search box at the top, lets you click any project to switch, hover a project row to **Rename** or **Delete** it, or click **New Project** at the bottom to expand a name input and create a new long-form novel project.
-- **Right side (desktop)**: Shows your daily AI message badge (on Free), **Manage Subscription**, **Export whole work (TXT)** (or **Export whole script (TXT)** in screenplay projects), **More Actions** (**Download current file (TXT)** when a file is open, **Help Docs**, and **Send Feedback**), **Settings**, and your user menu. On mobile, these actions are grouped inside the top-right menu.
+- **Right side (desktop)**: Shows your daily AI message badge (on Free), **Manage Subscription**, **Export whole work (TXT)** (or **Export whole script (TXT)** in screenplay projects), **More Actions** (**Help Docs** and **Send Feedback**), **Settings**, and your user menu. On mobile, these actions are grouped inside the top-right menu.
 
 ### 2. Left sidebar: Files, Skills, and Materials
 

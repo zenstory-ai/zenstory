@@ -30,16 +30,24 @@ export function useEditorSelection({
   const isSelectionToolbarOpen = Boolean(selectedText && selectionPosition && fileId);
   const { isMounted: isSelectionToolbarMounted } = useAnimatedPresence(isSelectionToolbarOpen, 120);
 
+  const resetMirror = useCallback(() => {
+    const mirror = mirrorRef.current;
+    if (!mirror) return;
+    mirror.innerHTML = "";
+    mirror.style.cssText = "display: none;";
+  }, []);
+
   /** Forget the selection the toolbar and 去AI味 would act on. */
   const clearSelectionState = useCallback(() => {
     if (selectionTimeoutRef.current) {
       clearTimeout(selectionTimeoutRef.current);
       selectionTimeoutRef.current = null;
     }
+    resetMirror();
     setSelectedText("");
     setSelectionPosition(null);
     selectionRangeRef.current = null;
-  }, []);
+  }, [resetMirror]);
 
   /**
    * The selection is done with (quoted to chat, or the mobile editor panel was left): collapse
@@ -64,38 +72,47 @@ export function useEditorSelection({
     if (start === end) return null;
 
     const styles = window.getComputedStyle(textarea);
-    mirror.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      width: ${styles.width};
-      font: ${styles.font};
-      padding: ${styles.padding};
-      border: ${styles.border};
-      line-height: ${styles.lineHeight};
-      letter-spacing: ${styles.letterSpacing};
-    `;
+    try {
+      mirror.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        visibility: hidden;
+        pointer-events: none;
+        overflow: hidden;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        box-sizing: ${styles.boxSizing};
+        width: ${styles.width};
+        font: ${styles.font};
+        padding: ${styles.padding};
+        border: ${styles.border};
+        line-height: ${styles.lineHeight};
+        letter-spacing: ${styles.letterSpacing};
+      `;
 
-    const textBefore = textarea.value.substring(0, start);
-    const currentSelected = textarea.value.substring(start, end);
+      const textBefore = textarea.value.substring(0, start);
+      const currentSelected = textarea.value.substring(start, end);
 
-    mirror.innerHTML = "";
-    mirror.appendChild(document.createTextNode(textBefore));
-    const span = document.createElement("span");
-    span.textContent = currentSelected;
-    mirror.appendChild(span);
+      mirror.innerHTML = "";
+      mirror.appendChild(document.createTextNode(textBefore));
+      const span = document.createElement("span");
+      span.textContent = currentSelected;
+      mirror.appendChild(span);
 
-    const textareaRect = textarea.getBoundingClientRect();
-    const spanRect = span.getBoundingClientRect();
-    const mirrorRect = mirror.getBoundingClientRect();
+      const textareaRect = textarea.getBoundingClientRect();
+      const spanRect = span.getBoundingClientRect();
+      const mirrorRect = mirror.getBoundingClientRect();
 
-    const x = textareaRect.left + (spanRect.left - mirrorRect.left) + spanRect.width / 2;
-    const y = textareaRect.top + (spanRect.top - mirrorRect.top) - textarea.scrollTop - 8;
+      const x = textareaRect.left + (spanRect.left - mirrorRect.left) + spanRect.width / 2;
+      const y = textareaRect.top + (spanRect.top - mirrorRect.top) - textarea.scrollTop - 8;
 
-    return { x, y };
-  }, [textareaRef]);
+      return { x, y };
+    } finally {
+      resetMirror();
+    }
+  }, [resetMirror, textareaRef]);
 
   const handleSelection = useCallback(
     (target?: HTMLTextAreaElement | null) => {
@@ -175,14 +192,15 @@ export function useEditorSelection({
     }
   }, [panelHiddenOnMobile, textareaRef]);
 
-  // Cleanup selection timeout
+  // Cleanup selection timeout and mirror DOM
   useEffect(() => {
     return () => {
       if (selectionTimeoutRef.current) {
         clearTimeout(selectionTimeoutRef.current);
       }
+      resetMirror();
     };
-  }, []);
+  }, [resetMirror]);
 
   return {
     selectedText,

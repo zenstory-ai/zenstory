@@ -27,7 +27,7 @@
 
 - [订阅权益](user-guide/billing-benefits.md)：免费版与 Pro 权益对比、额度重置时间、在线开通/续费与兑换码使用
 - [版本历史](user-guide/version-history.md)：查看单文件历史版本、对比任意两个版本差异并恢复旧内容
-- [导出正文](user-guide/export.md)：按章节顺序导出整本正文或整部剧本（TXT），或下载当前单个文件
+- [导出正文](user-guide/export.md)：按章节顺序导出整本正文或整部剧本（TXT）
 
 ## 进阶技巧
 
