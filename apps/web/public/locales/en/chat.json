@@ -343,6 +343,7 @@
       "chapterWrittenThisTurn": "This chapter was just written in this turn, so it was not rewritten again.",
       "wallClockWrapUp": "This round is wrapping up, so this step was deferred.",
       "editRepeatLimit": "This file reached the per-turn edit limit, so repeated micro-edits were paused.",
+      "projectFieldTooLong": "Project details exceeded the character limit and were not saved.",
       "generic": "This step did not complete; the file was not changed."
     },
     "partialFailureHint": {

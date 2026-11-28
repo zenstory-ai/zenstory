@@ -35,6 +35,7 @@ from agent.tools.file_ops.edit import (
     EDIT_ERROR_GENERIC,
     EDIT_ERROR_INVALID_EDIT,
     EDIT_ERROR_PERMISSION_DENIED,
+    EDIT_ERROR_PROJECT_FIELD_TOO_LONG,
     EDIT_ERROR_SKILL_LIMIT_EXCEEDED,
     EDIT_ERROR_SKILL_NOT_FOUND,
     EDIT_ERROR_SKILL_RESOURCE_NOT_FOUND,
@@ -86,6 +87,12 @@ from agent.tools.tool_inputs import (
     validate_tool_input,
 )
 from config.project_notes import merge_project_notes
+from config.project_status import (
+    PROJECT_STATUS_MAX_LENGTHS,
+    PROJECT_STATUS_RECOMMENDED_TARGETS,
+    PROJECT_STATUS_SOFT_WARN_THRESHOLDS,
+    ProjectStatusFieldTooLongError,
+)
 from services.features.file_version_service import content_sha256
 from services.file_tree_rules import has_sibling_title_conflict
 from utils.logger import get_logger, log_with_context
@@ -3277,7 +3284,47 @@ def _update_project_sync(
                     if key in status_result:
                         result[key] = status_result[key]
 
+                current_status = status_result.get("current_status")
+                if isinstance(current_status, dict):
+                    near_cap_notes: list[str] = []
+                    for field_name in result["updated_fields"]:
+                        threshold = PROJECT_STATUS_SOFT_WARN_THRESHOLDS.get(field_name)
+                        max_len = PROJECT_STATUS_MAX_LENGTHS.get(field_name)
+                        target_len = PROJECT_STATUS_RECOMMENDED_TARGETS.get(field_name)
+                        if threshold is None or max_len is None or target_len is None:
+                            continue
+                        saved_value = current_status.get(field_name)
+                        if isinstance(saved_value, str) and len(saved_value) >= threshold:
+                            if field_name == "notes":
+                                near_cap_notes.append(
+                                    f"notes 已达 {len(saved_value)}/{max_len} 字，接近上限，后续仅追加作者明确要求记住的精炼条目"
+                                )
+                            else:
+                                near_cap_notes.append(
+                                    f"{field_name} 已达 {len(saved_value)}/{max_len} 字，接近上限；"
+                                    f"下次更新请主动精炼压缩旧细节至 {target_len} 字以内，留出后续更新空间"
+                                )
+                    if near_cap_notes:
+                        result["headroom_hint"] = "；".join(near_cap_notes) + "。"
+
             return _make_result({"status": "success", "data": result}, tool_name=tool_name)
+        except ProjectStatusFieldTooLongError as exc:
+            return _make_structured_error(
+                (
+                    f"{exc.field_name} 当前传入 {exc.actual_length} 字，超出 {exc.max_length} 字上限"
+                    f"（多出 {exc.excess} 字）；请精炼压缩旧细节至 {exc.recommended_target} 字以内后重试，"
+                    "留出后续更新空间。"
+                ),
+                error_type=EDIT_ERROR_PROJECT_FIELD_TOO_LONG,
+                user_message=edit_error_user_message(EDIT_ERROR_PROJECT_FIELD_TOO_LONG),
+                tool_name=tool_name,
+                mutation_applied=False,
+                field_name=exc.field_name,
+                actual_length=exc.actual_length,
+                max_length=exc.max_length,
+                excess=exc.excess,
+                recommended_target=exc.recommended_target,
+            )
         except Exception as e:
             return _make_error(str(e), tool_name=tool_name)
 

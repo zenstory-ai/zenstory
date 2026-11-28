@@ -343,6 +343,7 @@
       "chapterWrittenThisTurn": "这一章本轮刚写完，没有重复重写。",
       "wallClockWrapUp": "这一轮已进入收尾阶段，该步骤未执行。",
       "editRepeatLimit": "同一文件本轮微调次数已达上限，已停止重复修改。",
+      "projectFieldTooLong": "项目信息超出字数上限，未保存。",
       "generic": "这一步未能完成，文件未改动。"
     },
     "partialFailureHint": {

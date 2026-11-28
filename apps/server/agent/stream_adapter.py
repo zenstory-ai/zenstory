@@ -69,12 +69,16 @@ from .core.workflow_events import (
 from .core.workflow_events import StreamEvent as WorkflowStreamEvent
 from .loop.history import slim_client_tool_result
 from .openai_agents.events import extract_tool_result_text, parse_mcp_tool_payload
-from .tools.file_ops.edit import edit_error_user_message
+from .tools.file_ops.edit import EDIT_ERROR_PROJECT_FIELD_TOO_LONG, edit_error_user_message
 
 logger = get_logger(__name__)
 
 _UNPARSED = object()
-_SAFE_FILE_ERROR_TOOLS = frozenset({"edit_file", "batch_replace_files", "write_chapter", "create_file"})
+_SAFE_FILE_ERROR_TOOLS = frozenset(
+    {"edit_file", "batch_replace_files", "write_chapter", "create_file", "update_project"}
+)
+_UPDATE_PROJECT_GENERIC_ERROR_MESSAGE = "项目信息未能更新，请重试。"
+_UPDATE_PROJECT_MODEL_ONLY_KEYS = frozenset({"headroom_hint", "hint"})
 
 
 def _with_sync_session[T](fn: Callable[[Any], T]) -> T:
@@ -685,7 +689,15 @@ class StreamAdapter:
             if failure_hints.get("user_message"):
                 error = failure_hints["user_message"]
             elif status == "error" and tool_name in _SAFE_FILE_ERROR_TOOLS:
-                error = edit_error_user_message(failure_hints.get("error_type"))
+                error_type = failure_hints.get("error_type")
+                if tool_name == "update_project":
+                    error = (
+                        edit_error_user_message(error_type)
+                        if error_type == EDIT_ERROR_PROJECT_FIELD_TOO_LONG
+                        else _UPDATE_PROJECT_GENERIC_ERROR_MESSAGE
+                    )
+                else:
+                    error = edit_error_user_message(error_type)
 
             if (
                 status == "success"
@@ -943,11 +955,24 @@ class StreamAdapter:
             return sanitized
         if tool_name == "batch_replace_files" and "skipped_files" in data:
             return {**data, "skipped_files": cls._client_safe_skipped_files(data.get("skipped_files"))}
+        if tool_name == "update_project":
+            has_top_model_only = any(key in data for key in _UPDATE_PROJECT_MODEL_ONLY_KEYS)
+            project_status = data.get("project_status")
+            has_nested_model_only = isinstance(project_status, dict) and any(
+                key in project_status for key in _UPDATE_PROJECT_MODEL_ONLY_KEYS
+            )
+            if has_top_model_only or has_nested_model_only:
+                sanitized = {k: v for k, v in data.items() if k not in _UPDATE_PROJECT_MODEL_ONLY_KEYS}
+                if has_nested_model_only and isinstance(project_status, dict):
+                    sanitized["project_status"] = {
+                        k: v for k, v in project_status.items() if k not in _UPDATE_PROJECT_MODEL_ONLY_KEYS
+                    }
+                return sanitized
         return data
 
     @classmethod
     def _safe_tool_error_payload(cls, parsed_result: Any, result_data: Any) -> dict[str, Any]:
-        """为 edit_file / batch_replace_files / write_chapter / create_file 失败卡构建严格白名单载荷。"""
+        """为 edit_file / batch_replace_files / write_chapter / create_file / update_project 失败卡构建严格白名单载荷。"""
         safe: dict[str, Any] = {}
         error_type: str | None = None
         for source in (parsed_result, result_data):
@@ -961,7 +986,7 @@ class StreamAdapter:
             if not isinstance(source, dict):
                 continue
             if not strip_file_meta:
-                for key in ("id", "title", "file_type"):
+                for key in ("id", "title", "file_type", "project_id"):
                     value = source.get(key)
                     if key not in safe and isinstance(value, str) and value.strip():
                         safe[key] = value.strip()
@@ -979,6 +1004,22 @@ class StreamAdapter:
                 safe_skipped = cls._client_safe_skipped_files(source.get("skipped_files"))
                 if safe_skipped:
                     safe["skipped_files"] = safe_skipped
+            if "updated_fields" not in safe and isinstance(source.get("updated_fields"), list):
+                safe_fields = [
+                    field.strip()
+                    for field in source["updated_fields"]
+                    if isinstance(field, str) and field.strip()
+                ]
+                if safe_fields:
+                    safe["updated_fields"] = safe_fields
+            if "notes_added" not in safe and isinstance(source.get("notes_added"), list):
+                safe_notes = [
+                    note.strip()
+                    for note in source["notes_added"]
+                    if isinstance(note, str) and note.strip()
+                ]
+                if safe_notes:
+                    safe["notes_added"] = safe_notes
         return safe
 
     @staticmethod

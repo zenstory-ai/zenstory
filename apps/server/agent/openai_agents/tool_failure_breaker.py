@@ -76,12 +76,19 @@ TRIP_REASON_TOTAL = "too_many_tool_failures"
 # 只返回清晰结构化错误引导模型改用当前可用工具，不计入熔断（由 max_turns 兜底轮数上限）。
 _NON_BREAKER_ERROR_TYPES = frozenset({"tool_not_found"})
 
-# 这两类失败即使模型每次换一点参数，恢复动作也不变：文件标识无效时必须重新取得
-# 当前真实标识；同一文件的锚点不存在时必须重读当前段落。按完整参数分别计数会让
-# “枚举相似 UUID / 不断换不存在的 old”绕到请求累计十次才停。
+# 这几类失败即使模型每次换一点参数，恢复动作也不变：文件标识无效时必须重新取得
+# 当前真实标识；update_project 字段超限时必须大幅精炼至目标字数以内；同一文件的
+# 锚点不存在时必须重读当前段落。按完整参数分别计数会让“枚举相似 UUID / 微删几个字
+# 在 4000 边缘来回震荡”绕到请求累计十次才停。
 _FILE_NOT_FOUND_ERROR_TYPE = "file_not_found"
 _ANCHOR_NOT_FOUND_ERROR_TYPE = "anchor_not_found"
+_PROJECT_FIELD_TOO_LONG_ERROR_TYPE = "project_field_too_long"
 _FILE_NOT_FOUND_FAMILY = ("edit_file", _FILE_NOT_FOUND_ERROR_TYPE, "*")
+_PROJECT_FIELD_TOO_LONG_FAMILY = ("update_project", _PROJECT_FIELD_TOO_LONG_ERROR_TYPE, "*")
+_EARLY_TRIP_RECOVERY_FAMILIES: frozenset[tuple[str, str, str]] = frozenset({
+    _FILE_NOT_FOUND_FAMILY,
+    _PROJECT_FIELD_TOO_LONG_FAMILY,
+})
 
 # 对外展示的错误摘要上限（SQL 报错可能带完整语句和参数）。
 _ERROR_PREVIEW_CHARS = 200
@@ -137,9 +144,13 @@ def _recovery_family_key(
     parsed_args: dict[str, Any] | None = None,
 ) -> tuple[str, str, str] | None:
     """Return a structured recovery family; never infer meaning from prose."""
+    error_type = payload.get("error_type")
+    if tool_name == "update_project":
+        if error_type == _PROJECT_FIELD_TOO_LONG_ERROR_TYPE:
+            return _PROJECT_FIELD_TOO_LONG_FAMILY
+        return None
     if tool_name != "edit_file":
         return None
-    error_type = payload.get("error_type")
     if error_type == _FILE_NOT_FOUND_ERROR_TYPE:
         # Different guessed IDs are the production failure mode, so the ID is intentionally
         # not part of this key. We do not choose or correct an ID; we only stop blind guessing.
@@ -158,6 +169,9 @@ def _clear_recovery_families(
     *,
     parsed_args: dict[str, Any] | None = None,
 ) -> None:
+    if tool_name == "update_project":
+        families.pop(_PROJECT_FIELD_TOO_LONG_FAMILY, None)
+        return
     if tool_name != "edit_file":
         return
     # A successful edit_file proves that the caller now has a usable ID, even if the
@@ -434,10 +448,10 @@ class ToolFailureBreaker:
 
         last_error = _preview(_extract_error_message(payload))
         if self.trip is None:
-            # 只有无效文件 id 这一族提前熔断（模型在猜 id）。同一文件的锚点失败只附恢复提示、
-            # 计入连续/累计失败上限：生产 11-01～03 这类失败多是长 old 差一两个字、大批编辑整批回滚，
-            # 改前 78% 之后都在同一文件上改成功了，三次即停反而掐断能自己恢复的轮次。
-            if recovery_key == _FILE_NOT_FOUND_FAMILY and recovery_count >= self.max_identical_failures:
+            # 无效文件 id 与 update_project 字段超限提前熔断（防止猜 id 或在字数上限边缘微删空转）。
+            # 同一文件的锚点失败只附恢复提示、计入连续/累计失败上限：生产 11-01～03 这类失败多是
+            # 长 old 差一两个字、大批编辑整批回滚，改前 78% 之后都在同一文件上改成功了，三次即停反而掐断能自己恢复的轮次。
+            if recovery_key in _EARLY_TRIP_RECOVERY_FAMILIES and recovery_count >= self.max_identical_failures:
                 self.trip = ToolFailureTrip(
                     reason=TRIP_REASON_RECOVERY,
                     tool_name=tool_name,
@@ -513,6 +527,12 @@ def _with_recovery_hint(output_text: str, error_type: str, count: int, threshold
             "先用 search_files 不带关键词查询当前文件列表，再从结果逐字复制目标 id。"
             "只有确认准确 id 后才能继续写；不能确认就停止并如实说明未修改，"
             "不能把失败解释成权限问题。"
+        )
+    elif error_type == _PROJECT_FIELD_TOO_LONG_ERROR_TYPE:
+        recovery = (
+            "update_project 字段已连续超出字数上限。不要只微删几个字反复试探："
+            "请按错误提示大幅精炼压缩旧细节至建议目标字数以内（summary ≤3000 字、"
+            "current_phase / writing_style ≤700 字）后再提交一次；"
         )
     else:
         recovery = (
