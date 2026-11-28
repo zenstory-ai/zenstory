@@ -70,7 +70,7 @@ _CHAPTER_UNITS = frozenset(
 _SUB_UNITS = frozenset({"节", "幕"})
 _MD_PREFIX_RE = re.compile(r"^\s*(?:#{1,6}\s+)?(?:\*{1,2})?\s*")
 _MD_BOLD_SUFFIX_RE = re.compile(r"\*{1,2}\s*$")
-_UNIT_BOUNDARY = r"(?=$|[ \t\u3000:：·.、—\-–|*])"
+_UNIT_BOUNDARY = r"(?=$|[ \t\u3000:：·.、—\-–|*（(【\[《「『])"
 # Sentence/clause punctuation inside wrapped delimiters indicates dialogue or
 # parenthetical prose rather than a structural heading.
 _WRAPPED_PROSE_PUNCT_RE = re.compile(r"[。！？!?…，,；;]|\.\s*$")

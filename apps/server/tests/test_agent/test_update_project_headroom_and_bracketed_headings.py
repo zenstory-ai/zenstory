@@ -619,3 +619,28 @@ def test_content_range_does_not_misclassify_wrapped_lines_with_trailing_prose():
     assert "背景设定完整结尾。" in bg["content"]
     assert "【人物关系】" not in bg["content"]
 
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("heading", "query", "next_heading"),
+    [
+        ("第1章（上）", "第1章", "第2章（下）"),
+        ("第1章(上)", "第1章", "第2章(下)"),
+        ("第1章【初遇】", "第1章", "第2章【重逢】"),
+        ("第一章《风起》", "第1章", "第二章《云涌》"),
+        ("第一章「风起」", "第1章", "第二章「云涌」"),
+        ("【第1章（上）】", "第1章", "【第2章（下）】"),
+        ("Chapter 1(Part 1)", "Chapter 1", "Chapter 2(Part 2)"),
+        ("제1화(상)", "제1화", "제2화(하)"),
+    ],
+)
+def test_content_range_preserves_no_space_delimited_chapter_subtitles(
+    heading: str, query: str, next_heading: str
+):
+    body = f"{heading}\n目标正文。\n\n{next_heading}\n下一段正文。"
+    row = apply_content_range({"id": "nospace-sub", "content": body}, {"section": query})
+    assert row["section"] == heading
+    assert "目标正文。" in row["content"]
+    assert next_heading not in row["content"]
+    assert body[row["content_range"]["start"] : row["content_range"]["end"]] == row["content"]
+
