@@ -40,11 +40,7 @@ for (const language of ['zh', 'en']) {
         await expect(monthlyPrice).toBeVisible();
         await expect(annualPrice).toHaveCount(0);
         await expect(page.getByText(language === 'zh' ? /32%/ : /34%/)).toHaveCount(1);
-        await expect(page.getByTestId('pricing-alternative-payment-hint')).toHaveText(
-          language === 'zh'
-            ? '海外用户可使用银行卡以美元支付（$9.99/月）'
-            : 'Alipay (CNY) is available for mainland China',
-        );
+        await expect(page.getByTestId('pricing-alternative-payment-hint')).toHaveCount(0);
         await page.screenshot({ path: info.outputPath('pricing-month.png'), fullPage: true, animations: 'disabled' });
         await yearly.click();
         await expect(annualPrice).toBeVisible();
