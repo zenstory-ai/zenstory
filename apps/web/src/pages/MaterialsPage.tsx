@@ -61,6 +61,13 @@ export default function MaterialsPage() {
     );
   }
 
+  const hasEmptyWorkspaceUploadCta =
+    state.hasWorkspaceAccess &&
+    !state.isMaterialsLoading &&
+    !state.isMaterialsError &&
+    state.materials.length === 0 &&
+    !state.isMaterialsQuotaExhausted;
+
   return (
     <>
       {/* Header */}
@@ -78,6 +85,7 @@ export default function MaterialsPage() {
         action={
           state.hasWorkspaceAccess ? (
             <Button
+              variant={hasEmptyWorkspaceUploadCta ? "secondary" : "primary"}
               size={actionSize}
               onClick={() => state.setShowUploadModal(true)}
               disabled={state.isMaterialsQuotaExhausted}

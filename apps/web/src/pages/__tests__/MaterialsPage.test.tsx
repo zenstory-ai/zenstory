@@ -318,6 +318,27 @@ describe("MaterialsPage", () => {
     expect(status.querySelectorAll(".skeleton-shimmer")).toHaveLength(3);
   });
 
+  it("demotes the header upload button to secondary when the empty paid library carries the primary upload CTA", async () => {
+    mockList.mockResolvedValueOnce([]);
+
+    const { unmount } = render(<MaterialsPage />, { wrapper: createWrapper() });
+
+    const bodyUpload = await screen.findByRole("button", { name: "materials:uploadFirst" });
+    const headerUpload = screen.getByRole("button", { name: "materials:upload" });
+    expect(bodyUpload.className).toContain("bg-[hsl(var(--primary))]");
+    expect(headerUpload.className).toContain("bg-[hsl(var(--bg-secondary))]");
+    expect(headerUpload.className).not.toContain("bg-[hsl(var(--primary))]");
+    unmount();
+
+    mockList.mockResolvedValueOnce([
+      { id: "n1", title: "已有参考书", status: "completed", chapters_count: 5, created_at: "2026-10-09T00:00:00Z" },
+    ]);
+    render(<MaterialsPage />, { wrapper: createWrapper() });
+    await screen.findByText("已有参考书");
+    const populatedHeaderUpload = screen.getByRole("button", { name: "materials:upload" });
+    expect(populatedHeaderUpload.className).toContain("bg-[hsl(var(--primary))]");
+  });
+
   it("shows a free author their trial book with a note that only the first chapters were broken down", async () => {
     mockGetStatus.mockResolvedValue(freeStatus);
     mockGetQuota.mockResolvedValue(freeQuota({ available: false, used: true, max_chapters: 20 }));

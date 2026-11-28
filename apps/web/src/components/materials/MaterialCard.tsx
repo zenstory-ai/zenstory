@@ -75,7 +75,6 @@ export function MaterialCard({
   onDelete,
   onRetry,
   isRetrying,
-  isMobile,
   showDeleteAction,
 }: MaterialCardProps) {
   const { t } = useTranslation(["materials", "common"]);
@@ -171,7 +170,7 @@ export function MaterialCard({
               <Button
                 type="button"
                 variant="secondary"
-                size={isMobile ? "touch" : "sm"}
+                size="touch"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRetry();

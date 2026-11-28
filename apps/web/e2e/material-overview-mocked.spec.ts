@@ -94,7 +94,7 @@ test('initial overview uses aggregate counts without entity reads and its index 
   await page.goto('/materials/24');
   const overview = page.getByRole('article', { name: '素材概览', exact: true });
   const characterIndex = overview.locator('.material-overview-index button').filter({ hasText: '角色' });
-  await expect(characterIndex).toContainText(/角色\s*·\s*1/);
+  await expect(characterIndex).toContainText(/角色\s*1/);
   await expect(characterIndex).toHaveAttribute('aria-label', '打开角色目录，1 项');
   expect(entityReads).toEqual([]);
 
@@ -201,10 +201,10 @@ test('unknown, zero, disabled historical and successful empty counts keep distin
   await page.goto('/materials/24');
   const overview = page.getByRole('article', { name: '素材概览', exact: true });
   const index = overview.locator('.material-overview-index button');
-  await expect(index.filter({ hasText: '章节' })).toContainText(/章节\s*·\s*—/);
-  await expect(index.filter({ hasText: '角色' })).toContainText(/角色\s*·\s*0/);
+  await expect(index.filter({ hasText: '章节' })).toContainText(/章节\s*—/);
+  await expect(index.filter({ hasText: '角色' })).toContainText(/角色\s*0/);
   await expect(index.filter({ hasText: /^剧情/ })).toHaveCount(0);
-  await expect(index.filter({ hasText: '故事线' })).toContainText(/故事线\s*·\s*1/);
+  await expect(index.filter({ hasText: '故事线' })).toContainText(/故事线\s*1/);
 
   const directory = page.getByRole('complementary', { name: '目录', exact: true });
   await expect(directory.getByRole('button', { name: /^章节$/ })).toBeVisible();

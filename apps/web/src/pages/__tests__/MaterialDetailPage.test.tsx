@@ -1614,13 +1614,43 @@ describe("MaterialDetailPage", () => {
     expect(summaryBox?.className).toContain("bg-[hsl(var(--bg-rail))]");
     unmount();
 
-    // Mobile header uses a 44px touch IconButton for export with preserved accessible name
+    // Mobile header uses a 44px touch IconButton for export with preserved accessible name,
+    // loading aria-busy/disabled state, and active-status disabled state
     mediaState.isMobile = true;
-    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    let resolveMobileExport!: (value: { filename: string }) => void;
+    mockExportBreakdown.mockReturnValueOnce(
+      new Promise<{ filename: string }>((resolve) => {
+        resolveMobileExport = resolve;
+      }),
+    );
+    const mobileView = render(<MaterialDetailPage />, { wrapper: createWrapper() });
     await screen.findByRole("heading", { level: 1, name: "山海志" });
     const mobileExport = screen.getByRole("button", { name: "导出拆解（TXT）" });
     expect(mobileExport.className).toContain("h-11");
     expect(mobileExport.className).toContain("w-11");
+    expect(mobileExport).toBeEnabled();
+
+    fireEvent.click(mobileExport);
+    await waitFor(() => {
+      expect(mobileExport).toBeDisabled();
+      expect(mobileExport).toHaveAttribute("aria-busy", "true");
+    });
+    await act(async () => {
+      resolveMobileExport({ filename: "山海志_拆解.txt" });
+    });
+    await waitFor(() => {
+      expect(mobileExport).toBeEnabled();
+      expect(mobileExport).not.toHaveAttribute("aria-busy");
+    });
+    mobileView.unmount();
+
+    mockGet.mockResolvedValueOnce({ ...referenceMaterial, id: "novel-processing", title: "拆解中书籍", status: "processing" });
+    routeState.novelId = "novel-processing";
+    render(<MaterialDetailPage />, { wrapper: createWrapper() });
+    await screen.findByRole("heading", { level: 1, name: "拆解中书籍" });
+    const disabledMobileExport = screen.getByRole("button", { name: "导出拆解（TXT）" });
+    expect(disabledMobileExport).toBeDisabled();
+    expect(disabledMobileExport).toHaveAttribute("title", "拆解完成后可导出");
   });
 
   it("offers a secondary back-to-materials action on 404 and load errors", async () => {

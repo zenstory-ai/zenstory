@@ -34,7 +34,7 @@ export function MaterialDetailHeader({
       <div className="flex min-h-12 items-center justify-between gap-2 px-3 py-1.5 md:gap-3 md:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-2.5">
           <IconButton
-            size="auto"
+            size="touch"
             label={t("common:back", { defaultValue: "返回" })}
             icon={<ChevronLeft className="h-5 w-5" />}
             onClick={onBack}
